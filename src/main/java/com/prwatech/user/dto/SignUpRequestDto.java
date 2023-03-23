@@ -5,17 +5,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import javax.validation.constraints.NotNull;
-
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class SignInRequestDto {
+public class SignUpRequestDto {
 
     private String email;
-    private Long phoneNumber;
-    @NotNull
-    private Boolean isEmailLogin;
     private String password;
+    private Boolean isEmailLogin;
+    private Long phoneNumber;
 }

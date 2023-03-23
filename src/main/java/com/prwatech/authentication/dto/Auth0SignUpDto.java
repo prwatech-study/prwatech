@@ -1,21 +1,20 @@
-package com.prwatech.user.dto;
+package com.prwatech.authentication.dto;
 
+import com.prwatech.common.Constants;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import javax.validation.constraints.NotNull;
-
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class SignInRequestDto {
+public class Auth0SignUpDto {
 
+    private String ClientId;
     private String email;
-    private Long phoneNumber;
-    @NotNull
-    private Boolean isEmailLogin;
     private String password;
+    private String connection;
+
 }
