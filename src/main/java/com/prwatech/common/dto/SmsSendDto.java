@@ -9,7 +9,11 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserDetails {
+public class SmsSendDto {
 
-  private String username;
+  private String message;
+  private String language;
+  private String route;
+  private int flash;
+  private String numbers;
 }

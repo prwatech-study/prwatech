@@ -10,9 +10,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
 @ResponseStatus(value = HttpStatus.UNAUTHORIZED)
-public class UnAuthorizedException extends RuntimeException{
+public class UnAuthorizedException extends RuntimeException {
 
-    public UnAuthorizedException(String message){
-        super(message);
-    }
+  public UnAuthorizedException(String message) {
+    super(message);
+  }
 }

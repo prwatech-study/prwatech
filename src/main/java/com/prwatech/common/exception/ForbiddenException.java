@@ -10,9 +10,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
 @ResponseStatus(value = HttpStatus.FORBIDDEN)
-public class ForbiddenException extends RuntimeException{
+public class ForbiddenException extends RuntimeException {
 
-    public ForbiddenException(String message){
-        super(message);
-    }
+  public ForbiddenException(String message) {
+    super(message);
+  }
 }
