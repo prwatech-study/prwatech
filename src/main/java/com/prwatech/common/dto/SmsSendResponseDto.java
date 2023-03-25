@@ -9,7 +9,8 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserDetails {
-
-  private String username;
+public class SmsSendResponseDto {
+  private String isReturn;
+  private String request_id;
+  private String message;
 }

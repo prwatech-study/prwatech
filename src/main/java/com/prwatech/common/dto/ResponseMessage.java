@@ -10,6 +10,6 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ResponseMessage {
-    private String status;
-    private HttpResponse response;
+  private String status;
+  private HttpResponse response;
 }

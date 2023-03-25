@@ -9,7 +9,8 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserDetails {
+public class FastToSmsWalletDto {
 
-  private String username;
+  private String isReturn;
+  private String wallet;
 }

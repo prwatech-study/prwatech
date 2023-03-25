@@ -13,6 +13,6 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class HttpResponse {
-    private HttpStatus code;
-    private String message;
+  private HttpStatus code;
+  private String message;
 }

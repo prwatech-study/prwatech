@@ -10,9 +10,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @Setter
 @JsonIgnoreProperties(ignoreUnknown = true)
 @ResponseStatus(value = HttpStatus.LOCKED)
-public class LockedException extends RuntimeException{
+public class LockedException extends RuntimeException {
 
-    public LockedException(String message){
-        super(message);
-    }
+  public LockedException(String message) {
+    super(message);
+  }
 }

@@ -11,16 +11,17 @@ import org.springframework.context.annotation.Configuration;
 @AllArgsConstructor
 public class BeanConfiguration {
 
-    private final AppContext appContext;
+  private final AppContext appContext;
 
-    @Bean
-    public AuthenticationController getAuth0Instance(){
+  @Bean
+  public AuthenticationController getAuth0Instance() {
 
-        JwkProvider jwkProvider = new JwkProviderBuilder(appContext.getAuth0DomainId()).build();
-        return AuthenticationController.newBuilder(appContext.getAuth0DomainId(),
-                        appContext.getAuth0ClientId(), appContext.getAuth0ClientSecretKey())
-                .withJwkProvider(jwkProvider)
-                .build();
-
-    }
+    JwkProvider jwkProvider = new JwkProviderBuilder(appContext.getAuth0DomainId()).build();
+    return AuthenticationController.newBuilder(
+            appContext.getAuth0DomainId(),
+            appContext.getAuth0ClientId(),
+            appContext.getAuth0ClientSecretKey())
+        .withJwkProvider(jwkProvider)
+        .build();
+  }
 }

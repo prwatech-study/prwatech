@@ -1,15 +1,16 @@
-package com.prwatech.common.dto;
+package com.prwatech.user.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-@Getter
 @Setter
+@Getter
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserDetails {
+public class UserOtpDto {
 
-  private String username;
+  private String userId;
+  private Long phoneNumber;
 }
