@@ -63,8 +63,8 @@ public class IamController {
   @PutMapping("/sign/in/up/{phoneNumber}")
   public UserOtpDto signInUnWithPhoneNumber(
       @PathVariable(value = "phoneNumber") @NotNull Long phoneNumber,
-      @RequestParam(value = "isSignIn") @NotNull Boolean isSingIn) {
-    return iamService.singInUpWithPhoneNumber(phoneNumber, isSingIn);
+      @RequestParam(value = "isSignUp") @NotNull Boolean isSingUp) {
+    return iamService.singInUpWithPhoneNumber(phoneNumber, isSingUp);
   }
 
   @ApiOperation(
