@@ -9,6 +9,6 @@ public class Utility {
 
   public static Integer createRandomOtp() {
     Random random = new Random();
-    return random.nextInt(MAX_LIMIT, MIN_LIMIT);
+    return random.nextInt();
   }
 }
