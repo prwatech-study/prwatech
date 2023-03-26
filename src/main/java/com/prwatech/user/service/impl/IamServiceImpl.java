@@ -203,6 +203,12 @@ public class IamServiceImpl implements IamService {
             Constants.DEFAULT_FLASH,
             phoneNumber.toString());
 
+    Boolean isSmsSent = smsSendService.sendSmsToPhoneNumber(smsSendDto);
+    if (!isSmsSent.equals(Boolean.TRUE)) {
+      throw new UnProcessableEntityException(
+          "Please put correct phone number or try with other phone number.");
+    }
+
     UserOtpMapping userOtpMapping = new UserOtpMapping();
     userOtpMapping.setUserid(user.getId());
     userOtpMapping.setPhoneNumber(phoneNumber);
@@ -210,12 +216,6 @@ public class IamServiceImpl implements IamService {
     userOtpMapping.setExpireAt(LocalDateTime.now().plusMinutes(2));
 
     userOtpMappingRepository.save(userOtpMapping);
-
-    Boolean isSmsSent = smsSendService.sendSmsToPhoneNumber(smsSendDto);
-    if (!isSmsSent.equals(Boolean.TRUE)) {
-      throw new UnProcessableEntityException(
-          "Please put correct phone number or try with other phone number.");
-    }
 
     return new UserOtpDto(user.getId(), phoneNumber);
   }
