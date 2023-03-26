@@ -81,12 +81,11 @@ public class IamController {
         @ApiResponse(code = 500, message = "Internal server error"),
       })
   @ResponseStatus(value = HttpStatus.OK)
-  @PutMapping("/verify/otp/{phoneNumber}")
+  @PutMapping("/verify/otp/{userId}")
   public SignInResponseDto verifyOtpForSignInSignUp(
-      @PathVariable(value = "phoneNumber") @NotNull Long phoneNumber,
-      @RequestParam(value = "userId") @NotNull String userId,
+      @PathVariable(value = "userId") @NotNull String userId,
       @RequestParam(value = "otp") @NotNull Integer otp) {
-    return iamService.verifyOtp(phoneNumber, userId, otp);
+    return iamService.verifyOtp(userId, otp);
   }
 
   @ApiOperation(value = "Resend Otp to user. ", notes = "Resend Otp to user. ")

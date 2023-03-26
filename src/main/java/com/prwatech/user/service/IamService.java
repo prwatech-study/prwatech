@@ -10,7 +10,7 @@ public interface IamService {
 
   UserOtpDto singInUpWithPhoneNumber(Long phoneNumber, Boolean isSingUp);
 
-  SignInResponseDto verifyOtp(Long phoneNumber, String userId, Integer otp);
+  SignInResponseDto verifyOtp(String userId, Integer otp);
 
   UserOtpDto reSendOtp(Long phoneNumber, String userId);
 }

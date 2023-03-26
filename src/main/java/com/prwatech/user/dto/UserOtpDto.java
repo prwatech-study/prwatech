@@ -12,5 +12,6 @@ import lombok.Setter;
 public class UserOtpDto {
 
   private String userId;
+  private String otpId;
   private Long phoneNumber;
 }

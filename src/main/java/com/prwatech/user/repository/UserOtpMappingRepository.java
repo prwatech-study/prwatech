@@ -7,4 +7,4 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 @EnableMongoRepositories
-public interface UserOtpMappingRepository extends MongoRepository<UserOtpMapping, Long> {}
+public interface UserOtpMappingRepository extends MongoRepository<UserOtpMapping, String> {}

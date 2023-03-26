@@ -19,9 +19,9 @@ public class UserOtpMapping {
   @Id private String id;
 
   @Field("user_id")
-  private String userid;
+  private String userId;
 
-  @Field("phone_number")
+  @Field("Phone_Number")
   private Long phoneNumber;
 
   @Field("otp")

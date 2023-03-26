@@ -14,15 +14,14 @@ public class UserOtpMappingTemplate {
 
   MongoTemplate mongoTemplate;
 
-  public Optional<UserOtpMapping> findOtpMappingByUserIdAndPhone(String userId, Long phone) {
-    Query query =
-        new Query().addCriteria(Criteria.where("user_id").is(userId).and("phone_number").is(phone));
+  public Optional<UserOtpMapping> findOtpMappingByUserId(String userId) {
+    Query query = new Query().addCriteria(Criteria.where("user_id").is(userId));
     return Optional.ofNullable(mongoTemplate.findOne(query, UserOtpMapping.class));
   }
 
   public void deleteOtpHistory(String userId, Long phone) {
     Query query =
-        new Query().addCriteria(Criteria.where("user_id").is(userId).and("phone_number").is(phone));
+        new Query().addCriteria(Criteria.where("user_id").is(userId).and("Phone_Number").is(phone));
     mongoTemplate.remove(query, UserOtpMapping.class);
   }
 }

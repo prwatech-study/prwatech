@@ -33,7 +33,7 @@ public class User {
   @Field(name = "Password")
   private String Password;
 
-  @Field(name = "PhoneNumber")
+  @Field(name = "Phone_Number")
   private Long PhoneNumber;
 
   @Field(name = "is_profile_image_uploaded")

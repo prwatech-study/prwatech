@@ -21,7 +21,7 @@ public class IamMongodbTemplateLayer {
   }
 
   public Optional<User> findByMobile(Long mobileNumber) {
-    Query query = new Query().addCriteria(Criteria.where("PhoneNumber").is(mobileNumber));
+    Query query = new Query().addCriteria(Criteria.where("Phone_Number").is(mobileNumber));
     return Optional.ofNullable(mongoTemplate.findOne(query, User.class));
   }
 }

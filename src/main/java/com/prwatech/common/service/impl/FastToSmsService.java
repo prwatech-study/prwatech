@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
+import com.prwatech.common.Constants;
 import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.dto.FastToSmsWalletDto;
 import com.prwatech.common.dto.SmsSendDto;
@@ -42,15 +43,20 @@ public class FastToSmsService {
   public SmsSendResponseDto sentMessage(SmsSendDto smsSendDto) {
     try {
       ObjectMapper objectMapper = new ObjectMapper();
-      String jsonBody = objectMapper.writeValueAsString(smsSendDto);
-      LOGGER.info("Json Body to send :: ------------ {}", jsonBody);
-      HttpResponse response =
-          Unirest.post("https://www.fast2sms.com/dev/bulkV2")
-              .header("authorization", appContext.getFastToSMSApiKey())
-              .header("Content-Type", "application/json")
-              .body(jsonBody)
-              .asString();
 
+      String senderId = "&senderId=" + "FSTSMS";
+      String message = "&message=" + smsSendDto.getMessage();
+      String route = "&route=" + Constants.FTSMS_ROUTE;
+      String numbers = "&numbers=" + smsSendDto.getNumbers();
+      String language = "&language" + Constants.DEFAULT_LANGUAGE;
+      String myUrl =
+          "https://www.fast2sms.com/dev/bulkV2?authorization="
+              + appContext.getFastToSMSApiKey()
+              + message
+              + language
+              + route
+              + numbers;
+      HttpResponse response = Unirest.get(myUrl).asString();
       if (response.getCode() == 200) {
         JsonNode jsonObject = objectMapper.readTree(response.getBody().toString());
         return new SmsSendResponseDto(

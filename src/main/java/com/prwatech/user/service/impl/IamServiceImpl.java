@@ -151,6 +151,7 @@ public class IamServiceImpl implements IamService {
 
     user.setPhoneNumber(phoneNumber);
     user.setDisable(Boolean.FALSE);
+    user.setIsMobileRegistered(Boolean.TRUE);
     user = iamRepository.save(user);
 
     Integer otp = Utility.createRandomOtp();
@@ -170,14 +171,14 @@ public class IamServiceImpl implements IamService {
     }
 
     UserOtpMapping userOtpMapping = new UserOtpMapping();
-    userOtpMapping.setUserid(user.getId());
+    userOtpMapping.setUserId(user.getId());
     userOtpMapping.setPhoneNumber(phoneNumber);
     userOtpMapping.setOtp(otp);
     userOtpMapping.setExpireAt(LocalDateTime.now().plusMinutes(2));
 
-    userOtpMappingRepository.save(userOtpMapping);
+    userOtpMapping = userOtpMappingRepository.save(userOtpMapping);
 
-    return new UserOtpDto(user.getId(), phoneNumber);
+    return new UserOtpDto(user.getId(), userOtpMapping.getId(), phoneNumber);
   }
 
   private UserOtpDto signInWithPhoneNumber(Long phoneNumber) {
@@ -210,38 +211,39 @@ public class IamServiceImpl implements IamService {
     }
 
     UserOtpMapping userOtpMapping = new UserOtpMapping();
-    userOtpMapping.setUserid(user.getId());
+    userOtpMapping.setUserId(user.getId());
     userOtpMapping.setPhoneNumber(phoneNumber);
     userOtpMapping.setOtp(otp);
     userOtpMapping.setExpireAt(LocalDateTime.now().plusMinutes(2));
 
-    userOtpMappingRepository.save(userOtpMapping);
+    userOtpMapping = userOtpMappingRepository.save(userOtpMapping);
 
-    return new UserOtpDto(user.getId(), phoneNumber);
+    return new UserOtpDto(user.getId(), userOtpMapping.getId(), phoneNumber);
   }
 
   @Override
-  public SignInResponseDto verifyOtp(Long phoneNumber, String userId, Integer otp) {
+  public SignInResponseDto verifyOtp(String userId, Integer otp) {
 
     Optional<UserOtpMapping> otpMappingObject =
-        userOtpMappingTemplate.findOtpMappingByUserIdAndPhone(userId, phoneNumber);
-    if (otpMappingObject.isEmpty()) {
+        userOtpMappingTemplate.findOtpMappingByUserId(userId);
+    if (otpMappingObject.isEmpty() || !otpMappingObject.isPresent()) {
       throw new NotFoundException("Wrong otp and phone number !");
     }
 
     UserOtpMapping userOtpMapping = otpMappingObject.get();
 
     if (userOtpMapping.getExpireAt().isBefore(LocalDateTime.now())) {
-      userOtpMappingTemplate.deleteOtpHistory(userId, phoneNumber);
+      userOtpMappingRepository.deleteById(userOtpMapping.getId());
       throw new UnProcessableEntityException("Your Otp time has been expired.");
     }
 
-    if (userOtpMapping.getOtp() != otp) {
+    if (!userOtpMapping.getOtp().equals(otp)) {
       throw new UnProcessableEntityException("Otp does not matched please try again.");
     }
 
     userOtpMappingRepository.delete(userOtpMapping);
-    Optional<User> usersObject = iamMongodbTemplateLayer.findByMobile(phoneNumber);
+    Optional<User> usersObject =
+        iamMongodbTemplateLayer.findByMobile(userOtpMapping.getPhoneNumber());
 
     User user = usersObject.get();
     user.setLastLogin(LocalDateTime.now());
@@ -261,7 +263,7 @@ public class IamServiceImpl implements IamService {
   @Override
   public UserOtpDto reSendOtp(Long phoneNumber, String userId) {
     Optional<UserOtpMapping> otpMappingObject =
-        userOtpMappingTemplate.findOtpMappingByUserIdAndPhone(userId, phoneNumber);
+        userOtpMappingTemplate.findOtpMappingByUserId(userId);
 
     if (otpMappingObject.isEmpty()) {
       throw new NotFoundException("No otp mapping found with this number.");
@@ -277,17 +279,16 @@ public class IamServiceImpl implements IamService {
             Constants.DEFAULT_FLASH,
             phoneNumber.toString());
 
-    userOtpMapping.setOtp(otp);
-    userOtpMapping.setExpireAt(LocalDateTime.now().plusMinutes(2));
-
-    userOtpMappingRepository.save(userOtpMapping);
-
     Boolean isSmsSent = smsSendService.sendSmsToPhoneNumber(smsSendDto);
     if (!isSmsSent.equals(Boolean.TRUE)) {
       throw new UnProcessableEntityException(
           "Please put correct phone number or try with other phone number.");
     }
+    userOtpMapping.setOtp(otp);
+    userOtpMapping.setExpireAt(LocalDateTime.now().plusMinutes(2));
 
-    return new UserOtpDto(userOtpMapping.getUserid(), phoneNumber);
+    userOtpMapping = userOtpMappingRepository.save(userOtpMapping);
+
+    return new UserOtpDto(userOtpMapping.getUserId(), userOtpMapping.getId(), phoneNumber);
   }
 }
