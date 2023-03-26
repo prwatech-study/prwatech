@@ -15,11 +15,8 @@ import org.springframework.data.mongodb.core.mapping.Field;
 @Document(value = "JobCategory")
 public class JobCategory {
 
-@Id private String id;
+  @Id private String id;
 
-
-@Field(value = "Category_Name")
-private String CategoryName;
-
-
+  @Field(value = "Category_Name")
+  private String CategoryName;
 }

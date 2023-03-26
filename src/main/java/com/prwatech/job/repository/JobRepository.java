@@ -7,5 +7,4 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 @EnableMongoRepositories
-public interface JobRepository extends MongoRepository<Jobs,String> {
-}
+public interface JobRepository extends MongoRepository<Jobs, String> {}
