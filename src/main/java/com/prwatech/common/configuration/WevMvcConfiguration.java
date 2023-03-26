@@ -1,6 +1,7 @@
 package com.prwatech.common.configuration;
 
 import com.prwatech.authentication.security.AuthInterceptor;
+import com.prwatech.authentication.security.JwtUtils;
 import org.springframework.boot.convert.ApplicationConversionService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,7 +23,7 @@ public class WevMvcConfiguration implements WebMvcConfigurer {
 
   @Bean
   public AuthInterceptor authenticationInterceptor() {
-    return new AuthInterceptor();
+    return new AuthInterceptor(new JwtUtils());
   }
 
   @Override
