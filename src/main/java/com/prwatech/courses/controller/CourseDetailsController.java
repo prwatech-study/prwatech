@@ -19,9 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class CourseDetailsController {
 
   private final CourseDetailService courseDetailService;
-  // get most popular courses list limit 10.
 
-  @ApiOperation(value = "Get All Job Listing", notes = "Get All Job Listing")
+
+  @ApiOperation(value = "Get most popular courses", notes = "Get most popular courses")
   @ApiResponses(
       value = {
         @ApiResponse(code = 200, message = "Success"),
