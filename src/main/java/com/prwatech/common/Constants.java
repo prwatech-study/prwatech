@@ -34,4 +34,6 @@ public class Constants {
   public static final String DEFAULT_OTP_SMS_BODY = "Welcome to Prwatech, your OTP is : ";
   public static final int DEFAULT_FLASH = 0;
   public static final String DEFAULT_LANGUAGE = "english";
+
+  public static Integer DEFAULT_PRICING = 1999;
 }
