@@ -6,4 +6,6 @@ import java.util.List;
 public interface CourseDetailService {
 
   List<CourseCardDto> getMostPopularCourses();
+
+  List<CourseCardDto> getSelfPlacedCourses();
 }

@@ -52,6 +52,11 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     return courseCardDtoList;
   }
 
+  @Override
+  public List<CourseCardDto> getSelfPlacedCourses() {
+    return null;
+  }
+
   private CourseRatingDto getRatingOfCourse(String courseId) {
     List<CourseReview> courseReviewList =
         courseReviewRepositoryTemplate.getCourseReviewByCourseId(courseId);

@@ -5,6 +5,7 @@ import java.util.List;
 import lombok.AllArgsConstructor;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.BasicQuery;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
 
@@ -15,8 +16,8 @@ public class CourseDetailsRepositoryTemplate {
   private final MongoTemplate mongoTemplate;
 
   public List<CourseDetails> getMostPopularCourse() {
-    Query query = new BasicQuery("{}");
-    query.limit(10);
+    Query query = new Query();
+    query.addCriteria(Criteria.where("Course_Types").in("Classroom")).limit(10);
     return mongoTemplate.find(query, CourseDetails.class);
   };
 
