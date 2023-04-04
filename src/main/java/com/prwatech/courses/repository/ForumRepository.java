@@ -7,5 +7,4 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 @EnableMongoRepositories
-public interface ForumRepository extends MongoRepository<Forum,String> {
-}
+public interface ForumRepository extends MongoRepository<Forum, String> {}
