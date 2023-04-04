@@ -1,11 +1,12 @@
 package com.prwatech.courses.service;
 
 import com.prwatech.courses.dto.CourseCardDto;
+import com.prwatech.courses.model.CourseDetails;
 import java.util.List;
 
 public interface CourseDetailService {
 
   List<CourseCardDto> getMostPopularCourses();
 
-  List<CourseCardDto> getSelfPlacedCourses();
+  CourseDetails getCourseDescriptionById(String id);
 }

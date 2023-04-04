@@ -1,11 +1,13 @@
 package com.prwatech.courses.service.impl;
 
 import com.prwatech.common.Constants;
+import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.courses.dto.CourseCardDto;
 import com.prwatech.courses.dto.CourseRatingDto;
 import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.CourseReview;
 import com.prwatech.courses.model.Pricing;
+import com.prwatech.courses.repository.CourseDetailRepository;
 import com.prwatech.courses.repository.CourseDetailsRepositoryTemplate;
 import com.prwatech.courses.repository.CoursePricingRepositoryTemplate;
 import com.prwatech.courses.repository.CourseReviewRepositoryTemplate;
@@ -16,7 +18,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
-import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +29,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   private final CourseDetailsRepositoryTemplate courseDetailsRepositoryTemplate;
   private final CourseReviewRepositoryTemplate courseReviewRepositoryTemplate;
   private final CoursePricingRepositoryTemplate coursePricingRepositoryTemplate;
-  private final ModelMapper modelMapper;
+  private final CourseDetailRepository courseDetailRepository;
 
   @Override
   public List<CourseCardDto> getMostPopularCourses() {
@@ -38,7 +39,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     for (CourseDetails courseDetail : courseDetailList) {
 
       CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
-      CourseCardDto courseCardDto = modelMapper.map(courseDetail, CourseCardDto.class);
+      CourseCardDto courseCardDto = new CourseCardDto();
+
+      courseCardDto.setCourseId(courseDetail.getId());
+      courseCardDto.setTitle(courseDetail.getCourse_Title());
       courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
       courseCardDto.setRatingNumber(courseRatingDto.getTotalRating().doubleValue());
@@ -53,8 +57,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  public List<CourseCardDto> getSelfPlacedCourses() {
-    return null;
+  public CourseDetails getCourseDescriptionById(String id) {
+    return courseDetailRepository
+        .findById(id)
+        .orElseThrow(() -> new NotFoundException("No course found by this id :"));
   }
 
   private CourseRatingDto getRatingOfCourse(String courseId) {
