@@ -19,4 +19,10 @@ public class CourseDetailsRepositoryTemplate {
     query.limit(10);
     return mongoTemplate.find(query, CourseDetails.class);
   };
+
+  public List<CourseDetails> getSelfCourses() {
+    Query query = new BasicQuery("{}");
+    query.limit(10);
+    return mongoTemplate.find(query, CourseDetails.class);
+  }
 }

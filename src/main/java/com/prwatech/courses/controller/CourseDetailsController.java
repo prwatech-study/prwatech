@@ -20,7 +20,6 @@ public class CourseDetailsController {
 
   private final CourseDetailService courseDetailService;
 
-
   @ApiOperation(value = "Get most popular courses", notes = "Get most popular courses")
   @ApiResponses(
       value = {
@@ -38,13 +37,42 @@ public class CourseDetailsController {
     return courseDetailService.getMostPopularCourses();
   }
 
-  // get all popular courses list paginated data.
+  // TODO :: get all popular courses list paginated data.
 
-  // get self placed courses list limit 10.
+  @ApiOperation(
+      value = "Get self placed courses on home page",
+      notes = "Get self placed courses on home page")
+  @ApiResponses(
+      value = {
+        @ApiResponse(code = 200, message = "Success"),
+        @ApiResponse(code = 400, message = "Not Available"),
+        @ApiResponse(code = 401, message = "UnAuthorized"),
+        @ApiResponse(code = 403, message = "Access Forbidden"),
+        @ApiResponse(code = 404, message = "Not found"),
+        @ApiResponse(code = 422, message = "UnProcessable entity"),
+        @ApiResponse(code = 500, message = "Internal server error"),
+      })
+  @GetMapping("/self-placed-course/listing/")
+  @ResponseStatus(HttpStatus.OK)
+  public void getHomeListingSelfPlacedCourses() {}
 
-  // get all self placed coursed list paginated data.
+  // TODO :: get all self placed coursed list paginated data.
 
   // get free courses list limit 10.
+  @ApiOperation(value = "Get free courses on home page", notes = "Get free courses on home page")
+  @ApiResponses(
+      value = {
+        @ApiResponse(code = 200, message = "Success"),
+        @ApiResponse(code = 400, message = "Not Available"),
+        @ApiResponse(code = 401, message = "UnAuthorized"),
+        @ApiResponse(code = 403, message = "Access Forbidden"),
+        @ApiResponse(code = 404, message = "Not found"),
+        @ApiResponse(code = 422, message = "UnProcessable entity"),
+        @ApiResponse(code = 500, message = "Internal server error"),
+      })
+  @GetMapping("/free-course/listing/")
+  @ResponseStatus(HttpStatus.OK)
+  public void getHomeListingFreeCourses() {}
 
   // get free online courses list paginated data.
 }
