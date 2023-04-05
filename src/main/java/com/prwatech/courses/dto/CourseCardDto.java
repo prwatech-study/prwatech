@@ -1,5 +1,6 @@
 package com.prwatech.courses.dto;
 
+import com.prwatech.courses.enums.CourseLevelCategory;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,4 +22,5 @@ public class CourseCardDto {
   private Integer lectureNumber;
   private Integer courseDurationHours;
   private Integer courseDurationMinute;
+  private CourseLevelCategory courseLevelCategory;
 }

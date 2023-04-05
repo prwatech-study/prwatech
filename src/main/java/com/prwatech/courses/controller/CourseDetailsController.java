@@ -2,6 +2,7 @@ package com.prwatech.courses.controller;
 
 import com.prwatech.courses.dto.CourseCardDto;
 import com.prwatech.courses.model.CourseDetails;
+import com.prwatech.courses.model.Pricing;
 import com.prwatech.courses.service.CourseDetailService;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
@@ -9,6 +10,7 @@ import io.swagger.annotations.ApiResponses;
 import java.util.List;
 import javax.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
+import org.bson.types.ObjectId;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -57,7 +59,9 @@ public class CourseDetailsController {
       })
   @GetMapping("/self-placed-course/listing/")
   @ResponseStatus(HttpStatus.OK)
-  public void getHomeListingSelfPlacedCourses() {}
+  public List<CourseCardDto> getHomeListingSelfPlacedCourses() {
+    return courseDetailService.getSelfPlacedCourses();
+  }
 
   // TODO :: get all self placed coursed list paginated data.
 
@@ -75,7 +79,9 @@ public class CourseDetailsController {
       })
   @GetMapping("/free-course/listing/")
   @ResponseStatus(HttpStatus.OK)
-  public void getHomeListingFreeCourses() {}
+  public List<CourseCardDto> getHomeListingFreeCourses() {
+    return courseDetailService.getFreeCourses();
+  }
 
   // get free online courses list paginated data.
 
@@ -97,5 +103,25 @@ public class CourseDetailsController {
   public CourseDetails getCourseDetailsByCourseId(
       @PathVariable(value = "courseId") @NotNull String courseId) {
     return courseDetailService.getCourseDescriptionById(courseId);
+  }
+
+  @ApiOperation(
+      value = "Get course price by course id",
+      notes = "Get Get course price by course id")
+  @ApiResponses(
+      value = {
+        @ApiResponse(code = 200, message = "Success"),
+        @ApiResponse(code = 400, message = "Not Available"),
+        @ApiResponse(code = 401, message = "UnAuthorized"),
+        @ApiResponse(code = 403, message = "Access Forbidden"),
+        @ApiResponse(code = 404, message = "Not found"),
+        @ApiResponse(code = 422, message = "UnProcessable entity"),
+        @ApiResponse(code = 500, message = "Internal server error"),
+      })
+  @GetMapping("pricing/{courseId}")
+  @ResponseStatus(HttpStatus.OK)
+  public Pricing getPricingByCourseId(
+      @PathVariable(value = "courseId") @NotNull ObjectId courseId) {
+    return courseDetailService.getPriceByCourseId(courseId);
   }
 }

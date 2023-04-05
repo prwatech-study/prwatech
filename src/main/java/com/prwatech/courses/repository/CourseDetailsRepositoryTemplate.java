@@ -4,7 +4,6 @@ import com.prwatech.courses.model.CourseDetails;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.BasicQuery;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
@@ -21,9 +20,15 @@ public class CourseDetailsRepositoryTemplate {
     return mongoTemplate.find(query, CourseDetails.class);
   };
 
-  public List<CourseDetails> getSelfCourses() {
-    Query query = new BasicQuery("{}");
-    query.limit(10);
+  public List<CourseDetails> getSelfPlacedCourses() {
+    Query query = new Query();
+    query.addCriteria(Criteria.where("Course_Types").in("Online")).limit(10);
+    return mongoTemplate.find(query, CourseDetails.class);
+  }
+
+  public List<CourseDetails> getFreeCourses() {
+    Query query = new Query();
+    query.addCriteria(Criteria.where("Course_Types").in("Webinar")).limit(10);
     return mongoTemplate.find(query, CourseDetails.class);
   }
 }
