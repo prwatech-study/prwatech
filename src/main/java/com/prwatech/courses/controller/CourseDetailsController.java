@@ -1,7 +1,10 @@
 package com.prwatech.courses.controller;
 
+import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.courses.dto.CourseCardDto;
+import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.CourseDetails;
+import com.prwatech.courses.model.Pricing;
 import com.prwatech.courses.service.CourseDetailService;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
@@ -9,16 +12,18 @@ import io.swagger.annotations.ApiResponses;
 import java.util.List;
 import javax.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
+import org.bson.types.ObjectId;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @AllArgsConstructor
 @RestController
-@RequestMapping("api/public")
+@RequestMapping("/api/public")
 public class CourseDetailsController {
 
   private final CourseDetailService courseDetailService;
@@ -40,7 +45,6 @@ public class CourseDetailsController {
     return courseDetailService.getMostPopularCourses();
   }
 
-
   @ApiOperation(
       value = "Get self placed courses on home page",
       notes = "Get self placed courses on home page")
@@ -56,11 +60,10 @@ public class CourseDetailsController {
       })
   @GetMapping("/self-placed-course/listing/")
   @ResponseStatus(HttpStatus.OK)
-  public void getHomeListingSelfPlacedCourses() {}
+  public List<CourseCardDto> getHomeListingSelfPlacedCourses() {
+    return courseDetailService.getSelfPlacedCourses();
+  }
 
-  // TODO :: get all self placed coursed list paginated data.
-
-  // get free courses list limit 10.
   @ApiOperation(value = "Get free courses on home page", notes = "Get free courses on home page")
   @ApiResponses(
       value = {
@@ -74,9 +77,9 @@ public class CourseDetailsController {
       })
   @GetMapping("/free-course/listing/")
   @ResponseStatus(HttpStatus.OK)
-  public void getHomeListingFreeCourses() {}
-
-  // get free online courses list paginated data.
+  public List<CourseCardDto> getHomeListingFreeCourses() {
+    return courseDetailService.getFreeCourses();
+  }
 
   @ApiOperation(
       value = "Get course details by course id",
@@ -96,5 +99,43 @@ public class CourseDetailsController {
   public CourseDetails getCourseDetailsByCourseId(
       @PathVariable(value = "courseId") @NotNull String courseId) {
     return courseDetailService.getCourseDescriptionById(courseId);
+  }
+
+  @ApiOperation(value = "Get course price by course id", notes = "Get course price by course id")
+  @ApiResponses(
+      value = {
+        @ApiResponse(code = 200, message = "Success"),
+        @ApiResponse(code = 400, message = "Not Available"),
+        @ApiResponse(code = 401, message = "UnAuthorized"),
+        @ApiResponse(code = 403, message = "Access Forbidden"),
+        @ApiResponse(code = 404, message = "Not found"),
+        @ApiResponse(code = 422, message = "UnProcessable entity"),
+        @ApiResponse(code = 500, message = "Internal server error"),
+      })
+  @GetMapping("/pricing/{courseId}")
+  @ResponseStatus(HttpStatus.OK)
+  public Pricing getPricingByCourseId(
+      @PathVariable(value = "courseId") @NotNull ObjectId courseId) {
+    return courseDetailService.getPriceByCourseId(courseId);
+  }
+
+  @ApiOperation(value = "Get all course listing by type", notes = "Get all course listing by type")
+  @ApiResponses(
+      value = {
+        @ApiResponse(code = 200, message = "Success"),
+        @ApiResponse(code = 400, message = "Not Available"),
+        @ApiResponse(code = 401, message = "UnAuthorized"),
+        @ApiResponse(code = 403, message = "Access Forbidden"),
+        @ApiResponse(code = 404, message = "Not found"),
+        @ApiResponse(code = 422, message = "UnProcessable entity"),
+        @ApiResponse(code = 500, message = "Internal server error"),
+      })
+  @GetMapping("/course/listing/all")
+  @ResponseStatus(HttpStatus.OK)
+  public PaginationDto getAllCoursesByType(
+      @RequestParam(value = "type") @NotNull CourseLevelCategory courseLevelCategory,
+      @RequestParam(value = "pageNumber", defaultValue = "0") Integer pageNumber,
+      @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize) {
+    return courseDetailService.getAllCoursesByCategory(courseLevelCategory, pageNumber, pageSize);
   }
 }

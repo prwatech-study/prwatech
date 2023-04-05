@@ -23,7 +23,4 @@ public class CourseCardDto {
   private Integer courseDurationHours;
   private Integer courseDurationMinute;
   private CourseLevelCategory courseLevelCategory;
-  private Integer totalLecture;
-  private Integer totalHours;
-  private Integer totalMinute;
 }

@@ -1,5 +1,6 @@
 package com.prwatech.user.controller;
 
+import com.prwatech.common.dto.EmailSendResponseDto;
 import com.prwatech.user.dto.SignInResponseDto;
 import com.prwatech.user.dto.SignInSignUpRequestDto;
 import com.prwatech.user.dto.UserOtpDto;
@@ -106,4 +107,64 @@ public class IamController {
       @RequestParam(value = "userId") @NotNull String userId) {
     return iamService.reSendOtp(phoneNumber, userId);
   }
+
+  @ApiOperation(
+      value = "Sign in/up user via Google Account",
+      notes = "Sign in/up user via Google Account ")
+  @ApiResponses(
+      value = {
+        @ApiResponse(code = 200, message = "Success"),
+        @ApiResponse(code = 400, message = "Not Available"),
+        @ApiResponse(code = 401, message = "UnAuthorized"),
+        @ApiResponse(code = 403, message = "Access Forbidden"),
+        @ApiResponse(code = 404, message = "Not found"),
+        @ApiResponse(code = 422, message = "UnProcessable entity"),
+        @ApiResponse(code = 500, message = "Internal server error"),
+      })
+  @ResponseStatus(value = HttpStatus.OK)
+  @PutMapping("/google-sign/in-up")
+  public SignInResponseDto signInUpUserViaGoogle(
+      @RequestParam(value = "isSignUp") @NotNull Boolean isSignUp,
+      @RequestParam(value = "googleAuthToken") @NotNull String googleAuthToken) {
+    return null;
+  }
+
+  @ApiOperation(
+      value = "Forget password for email and password user",
+      notes = "Forget password for email and password user ")
+  @ApiResponses(
+      value = {
+        @ApiResponse(code = 200, message = "Success"),
+        @ApiResponse(code = 400, message = "Not Available"),
+        @ApiResponse(code = 401, message = "UnAuthorized"),
+        @ApiResponse(code = 403, message = "Access Forbidden"),
+        @ApiResponse(code = 404, message = "Not found"),
+        @ApiResponse(code = 422, message = "UnProcessable entity"),
+        @ApiResponse(code = 500, message = "Internal server error"),
+      })
+  @ResponseStatus(value = HttpStatus.OK)
+  @PutMapping("/forget-password")
+  public EmailSendResponseDto forgetPassword(@RequestParam("emailId") @NotNull String emailId) {
+    return iamService.sendEmailToForgetPassword(emailId);
+  }
+
+  @ApiOperation(
+      value = "Reset password for email and password user",
+      notes = "Reset password for email and password user ")
+  @ApiResponses(
+      value = {
+        @ApiResponse(code = 200, message = "Success"),
+        @ApiResponse(code = 400, message = "Not Available"),
+        @ApiResponse(code = 401, message = "UnAuthorized"),
+        @ApiResponse(code = 403, message = "Access Forbidden"),
+        @ApiResponse(code = 404, message = "Not found"),
+        @ApiResponse(code = 422, message = "UnProcessable entity"),
+        @ApiResponse(code = 500, message = "Internal server error"),
+      })
+  @ResponseStatus(value = HttpStatus.OK)
+  @PutMapping("/reset-password")
+  public void resetPassword(
+      @RequestParam(value = "otp") @NotNull Integer otp,
+      @RequestParam(value = "userId") @NotNull String userId,
+      @RequestParam(value = "newPassword") @NotNull String newPassword) {}
 }

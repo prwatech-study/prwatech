@@ -15,4 +15,5 @@ public class SignInResponseDto {
   private String refreshToken;
   private LocalDateTime expiresIn;
   private LocalDateTime refreshTokenExpiresIn;
+  private String userId;
 }

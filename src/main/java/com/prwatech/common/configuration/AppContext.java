@@ -25,4 +25,28 @@ public class AppContext {
 
   @Value("${prwatech.fast.to.sms.api.key}")
   private String fastToSMSApiKey;
+
+  @Value("${spring.mail.host}")
+  private String emailHostName;
+
+  @Value("${spring.mail.port}")
+  private Integer emailPort;
+
+  @Value("${spring.mail.username}")
+  private String emailHostUsername;
+
+  @Value("${spring.mail.password}")
+  private String emailHostPassword;
+
+  @Value("${spring.mail.transport.protocol}")
+  private String emailProtocol;
+
+  @Value("${spring.mail.properties.mail.smtp.auth}")
+  private String emailAuth;
+
+  @Value("${spring.mail.properties.mail.smtp.starttls.enable}")
+  private String emailStarttls;
+
+  @Value("${spring.from.email}")
+  private String defaultMailSenderId;
 }

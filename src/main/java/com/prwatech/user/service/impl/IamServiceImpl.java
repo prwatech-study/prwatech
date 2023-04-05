@@ -1,8 +1,14 @@
 package com.prwatech.user.service.impl;
 
+import static com.prwatech.common.Constants.FORGET_PASSWORD_MAIL_BODY;
+import static com.prwatech.common.Constants.FORGET_PASSWORD_MAIL_SUBJECT;
+
 import com.prwatech.authentication.security.JwtUtils;
 import com.prwatech.common.Constants;
+import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.configuration.PasswordEncode;
+import com.prwatech.common.dto.EmailSendResponseDto;
+import com.prwatech.common.dto.PlaneEmailSendDto;
 import com.prwatech.common.dto.SmsSendDto;
 import com.prwatech.common.dto.UserDetails;
 import com.prwatech.common.exception.AlreadyPresentException;
@@ -27,6 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import lombok.AllArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,10 +49,10 @@ public class IamServiceImpl implements IamService {
   private final PasswordEncode passwordEncode;
   private final IamMongodbTemplateLayer iamMongodbTemplateLayer;
   private final UserOtpMappingTemplate userOtpMappingTemplate;
-  // private final ModelMapper modelMapper;
   private final JwtUtils jwtUtils;
   private final UserOtpMappingRepository userOtpMappingRepository;
   private final SmsSendService smsSendService;
+  private final AppContext appContext;
 
   @Override
   public SignInResponseDto signInUpWithEmailPassword(
@@ -105,6 +112,7 @@ public class IamServiceImpl implements IamService {
     Map<String, String> jwtToken = jwtUtils.generateToken(userDetails);
 
     SignInResponseDto signInResponseDto = new SignInResponseDto();
+    signInResponseDto.setUserId(user.getId());
     signInResponseDto.setAccessToken(jwtToken.get("accessToken"));
     signInResponseDto.setExpiresIn(LocalDateTime.now().plusMinutes(60));
     signInResponseDto.setRefreshToken(jwtToken.get("refreshToken"));
@@ -134,6 +142,7 @@ public class IamServiceImpl implements IamService {
     Map<String, String> jwtToken = jwtUtils.generateToken(userDetails);
 
     SignInResponseDto signInResponseDto = new SignInResponseDto();
+    signInResponseDto.setUserId(user.getId());
     signInResponseDto.setAccessToken(jwtToken.get("accessToken"));
     signInResponseDto.setExpiresIn(LocalDateTime.now().plusMinutes(60));
     signInResponseDto.setRefreshToken(jwtToken.get("refreshToken"));
@@ -257,7 +266,8 @@ public class IamServiceImpl implements IamService {
         jwtToken.get("accessToken"),
         jwtToken.get("refreshToken"),
         LocalDateTime.now().plusMinutes(60),
-        LocalDateTime.now().plusMinutes(65));
+        LocalDateTime.now().plusMinutes(65),
+        user.getId());
   }
 
   @Override
@@ -290,5 +300,46 @@ public class IamServiceImpl implements IamService {
     userOtpMapping = userOtpMappingRepository.save(userOtpMapping);
 
     return new UserOtpDto(userOtpMapping.getUserId(), userOtpMapping.getId(), phoneNumber);
+  }
+
+  @Override
+  public EmailSendResponseDto sendEmailToForgetPassword(String emailId) {
+    Optional<User> userObject = iamMongodbTemplateLayer.findByEmail(emailId);
+    if (!userObject.isPresent() || userObject.isEmpty()) {
+      throw new NotFoundException("No user found by this email id!");
+    }
+
+    if (Objects.isNull(userObject.get().getPassword())) {
+      throw new UnProcessableEntityException(
+          "You have not created account via email and password to this application!");
+    }
+
+    Integer otp = Utility.createRandomOtp();
+
+    String message = FORGET_PASSWORD_MAIL_BODY + otp;
+
+    PlaneEmailSendDto planeEmailSendDto = new PlaneEmailSendDto();
+    planeEmailSendDto.setSenderMailId(appContext.getDefaultMailSenderId());
+    planeEmailSendDto.setReceiverMailId(emailId);
+    planeEmailSendDto.setSubject(FORGET_PASSWORD_MAIL_SUBJECT);
+    planeEmailSendDto.setTextBody(message);
+
+    EmailSendResponseDto emailSendResponseDto = new EmailSendResponseDto();
+    // planeEmailService.sendPlaneEmailToUser(planeEmailSendDto);
+
+    if (!emailSendResponseDto.getHttpStatus().equals(HttpStatus.OK)) {
+      throw new UnProcessableEntityException(
+          "Something went wrong, Please try again to reset password! ");
+    }
+
+    UserOtpMapping userOtpMapping = new UserOtpMapping();
+    userOtpMapping.setUserId(userObject.get().getId());
+    userOtpMapping.setOtp(otp);
+    userOtpMapping.setExpireAt(LocalDateTime.now().plusMinutes(5));
+
+    userOtpMappingRepository.save(userOtpMapping);
+    emailSendResponseDto.setUserId(userObject.get().getId());
+
+    return emailSendResponseDto;
   }
 }
