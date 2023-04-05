@@ -16,7 +16,6 @@ import com.prwatech.common.exception.BadRequestException;
 import com.prwatech.common.exception.ForbiddenException;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
-import com.prwatech.common.service.PlaneEmailService;
 import com.prwatech.common.service.SmsSendService;
 import com.prwatech.common.utility.Utility;
 import com.prwatech.user.dto.SignInResponseDto;
@@ -50,11 +49,9 @@ public class IamServiceImpl implements IamService {
   private final PasswordEncode passwordEncode;
   private final IamMongodbTemplateLayer iamMongodbTemplateLayer;
   private final UserOtpMappingTemplate userOtpMappingTemplate;
-  // private final ModelMapper modelMapper;
   private final JwtUtils jwtUtils;
   private final UserOtpMappingRepository userOtpMappingRepository;
   private final SmsSendService smsSendService;
-  private final PlaneEmailService planeEmailService;
   private final AppContext appContext;
 
   @Override
@@ -115,6 +112,7 @@ public class IamServiceImpl implements IamService {
     Map<String, String> jwtToken = jwtUtils.generateToken(userDetails);
 
     SignInResponseDto signInResponseDto = new SignInResponseDto();
+    signInResponseDto.setUserId(user.getId());
     signInResponseDto.setAccessToken(jwtToken.get("accessToken"));
     signInResponseDto.setExpiresIn(LocalDateTime.now().plusMinutes(60));
     signInResponseDto.setRefreshToken(jwtToken.get("refreshToken"));
@@ -144,6 +142,7 @@ public class IamServiceImpl implements IamService {
     Map<String, String> jwtToken = jwtUtils.generateToken(userDetails);
 
     SignInResponseDto signInResponseDto = new SignInResponseDto();
+    signInResponseDto.setUserId(user.getId());
     signInResponseDto.setAccessToken(jwtToken.get("accessToken"));
     signInResponseDto.setExpiresIn(LocalDateTime.now().plusMinutes(60));
     signInResponseDto.setRefreshToken(jwtToken.get("refreshToken"));
@@ -267,7 +266,8 @@ public class IamServiceImpl implements IamService {
         jwtToken.get("accessToken"),
         jwtToken.get("refreshToken"),
         LocalDateTime.now().plusMinutes(60),
-        LocalDateTime.now().plusMinutes(65));
+        LocalDateTime.now().plusMinutes(65),
+        user.getId());
   }
 
   @Override
@@ -324,8 +324,8 @@ public class IamServiceImpl implements IamService {
     planeEmailSendDto.setSubject(FORGET_PASSWORD_MAIL_SUBJECT);
     planeEmailSendDto.setTextBody(message);
 
-    EmailSendResponseDto emailSendResponseDto =
-        planeEmailService.sendPlaneEmailToUser(planeEmailSendDto);
+    EmailSendResponseDto emailSendResponseDto = new EmailSendResponseDto();
+    // planeEmailService.sendPlaneEmailToUser(planeEmailSendDto);
 
     if (!emailSendResponseDto.getHttpStatus().equals(HttpStatus.OK)) {
       throw new UnProcessableEntityException(
