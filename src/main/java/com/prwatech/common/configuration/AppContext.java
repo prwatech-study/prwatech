@@ -25,4 +25,7 @@ public class AppContext {
 
   @Value("${prwatech.fast.to.sms.api.key}")
   private String fastToSMSApiKey;
+
+  @Value("${spring.from.email}")
+  private String defaultMailSenderId;
 }
