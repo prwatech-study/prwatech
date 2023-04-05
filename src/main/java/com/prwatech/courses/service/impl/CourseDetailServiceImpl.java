@@ -4,6 +4,7 @@ import com.prwatech.common.Constants;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.courses.dto.CourseCardDto;
 import com.prwatech.courses.dto.CourseRatingDto;
+import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.CourseReview;
 import com.prwatech.courses.model.Pricing;
@@ -47,9 +48,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
       courseCardDto.setRatingNumber(courseRatingDto.getTotalRating().doubleValue());
       courseCardDto.setPeopleRatingNumber(courseRatingDto.getTotalRating().longValue());
-      courseCardDto.setLectureNumber(getPriceOfCourseByCourseId(courseCardDto.getCourseId()));
+      courseCardDto.setPrice(getPriceOfCourseByCourseId(courseCardDto.getCourseId()));
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
+      courseCardDto.setCourseLevelCategory(CourseLevelCategory.MOST_POPULAR);
 
       courseCardDtoList.add(courseCardDto);
     }

@@ -40,7 +40,6 @@ public class CourseDetailsController {
     return courseDetailService.getMostPopularCourses();
   }
 
-  // TODO :: get all popular courses list paginated data.
 
   @ApiOperation(
       value = "Get self placed courses on home page",

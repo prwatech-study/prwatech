@@ -17,13 +17,15 @@ public class CourseDetailsRepositoryTemplate {
 
   public List<CourseDetails> getMostPopularCourse() {
     Query query = new Query();
-    query.addCriteria(Criteria.where("Course_Types").in("Classroom")).limit(10);
+    query.addCriteria(Criteria.where("Course_Types").in("Online")).limit(10);
     return mongoTemplate.find(query, CourseDetails.class);
   };
 
   public List<CourseDetails> getSelfCourses() {
-    Query query = new BasicQuery("{}");
-    query.limit(10);
+    Query query = new Query();
+
+    query.addCriteria(Criteria.where("Course_Types").in("Classroom")).limit(10);
+
     return mongoTemplate.find(query, CourseDetails.class);
   }
 }
