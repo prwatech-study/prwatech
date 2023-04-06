@@ -179,6 +179,12 @@ public class IamServiceImpl implements IamService {
           "Please put correct phone number or try with other phone number.");
     }
 
+    Optional<UserOtpMapping> otpMappingObject =
+        userOtpMappingTemplate.findOtpMappingByUserId(user.getId());
+    if (!userObject.isEmpty()) {
+      userOtpMappingRepository.deleteById(otpMappingObject.get().getId());
+    }
+
     UserOtpMapping userOtpMapping = new UserOtpMapping();
     userOtpMapping.setUserId(user.getId());
     userOtpMapping.setPhoneNumber(phoneNumber);
@@ -217,6 +223,12 @@ public class IamServiceImpl implements IamService {
     if (!isSmsSent.equals(Boolean.TRUE)) {
       throw new UnProcessableEntityException(
           "Please put correct phone number or try with other phone number.");
+    }
+
+    Optional<UserOtpMapping> otpMappingObject =
+        userOtpMappingTemplate.findOtpMappingByUserId(user.getId());
+    if (!userObject.isEmpty()) {
+      userOtpMappingRepository.deleteById(otpMappingObject.get().getId());
     }
 
     UserOtpMapping userOtpMapping = new UserOtpMapping();
