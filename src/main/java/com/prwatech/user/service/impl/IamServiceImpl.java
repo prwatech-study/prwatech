@@ -18,6 +18,7 @@ import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.service.SmsSendService;
 import com.prwatech.common.utility.Utility;
+import com.prwatech.user.dto.GoogleSignInUpDto;
 import com.prwatech.user.dto.SignInResponseDto;
 import com.prwatech.user.dto.SignInSignUpRequestDto;
 import com.prwatech.user.dto.UserOtpDto;
@@ -88,6 +89,11 @@ public class IamServiceImpl implements IamService {
       throw new NotFoundException(
           "User not found with this email id : " + signInSignUpRequestDto.getEmail());
     }
+    if (userObject.get().getIsGoogleSignedIn().equals(Boolean.TRUE)) {
+      throw new UnProcessableEntityException(
+          "This email is associated with google account! Please proceed with Google Sign in!");
+    }
+
     User user = userObject.get();
 
     if (user.getDisable()) {
@@ -129,12 +135,18 @@ public class IamServiceImpl implements IamService {
       throw new AlreadyPresentException("This email id is already in use!");
     }
 
+    if (userObject.get().getIsGoogleSignedIn().equals(Boolean.TRUE)) {
+      throw new UnProcessableEntityException("This email is already in use!");
+    }
+
     signInSignUpRequestDto.setPassword(
         passwordEncode.getEncryptedPassword(signInSignUpRequestDto.getPassword()));
     User user = new User();
     user.setEmail(signInSignUpRequestDto.getEmail());
     user.setPassword(signInSignUpRequestDto.getPassword());
+    user.setIsGoogleSignedIn(Boolean.FALSE);
     user.setDisable(Boolean.FALSE);
+    user.setLastLogin(LocalDateTime.now());
     iamRepository.save(user);
 
     UserDetails userDetails = new UserDetails();
@@ -353,5 +365,38 @@ public class IamServiceImpl implements IamService {
     emailSendResponseDto.setUserId(userObject.get().getId());
 
     return emailSendResponseDto;
+  }
+
+  @Override
+  public SignInResponseDto SignInSignUpWithGoogle(GoogleSignInUpDto googleSignInUpDto) {
+
+    Optional<User> userObject = iamMongodbTemplateLayer.findByEmail(googleSignInUpDto.getEmail());
+
+    if (!userObject.isEmpty() && !userObject.get().getIsGoogleSignedIn()) {
+      throw new UnProcessableEntityException("This email is already in use!");
+    }
+
+    User user = new User();
+    user.setEmail(googleSignInUpDto.getEmail());
+    user.setName(googleSignInUpDto.getName());
+    user.setProfileImage(googleSignInUpDto.getImageUrl());
+    user.setIsProfileImageUploaded(Boolean.TRUE);
+    user.setIsGoogleSignedIn(Boolean.TRUE);
+    user.setDisable(Boolean.FALSE);
+    user.setLastLogin(LocalDateTime.now());
+    iamRepository.save(user);
+
+    UserDetails userDetails = new UserDetails();
+    userDetails.setUsername(user.getEmail());
+    Map<String, String> jwtToken = jwtUtils.generateToken(userDetails);
+
+    SignInResponseDto signInResponseDto = new SignInResponseDto();
+    signInResponseDto.setUserId(user.getId());
+    signInResponseDto.setAccessToken(jwtToken.get("accessToken"));
+    signInResponseDto.setExpiresIn(LocalDateTime.now().plusMinutes(60));
+    signInResponseDto.setRefreshToken(jwtToken.get("refreshToken"));
+    signInResponseDto.setRefreshTokenExpiresIn(LocalDateTime.now().plusMinutes(65));
+
+    return signInResponseDto;
   }
 }

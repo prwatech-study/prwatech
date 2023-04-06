@@ -1,6 +1,7 @@
 package com.prwatech.user.service;
 
 import com.prwatech.common.dto.EmailSendResponseDto;
+import com.prwatech.user.dto.GoogleSignInUpDto;
 import com.prwatech.user.dto.SignInResponseDto;
 import com.prwatech.user.dto.SignInSignUpRequestDto;
 import com.prwatech.user.dto.UserOtpDto;
@@ -16,4 +17,6 @@ public interface IamService {
   UserOtpDto reSendOtp(Long phoneNumber, String userId);
 
   EmailSendResponseDto sendEmailToForgetPassword(String emailId);
+
+  SignInResponseDto SignInSignUpWithGoogle(GoogleSignInUpDto googleSignInUpDto);
 }

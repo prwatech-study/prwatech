@@ -1,6 +1,7 @@
 package com.prwatech.user.controller;
 
 import com.prwatech.common.dto.EmailSendResponseDto;
+import com.prwatech.user.dto.GoogleSignInUpDto;
 import com.prwatech.user.dto.SignInResponseDto;
 import com.prwatech.user.dto.SignInSignUpRequestDto;
 import com.prwatech.user.dto.UserOtpDto;
@@ -167,4 +168,24 @@ public class IamController {
       @RequestParam(value = "otp") @NotNull Integer otp,
       @RequestParam(value = "userId") @NotNull String userId,
       @RequestParam(value = "newPassword") @NotNull String newPassword) {}
+
+  @ApiOperation(
+      value = "Sign up, Sign in with google account",
+      notes = "Sign up, Sign in with google account")
+  @ApiResponses(
+      value = {
+        @ApiResponse(code = 200, message = "Success"),
+        @ApiResponse(code = 400, message = "Not Available"),
+        @ApiResponse(code = 401, message = "UnAuthorized"),
+        @ApiResponse(code = 403, message = "Access Forbidden"),
+        @ApiResponse(code = 404, message = "Not found"),
+        @ApiResponse(code = 422, message = "UnProcessable entity"),
+        @ApiResponse(code = 500, message = "Internal server error"),
+      })
+  @ResponseStatus(value = HttpStatus.OK)
+  @PutMapping("/sign-in/sign-up/google")
+  public SignInResponseDto signInSignUpWithGoogle(
+      @RequestBody @Valid GoogleSignInUpDto googleSignInUpDto) {
+    return iamService.SignInSignUpWithGoogle(googleSignInUpDto);
+  }
 }

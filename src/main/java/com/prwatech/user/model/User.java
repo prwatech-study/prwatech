@@ -45,6 +45,9 @@ public class User {
   @Field(name = "is_mobile_registered")
   private Boolean isMobileRegistered = Boolean.FALSE;
 
+  @Field(name = "is_google_signed_in")
+  private Boolean isGoogleSignedIn;
+
   @Field(name = "profileImage")
   private String profileImage;
 
