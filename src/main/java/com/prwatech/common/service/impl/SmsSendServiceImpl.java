@@ -42,4 +42,25 @@ public class SmsSendServiceImpl implements SmsSendService {
 
     return Boolean.TRUE;
   }
+
+  @Override
+  public Boolean sendNormalOtp(SmsSendDto smsSendDto) {
+
+    FastToSmsWalletDto fastToSmsWalletDto = fastToSmsService.getWalletStatement();
+
+    if (Objects.isNull(fastToSmsWalletDto) || !fastToSmsWalletDto.getIsReturn().equals("true")) {
+      LOGGER.error("Sms service wallet is not sufficient to send sms.");
+
+      throw new UnProcessableEntityException(
+              "Please try again after some time! We are facing problem to sent sms.");
+    }
+    SmsSendResponseDto smsSendResponseDto = fastToSmsService.sendNormalOtpMessage(smsSendDto);
+
+    if (Objects.isNull(smsSendResponseDto) || !smsSendResponseDto.getIsReturn().equals("true")) {
+      LOGGER.error("Sms has not sent successfully!");
+      throw new UnProcessableEntityException(
+              "Please try again, service is not working as expected!");
+    }
+    return Boolean.TRUE;
+  }
 }

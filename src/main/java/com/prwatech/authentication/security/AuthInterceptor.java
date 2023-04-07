@@ -17,7 +17,6 @@ import org.slf4j.Logger;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.HandlerInterceptor;
-import org.springframework.web.servlet.ModelAndView;
 
 @Configuration
 @Transactional
@@ -63,13 +62,4 @@ public class AuthInterceptor implements HandlerInterceptor {
     }
   }
 
-  @Override
-  public void postHandle(
-      HttpServletRequest request,
-      HttpServletResponse response,
-      Object handler,
-      ModelAndView modelAndView)
-      throws Exception {
-    HandlerInterceptor.super.postHandle(request, response, handler, modelAndView);
-  }
 }

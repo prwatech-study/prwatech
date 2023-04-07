@@ -29,6 +29,7 @@ public class Constants {
   public static final Integer MIN_LIMIT = 1000;
   public static final String FTSMS_SENDER_ID = "FSTSMS";
   public static final String FTSMS_ROUTE = "q";
+  public static final String FTSMS_OTP_ROUT="otp";
   public static final String DEFAULT_OTP_SMS_BODY = "Welcome to Prwatech, your OTP is : ";
   public static final int DEFAULT_FLASH = 0;
   public static final String DEFAULT_LANGUAGE = "english";

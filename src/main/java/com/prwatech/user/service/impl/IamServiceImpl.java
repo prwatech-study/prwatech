@@ -377,12 +377,18 @@ public class IamServiceImpl implements IamService {
     }
 
     User user = new User();
-    user.setEmail(googleSignInUpDto.getEmail());
-    user.setName(googleSignInUpDto.getName());
-    user.setProfileImage(googleSignInUpDto.getImageUrl());
-    user.setIsProfileImageUploaded(Boolean.TRUE);
-    user.setIsGoogleSignedIn(Boolean.TRUE);
-    user.setDisable(Boolean.FALSE);
+    if(!userObject.isEmpty()){
+      user= userObject.get();
+    }
+    else {
+      user.setEmail(googleSignInUpDto.getEmail());
+      user.setName(googleSignInUpDto.getName());
+      user.setProfileImage(googleSignInUpDto.getImageUrl());
+      user.setIsProfileImageUploaded(Boolean.TRUE);
+      user.setIsGoogleSignedIn(Boolean.TRUE);
+      user.setDisable(Boolean.FALSE);
+    }
+
     user.setLastLogin(LocalDateTime.now());
     iamRepository.save(user);
 
