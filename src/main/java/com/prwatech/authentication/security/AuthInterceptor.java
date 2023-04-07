@@ -61,5 +61,4 @@ public class AuthInterceptor implements HandlerInterceptor {
       throw new UnAuthorizedException(UNAUTHENTICATED_USER_ERROR_MESSAGE);
     }
   }
-
 }

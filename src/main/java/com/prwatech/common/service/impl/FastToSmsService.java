@@ -77,36 +77,36 @@ public class FastToSmsService {
     return null;
   }
 
-  public SmsSendResponseDto sendNormalOtpMessage(SmsSendDto smsSendDto){
-      try {
-        ObjectMapper objectMapper = new ObjectMapper();
-        String variables_values = "&variables_values=" + smsSendDto.getMessage();
-        String route = "&route=" + Constants.FTSMS_OTP_ROUT;
-        String numbers = "&numbers=" + smsSendDto.getNumbers();
-        String myUrl =
-                "https://www.fast2sms.com/dev/bulkV2?authorization="
-                        + appContext.getFastToSMSApiKey()
-                        + variables_values
-                        + route
-                        + numbers;
-        HttpResponse response = Unirest.get(myUrl).asString();
-        if (response.getCode() == 200) {
-          JsonNode jsonObject = objectMapper.readTree(response.getBody().toString());
-          return new SmsSendResponseDto(
-                  jsonObject.get("return").asText(),
-                  jsonObject.get("request_id").asText(),
-                  jsonObject.get("message").asText());
-        } else {
-          JsonNode jsonObject = objectMapper.readTree(response.getBody().toString());
-          LOGGER.info(
-                  "Sms service failed with response status code :: {} \nand message :: {}",
-                  response.getCode(),
-                  jsonObject.get("message").asText());
-        }
-      }catch (Exception e){
-        LOGGER.error(
-                "Something went wrong in sending sms via fast to sms due to: {}", e.getMessage());
+  public SmsSendResponseDto sendNormalOtpMessage(SmsSendDto smsSendDto) {
+    try {
+      ObjectMapper objectMapper = new ObjectMapper();
+      String variables_values = "variables_values=" + smsSendDto.getMessage();
+      String route = "&route=" + Constants.FTSMS_OTP_ROUT;
+      String numbers = "&numbers=" + smsSendDto.getNumbers();
+      String myUrl = "https://www.fast2sms.com/dev/bulkV2";
+      HttpResponse response =
+          Unirest.post(myUrl)
+              .header("authorization", appContext.getFastToSMSApiKey())
+              .header("Content-Type", "application/x-www-form-urlencoded")
+              .body(variables_values + route + numbers)
+              .asString();
+      if (response.getCode() == 200) {
+        JsonNode jsonObject = objectMapper.readTree(response.getBody().toString());
+        return new SmsSendResponseDto(
+            jsonObject.get("return").asText(),
+            jsonObject.get("request_id").asText(),
+            jsonObject.get("message").asText());
+      } else {
+        JsonNode jsonObject = objectMapper.readTree(response.getBody().toString());
+        LOGGER.info(
+            "Sms service failed with response status code :: {} \nand message :: {}",
+            response.getCode(),
+            jsonObject.get("message").asText());
       }
-      return null;
+    } catch (Exception e) {
+      LOGGER.error(
+          "Something went wrong in sending sms via fast to sms due to: {}", e.getMessage());
+    }
+    return null;
   }
 }

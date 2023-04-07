@@ -178,13 +178,13 @@ public class IamServiceImpl implements IamService {
     Integer otp = Utility.createRandomOtp();
     SmsSendDto smsSendDto =
         new SmsSendDto(
-            Constants.DEFAULT_OTP_SMS_BODY + otp,
+            otp.toString(),
             Constants.FTSMS_ROUTE,
             Constants.DEFAULT_LANGUAGE,
             Constants.DEFAULT_FLASH,
             phoneNumber.toString());
 
-    Boolean isSmsSent = smsSendService.sendSmsToPhoneNumber(smsSendDto);
+    Boolean isSmsSent = smsSendService.sendNormalOtp(smsSendDto);
 
     if (!isSmsSent.equals(Boolean.TRUE)) {
       throw new UnProcessableEntityException(
@@ -225,13 +225,13 @@ public class IamServiceImpl implements IamService {
     Integer otp = Utility.createRandomOtp();
     SmsSendDto smsSendDto =
         new SmsSendDto(
-            Constants.DEFAULT_OTP_SMS_BODY + otp,
+            otp.toString(),
             Constants.FTSMS_ROUTE,
             Constants.DEFAULT_LANGUAGE,
             Constants.DEFAULT_FLASH,
             phoneNumber.toString());
 
-    Boolean isSmsSent = smsSendService.sendSmsToPhoneNumber(smsSendDto);
+    Boolean isSmsSent = smsSendService.sendNormalOtp(smsSendDto);
     if (!isSmsSent.equals(Boolean.TRUE)) {
       throw new UnProcessableEntityException(
           "Please put correct phone number or try with other phone number.");
@@ -307,13 +307,13 @@ public class IamServiceImpl implements IamService {
     Integer otp = Utility.createRandomOtp();
     SmsSendDto smsSendDto =
         new SmsSendDto(
-            Constants.DEFAULT_OTP_SMS_BODY + otp,
+            otp.toString(),
             Constants.FTSMS_ROUTE,
             Constants.DEFAULT_LANGUAGE,
             Constants.DEFAULT_FLASH,
             phoneNumber.toString());
 
-    Boolean isSmsSent = smsSendService.sendSmsToPhoneNumber(smsSendDto);
+    Boolean isSmsSent = smsSendService.sendNormalOtp(smsSendDto);
     if (!isSmsSent.equals(Boolean.TRUE)) {
       throw new UnProcessableEntityException(
           "Please put correct phone number or try with other phone number.");
@@ -377,10 +377,9 @@ public class IamServiceImpl implements IamService {
     }
 
     User user = new User();
-    if(!userObject.isEmpty()){
-      user= userObject.get();
-    }
-    else {
+    if (!userObject.isEmpty()) {
+      user = userObject.get();
+    } else {
       user.setEmail(googleSignInUpDto.getEmail());
       user.setName(googleSignInUpDto.getName());
       user.setProfileImage(googleSignInUpDto.getImageUrl());

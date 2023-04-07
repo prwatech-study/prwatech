@@ -7,5 +7,6 @@ import org.springframework.stereotype.Component;
 public interface SmsSendService {
 
   public Boolean sendSmsToPhoneNumber(SmsSendDto smsSendDto);
+
   public Boolean sendNormalOtp(SmsSendDto smsSendDto);
 }

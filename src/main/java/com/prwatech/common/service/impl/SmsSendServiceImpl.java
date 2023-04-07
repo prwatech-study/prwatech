@@ -52,14 +52,14 @@ public class SmsSendServiceImpl implements SmsSendService {
       LOGGER.error("Sms service wallet is not sufficient to send sms.");
 
       throw new UnProcessableEntityException(
-              "Please try again after some time! We are facing problem to sent sms.");
+          "Please try again after some time! We are facing problem to sent sms.");
     }
     SmsSendResponseDto smsSendResponseDto = fastToSmsService.sendNormalOtpMessage(smsSendDto);
 
     if (Objects.isNull(smsSendResponseDto) || !smsSendResponseDto.getIsReturn().equals("true")) {
       LOGGER.error("Sms has not sent successfully!");
       throw new UnProcessableEntityException(
-              "Please try again, service is not working as expected!");
+          "Please try again, service is not working as expected!");
     }
     return Boolean.TRUE;
   }
