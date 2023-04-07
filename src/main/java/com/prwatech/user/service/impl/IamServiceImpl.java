@@ -193,7 +193,7 @@ public class IamServiceImpl implements IamService {
 
     Optional<UserOtpMapping> otpMappingObject =
         userOtpMappingTemplate.findOtpMappingByUserId(user.getId());
-    if (!userObject.isEmpty()) {
+    if (!otpMappingObject.isEmpty()) {
       userOtpMappingRepository.deleteById(otpMappingObject.get().getId());
     }
 
@@ -239,7 +239,7 @@ public class IamServiceImpl implements IamService {
 
     Optional<UserOtpMapping> otpMappingObject =
         userOtpMappingTemplate.findOtpMappingByUserId(user.getId());
-    if (!userObject.isEmpty()) {
+    if (!otpMappingObject.isEmpty()) {
       userOtpMappingRepository.deleteById(otpMappingObject.get().getId());
     }
 
