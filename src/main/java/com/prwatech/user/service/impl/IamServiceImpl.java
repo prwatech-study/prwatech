@@ -27,6 +27,7 @@ import com.prwatech.user.model.UserOtpMapping;
 import com.prwatech.user.repository.IamRepository;
 import com.prwatech.user.repository.UserOtpMappingRepository;
 import com.prwatech.user.service.IamService;
+import com.prwatech.user.service.UserService;
 import com.prwatech.user.template.IamMongodbTemplateLayer;
 import com.prwatech.user.template.UserOtpMappingTemplate;
 import java.time.LocalDateTime;
@@ -54,6 +55,7 @@ public class IamServiceImpl implements IamService {
   private final UserOtpMappingRepository userOtpMappingRepository;
   private final SmsSendService smsSendService;
   private final AppContext appContext;
+  private final UserService userService;
 
   @Override
   public SignInResponseDto signInUpWithEmailPassword(
@@ -123,6 +125,7 @@ public class IamServiceImpl implements IamService {
     signInResponseDto.setExpiresIn(LocalDateTime.now().plusMinutes(60));
     signInResponseDto.setRefreshToken(jwtToken.get("refreshToken"));
     signInResponseDto.setRefreshTokenExpiresIn(LocalDateTime.now().plusMinutes(65));
+    signInResponseDto.setUserDetailsDto(userService.getUserDetailsById(user.getId()));
 
     return signInResponseDto;
   }
@@ -159,7 +162,7 @@ public class IamServiceImpl implements IamService {
     signInResponseDto.setExpiresIn(LocalDateTime.now().plusMinutes(60));
     signInResponseDto.setRefreshToken(jwtToken.get("refreshToken"));
     signInResponseDto.setRefreshTokenExpiresIn(LocalDateTime.now().plusMinutes(65));
-
+    signInResponseDto.setUserDetailsDto(userService.getUserDetailsById(user.getId()));
     return signInResponseDto;
   }
 
@@ -291,7 +294,8 @@ public class IamServiceImpl implements IamService {
         jwtToken.get("refreshToken"),
         LocalDateTime.now().plusMinutes(60),
         LocalDateTime.now().plusMinutes(65),
-        user.getId());
+        user.getId(),
+        userService.getUserDetailsById(userId));
   }
 
   @Override
@@ -401,6 +405,7 @@ public class IamServiceImpl implements IamService {
     signInResponseDto.setExpiresIn(LocalDateTime.now().plusMinutes(60));
     signInResponseDto.setRefreshToken(jwtToken.get("refreshToken"));
     signInResponseDto.setRefreshTokenExpiresIn(LocalDateTime.now().plusMinutes(65));
+    signInResponseDto.setUserDetailsDto(userService.getUserDetailsById(user.getId()));
 
     return signInResponseDto;
   }
