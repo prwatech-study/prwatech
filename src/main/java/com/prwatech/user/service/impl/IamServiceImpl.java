@@ -30,6 +30,7 @@ import com.prwatech.user.service.IamService;
 import com.prwatech.user.service.UserService;
 import com.prwatech.user.template.IamMongodbTemplateLayer;
 import com.prwatech.user.template.UserOtpMappingTemplate;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Objects;
@@ -74,11 +75,11 @@ public class IamServiceImpl implements IamService {
   }
 
   @Override
-  public UserOtpDto singInUpWithPhoneNumber(Long phoneNumber, Boolean isSingUp) {
+  public UserOtpDto singInUpWithPhoneNumber(Long phoneNumber) throws IOException {
     if (Objects.isNull(phoneNumber)) {
       throw new UnProcessableEntityException("Phone number can not be null!");
     }
-    return (isSingUp) ? signUpWithPhoneNumber(phoneNumber) : signInWithPhoneNumber(phoneNumber);
+    return signUpWithPhoneNumber(phoneNumber);
   }
 
   private SignInResponseDto signInWithEmailAndPassword(
@@ -166,17 +167,19 @@ public class IamServiceImpl implements IamService {
     return signInResponseDto;
   }
 
-  private UserOtpDto signUpWithPhoneNumber(Long phoneNumber) {
+  private UserOtpDto signUpWithPhoneNumber(Long phoneNumber) throws IOException {
     Optional<User> userObject = iamMongodbTemplateLayer.findByMobile(phoneNumber);
     User user = new User();
-    if (!userObject.isEmpty()) {
+    if (!userObject.isPresent() && userObject.isEmpty()) {
+
+      user.setPhoneNumber(phoneNumber);
+      user.setEmail(Utility.generateRandomString(6));
+      user.setDisable(Boolean.FALSE);
+      user.setIsMobileRegistered(Boolean.TRUE);
+      user = iamRepository.save(user);
+    } else {
       user = userObject.get();
     }
-
-    user.setPhoneNumber(phoneNumber);
-    user.setDisable(Boolean.FALSE);
-    user.setIsMobileRegistered(Boolean.TRUE);
-    user = iamRepository.save(user);
 
     Integer otp = Utility.createRandomOtp();
     SmsSendDto smsSendDto =
@@ -187,7 +190,7 @@ public class IamServiceImpl implements IamService {
             Constants.DEFAULT_FLASH,
             phoneNumber.toString());
 
-    Boolean isSmsSent = smsSendService.sendNormalOtp(smsSendDto);
+    Boolean isSmsSent = smsSendService.sendDefaultOtpMessage(smsSendDto);
 
     if (!isSmsSent.equals(Boolean.TRUE)) {
       throw new UnProcessableEntityException(
@@ -211,7 +214,7 @@ public class IamServiceImpl implements IamService {
     return new UserOtpDto(user.getId(), userOtpMapping.getId(), phoneNumber);
   }
 
-  private UserOtpDto signInWithPhoneNumber(Long phoneNumber) {
+  private UserOtpDto signInWithPhoneNumber(Long phoneNumber) throws IOException {
 
     Optional<User> userObject = iamMongodbTemplateLayer.findByMobile(phoneNumber);
 
@@ -234,7 +237,7 @@ public class IamServiceImpl implements IamService {
             Constants.DEFAULT_FLASH,
             phoneNumber.toString());
 
-    Boolean isSmsSent = smsSendService.sendNormalOtp(smsSendDto);
+    Boolean isSmsSent = smsSendService.sendDefaultOtpMessage(smsSendDto);
     if (!isSmsSent.equals(Boolean.TRUE)) {
       throw new UnProcessableEntityException(
           "Please put correct phone number or try with other phone number.");
@@ -299,7 +302,7 @@ public class IamServiceImpl implements IamService {
   }
 
   @Override
-  public UserOtpDto reSendOtp(Long phoneNumber, String userId) {
+  public UserOtpDto reSendOtp(Long phoneNumber, String userId) throws IOException {
     Optional<UserOtpMapping> otpMappingObject =
         userOtpMappingTemplate.findOtpMappingByUserId(userId);
 
@@ -317,7 +320,7 @@ public class IamServiceImpl implements IamService {
             Constants.DEFAULT_FLASH,
             phoneNumber.toString());
 
-    Boolean isSmsSent = smsSendService.sendNormalOtp(smsSendDto);
+    Boolean isSmsSent = smsSendService.sendDefaultOtpMessage(smsSendDto);
     if (!isSmsSent.equals(Boolean.TRUE)) {
       throw new UnProcessableEntityException(
           "Please put correct phone number or try with other phone number.");
