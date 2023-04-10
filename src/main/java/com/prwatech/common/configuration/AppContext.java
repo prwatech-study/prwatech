@@ -49,4 +49,7 @@ public class AppContext {
 
   @Value("${prwatech.default.email.id}")
   private String defaultMailSenderId;
+
+  @Value("${prwatech.default.sale.email.id}")
+  private String defaultSaleEmailId;
 }

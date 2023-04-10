@@ -1,26 +1,27 @@
 package com.prwatech.promotion.controller;
 
-import com.prwatech.promotion.model.Testimonials;
-import com.prwatech.promotion.service.TestimonialService;
+import com.prwatech.promotion.dto.SendYourQueryRequestDto;
+import com.prwatech.promotion.service.SendYourQueryService;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
-import java.util.List;
+import javax.validation.Valid;
 import lombok.AllArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-@AllArgsConstructor
 @RestController
 @RequestMapping("/api/public")
-public class TestimonialController {
+@AllArgsConstructor
+public class SendYourQueryController {
 
-  private final TestimonialService testimonialService;
+  private final SendYourQueryService sendYourQueryService;
 
-  @ApiOperation(value = "Get all testimonials", notes = "Get all testimonials")
+  @ApiOperation(
+      value = "Send query to prwatech sales for contact",
+      notes = "Send query to prwatech sales for contact")
   @ApiResponses(
       value = {
         @ApiResponse(code = 200, message = "Success"),
@@ -31,9 +32,9 @@ public class TestimonialController {
         @ApiResponse(code = 422, message = "UnProcessable entity"),
         @ApiResponse(code = 500, message = "Internal server error"),
       })
-  @GetMapping("/testimonials/listing/")
-  @ResponseStatus(HttpStatus.OK)
-  public List<Testimonials> getTestimonials() {
-    return testimonialService.getAllTestimonials();
+  @PutMapping("/send-query/")
+  public Boolean sendYourQuery(
+      @RequestBody @Valid SendYourQueryRequestDto sendYourQueryRequestDto) {
+    return sendYourQueryService.sendYourQueryForCourse(sendYourQueryRequestDto);
   }
 }
