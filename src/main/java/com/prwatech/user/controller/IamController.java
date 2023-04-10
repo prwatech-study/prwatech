@@ -1,8 +1,7 @@
 package com.prwatech.user.controller;
 
 import com.prwatech.common.dto.EmailSendResponseDto;
-import com.prwatech.common.dto.FastToSmsWalletDto;
-import com.prwatech.common.service.impl.FastToSmsService;
+import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.user.dto.GoogleSignInUpDto;
 import com.prwatech.user.dto.SignInResponseDto;
 import com.prwatech.user.dto.SignInSignUpRequestDto;
@@ -113,7 +112,7 @@ public class IamController {
     return iamService.reSendOtp(phoneNumber, userId);
   }
 
-  private final FastToSmsService fastToSmsService;
+  private final EmailServiceImpl emailService;
 
   @ApiOperation(value = "Test api", notes = "test api ")
   @ApiResponses(
@@ -128,8 +127,8 @@ public class IamController {
       })
   @ResponseStatus(value = HttpStatus.OK)
   @PutMapping("/otp-message-test/api")
-  public FastToSmsWalletDto signInUpUserViaGoogle() throws IOException {
-    return fastToSmsService.getWalletStatement();
+  public Integer signInUpUserViaGoogle() throws IOException {
+    return emailService.sendMail("manishsinghonnline2@gmail.com", "testing mail", "test");
   }
 
   @ApiOperation(
