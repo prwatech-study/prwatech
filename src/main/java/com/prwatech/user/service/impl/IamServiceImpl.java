@@ -2,13 +2,13 @@ package com.prwatech.user.service.impl;
 
 import static com.prwatech.common.Constants.FORGET_PASSWORD_MAIL_BODY;
 import static com.prwatech.common.Constants.FORGET_PASSWORD_MAIL_SUBJECT;
+import static com.prwatech.common.Constants.SUCCESSFUL;
 
 import com.prwatech.authentication.security.JwtUtils;
 import com.prwatech.common.Constants;
 import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.configuration.PasswordEncode;
-import com.prwatech.common.dto.EmailSendResponseDto;
-import com.prwatech.common.dto.PlaneEmailSendDto;
+import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.dto.SmsSendDto;
 import com.prwatech.common.dto.UserDetails;
 import com.prwatech.common.exception.AlreadyPresentException;
@@ -17,7 +17,9 @@ import com.prwatech.common.exception.ForbiddenException;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.service.SmsSendService;
+import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.common.utility.Utility;
+import com.prwatech.user.dto.ForgetPasswordResponseDto;
 import com.prwatech.user.dto.GoogleSignInUpDto;
 import com.prwatech.user.dto.SignInResponseDto;
 import com.prwatech.user.dto.SignInSignUpRequestDto;
@@ -36,7 +38,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import lombok.AllArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,6 +58,7 @@ public class IamServiceImpl implements IamService {
   private final SmsSendService smsSendService;
   private final AppContext appContext;
   private final UserService userService;
+  private final EmailServiceImpl emailService;
 
   @Override
   public SignInResponseDto signInUpWithEmailPassword(
@@ -334,7 +336,7 @@ public class IamServiceImpl implements IamService {
   }
 
   @Override
-  public EmailSendResponseDto sendEmailToForgetPassword(String emailId) {
+  public ForgetPasswordResponseDto sendEmailToForgetPassword(String emailId) {
     Optional<User> userObject = iamMongodbTemplateLayer.findByEmail(emailId);
     if (!userObject.isPresent() || userObject.isEmpty()) {
       throw new NotFoundException("No user found by this email id!");
@@ -347,31 +349,35 @@ public class IamServiceImpl implements IamService {
 
     Integer otp = Utility.createRandomOtp();
 
-    String message = FORGET_PASSWORD_MAIL_BODY + otp;
+    EmailSendDto emailSendDto =
+        new EmailSendDto(
+            appContext.getDefaultMailSenderId(),
+            emailId,
+            FORGET_PASSWORD_MAIL_SUBJECT,
+            FORGET_PASSWORD_MAIL_BODY + otp);
 
-    PlaneEmailSendDto planeEmailSendDto = new PlaneEmailSendDto();
-    planeEmailSendDto.setSenderMailId(appContext.getDefaultMailSenderId());
-    planeEmailSendDto.setReceiverMailId(emailId);
-    planeEmailSendDto.setSubject(FORGET_PASSWORD_MAIL_SUBJECT);
-    planeEmailSendDto.setTextBody(message);
+    Boolean isEmailSent = emailService.sendNormalEmailWithPlanText(emailSendDto);
 
-    EmailSendResponseDto emailSendResponseDto = new EmailSendResponseDto();
-    // planeEmailService.sendPlaneEmailToUser(planeEmailSendDto);
-
-    if (!emailSendResponseDto.getHttpStatus().equals(HttpStatus.OK)) {
+    if (!isEmailSent) {
       throw new UnProcessableEntityException(
           "Something went wrong, Please try again to reset password! ");
     }
 
+    Optional<UserOtpMapping> userOtpMappingObject =
+        userOtpMappingTemplate.findOtpMappingByUserId(userObject.get().getId());
+    if (userOtpMappingObject.isPresent() && !userOtpMappingObject.isEmpty()) {
+      userOtpMappingRepository.deleteById(userOtpMappingObject.get().getId());
+    }
     UserOtpMapping userOtpMapping = new UserOtpMapping();
+
     userOtpMapping.setUserId(userObject.get().getId());
     userOtpMapping.setOtp(otp);
     userOtpMapping.setExpireAt(LocalDateTime.now().plusMinutes(5));
 
     userOtpMappingRepository.save(userOtpMapping);
-    emailSendResponseDto.setUserId(userObject.get().getId());
 
-    return emailSendResponseDto;
+    return new ForgetPasswordResponseDto(
+        userObject.get().getId(), emailId, SUCCESSFUL, Boolean.TRUE);
   }
 
   @Override
@@ -411,5 +417,36 @@ public class IamServiceImpl implements IamService {
     signInResponseDto.setUserDetailsDto(userService.getUserDetailsById(user.getId()));
 
     return signInResponseDto;
+  }
+
+  @Override
+  public Boolean resetPassword(String userId, String newPassword, Integer otp) {
+
+    Optional<User> userObject = iamRepository.findById(userId);
+    if (!userObject.isPresent() || userObject.isEmpty()) {
+      throw new NotFoundException("No user found by this userid!");
+    }
+
+    Optional<UserOtpMapping> userOtpMappingObject =
+        userOtpMappingTemplate.findOtpMappingByUserId(userId);
+    if (!userOtpMappingObject.isPresent() || userOtpMappingObject.isEmpty()) {
+      throw new NotFoundException("No otp found in database with this user!");
+    }
+
+    if (userOtpMappingObject.get().getExpireAt().isBefore(LocalDateTime.now())) {
+      throw new UnProcessableEntityException("Otp has been expired!");
+    }
+
+    if (!userOtpMappingObject.get().getOtp().equals(otp)) {
+      throw new UnProcessableEntityException("Wrong Otp! Please provide correct otp!");
+    }
+
+    User user = userObject.get();
+    user.setPassword(passwordEncode.getEncryptedPassword(newPassword));
+    iamRepository.save(user);
+
+    userOtpMappingRepository.deleteById(userOtpMappingObject.get().getId());
+
+    return Boolean.TRUE;
   }
 }
