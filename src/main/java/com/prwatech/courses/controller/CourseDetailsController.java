@@ -2,6 +2,7 @@ package com.prwatech.courses.controller;
 
 import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.courses.dto.CourseCardDto;
+import com.prwatech.courses.dto.ForumFilterListingDto;
 import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.CourseCurriculam;
 import com.prwatech.courses.model.CourseDetails;
@@ -182,5 +183,24 @@ public class CourseDetailsController {
   public List<CourseFAQs> getCourseFAQByCourseId(
       @PathVariable(value = "courseId") @NotNull String courseId) {
     return courseFAQsService.getAllCourseFAQsByCourseId(new ObjectId(courseId));
+  }
+
+  @ApiOperation(
+      value = "Get course title listing for filter",
+      notes = "Get course title listing for filter")
+  @ApiResponses(
+      value = {
+        @ApiResponse(code = 200, message = "Success"),
+        @ApiResponse(code = 400, message = "Not Available"),
+        @ApiResponse(code = 401, message = "UnAuthorized"),
+        @ApiResponse(code = 403, message = "Access Forbidden"),
+        @ApiResponse(code = 404, message = "Not found"),
+        @ApiResponse(code = 422, message = "UnProcessable entity"),
+        @ApiResponse(code = 500, message = "Internal server error"),
+      })
+  @GetMapping("/course/title/listing")
+  @ResponseStatus(HttpStatus.OK)
+  public List<ForumFilterListingDto> getCourseTitleListingForFilter() {
+    return courseDetailService.getCoursesTitleListing();
   }
 }

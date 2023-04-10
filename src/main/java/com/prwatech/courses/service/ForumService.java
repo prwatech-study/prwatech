@@ -5,5 +5,5 @@ import java.util.List;
 
 public interface ForumService {
 
-  List<ForumDto> getForumList();
+  List<ForumDto> getForumList(String courseId);
 }
