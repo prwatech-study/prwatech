@@ -134,12 +134,12 @@ public class IamServiceImpl implements IamService {
       SignInSignUpRequestDto signInSignUpRequestDto) {
     Optional<User> userObject =
         iamMongodbTemplateLayer.findByEmail(signInSignUpRequestDto.getEmail());
-    if (!userObject.isEmpty()) {
-      throw new AlreadyPresentException("This email id is already in use!");
+    if (userObject.isPresent() || !userObject.isEmpty()) {
+      throw new UnProcessableEntityException("This email is already in use!");
     }
 
-    if (userObject.get().getIsGoogleSignedIn().equals(Boolean.TRUE)) {
-      throw new UnProcessableEntityException("This email is already in use!");
+    if (userObject.isPresent() && userObject.get().getIsGoogleSignedIn().equals(Boolean.TRUE)) {
+        throw new UnProcessableEntityException("This email is already in use!");
     }
 
     signInSignUpRequestDto.setPassword(
