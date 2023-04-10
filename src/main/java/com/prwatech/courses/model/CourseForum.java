@@ -15,7 +15,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 @AllArgsConstructor
 @NoArgsConstructor
 @Document(value = "CourseForum")
-public class Forum {
+public class CourseForum {
 
   @Id private String id;
 
