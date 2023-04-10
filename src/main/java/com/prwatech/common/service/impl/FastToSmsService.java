@@ -1,5 +1,7 @@
 package com.prwatech.common.service.impl;
 
+import static com.prwatech.common.Constants.FTSMS_OTP_ROUT;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mashape.unirest.http.HttpResponse;
@@ -9,8 +11,18 @@ import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.dto.FastToSmsWalletDto;
 import com.prwatech.common.dto.SmsSendDto;
 import com.prwatech.common.dto.SmsSendResponseDto;
+import com.prwatech.common.exception.UnProcessableEntityException;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.AllArgsConstructor;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
 
 @Component
 @AllArgsConstructor
@@ -21,9 +33,7 @@ public class FastToSmsService {
   private final AppContext appContext;
 
   public FastToSmsWalletDto getWalletStatement() {
-
     try {
-
       HttpResponse response =
           Unirest.post("https://www.fast2sms.com/dev/wallet")
               .header("authorization", appContext.getFastToSMSApiKey())
@@ -81,7 +91,7 @@ public class FastToSmsService {
     try {
       ObjectMapper objectMapper = new ObjectMapper();
       String variables_values = "variables_values=" + smsSendDto.getMessage();
-      String route = "&route=" + Constants.FTSMS_OTP_ROUT;
+      String route = "&route=" + FTSMS_OTP_ROUT;
       String numbers = "&numbers=" + smsSendDto.getNumbers();
       String myUrl = "https://www.fast2sms.com/dev/bulkV2";
       HttpResponse response =
@@ -90,6 +100,7 @@ public class FastToSmsService {
               .header("Content-Type", "application/x-www-form-urlencoded")
               .body(variables_values + route + numbers)
               .asString();
+      Unirest.clearDefaultHeaders();
       if (response.getCode() == 200) {
         JsonNode jsonObject = objectMapper.readTree(response.getBody().toString());
         return new SmsSendResponseDto(
@@ -106,6 +117,40 @@ public class FastToSmsService {
     } catch (Exception e) {
       LOGGER.error(
           "Something went wrong in sending sms via fast to sms due to: {}", e.getMessage());
+    }
+    return null;
+  }
+
+  public SmsSendResponseDto sendOtpMessage(SmsSendDto smsSendDto) throws IOException {
+
+    final String uri = "https://www.fast2sms.com/dev/bulkV2";
+    try {
+      ObjectMapper objectMapper = new ObjectMapper();
+      RestTemplate restTemplate = new RestTemplate();
+      HttpHeaders headers = new HttpHeaders();
+      headers.add("authorization", appContext.getFastToSMSApiKey());
+
+      Map<String, String> requestBody = new HashMap<>();
+      requestBody.put("variables_values", smsSendDto.getMessage());
+      requestBody.put("route", FTSMS_OTP_ROUT);
+      requestBody.put("numbers", smsSendDto.getNumbers());
+
+      HttpEntity<Map<String, String>> requestEntity = new HttpEntity<>(requestBody, headers);
+      ResponseEntity<String> response =
+          restTemplate.exchange(uri, HttpMethod.POST, requestEntity, String.class);
+
+      if (response.getStatusCode().equals(HttpStatus.OK)) {
+        JsonNode jsonObject = objectMapper.readTree(response.getBody().toString());
+        return new SmsSendResponseDto(
+            jsonObject.get("return").asText(),
+            jsonObject.get("request_id").asText(),
+            jsonObject.get("message").asText());
+      }
+      LOGGER.error("Unable to send Otp to user! please try again. {}", response.getStatusCode());
+
+    } catch (Exception e) {
+      LOGGER.error("Something went wring in sms service! {}", e.getMessage());
+      throw new UnProcessableEntityException("Unable to send sms to user ");
     }
     return null;
   }

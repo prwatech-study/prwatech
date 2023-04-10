@@ -11,6 +11,9 @@ import org.springframework.data.domain.Pageable;
 
 public class Utility {
 
+  private static final String CHARACTERS =
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
   public static Integer createRandomOtp() {
     Random random = new Random();
     return random.nextInt(MIN_LIMIT, MAX_LIMIT);
@@ -42,5 +45,14 @@ public class Utility {
         pageable.getPageSize(),
         pageable.getPageNumber(),
         totalElements);
+  }
+
+  public static String generateRandomString(int length) {
+    Random random = new Random();
+    StringBuilder sb = new StringBuilder(length);
+    for (int i = 0; i < length; i++) {
+      sb.append(CHARACTERS.charAt(random.nextInt(CHARACTERS.length())));
+    }
+    return sb.toString();
   }
 }

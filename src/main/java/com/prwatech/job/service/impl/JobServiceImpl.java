@@ -26,7 +26,7 @@ public class JobServiceImpl implements JobService {
                   job.getId(),
                   job.getCategoryId().toString(),
                   job.getJobTitle(),
-                  job.getJobDescription(),
+                  null,
                   job.getLink(),
                   job.getCompanyName(),
                   job.getExperience(),

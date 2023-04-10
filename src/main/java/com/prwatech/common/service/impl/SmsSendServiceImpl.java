@@ -5,6 +5,7 @@ import com.prwatech.common.dto.SmsSendDto;
 import com.prwatech.common.dto.SmsSendResponseDto;
 import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.service.SmsSendService;
+import java.io.IOException;
 import java.util.Objects;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -55,6 +56,26 @@ public class SmsSendServiceImpl implements SmsSendService {
           "Please try again after some time! We are facing problem to sent sms.");
     }
     SmsSendResponseDto smsSendResponseDto = fastToSmsService.sendNormalOtpMessage(smsSendDto);
+
+    if (Objects.isNull(smsSendResponseDto) || !smsSendResponseDto.getIsReturn().equals("true")) {
+      LOGGER.error("Sms has not sent successfully!");
+      throw new UnProcessableEntityException(
+          "Please try again, service is not working as expected!");
+    }
+    return Boolean.TRUE;
+  }
+
+  @Override
+  public Boolean sendDefaultOtpMessage(SmsSendDto smsSendDto) throws IOException {
+    FastToSmsWalletDto fastToSmsWalletDto = fastToSmsService.getWalletStatement();
+
+    if (Objects.isNull(fastToSmsWalletDto) || !fastToSmsWalletDto.getIsReturn().equals("true")) {
+      LOGGER.error("Sms service wallet is not sufficient to send sms.");
+
+      throw new UnProcessableEntityException(
+          "Please try again after some time! We are facing problem to sent sms.");
+    }
+    SmsSendResponseDto smsSendResponseDto = fastToSmsService.sendOtpMessage(smsSendDto);
 
     if (Objects.isNull(smsSendResponseDto) || !smsSendResponseDto.getIsReturn().equals("true")) {
       LOGGER.error("Sms has not sent successfully!");

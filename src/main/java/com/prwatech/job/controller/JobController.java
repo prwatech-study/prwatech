@@ -1,10 +1,7 @@
 package com.prwatech.job.controller;
 
-import com.prwatech.common.Constants;
 import com.prwatech.job.dto.JobDto;
 import com.prwatech.job.service.JobService;
-import io.swagger.annotations.ApiImplicitParam;
-import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
@@ -36,14 +33,6 @@ public class JobController {
         @ApiResponse(code = 422, message = "UnProcessable entity"),
         @ApiResponse(code = 500, message = "Internal server error"),
       })
-  @ApiImplicitParams({
-    @ApiImplicitParam(
-        name = Constants.AUTH,
-        value = Constants.TOKEN_TYPE,
-        required = true,
-        dataType = Constants.AUTH_DATA_TYPE,
-        paramType = Constants.AUTH_PARAM_TYPE)
-  })
   @GetMapping("/job/listing/")
   @ResponseStatus(HttpStatus.OK)
   public List<JobDto> jobsList() {
@@ -62,14 +51,6 @@ public class JobController {
         @ApiResponse(code = 422, message = "UnProcessable entity"),
         @ApiResponse(code = 500, message = "Internal server error"),
       })
-  @ApiImplicitParams({
-    @ApiImplicitParam(
-        name = Constants.AUTH,
-        value = Constants.TOKEN_TYPE,
-        required = true,
-        dataType = Constants.AUTH_DATA_TYPE,
-        paramType = Constants.AUTH_PARAM_TYPE)
-  })
   @GetMapping("/job/description/{jobId}")
   @ResponseStatus(HttpStatus.OK)
   public JobDto jobsDescriptionById(@PathVariable(value = "jobId") @NotNull String jobId) {

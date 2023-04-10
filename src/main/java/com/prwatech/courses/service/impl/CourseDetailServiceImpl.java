@@ -7,6 +7,7 @@ import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.utility.Utility;
 import com.prwatech.courses.dto.CourseCardDto;
 import com.prwatech.courses.dto.CourseRatingDto;
+import com.prwatech.courses.dto.ForumFilterListingDto;
 import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.CourseReview;
@@ -195,5 +196,16 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         courseDetailsPage.getTotalPages(),
         courseDetailsPage.hasNext(),
         courseDetailsPage.getTotalElements());
+  }
+
+  @Override
+  public List<ForumFilterListingDto> getCoursesTitleListing() {
+    return courseDetailRepository.findAll().stream()
+        .map(
+            (courseDetails -> {
+              return new ForumFilterListingDto(
+                  courseDetails.getId(), courseDetails.getCourse_Title());
+            }))
+        .collect(Collectors.toList());
   }
 }

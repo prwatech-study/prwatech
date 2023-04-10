@@ -37,6 +37,8 @@ public class Constants {
   public static String SUCCESSFUL = "Successful";
   public static String UNSUCCESSFUL = "Unsuccessful";
   public static String FORGET_PASSWORD_MAIL_SUBJECT = "Prwatech - Otp for forget password";
-  public static String FORGET_PASSWORD_MAIL_BODY = "your Otp for rest password is : ";
+  public static String FORGET_PASSWORD_MAIL_BODY =
+      "Hey there,\nWelcome to Prwatech! We got your request for reset password.\nYour otp for reset password is : ";
   public static Integer PAGINATION_UTIL_LIST_DEFAULT_INDEX = 0;
+  public static String COURSE_QUERY_EMAIl_SUBJECT = "User Query from course!";
 }

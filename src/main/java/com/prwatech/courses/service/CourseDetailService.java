@@ -2,6 +2,7 @@ package com.prwatech.courses.service;
 
 import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.courses.dto.CourseCardDto;
+import com.prwatech.courses.dto.ForumFilterListingDto;
 import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.Pricing;
@@ -22,4 +23,6 @@ public interface CourseDetailService {
 
   PaginationDto getAllCoursesByCategory(
       CourseLevelCategory category, Integer pageNumber, Integer pageSize);
+
+  List<ForumFilterListingDto> getCoursesTitleListing();
 }
