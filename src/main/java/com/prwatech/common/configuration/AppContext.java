@@ -42,11 +42,11 @@ public class AppContext {
   private String emailProtocol;
 
   @Value("${spring.mail.properties.mail.smtp.auth}")
-  private String emailAuth;
+  private Boolean emailAuth;
 
   @Value("${spring.mail.properties.mail.smtp.starttls.enable}")
   private String emailStarttls;
 
-  @Value("${spring.from.email}")
+  @Value("${prwatech.default.email.id}")
   private String defaultMailSenderId;
 }

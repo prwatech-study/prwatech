@@ -1,8 +1,6 @@
 package com.prwatech.user.controller;
 
-import com.prwatech.common.dto.EmailSendResponseDto;
-import com.prwatech.common.dto.FastToSmsWalletDto;
-import com.prwatech.common.service.impl.FastToSmsService;
+import com.prwatech.user.dto.ForgetPasswordResponseDto;
 import com.prwatech.user.dto.GoogleSignInUpDto;
 import com.prwatech.user.dto.SignInResponseDto;
 import com.prwatech.user.dto.SignInSignUpRequestDto;
@@ -113,25 +111,6 @@ public class IamController {
     return iamService.reSendOtp(phoneNumber, userId);
   }
 
-  private final FastToSmsService fastToSmsService;
-
-  @ApiOperation(value = "Test api", notes = "test api ")
-  @ApiResponses(
-      value = {
-        @ApiResponse(code = 200, message = "Success"),
-        @ApiResponse(code = 400, message = "Not Available"),
-        @ApiResponse(code = 401, message = "UnAuthorized"),
-        @ApiResponse(code = 403, message = "Access Forbidden"),
-        @ApiResponse(code = 404, message = "Not found"),
-        @ApiResponse(code = 422, message = "UnProcessable entity"),
-        @ApiResponse(code = 500, message = "Internal server error"),
-      })
-  @ResponseStatus(value = HttpStatus.OK)
-  @PutMapping("/otp-message-test/api")
-  public FastToSmsWalletDto signInUpUserViaGoogle() throws IOException {
-    return fastToSmsService.getWalletStatement();
-  }
-
   @ApiOperation(
       value = "Forget password for email and password user",
       notes = "Forget password for email and password user ")
@@ -147,7 +126,8 @@ public class IamController {
       })
   @ResponseStatus(value = HttpStatus.OK)
   @PutMapping("/forget-password")
-  public EmailSendResponseDto forgetPassword(@RequestParam("emailId") @NotNull String emailId) {
+  public ForgetPasswordResponseDto forgetPassword(
+      @RequestParam("emailId") @NotNull String emailId) {
     return iamService.sendEmailToForgetPassword(emailId);
   }
 
@@ -166,10 +146,12 @@ public class IamController {
       })
   @ResponseStatus(value = HttpStatus.OK)
   @PutMapping("/reset-password")
-  public void resetPassword(
+  public Boolean resetPassword(
       @RequestParam(value = "otp") @NotNull Integer otp,
       @RequestParam(value = "userId") @NotNull String userId,
-      @RequestParam(value = "newPassword") @NotNull String newPassword) {}
+      @RequestParam(value = "newPassword") @NotNull String newPassword) {
+    return iamService.resetPassword(userId, newPassword, otp);
+  }
 
   @ApiOperation(
       value = "Sign up, Sign in with google account",
