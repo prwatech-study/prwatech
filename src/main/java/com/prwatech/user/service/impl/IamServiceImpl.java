@@ -342,7 +342,7 @@ public class IamServiceImpl implements IamService {
       throw new NotFoundException("No user found by this email id!");
     }
 
-    if (Objects.isNull(userObject.get().getPassword())) {
+    if (Objects.isNull(userObject.get().getPassword()) || userObject.get().getIsGoogleSignedIn()) {
       throw new UnProcessableEntityException(
           "You have not created account via email and password to this application!");
     }
