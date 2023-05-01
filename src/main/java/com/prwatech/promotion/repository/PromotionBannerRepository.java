@@ -7,6 +7,4 @@ import org.springframework.stereotype.Repository;
 
 @EnableMongoRepositories
 @Repository
-public interface PromotionBannerRepository extends MongoRepository<PromotionBanner, String> {
-
-}
+public interface PromotionBannerRepository extends MongoRepository<PromotionBanner, String> {}
