@@ -11,7 +11,6 @@ import com.prwatech.common.configuration.PasswordEncode;
 import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.dto.SmsSendDto;
 import com.prwatech.common.dto.UserDetails;
-import com.prwatech.common.exception.AlreadyPresentException;
 import com.prwatech.common.exception.BadRequestException;
 import com.prwatech.common.exception.ForbiddenException;
 import com.prwatech.common.exception.NotFoundException;
@@ -142,7 +141,7 @@ public class IamServiceImpl implements IamService {
     }
 
     if (userObject.isPresent() && userObject.get().getIsGoogleSignedIn().equals(Boolean.TRUE)) {
-        throw new UnProcessableEntityException("This email is already in use!");
+      throw new UnProcessableEntityException("This email is already in use!");
     }
 
     signInSignUpRequestDto.setPassword(
