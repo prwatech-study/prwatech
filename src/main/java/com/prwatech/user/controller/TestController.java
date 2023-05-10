@@ -27,6 +27,6 @@ public class TestController {
   @ResponseStatus(value = HttpStatus.OK)
   @GetMapping("/")
   public String helloApi() {
-    return "Welcome to Prwatech !";
+    return "Welcome to Prwatech ! 2";
   }
 }
