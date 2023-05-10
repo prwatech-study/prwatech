@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/public")
+@RequestMapping(value = "/api/public")
 public class TestController {
 
   @ApiOperation(value = "Test hello api", notes = "Test hello api")
