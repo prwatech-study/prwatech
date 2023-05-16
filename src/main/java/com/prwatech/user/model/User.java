@@ -1,12 +1,17 @@
 package com.prwatech.user.model;
 
+import com.prwatech.user.enumuration.UserGender;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -36,6 +41,13 @@ public class User {
   @Field(name = "Phone_Number")
   private Long PhoneNumber;
 
+  @Enumerated(EnumType.STRING)
+  @Field(name = "gender")
+  private UserGender gender;
+
+  @Field(value = "date_of_birth")
+  private LocalDateTime dateOfBirth;
+
   @Field(name = "is_profile_image_uploaded")
   private Boolean isProfileImageUploaded;
 
@@ -51,33 +63,37 @@ public class User {
   @Field(name = "profileImage")
   private String profileImage;
 
-  @Field(name = "qualification")
-  private String qualification;
+  @Field(name = "Qualification")
+  private String Qualification;
 
-  @Field(name = "address")
-  private String address;
+  @Field(name = "Address")
+  private String Address;
 
-  @Field(name = "referalCode")
-  private String referalCode;
+  @Field(name = "Referal_Code")
+  private String Referal_Code;
 
-  @Field(name = "refererCode")
-  private String refererCode;
+  @Field(name = "Referer_Code")
+  private String Referer_Code;
 
-  @Field(name = "referedUser")
+  @Field(name = "Refered_Users")
   @DBRef(lazy = true)
-  private List<User> referedUsers = new ArrayList<>();
+  private List<User> Refered_Users = new ArrayList<>();
 
   @Field(name = "is_resume_uploaded")
   private Boolean isResumeUploaded;
 
-  @Field(name = "resumeUrl")
-  private String resumeUrl;
+  @Field(name = "Resume_URL")
+  private String Resume_URL;
 
-  @Field(name = "verified")
-  private Boolean verified;
+  @CreationTimestamp
+  @Field(name = "Created_On")
+  private LocalDate Created_On;
 
-  @Field(name = "disable")
-  private Boolean disable;
+  @Field(name = "Verified")
+  private Boolean Verified;
+
+  @Field(name = "Disable")
+  private Boolean Disable;
 
   @Field(name = "last_login")
   private LocalDateTime lastLogin;

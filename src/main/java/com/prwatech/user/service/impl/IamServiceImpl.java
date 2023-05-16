@@ -174,7 +174,7 @@ public class IamServiceImpl implements IamService {
     if (!userObject.isPresent() && userObject.isEmpty()) {
 
       user.setPhoneNumber(phoneNumber);
-      user.setEmail(Utility.generateRandomString(6));
+      user.setEmail(null);
       user.setDisable(Boolean.FALSE);
       user.setIsMobileRegistered(Boolean.TRUE);
       user = iamRepository.save(user);
