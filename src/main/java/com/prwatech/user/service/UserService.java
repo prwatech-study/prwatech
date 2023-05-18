@@ -15,4 +15,8 @@ public interface UserService {
   UserProfileDto getUserProfileById(String id);
 
   void updateUserProfile(String userId, UserProfileUpdateDto profileUpdateDto);
+
+  void deleteEducationDetailsById(String id);
+
+  String getUserReferalCodeByUserId(String id);
 }

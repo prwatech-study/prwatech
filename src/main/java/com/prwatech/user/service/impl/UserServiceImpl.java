@@ -100,4 +100,18 @@ public class UserServiceImpl implements UserService {
       educationDetailsRepository.save(userEducationDetails);
     }
   }
+
+  @Override
+  public void deleteEducationDetailsById(String id) {
+    educationDetailsRepository.deleteById(id);
+  }
+
+  @Override
+  public String getUserReferalCodeByUserId(String id) {
+    User user =
+        userRepository
+            .findById(id)
+            .orElseThrow(() -> new NotFoundException("No user found by this id"));
+    return user.getReferal_Code();
+  }
 }
