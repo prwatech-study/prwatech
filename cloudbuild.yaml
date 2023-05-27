@@ -1,0 +1,84 @@
+steps:
+
+- name: 'gcr.io/cloud-builders/git'
+  secretEnv: ['SSH_KEY']
+  entrypoint: 'bash'
+  args:
+  - -c
+  - |
+    echo "$$SSH_KEY" >> /root/.ssh/id_rsa
+    chmod 400 /root/.ssh/id_rsa
+    ssh-keyscan -t rsa github.com > known_hosts.github
+    cp known_hosts.github /root/.ssh/known_hosts
+  volumes:
+  - name: 'ssh'
+    path: /root/.ssh
+
+- name: 'gcr.io/cloud-builders/git'
+  args:
+  - clone
+  - --recurse-submodules
+  - --single-branch 
+  - --branch=test-dev 
+  - git@github.com:prwatech-study/prwatech.git
+  volumes:
+  - name: 'ssh'
+    path: /root/.ssh
+
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+    - 'compute'
+    - 'scp'
+    - '--recurse'
+    - '--zone=asia-south1-c'
+    - '--project=eduprwa'
+    - 'prwatech/'
+    - 'test:/'
+
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: 'gcloud'
+  args:
+    - 'compute'
+    - 'ssh'
+    - 'test'
+    - '--zone=asia-south1-c'
+    - '--project=eduprwa'
+    - '--'
+    - 'cd /prwatech/ && sudo rm /prwatech/cloudbuild.yaml && gradle clean && gradle build'    # previously: After cd /prwatech/ -> && git clean -fdx && git checkout test-dev
+    
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+    - 'compute'
+    - 'ssh'
+    - 'test'
+    - '--zone=asia-south1-c'
+    - '--project=eduprwa'
+    - '--'
+    - 'cd /prwatech/ && nohup gradle bootRun > /dev/null 2>&1 &' 
+
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+    - 'compute'
+    - 'ssh'
+    - 'test'
+    - '--zone=asia-south1-c'
+    - '--project=eduprwa'
+    - '--'
+    - 'echo $(sudo netstat -tulpn | grep :9090) && ps aux | grep -i gradle' 
+
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+  - 'compute'
+  - 'ssh'
+  - 'test'
+  - '--zone=asia-south1-c'
+  - '--'
+  - 'rm'
+  - '-rf'
+  - '/workspace/*'
+
+
+availableSecrets:
+  secretManager:
+  - versionName: projects/eduprwa/secrets/github-ssh/versions/latest
+    env: 'SSH_KEY'
