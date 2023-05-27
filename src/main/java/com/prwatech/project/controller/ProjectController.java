@@ -71,6 +71,6 @@ public class ProjectController {
   @ResponseStatus(HttpStatus.OK)
   @GetMapping(value = "/say/hi")
   public String sayingHiToApp() {
-    return "Say hi App! This is test for shivendra";
+    return "Say hi App!";
   }
 }
