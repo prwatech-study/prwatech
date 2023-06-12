@@ -81,7 +81,7 @@ public class UserServiceImpl implements UserService {
       user.setGender(profileUpdateDto.getGender());
     }
 
-    if(Objects.nonNull(profileUpdateDto.getDateOfBirth())){
+    if (Objects.nonNull(profileUpdateDto.getDateOfBirth())) {
       user.setDateOfBirth(profileUpdateDto.getDateOfBirth());
     }
 
