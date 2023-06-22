@@ -208,8 +208,8 @@ public class CourseDetailsController {
 
 
   @ApiOperation(
-          value = "Get course title listing for filter",
-          notes = "Get course title listing for filter")
+          value = "Get course rating by course Id",
+          notes = "Get course rating by course Id")
   @ApiResponses(
           value = {
                   @ApiResponse(code = 200, message = "Success"),
