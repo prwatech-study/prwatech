@@ -5,7 +5,9 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
@@ -19,7 +21,8 @@ public class UserEducationDetails {
   @Id private String id;
 
   @Field(value = "User_Id")
-  private String User_Id;
+  @DBRef
+  private ObjectId User_Id;
 
   @Field(value = "institute_name")
   private String instituteName;

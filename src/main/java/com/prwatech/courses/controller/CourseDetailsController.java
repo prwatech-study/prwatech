@@ -2,6 +2,7 @@ package com.prwatech.courses.controller;
 
 import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.courses.dto.CourseCardDto;
+import com.prwatech.courses.dto.CourseRatingDto;
 import com.prwatech.courses.dto.ForumFilterListingDto;
 import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.CourseCurriculam;
@@ -123,8 +124,9 @@ public class CourseDetailsController {
   @GetMapping("/pricing/{courseId}")
   @ResponseStatus(HttpStatus.OK)
   public Pricing getPricingByCourseId(
-      @PathVariable(value = "courseId") @NotNull ObjectId courseId) {
-    return courseDetailService.getPriceByCourseId(courseId);
+      @PathVariable(value = "courseId") @NotNull ObjectId courseId,
+      @RequestParam(value = "type") @NotNull CourseLevelCategory courseLevelCategory) {
+    return courseDetailService.getCoursePriceByIdAndCategory(courseId, courseLevelCategory);
   }
 
   @ApiOperation(value = "Get all course listing by type", notes = "Get all course listing by type")
@@ -202,5 +204,27 @@ public class CourseDetailsController {
   @ResponseStatus(HttpStatus.OK)
   public List<ForumFilterListingDto> getCourseTitleListingForFilter() {
     return courseDetailService.getCoursesTitleListing();
+  }
+
+
+  @ApiOperation(
+          value = "Get course title listing for filter",
+          notes = "Get course title listing for filter")
+  @ApiResponses(
+          value = {
+                  @ApiResponse(code = 200, message = "Success"),
+                  @ApiResponse(code = 400, message = "Not Available"),
+                  @ApiResponse(code = 401, message = "UnAuthorized"),
+                  @ApiResponse(code = 403, message = "Access Forbidden"),
+                  @ApiResponse(code = 404, message = "Not found"),
+                  @ApiResponse(code = 422, message = "UnProcessable entity"),
+                  @ApiResponse(code = 500, message = "Internal server error"),
+          })
+  @GetMapping("/course/rating/{id}")
+  @ResponseStatus(HttpStatus.OK)
+  public CourseRatingDto getCourseRatingById(
+          @PathVariable(value = "id") String id
+  ) {
+    return courseDetailService.getRatingOfCourse(id);
   }
 }

@@ -15,6 +15,7 @@ import com.prwatech.user.service.UserService;
 import com.prwatech.user.template.EducationDetailsTemplates;
 import java.util.Objects;
 import lombok.AllArgsConstructor;
+import org.bson.types.ObjectId;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 
@@ -85,7 +86,6 @@ public class UserServiceImpl implements UserService {
       user.setDateOfBirth(profileUpdateDto.getDateOfBirth());
     }
 
-    userRepository.save(user);
 
     if (Objects.nonNull(profileUpdateDto.getEducationUpdateDto())) {
       UserEducationDetails userEducationDetails = new UserEducationDetails();
@@ -98,11 +98,13 @@ public class UserServiceImpl implements UserService {
           profileUpdateDto.getEducationUpdateDto().getFieldOfStudy());
       userEducationDetails.setStartTime(profileUpdateDto.getEducationUpdateDto().getStartTime());
       userEducationDetails.setEndTime(profileUpdateDto.getEducationUpdateDto().getEndTime());
-      userEducationDetails.setUser_Id(userId);
+      userEducationDetails.setUser_Id(new ObjectId(userId));
       userEducationDetails.setIsCompleted(
           (Objects.nonNull(userEducationDetails.getEndTime())) ? Boolean.TRUE : Boolean.FALSE);
       educationDetailsRepository.save(userEducationDetails);
     }
+
+    userRepository.save(user);
   }
 
   @Override
