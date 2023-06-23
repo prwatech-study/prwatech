@@ -14,9 +14,9 @@ public class EducationDetailsTemplates {
 
   private final MongoTemplate mongoTemplate;
 
-  public List<UserEducationDetails> getByUserId(String userId) {
+  public UserEducationDetails getByUserId(String userId) {
     Query query = new Query(Criteria.where("User_Id").is(userId));
 
-    return mongoTemplate.find(query, UserEducationDetails.class);
+    return mongoTemplate.findOne(query, UserEducationDetails.class);
   }
 }

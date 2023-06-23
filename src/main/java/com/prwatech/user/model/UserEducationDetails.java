@@ -1,6 +1,8 @@
 package com.prwatech.user.model;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -21,8 +23,7 @@ public class UserEducationDetails {
   @Id private String id;
 
   @Field(value = "User_Id")
-  @DBRef
-  private ObjectId User_Id;
+  private String User_Id;
 
   @Field(value = "institute_name")
   private String instituteName;
@@ -34,10 +35,10 @@ public class UserEducationDetails {
   private String fieldOfStudy;
 
   @Field(value = "start_time")
-  private LocalDate startTime;
+  private LocalDateTime startTime;
 
   @Field(value = "end_time")
-  private LocalDate endTime;
+  private LocalDateTime endTime;
 
   @Field(value = "is_completed")
   private Boolean isCompleted;

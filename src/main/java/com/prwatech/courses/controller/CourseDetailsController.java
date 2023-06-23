@@ -125,8 +125,9 @@ public class CourseDetailsController {
   @ResponseStatus(HttpStatus.OK)
   public Pricing getPricingByCourseId(
       @PathVariable(value = "courseId") @NotNull ObjectId courseId,
-      @RequestParam(value = "type") @NotNull CourseLevelCategory courseLevelCategory) {
-    return courseDetailService.getCoursePriceByIdAndCategory(courseId, courseLevelCategory);
+      @RequestParam(value = "type") CourseLevelCategory category
+      ) {
+    return courseDetailService.getCoursePriceByIdAndCategory(courseId, category);
   }
 
   @ApiOperation(value = "Get all course listing by type", notes = "Get all course listing by type")
@@ -226,5 +227,22 @@ public class CourseDetailsController {
           @PathVariable(value = "id") String id
   ) {
     return courseDetailService.getRatingOfCourse(id);
+  }
+
+  @ApiOperation(value = "Hello Api System1", notes = "Hello Api System1")
+  @ApiResponses(
+      value = {
+        @ApiResponse(code = 200, message = "Success"),
+        @ApiResponse(code = 400, message = "Not Available"),
+        @ApiResponse(code = 401, message = "UnAuthorized"),
+        @ApiResponse(code = 403, message = "Access Forbidden"),
+        @ApiResponse(code = 404, message = "Not found"),
+        @ApiResponse(code = 422, message = "UnProcessable entity"),
+        @ApiResponse(code = 500, message = "Internal server error"),
+      })
+  @GetMapping("/hello")
+  @ResponseStatus(HttpStatus.OK)
+  public String helloApp() {
+    return "hello app 1";
   }
 }

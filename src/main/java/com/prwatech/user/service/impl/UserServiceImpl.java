@@ -4,6 +4,7 @@ import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.courses.dto.MyDashboardActivity;
 import com.prwatech.courses.service.MyCourseService;
+import com.prwatech.user.dto.EducationUpdateDto;
 import com.prwatech.user.dto.UserDetailsDto;
 import com.prwatech.user.dto.UserProfileDto;
 import com.prwatech.user.dto.UserProfileUpdateDto;
@@ -70,13 +71,13 @@ public class UserServiceImpl implements UserService {
       throw new UnProcessableEntityException("update data is empty or missing!");
     }
 
-    if (Objects.nonNull(profileUpdateDto.getPhoneNumber())) {
-      user.setPhoneNumber(profileUpdateDto.getPhoneNumber());
-    }
-
-    if (Objects.nonNull(profileUpdateDto.getEmail())) {
-      user.setEmail(profileUpdateDto.getEmail());
-    }
+//    if (Objects.nonNull(profileUpdateDto.getPhoneNumber())) {
+//      user.setPhoneNumber(profileUpdateDto.getPhoneNumber());
+//    }
+//
+//    if (Objects.nonNull(profileUpdateDto.getEmail())) {
+//      user.setEmail(profileUpdateDto.getEmail());
+//    }
 
     if (Objects.nonNull(profileUpdateDto.getGender())) {
       user.setGender(profileUpdateDto.getGender());
@@ -86,19 +87,33 @@ public class UserServiceImpl implements UserService {
       user.setDateOfBirth(profileUpdateDto.getDateOfBirth());
     }
 
-
     if (Objects.nonNull(profileUpdateDto.getEducationUpdateDto())) {
-      UserEducationDetails userEducationDetails = new UserEducationDetails();
+      UserEducationDetails userEducationDetails ;
+      EducationUpdateDto educationUpdateDto = profileUpdateDto.getEducationUpdateDto();
 
-      userEducationDetails.setInstituteName(
-          profileUpdateDto.getEducationUpdateDto().getInstituteName());
-      userEducationDetails.setProgramName(
-          profileUpdateDto.getEducationUpdateDto().getProgramName());
-      userEducationDetails.setFieldOfStudy(
-          profileUpdateDto.getEducationUpdateDto().getFieldOfStudy());
-      userEducationDetails.setStartTime(profileUpdateDto.getEducationUpdateDto().getStartTime());
-      userEducationDetails.setEndTime(profileUpdateDto.getEducationUpdateDto().getEndTime());
-      userEducationDetails.setUser_Id(new ObjectId(userId));
+      if(Objects.nonNull(profileUpdateDto.getEducationUpdateDto().getId())){
+        userEducationDetails = educationDetailsRepository.findById(educationUpdateDto.getId()).orElse(
+                new UserEducationDetails());
+      }
+      else {
+        userEducationDetails = new UserEducationDetails();
+        userEducationDetails.setUser_Id(userId);
+      }
+      userEducationDetails.setInstituteName((educationUpdateDto.getInstituteName()!=null)?
+          educationUpdateDto.getInstituteName():userEducationDetails.getInstituteName());
+
+      userEducationDetails.setProgramName((educationUpdateDto.getProgramName())!=null?
+          educationUpdateDto.getProgramName():userEducationDetails.getProgramName());
+
+      userEducationDetails.setFieldOfStudy((educationUpdateDto.getFieldOfStudy()!=null)?
+              educationUpdateDto.getFieldOfStudy():userEducationDetails.getFieldOfStudy());
+
+      userEducationDetails.setStartTime((educationUpdateDto.getStartTime()!=null)?
+              educationUpdateDto.getStartTime():userEducationDetails.getStartTime());
+
+      userEducationDetails.setEndTime((educationUpdateDto.getEndTime()!=null)?
+              educationUpdateDto.getEndTime():userEducationDetails.getEndTime());
+
       userEducationDetails.setIsCompleted(
           (Objects.nonNull(userEducationDetails.getEndTime())) ? Boolean.TRUE : Boolean.FALSE);
       educationDetailsRepository.save(userEducationDetails);
