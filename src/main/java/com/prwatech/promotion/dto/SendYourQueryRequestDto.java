@@ -16,7 +16,7 @@ public class SendYourQueryRequestDto {
   private String name;
 
   @NotNull(message = "mobile number can not be null")
-  private Integer mobileNumber;
+  private Long mobileNumber;
 
   @NotNull(message = "email id can not be null")
   private String emailId;

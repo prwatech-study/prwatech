@@ -2,6 +2,7 @@ package com.prwatech.courses.service;
 
 import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.courses.dto.CourseCardDto;
+import com.prwatech.courses.dto.CourseRatingDto;
 import com.prwatech.courses.dto.ForumFilterListingDto;
 import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.CourseDetails;
@@ -15,7 +16,7 @@ public interface CourseDetailService {
 
   CourseDetails getCourseDescriptionById(String id);
 
-  Pricing getPriceByCourseId(ObjectId courseId);
+  Pricing getPriceByCourseId(ObjectId courseId, String type);
 
   List<CourseCardDto> getSelfPlacedCourses();
 
@@ -25,4 +26,9 @@ public interface CourseDetailService {
       CourseLevelCategory category, Integer pageNumber, Integer pageSize);
 
   List<ForumFilterListingDto> getCoursesTitleListing();
-}
+
+  Pricing getCoursePriceByIdAndCategory(ObjectId id, CourseLevelCategory category);
+
+  public CourseRatingDto getRatingOfCourse(String courseId);
+
+  }

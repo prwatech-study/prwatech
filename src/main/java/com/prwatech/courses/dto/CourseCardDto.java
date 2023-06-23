@@ -19,6 +19,7 @@ public class CourseCardDto {
   private Double ratingNumber;
   private Long peopleRatingNumber;
   private Integer price;
+  private Integer discountedPrice;
   private Integer lectureNumber;
   private Integer courseDurationHours;
   private Integer courseDurationMinute;

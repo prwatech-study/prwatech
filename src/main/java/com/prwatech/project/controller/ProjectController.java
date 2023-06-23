@@ -56,4 +56,21 @@ public class ProjectController {
   public ProjectDto getProjectDescription(@RequestParam(value = "projectId") String projectId) {
     return projectService.getProjectDescription(projectId);
   }
+
+  @ApiOperation(value = "Say hi to appliation", notes = "Say hi to appliation")
+  @ApiResponses(
+      value = {
+        @ApiResponse(code = 200, message = "Success"),
+        @ApiResponse(code = 400, message = "Not Available"),
+        @ApiResponse(code = 401, message = "UnAuthorized"),
+        @ApiResponse(code = 403, message = "Access Forbidden"),
+        @ApiResponse(code = 404, message = "Not found"),
+        @ApiResponse(code = 422, message = "UnProcessable entity"),
+        @ApiResponse(code = 500, message = "Internal server error"),
+      })
+  @ResponseStatus(HttpStatus.OK)
+  @GetMapping(value = "/say/hi")
+  public String sayingHiToApp() {
+    return "Say hi App!";
+  }
 }

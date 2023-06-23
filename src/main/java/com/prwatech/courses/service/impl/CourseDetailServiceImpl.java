@@ -56,7 +56,9 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setRatingNumber(courseRatingDto.getTotalRating().doubleValue());
       courseCardDto.setPeopleRatingNumber(courseRatingDto.getTotalRating().longValue());
       courseCardDto.setPrice(
-          getPriceByCourseId(new ObjectId(courseDetail.getId())).getActual_Price());
+          getPriceByCourseId(new ObjectId(courseDetail.getId()),"Classroom").getActual_Price());
+      courseCardDto.setDiscountedPrice(
+              getPriceByCourseId(new ObjectId(courseDetail.getId()),"Classroom").getDiscounted_Price());
       courseCardDto.setCourseLevelCategory(CourseLevelCategory.MOST_POPULAR);
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
@@ -73,9 +75,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         .orElseThrow(() -> new NotFoundException("No course found by this id :"));
   }
 
-  private CourseRatingDto getRatingOfCourse(String courseId) {
+  @Override
+  public CourseRatingDto getRatingOfCourse(String courseId) {
     List<CourseReview> courseReviewList =
-        courseReviewRepositoryTemplate.getCourseReviewByCourseId(courseId);
+        courseReviewRepositoryTemplate.getCourseReviewByCourseId(new ObjectId(courseId));
     Integer totalRating =
         courseReviewList.stream()
             .map(CourseReview::getReview_Number)
@@ -87,10 +90,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  public Pricing getPriceByCourseId(ObjectId courseId) {
+  public Pricing getPriceByCourseId(ObjectId courseId, String type) {
     return coursePricingRepositoryTemplate
-        .getPricingOfCourseByCourseId(courseId)
-        .orElse(new Pricing("", new ObjectId(), null, Constants.DEFAULT_PRICING, 0));
+        .getPricingOfCourseByCourseId(courseId, type)
+        .orElse(new Pricing("", new ObjectId(), null, Constants.DEFAULT_PRICING, Constants.DEFAULT_PRICING));
   }
 
   @Override
@@ -110,7 +113,9 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setRatingNumber(courseRatingDto.getTotalRating().doubleValue());
       courseCardDto.setPeopleRatingNumber(courseRatingDto.getTotalRating().longValue());
       courseCardDto.setPrice(
-          getPriceByCourseId(new ObjectId(courseDetail.getId())).getActual_Price());
+          getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getActual_Price());
+      courseCardDto.setDiscountedPrice(
+              getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getDiscounted_Price());
       courseCardDto.setCourseLevelCategory(CourseLevelCategory.SELF_PLACED);
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
@@ -136,7 +141,9 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setRatingNumber(courseRatingDto.getTotalRating().doubleValue());
       courseCardDto.setPeopleRatingNumber(courseRatingDto.getTotalRating().longValue());
       courseCardDto.setPrice(
-          getPriceByCourseId(new ObjectId(courseDetail.getId())).getActual_Price());
+          getPriceByCourseId(new ObjectId(courseDetail.getId()),"Webinar").getActual_Price());
+      courseCardDto.setDiscountedPrice(
+              getPriceByCourseId(new ObjectId(courseDetail.getId()),"Webinar").getDiscounted_Price());
       courseCardDto.setCourseLevelCategory(CourseLevelCategory.FREE_COURSES);
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
@@ -182,8 +189,18 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
       courseCardDto.setRatingNumber(courseRatingDto.getTotalRating().doubleValue());
       courseCardDto.setPeopleRatingNumber(courseRatingDto.getTotalRating().longValue());
-      courseCardDto.setPrice(
-          getPriceByCourseId(new ObjectId(courseDetail.getId())).getActual_Price());
+
+      switch (category){
+        case MOST_POPULAR -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Classroom").getActual_Price());
+        case SELF_PLACED -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getActual_Price());
+        case FREE_COURSES -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Webinar").getActual_Price());
+      }
+      switch (category){
+        case MOST_POPULAR -> courseCardDto.setDiscountedPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Classroom").getDiscounted_Price());
+        case SELF_PLACED -> courseCardDto.setDiscountedPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getDiscounted_Price());
+        case FREE_COURSES -> courseCardDto.setDiscountedPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Webinar").getDiscounted_Price());
+      }
+
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
 
@@ -207,5 +224,17 @@ public class CourseDetailServiceImpl implements CourseDetailService {
                   courseDetails.getId(), courseDetails.getCourse_Title());
             }))
         .collect(Collectors.toList());
+  }
+
+  @Override
+  public Pricing getCoursePriceByIdAndCategory(ObjectId id, CourseLevelCategory category) {
+    String Course_Type="";
+
+    switch (category){
+      case MOST_POPULAR -> Course_Type="Classroom";
+      case SELF_PLACED -> Course_Type="Online";
+      case FREE_COURSES -> Course_Type="Webinar";
+    }
+    return getPriceByCourseId(id, Course_Type);
   }
 }
