@@ -2,6 +2,7 @@ package com.prwatech.courses.service;
 
 import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.courses.dto.CourseCardDto;
+import com.prwatech.courses.dto.CourseDetailsDto;
 import com.prwatech.courses.dto.CourseRatingDto;
 import com.prwatech.courses.dto.CourseReviewRequestDto;
 import com.prwatech.courses.dto.ForumFilterListingDto;
@@ -16,7 +17,7 @@ public interface CourseDetailService {
 
   List<CourseCardDto> getMostPopularCourses();
 
-  CourseCardDto getCourseDescriptionById(String id);
+  CourseDetailsDto getCourseDescriptionById(String id);
 
   Pricing getPriceByCourseId(ObjectId courseId, String type);
 

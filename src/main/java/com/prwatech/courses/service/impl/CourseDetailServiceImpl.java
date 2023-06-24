@@ -6,6 +6,7 @@ import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.utility.Utility;
 import com.prwatech.courses.dto.CourseCardDto;
+import com.prwatech.courses.dto.CourseDetailsDto;
 import com.prwatech.courses.dto.CourseRatingDto;
 import com.prwatech.courses.dto.CourseReviewRequestDto;
 import com.prwatech.courses.dto.ForumFilterListingDto;
@@ -82,7 +83,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  public CourseCardDto getCourseDescriptionById(String id) {
+  public CourseDetailsDto getCourseDescriptionById(String id) {
 
 
     CourseDetails courseDetail =  courseDetailRepository
@@ -90,21 +91,9 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         .orElseThrow(() -> new NotFoundException("No course found by this id :"));
 
     CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
-    CourseCardDto courseCardDto = new CourseCardDto();
+    return new CourseDetailsDto(courseDetail, courseRatingDto);
 
-    courseCardDto.setCourseId(courseDetail.getId());
-    courseCardDto.setTitle(courseDetail.getCourse_Title());
-    courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
-    courseCardDto.setImgUrl(courseDetail.getCourse_Image());
-    courseCardDto.setCourseRatingDto(courseRatingDto);
-    courseCardDto.setPrice(
-            getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getActual_Price());
-    courseCardDto.setDiscountedPrice(
-            getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
-    courseCardDto.setCourseDurationHours(6);
-    courseCardDto.setCourseDurationMinute(30);
 
-    return courseCardDto;
   }
 
   @Override
