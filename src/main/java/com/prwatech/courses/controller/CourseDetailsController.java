@@ -2,6 +2,7 @@ package com.prwatech.courses.controller;
 
 import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.courses.dto.CourseCardDto;
+import com.prwatech.courses.dto.CourseDetailsDto;
 import com.prwatech.courses.dto.CourseRatingDto;
 import com.prwatech.courses.dto.CourseReviewRequestDto;
 import com.prwatech.courses.dto.ForumFilterListingDto;
@@ -109,7 +110,7 @@ public class CourseDetailsController {
       })
   @GetMapping("/course-details/{courseId}")
   @ResponseStatus(HttpStatus.OK)
-  public CourseDetails getCourseDetailsByCourseId(
+  public CourseDetailsDto getCourseDetailsByCourseId(
       @PathVariable(value = "courseId") @NotNull String courseId) {
     return courseDetailService.getCourseDescriptionById(courseId);
   }

@@ -6,6 +6,7 @@ import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.utility.Utility;
 import com.prwatech.courses.dto.CourseCardDto;
+import com.prwatech.courses.dto.CourseDetailsDto;
 import com.prwatech.courses.dto.CourseRatingDto;
 import com.prwatech.courses.dto.CourseReviewRequestDto;
 import com.prwatech.courses.dto.ForumFilterListingDto;
@@ -82,10 +83,17 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  public CourseDetails getCourseDescriptionById(String id) {
-    return courseDetailRepository
+  public CourseDetailsDto getCourseDescriptionById(String id) {
+
+
+    CourseDetails courseDetail =  courseDetailRepository
         .findById(id)
         .orElseThrow(() -> new NotFoundException("No course found by this id :"));
+
+    CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
+    return new CourseDetailsDto(courseDetail, courseRatingDto);
+
+
   }
 
   @Override
