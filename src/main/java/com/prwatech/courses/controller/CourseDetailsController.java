@@ -3,11 +3,13 @@ package com.prwatech.courses.controller;
 import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.courses.dto.CourseCardDto;
 import com.prwatech.courses.dto.CourseRatingDto;
+import com.prwatech.courses.dto.CourseReviewRequestDto;
 import com.prwatech.courses.dto.ForumFilterListingDto;
 import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.CourseCurriculam;
 import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.CourseFAQs;
+import com.prwatech.courses.model.CourseReview;
 import com.prwatech.courses.model.Pricing;
 import com.prwatech.courses.service.CourseCurriculamService;
 import com.prwatech.courses.service.CourseDetailService;
@@ -22,6 +24,8 @@ import org.bson.types.ObjectId;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -229,7 +233,7 @@ public class CourseDetailsController {
     return courseDetailService.getRatingOfCourse(id);
   }
 
-  @ApiOperation(value = "Hello Api System1", notes = "Hello Api System1")
+  @ApiOperation(value = "Rate a course by user", notes = "Rate a course by user")
   @ApiResponses(
       value = {
         @ApiResponse(code = 200, message = "Success"),
@@ -240,9 +244,11 @@ public class CourseDetailsController {
         @ApiResponse(code = 422, message = "UnProcessable entity"),
         @ApiResponse(code = 500, message = "Internal server error"),
       })
-  @GetMapping("/hello")
+  @PostMapping("/course/rate")
   @ResponseStatus(HttpStatus.OK)
-  public String helloApp() {
-    return "hello app 1";
+  public CourseReview rateACourse(
+          @RequestBody @NotNull CourseReviewRequestDto courseReviewRequestDto
+          ) {
+     return courseDetailService.rateACourse(courseReviewRequestDto);
   }
 }

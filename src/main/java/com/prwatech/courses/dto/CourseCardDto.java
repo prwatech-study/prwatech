@@ -16,8 +16,7 @@ public class CourseCardDto {
   private String title;
   private Boolean isImgPresent;
   private String imgUrl;
-  private Double ratingNumber;
-  private Long peopleRatingNumber;
+  private CourseRatingDto courseRatingDto;
   private Integer price;
   private Integer discountedPrice;
   private Integer lectureNumber;

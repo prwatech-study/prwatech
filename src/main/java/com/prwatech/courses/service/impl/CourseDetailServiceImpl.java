@@ -7,6 +7,7 @@ import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.utility.Utility;
 import com.prwatech.courses.dto.CourseCardDto;
 import com.prwatech.courses.dto.CourseRatingDto;
+import com.prwatech.courses.dto.CourseReviewRequestDto;
 import com.prwatech.courses.dto.ForumFilterListingDto;
 import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.CourseDetails;
@@ -15,13 +16,20 @@ import com.prwatech.courses.model.Pricing;
 import com.prwatech.courses.repository.CourseDetailRepository;
 import com.prwatech.courses.repository.CourseDetailsRepositoryTemplate;
 import com.prwatech.courses.repository.CoursePricingRepositoryTemplate;
+import com.prwatech.courses.repository.CourseReviewRepository;
 import com.prwatech.courses.repository.CourseReviewRepositoryTemplate;
 import com.prwatech.courses.service.CourseDetailService;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
+
+import com.prwatech.user.model.User;
+import com.prwatech.user.repository.UserRepository;
 import lombok.AllArgsConstructor;
 import org.bson.types.ObjectId;
 import org.springframework.data.domain.Page;
@@ -38,6 +46,12 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   private final CourseReviewRepositoryTemplate courseReviewRepositoryTemplate;
   private final CoursePricingRepositoryTemplate coursePricingRepositoryTemplate;
   private final CourseDetailRepository courseDetailRepository;
+  private final UserRepository userRepository;
+  private final CourseReviewRepository courseReviewRepository;
+
+  private static final org.slf4j.Logger LOGGER =
+          org.slf4j.LoggerFactory.getLogger(CourseDetailServiceImpl.class);
+
 
   @Override
   public List<CourseCardDto> getMostPopularCourses() {
@@ -53,8 +67,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setTitle(courseDetail.getCourse_Title());
       courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
-      courseCardDto.setRatingNumber(courseRatingDto.getTotalRating().doubleValue());
-      courseCardDto.setPeopleRatingNumber(courseRatingDto.getTotalRating().longValue());
+      courseCardDto.setCourseRatingDto(courseRatingDto);
       courseCardDto.setPrice(
           getPriceByCourseId(new ObjectId(courseDetail.getId()),"Classroom").getActual_Price());
       courseCardDto.setDiscountedPrice(
@@ -86,8 +99,22 @@ public class CourseDetailServiceImpl implements CourseDetailService {
             .stream()
             .mapToInt(Integer::intValue)
             .sum();
-    return new CourseRatingDto(courseId, totalRating, courseReviewList.size());
+    Map<Integer, Integer> ratingMap = new HashMap<>();
+
+    for(CourseReview courseReview : courseReviewList){
+
+      switch (courseReview.getReview_Number()){
+        case 1->ratingMap.put(1, ratingMap.getOrDefault(1, 0)+1);
+        case 2->ratingMap.put(2, ratingMap.getOrDefault(2, 0)+1);
+        case 3->ratingMap.put(3, ratingMap.getOrDefault(3, 0)+1);
+        case 4->ratingMap.put(4, ratingMap.getOrDefault(4, 0)+1);
+        case 5->ratingMap.put(5, ratingMap.getOrDefault(5, 0)+1);
+      }
+
+    }
+    return new CourseRatingDto(courseId, totalRating, courseReviewList.size(), ratingMap);
   }
+
 
   @Override
   public Pricing getPriceByCourseId(ObjectId courseId, String type) {
@@ -110,8 +137,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setTitle(courseDetail.getCourse_Title());
       courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
-      courseCardDto.setRatingNumber(courseRatingDto.getTotalRating().doubleValue());
-      courseCardDto.setPeopleRatingNumber(courseRatingDto.getTotalRating().longValue());
+      courseCardDto.setCourseRatingDto(courseRatingDto);
       courseCardDto.setPrice(
           getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getActual_Price());
       courseCardDto.setDiscountedPrice(
@@ -138,8 +164,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setTitle(courseDetail.getCourse_Title());
       courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
-      courseCardDto.setRatingNumber(courseRatingDto.getTotalRating().doubleValue());
-      courseCardDto.setPeopleRatingNumber(courseRatingDto.getTotalRating().longValue());
+      courseCardDto.setCourseRatingDto(courseRatingDto);
       courseCardDto.setPrice(
           getPriceByCourseId(new ObjectId(courseDetail.getId()),"Webinar").getActual_Price());
       courseCardDto.setDiscountedPrice(
@@ -187,8 +212,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setTitle(courseDetail.getCourse_Title());
       courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
-      courseCardDto.setRatingNumber(courseRatingDto.getTotalRating().doubleValue());
-      courseCardDto.setPeopleRatingNumber(courseRatingDto.getTotalRating().longValue());
+      courseCardDto.setCourseRatingDto(courseRatingDto);
 
       switch (category){
         case MOST_POPULAR -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Classroom").getActual_Price());
@@ -236,5 +260,26 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       case FREE_COURSES -> Course_Type="Webinar";
     }
     return getPriceByCourseId(id, Course_Type);
+  }
+
+  @Override
+  public CourseReview rateACourse(CourseReviewRequestDto courseReviewRequestDto) {
+
+    if(Objects.isNull(courseReviewRequestDto.getUserId())
+            || Objects.isNull(courseReviewRequestDto.getCourseId())){
+      LOGGER.error("User id is null or course id is null in review dto.");
+      throw new UnProcessableEntityException("User id or Course id can not be null!");
+    }
+
+    CourseReview courseReview = new CourseReview();
+
+    courseReview.setCourse_Id(new ObjectId(courseReviewRequestDto.getCourseId()));
+    courseReview.setReviewer_Id(new ObjectId(courseReviewRequestDto.getUserId()));
+    courseReview.setReview_Message((courseReviewRequestDto.getReviewMessage()!=null)?courseReviewRequestDto.getReviewMessage():null);
+    courseReview.setReview_Status(Boolean.TRUE);
+    courseReview.setReview_Number(courseReviewRequestDto.getRateNumber());
+    courseReview.setReview_From("User");
+
+    return courseReviewRepository.save(courseReview);
   }
 }
