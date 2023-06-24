@@ -82,10 +82,29 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  public CourseDetails getCourseDescriptionById(String id) {
-    return courseDetailRepository
+  public CourseCardDto getCourseDescriptionById(String id) {
+
+
+    CourseDetails courseDetail =  courseDetailRepository
         .findById(id)
         .orElseThrow(() -> new NotFoundException("No course found by this id :"));
+
+    CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
+    CourseCardDto courseCardDto = new CourseCardDto();
+
+    courseCardDto.setCourseId(courseDetail.getId());
+    courseCardDto.setTitle(courseDetail.getCourse_Title());
+    courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
+    courseCardDto.setImgUrl(courseDetail.getCourse_Image());
+    courseCardDto.setCourseRatingDto(courseRatingDto);
+    courseCardDto.setPrice(
+            getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getActual_Price());
+    courseCardDto.setDiscountedPrice(
+            getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
+    courseCardDto.setCourseDurationHours(6);
+    courseCardDto.setCourseDurationMinute(30);
+
+    return courseCardDto;
   }
 
   @Override

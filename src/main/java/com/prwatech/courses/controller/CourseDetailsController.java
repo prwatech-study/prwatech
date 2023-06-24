@@ -109,7 +109,7 @@ public class CourseDetailsController {
       })
   @GetMapping("/course-details/{courseId}")
   @ResponseStatus(HttpStatus.OK)
-  public CourseDetails getCourseDetailsByCourseId(
+  public CourseCardDto getCourseDetailsByCourseId(
       @PathVariable(value = "courseId") @NotNull String courseId) {
     return courseDetailService.getCourseDescriptionById(courseId);
   }
