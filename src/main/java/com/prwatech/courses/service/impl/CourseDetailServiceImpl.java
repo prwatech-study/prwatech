@@ -108,9 +108,12 @@ public class CourseDetailServiceImpl implements CourseDetailService {
             .mapToInt(Integer::intValue)
             .sum();
     Map<Integer, Integer> ratingMap = new HashMap<>();
+    List<String> messageList = new ArrayList<>();
 
     for(CourseReview courseReview : courseReviewList){
-
+        if(Objects.nonNull(courseReview.getReview_Message())){
+          messageList.add(courseReview.getReview_Message());
+        }
       switch (courseReview.getReview_Number()){
         case 1->ratingMap.put(1, ratingMap.getOrDefault(1, 0)+1);
         case 2->ratingMap.put(2, ratingMap.getOrDefault(2, 0)+1);
@@ -120,7 +123,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       }
 
     }
-    return new CourseRatingDto(courseId, totalRating, courseReviewList.size(), ratingMap);
+    return new CourseRatingDto(courseId, totalRating, courseReviewList.size(), ratingMap, messageList);
   }
 
 
