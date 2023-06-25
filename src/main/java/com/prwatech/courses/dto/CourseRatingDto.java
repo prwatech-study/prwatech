@@ -18,4 +18,5 @@ public class CourseRatingDto {
   private Integer totalRating;
   private Integer totalRatingCount;
   private Map<Integer, Integer> ratingList;
+  private List<String> ratingMassageList;
 }
