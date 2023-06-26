@@ -1,12 +1,12 @@
 package com.prwatech.courses.controller;
 
+import com.prwatech.common.Constants;
 import com.prwatech.courses.dto.AddCartDto;
 import com.prwatech.courses.dto.AddWishListDto;
 import com.prwatech.courses.dto.CourseCardDto;
-import com.prwatech.courses.dto.ForumDto;
-import com.prwatech.courses.model.Cart;
 import com.prwatech.courses.service.CartAndWishListService;
-import com.prwatech.courses.service.CourseDetailService;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
@@ -20,14 +20,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/public")
+@RequestMapping("/api/v1")
 @AllArgsConstructor
 public class WishListAndCartController {
 
@@ -45,6 +44,14 @@ public class WishListAndCartController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(HttpStatus.OK)
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping(value = "/cart/{user_id}")
     public List<CourseCardDto> getCartListByUserId(
             @PathVariable(value = "user_id") String user_id) {
@@ -63,6 +70,14 @@ public class WishListAndCartController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(HttpStatus.OK)
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping(value = "/wish-list/{user_id}")
     public List<CourseCardDto> getWishListByUserId(
             @PathVariable(value = "user_id") String user_id) {
@@ -81,6 +96,14 @@ public class WishListAndCartController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(HttpStatus.OK)
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PutMapping(value = "/add/cart")
     public void addItemToCart(
             @RequestBody AddCartDto addCartDto
@@ -99,6 +122,14 @@ public class WishListAndCartController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(HttpStatus.OK)
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @DeleteMapping(value = "/remove/{id}")
     public void removeFromCart(
             @PathVariable(value = "id") String id
@@ -117,6 +148,14 @@ public class WishListAndCartController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(HttpStatus.OK)
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PostMapping(value = "/add/wish-list")
     public void addToWishListByUserId(
             @RequestBody AddWishListDto addWishListDto
@@ -136,6 +175,14 @@ public class WishListAndCartController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(HttpStatus.OK)
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @DeleteMapping(value = "/remove/wish-list/{id}")
     public void removeFromWishList(
             @PathVariable(value = "id") String id
