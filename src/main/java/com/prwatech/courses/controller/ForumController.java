@@ -1,5 +1,6 @@
 package com.prwatech.courses.controller;
 
+import com.prwatech.courses.dto.ForumCourseDto;
 import com.prwatech.courses.dto.ForumDto;
 import com.prwatech.courses.service.ForumService;
 import io.swagger.annotations.ApiOperation;
@@ -37,5 +38,22 @@ public class ForumController {
   public List<ForumDto> getForumsList(
       @RequestParam(value = "courseId", required = false) String courseId) {
     return forumService.getForumList(courseId);
+  }
+
+  @ApiOperation(value = "Get all course name for filter", notes = "Get all course name for filter")
+  @ApiResponses(
+          value = {
+                  @ApiResponse(code = 200, message = "Success"),
+                  @ApiResponse(code = 400, message = "Not Available"),
+                  @ApiResponse(code = 401, message = "UnAuthorized"),
+                  @ApiResponse(code = 403, message = "Access Forbidden"),
+                  @ApiResponse(code = 404, message = "Not found"),
+                  @ApiResponse(code = 422, message = "UnProcessable entity"),
+                  @ApiResponse(code = 500, message = "Internal server error"),
+          })
+  @ResponseStatus(HttpStatus.OK)
+  @GetMapping(value = "/forums-filter/list")
+  public List<ForumCourseDto> getCourseFilterDataForForum(){
+    return forumService.getCoursesForFilterForum();
   }
 }
