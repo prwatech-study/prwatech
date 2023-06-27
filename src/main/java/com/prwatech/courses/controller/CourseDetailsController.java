@@ -8,7 +8,6 @@ import com.prwatech.courses.dto.CourseReviewRequestDto;
 import com.prwatech.courses.dto.ForumFilterListingDto;
 import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.CourseCurriculam;
-import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.CourseFAQs;
 import com.prwatech.courses.model.CourseReview;
 import com.prwatech.courses.model.Pricing;
