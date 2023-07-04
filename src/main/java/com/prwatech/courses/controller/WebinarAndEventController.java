@@ -1,9 +1,12 @@
 package com.prwatech.courses.controller;
 
+import com.prwatech.common.Constants;
 import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.courses.dto.RegisterWebinarRequestDto;
 import com.prwatech.courses.model.Webinar;
 import com.prwatech.courses.service.WebinarService;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
@@ -22,7 +25,7 @@ import javax.validation.constraints.NotNull;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/public")
+@RequestMapping("/api/vi")
 @AllArgsConstructor
 public class WebinarAndEventController {
 
@@ -40,14 +43,14 @@ public class WebinarAndEventController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(HttpStatus.OK)
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(
-//                    name = Constants.AUTH,
-//                    value = Constants.TOKEN_TYPE,
-//                    required = true,
-//                    dataType = Constants.AUTH_DATA_TYPE,
-//                    paramType = Constants.AUTH_PARAM_TYPE)
-//    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping(value = "/webinar/all")
     public PaginationDto getAllWebinar(
             @RequestParam(value = "pageNumber", defaultValue = "0") Integer pageNumber,
@@ -69,14 +72,14 @@ public class WebinarAndEventController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(HttpStatus.OK)
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(
-//                    name = Constants.AUTH,
-//                    value = Constants.TOKEN_TYPE,
-//                    required = true,
-//                    dataType = Constants.AUTH_DATA_TYPE,
-//                    paramType = Constants.AUTH_PARAM_TYPE)
-//    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping(value = "/webinar/{id}")
     public Webinar getWebinarDetails(
             @PathVariable(value = "id") String id
@@ -97,14 +100,14 @@ public class WebinarAndEventController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(HttpStatus.OK)
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(
-//                    name = Constants.AUTH,
-//                    value = Constants.TOKEN_TYPE,
-//                    required = true,
-//                    dataType = Constants.AUTH_DATA_TYPE,
-//                    paramType = Constants.AUTH_PARAM_TYPE)
-//    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PutMapping(value = "/webinar/register")
     public void registerToWebinar(
             @RequestBody @NotNull RegisterWebinarRequestDto webinarRequestDto
@@ -126,14 +129,14 @@ public class WebinarAndEventController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(HttpStatus.OK)
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(
-//                    name = Constants.AUTH,
-//                    value = Constants.TOKEN_TYPE,
-//                    required = true,
-//                    dataType = Constants.AUTH_DATA_TYPE,
-//                    paramType = Constants.AUTH_PARAM_TYPE)
-//    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping(value = "/webinar-registered/{email}")
     public List<Webinar> getRegisteredWebinar(
             @PathVariable(value = "email") String email

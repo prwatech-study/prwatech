@@ -52,4 +52,10 @@ public class AppContext {
 
   @Value("${prwatech.default.sale.email.id}")
   private String defaultSaleEmailId;
+
+  @Value("${prwatech.rz.key}")
+  private String razorpayKey;
+
+  @Value("${prwatech.rz.secret}")
+  private String razorpaySecret;
 }
