@@ -105,7 +105,7 @@ public class OrderAndPaymentController {
 //                    paramType = Constants.AUTH_PARAM_TYPE)
 //    })
     @PatchMapping(value = "/update/{orderId}/{userId}")
-    public UserOrder updateOrderStatus(
+    public RazorpayOrder updateOrderStatus(
             @PathVariable(value = "userId") String userId,
             @PathVariable(value = "orderId") String orderId
     ){

@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -16,12 +17,12 @@ public class UserOrderTemplate {
 
     private final MongoTemplate mongoTemplate;
 
-    public Optional<UserOrder> getByUserIdAndCourseId(ObjectId userId, ObjectId courseId){
+    public UserOrder getByUserIdAndCourseId(ObjectId userId, ObjectId courseId){
         Query query = new Query();
         query.addCriteria(Criteria.where("user_id").is(userId))
                 .addCriteria(Criteria.where("course_id").is(courseId));
 
-        return Optional.of(mongoTemplate.findOne(query, UserOrder.class));
+        return mongoTemplate.findOne(query, UserOrder.class);
     }
 
     public UserOrder getByOrderId(String orderId, ObjectId userId){
@@ -29,5 +30,13 @@ public class UserOrderTemplate {
         query.addCriteria(Criteria.where("order_id").is(orderId))
                 .addCriteria(Criteria.where("user_id").is(userId));
         return mongoTemplate.findOne(query, UserOrder.class);
+    }
+
+    public List<UserOrder> getByUserIdAndCourseIds(ObjectId userId, List<ObjectId> courseIds){
+        Query query = new Query();
+        query.addCriteria(Criteria.where("user_id").is(userId))
+                .addCriteria(Criteria.where("course_id").in(courseIds));
+
+        return mongoTemplate.find(query, UserOrder.class);
     }
 }

@@ -34,13 +34,24 @@ public class RazorpayUtilityService {
             JSONObject notes = new JSONObject(createOrderDto.getNotes());
             orderRequest.put("notes",notes);
 
-            ObjectMapper mapper = new ObjectMapper();
             Order order = razorpay.orders.create(orderRequest);
-            String response = mapper.writeValueAsString(order);
-            RazorpayOrder razorpayOrder = mapper.readValue(response, RazorpayOrder.class);
+
+            RazorpayOrder razorpayOrder = RazorpayOrder.builder()
+                    .orderId(order.get("id"))
+                    .entity(order.get("entity"))
+                    .amount(order.get("amount"))
+                    .amountDue(order.get("amount_paid"))
+                    .amountPaid(order.get("amount_due"))
+                    .currency(order.get("currency"))
+                    .receipt(order.get("receipt"))
+                    .status(order.get("status"))
+                    .attempts(order.get("attempts"))
+                    .createdAt(order.get("created_at"))
+                    .build();
+
 
             if(Objects.isNull(razorpayOrder)){
-             LOGGER.error("Error :: Razorpay create order :: got null response with response : {}", response);
+             LOGGER.error("Error :: Razorpay create order :: got null response with response : {}", order.toJson());
              return null;
             }
             return razorpayOrder;
@@ -61,12 +72,21 @@ public class RazorpayUtilityService {
             RazorpayClient razorpay = new RazorpayClient(apiKey, secretKey);
             Order order = razorpay.orders.fetch(orderId);
 
-            ObjectMapper mapper = new ObjectMapper();
-            String response = mapper.writeValueAsString(order);
-            RazorpayOrder razorpayOrder = mapper.readValue(response, RazorpayOrder.class);
+            RazorpayOrder razorpayOrder = RazorpayOrder.builder()
+                    .orderId(order.get("id"))
+                    .entity(order.get("entity"))
+                    .amount(order.get("amount"))
+                    .amountDue(order.get("amount_paid"))
+                    .amountPaid(order.get("amount_due"))
+                    .currency(order.get("currency"))
+                    .receipt(order.get("receipt"))
+                    .status(order.get("status"))
+                    .attempts(order.get("attempts"))
+                    .createdAt(order.get("created_at"))
+                    .build();
 
             if(Objects.isNull(razorpayOrder)){
-                LOGGER.error("Error :: Razorpay create order :: got null response with response : {}", response);
+                LOGGER.error("Error :: Razorpay create order :: got null response with response : {}", order.toJson());
                 return null;
             }
             return razorpayOrder;

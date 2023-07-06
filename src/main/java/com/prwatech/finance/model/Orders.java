@@ -15,6 +15,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.Map;
 
 @Getter
@@ -59,7 +60,7 @@ public class Orders {
     private String[] notes;
 
     @Field("creation_time_stamp")
-    private Timestamp creationTime;
+    private Date creationTime;
 
     @Field("created_at")
     @CreationTimestamp
