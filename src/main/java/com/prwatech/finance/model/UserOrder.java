@@ -34,6 +34,7 @@ public class UserOrder {
     @Field(name = "orders_id")
     private ObjectId orders_id;
 
+    //razorpay order_id
     @Field(name = "order_id")
     private String orderId;
 

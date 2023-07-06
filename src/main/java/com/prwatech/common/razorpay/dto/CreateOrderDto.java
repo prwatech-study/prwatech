@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Map;
 
 @Getter
@@ -32,6 +33,6 @@ public class CreateOrderDto implements Serializable {
     @JsonProperty("partial_payment")
     private Boolean partialPayment=Boolean.FALSE;
 
-    @JsonProperty("course_id")
-    private String courseId;
+    @JsonProperty("course_ids")
+    private List<String> courseIds;
 }

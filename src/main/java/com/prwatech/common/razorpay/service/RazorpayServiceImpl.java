@@ -17,6 +17,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -42,23 +45,6 @@ public class RazorpayServiceImpl implements RazorpayService{
             throw new UnProcessableEntityException("Currency can not be null!");
         }
 
-        //Check for older order for same object.
-        Optional<UserOrder> userOrderOptional = userOrderTemplate.getByUserIdAndCourseId(
-                new ObjectId(createOrderDto.getCourseId()), new ObjectId(userId));
-
-        if(userOrderOptional.isPresent() && userOrderOptional.get().getOrderId()!=null){
-            LOGGER.info("One order is already created for course, checking for status!");
-
-            //get order from razor pay if exist then return the order id,
-            RazorpayOrder olderOrder = razorpayUtilityService.getOrderById(userOrderOptional.get().getOrderId());
-            if(Objects.nonNull(olderOrder) && olderOrder.getStatus().equals("created")){
-                return olderOrder;
-            }
-
-            //else delete these two entries and create new order.
-            ordersRepository.deleteById(userOrderOptional.get().getOrderId());
-            userOrderRepository.deleteById(userOrderOptional.get().getId());
-        }
 
          RazorpayOrder razorpayOrder = razorpayUtilityService.createOrder(createOrderDto);
          if(Objects.isNull(razorpayOrder)){
@@ -69,10 +55,10 @@ public class RazorpayServiceImpl implements RazorpayService{
          //create orders and user order entry and save them.
          Orders orders = Orders.builder()
                  .orderId(razorpayOrder.getOrderId())
-                 .amount(razorpayOrder.getAmount())
+                 .amount(razorpayOrder.getAmount()/100)
                  .entity(razorpayOrder.getEntity())
-                 .amountPaid(razorpayOrder.getAmountPaid())
-                 .amountDue(razorpayOrder.getAmountDue())
+                 .amountPaid(razorpayOrder.getAmountPaid()/100)
+                 .amountDue(razorpayOrder.getAmountDue()/100)
                  .currency(razorpayOrder.getCurrency())
                  .receipt(razorpayOrder.getReceipt())
                  .status(razorpayOrder.getStatus())
@@ -82,13 +68,13 @@ public class RazorpayServiceImpl implements RazorpayService{
                  .build();
          orders = ordersRepository.save(orders);
 
+         for (String courseId : createOrderDto.getCourseIds()){
          UserOrder userOrder = UserOrder.builder().userId(new ObjectId(userId))
-                 .courseId(new ObjectId(createOrderDto.getCourseId()))
+                 .courseId(new ObjectId(courseId))
                  .orders_id(new ObjectId(orders.getId()))
                  .orderId(orders.getOrderId())
                  .build();
-
-         userOrderRepository.save(userOrder);
+         userOrderRepository.save(userOrder);}
         return razorpayOrder;
     }
 
@@ -102,11 +88,18 @@ public class RazorpayServiceImpl implements RazorpayService{
             throw new NotFoundException("No razorpay order exist by this order id "+ orderId);
         }
 
-        return razorpayUtilityService.getOrderById(orderId);
+        RazorpayOrder razorpayOrder = razorpayUtilityService.getOrderById(orderId);
+        if(Objects.nonNull(razorpayOrder)){
+            razorpayOrder.setAmount(razorpayOrder.getAmount()/100);
+            razorpayOrder.setAmountDue(razorpayOrder.getAmountDue()/100);
+            razorpayOrder.setAmountPaid(razorpayOrder.getAmountPaid()/100);
+        }
+
+        return razorpayOrder;
     }
 
     @Override
-    public UserOrder updateOrderAfterPayment(String orderId, String userId) {
+    public RazorpayOrder updateOrderAfterPayment(String orderId, String userId) {
 
         UserOrder userOrder = userOrderTemplate.getByOrderId(orderId, new ObjectId(userId));
         if(Objects.isNull(userOrder)){
@@ -125,6 +118,6 @@ public class RazorpayServiceImpl implements RazorpayService{
         orders.setStatus(razorpayOrder.getStatus());
         ordersRepository.save(orders);
 
-        return userOrder;
+        return razorpayOrder;
     }
 }
