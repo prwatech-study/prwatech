@@ -45,7 +45,9 @@ public class RazorpayServiceImpl implements RazorpayService{
             throw new UnProcessableEntityException("Currency can not be null!");
         }
 
-
+         createOrderDto.setCurrency("INR");
+         createOrderDto.setReceipt(userId);
+         createOrderDto.setPartialPayment(Boolean.FALSE);
          RazorpayOrder razorpayOrder = razorpayUtilityService.createOrder(createOrderDto);
          if(Objects.isNull(razorpayOrder)){
              LOGGER.error("Something went wrong while creating order :: got null order response! ");
