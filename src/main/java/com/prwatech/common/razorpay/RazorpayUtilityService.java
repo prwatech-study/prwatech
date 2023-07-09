@@ -28,7 +28,7 @@ public class RazorpayUtilityService {
         {
             RazorpayClient razorpay = new RazorpayClient(apiKey,secretKey);
             JSONObject orderRequest = new JSONObject();
-            orderRequest.put("amount",createOrderDto.getAmount()*100);
+            orderRequest.put("amount",createOrderDto.getAmount());
             orderRequest.put("currency",createOrderDto.getCurrency());
             orderRequest.put("receipt", createOrderDto.getReceipt());
             JSONObject notes = new JSONObject(createOrderDto.getNotes());
