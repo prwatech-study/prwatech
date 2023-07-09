@@ -18,7 +18,7 @@ import java.util.Map;
 @NoArgsConstructor
 public class RazorpayOrder {
 
-    @JsonProperty("id")
+    @JsonProperty("order_id")
     private String orderId;
 
     @JsonProperty("entity")
