@@ -12,5 +12,5 @@ public interface RazorpayService {
 
     RazorpayOrder createNewOrder(CreateOrderDto createOrderDto, String userId);
     RazorpayOrder getOrderByOrderId(String orderId, String userId);
-    RazorpayOrder updateOrderAfterPayment(String orderId, String userId);
+    RazorpayOrder updateOrderAfterPayment(String orderId, String userId, String paymentId);
 }

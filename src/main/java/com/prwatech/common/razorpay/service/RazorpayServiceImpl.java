@@ -101,7 +101,7 @@ public class RazorpayServiceImpl implements RazorpayService{
     }
 
     @Override
-    public RazorpayOrder updateOrderAfterPayment(String orderId, String userId) {
+    public RazorpayOrder updateOrderAfterPayment(String orderId, String userId, String paymentId) {
 
         UserOrder userOrder = userOrderTemplate.getByOrderId(orderId, new ObjectId(userId));
         if(Objects.isNull(userOrder)){

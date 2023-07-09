@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/public/payment")
+@RequestMapping("/api/v1/payment")
 @AllArgsConstructor
 public class OrderAndPaymentController {
 
@@ -40,14 +40,14 @@ public class OrderAndPaymentController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(HttpStatus.OK)
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(
-//                    name = Constants.AUTH,
-//                    value = Constants.TOKEN_TYPE,
-//                    required = true,
-//                    dataType = Constants.AUTH_DATA_TYPE,
-//                    paramType = Constants.AUTH_PARAM_TYPE)
-//    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PostMapping(value = "/create/{userId}")
     public RazorpayOrder createNewOrderForCourse(
             @PathVariable(value = "userId") String userId,
@@ -68,14 +68,14 @@ public class OrderAndPaymentController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(HttpStatus.OK)
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(
-//                    name = Constants.AUTH,
-//                    value = Constants.TOKEN_TYPE,
-//                    required = true,
-//                    dataType = Constants.AUTH_DATA_TYPE,
-//                    paramType = Constants.AUTH_PARAM_TYPE)
-//    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping(value = "/get/{orderId}/{userId}")
     public RazorpayOrder getOrderByOrderId(
             @PathVariable(value = "userId") String userId,
@@ -96,19 +96,20 @@ public class OrderAndPaymentController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(HttpStatus.OK)
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(
-//                    name = Constants.AUTH,
-//                    value = Constants.TOKEN_TYPE,
-//                    required = true,
-//                    dataType = Constants.AUTH_DATA_TYPE,
-//                    paramType = Constants.AUTH_PARAM_TYPE)
-//    })
-    @PatchMapping(value = "/update/{orderId}/{userId}")
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
+    @PatchMapping(value = "/update/{orderId}/{userId}/{paymentId}")
     public RazorpayOrder updateOrderStatus(
             @PathVariable(value = "userId") String userId,
-            @PathVariable(value = "orderId") String orderId
+            @PathVariable(value = "orderId") String orderId,
+            @PathVariable(value = "paymentId") String paymentId
     ){
-        return razorpayService.updateOrderAfterPayment(orderId, userId);
+        return razorpayService.updateOrderAfterPayment(orderId, userId, paymentId);
     }
 }
