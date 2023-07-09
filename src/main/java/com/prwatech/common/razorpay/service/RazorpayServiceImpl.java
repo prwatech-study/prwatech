@@ -109,6 +109,7 @@ public class RazorpayServiceImpl implements RazorpayService{
             throw new NotFoundException("No razorpay order exist by this order id "+ orderId);
         }
 
+        LOGGER.info("Getting payment details against payment id : {} ", paymentId);
         RazorpayOrder razorpayOrder = getOrderByOrderId(orderId, userId);
         if(Objects.isNull(razorpayOrder)){
             LOGGER.error("Error :: Get order details from razorpay :: getting empty response!");
