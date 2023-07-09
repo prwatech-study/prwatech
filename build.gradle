@@ -2,7 +2,7 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '2.7.9'
 	id 'io.spring.dependency-management' version '1.0.15.RELEASE'
-	id "com.diffplug.spotless" version "5.1.1"
+//	id "com.diffplug.spotless" version "5.1.1"
 }
 
 group = 'com'
@@ -14,14 +14,14 @@ configurations {
 		extendsFrom annotationProcessor
 	}
 }
-spotless {
-	java {
-		removeUnusedImports()
-		googleJavaFormat()
-		//Modify this to format the spacing
-		//prettier(['prettier': '2.0.5', 'prettier-plugin-java': '0.8.0']).config(['parser': 'java', 'tabWidth': 4])
-	}
-}
+//spotless {
+//	java {
+//		removeUnusedImports()
+//		googleJavaFormat()
+//		//Modify this to format the spacing
+//		//prettier(['prettier': '2.0.5', 'prettier-plugin-java': '0.8.0']).config(['parser': 'java', 'tabWidth': 4])
+//	}
+//}
 
 repositories {
 	mavenCentral()
