@@ -83,4 +83,3 @@ availableSecrets:
   - versionName: projects/eduprwa/secrets/github-ssh/versions/latest
     env: 'SSH_KEY'
 
-##testing
