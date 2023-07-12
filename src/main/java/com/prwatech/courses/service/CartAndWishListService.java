@@ -9,13 +9,14 @@ import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 public interface CartAndWishListService {
 
-   List<CourseCardDto> getUserCartListByUserId(ObjectId User_Id);
+   Set<CourseCardDto> getUserCartListByUserId(ObjectId User_Id);
 
-   List<CourseCardDto> getWishListByUserId(ObjectId User_Id);
+   Set<CourseCardDto> getWishListByUserId(ObjectId User_Id);
 
    void AddToWishList(AddWishListDto addWishListDto);
 

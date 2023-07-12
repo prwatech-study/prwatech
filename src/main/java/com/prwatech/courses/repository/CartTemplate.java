@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 
@@ -28,5 +29,11 @@ public class CartTemplate {
         Query query = new Query();
         query.addCriteria(Criteria.where("User_Id").is(User_Id));
         return Optional.ofNullable(mongoTemplate.findOne(query, Cart.class));
+    }
+
+    public Cart getByUserIdAndCourseId(ObjectId userId, ObjectId courseId){
+        Query query = new Query();
+        query.addCriteria(Criteria.where("User_Id").is(userId).and("Cart_Items.Course_Id").is(courseId));
+        return mongoTemplate.findOne(query, Cart.class);
     }
 }

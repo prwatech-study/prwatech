@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -53,7 +54,7 @@ public class WishListAndCartController {
                     paramType = Constants.AUTH_PARAM_TYPE)
     })
     @GetMapping(value = "/cart/{user_id}")
-    public List<CourseCardDto> getCartListByUserId(
+    public Set<CourseCardDto> getCartListByUserId(
             @PathVariable(value = "user_id") String user_id) {
         return cartAndWishListService.getUserCartListByUserId(new ObjectId(user_id));
     }
@@ -79,7 +80,7 @@ public class WishListAndCartController {
                     paramType = Constants.AUTH_PARAM_TYPE)
     })
     @GetMapping(value = "/wish-list/{user_id}")
-    public List<CourseCardDto> getWishListByUserId(
+    public Set<CourseCardDto> getWishListByUserId(
             @PathVariable(value = "user_id") String user_id) {
         return cartAndWishListService.getWishListByUserId(new ObjectId(user_id));
     }
