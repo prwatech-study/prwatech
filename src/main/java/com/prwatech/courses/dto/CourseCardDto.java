@@ -25,4 +25,5 @@ public class CourseCardDto {
   private Integer courseDurationHours;
   private Integer courseDurationMinute;
   private CourseLevelCategory courseLevelCategory;
+  private Boolean isWishListed;
 }
