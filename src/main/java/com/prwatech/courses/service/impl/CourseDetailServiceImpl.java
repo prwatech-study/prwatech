@@ -14,11 +14,13 @@ import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.CourseReview;
 import com.prwatech.courses.model.Pricing;
+import com.prwatech.courses.model.WishList;
 import com.prwatech.courses.repository.CourseDetailRepository;
 import com.prwatech.courses.repository.CourseDetailsRepositoryTemplate;
 import com.prwatech.courses.repository.CoursePricingRepositoryTemplate;
 import com.prwatech.courses.repository.CourseReviewRepository;
 import com.prwatech.courses.repository.CourseReviewRepositoryTemplate;
+import com.prwatech.courses.repository.WishListTemplate;
 import com.prwatech.courses.service.CourseDetailService;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,7 +49,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   private final CourseReviewRepositoryTemplate courseReviewRepositoryTemplate;
   private final CoursePricingRepositoryTemplate coursePricingRepositoryTemplate;
   private final CourseDetailRepository courseDetailRepository;
-  private final UserRepository userRepository;
+  private final WishListTemplate wishListTemplate;
   private final CourseReviewRepository courseReviewRepository;
 
   private static final org.slf4j.Logger LOGGER =
@@ -55,7 +57,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
 
 
   @Override
-  public List<CourseCardDto> getMostPopularCourses() {
+  public List<CourseCardDto> getMostPopularCourses(String userId) {
 
     List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getMostPopularCourse();
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
@@ -76,6 +78,14 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setCourseLevelCategory(CourseLevelCategory.MOST_POPULAR);
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
+      courseCardDto.setIsWishListed(Boolean.FALSE);
+      if(userId!=null){
+        WishList wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
+        if(Objects.nonNull(wishList)){
+          courseCardDto.setIsWishListed(Boolean.TRUE);
+          courseCardDto.setWishListId(wishList.getId());
+        }
+      }
 
       courseCardDtoList.add(courseCardDto);
     }
@@ -135,7 +145,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  public List<CourseCardDto> getSelfPlacedCourses() {
+  public List<CourseCardDto> getSelfPlacedCourses(String userId) {
 
     List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getSelfPlacedCourses();
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
@@ -156,6 +166,14 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setCourseLevelCategory(CourseLevelCategory.SELF_PLACED);
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
+      courseCardDto.setIsWishListed(Boolean.FALSE);
+      if(userId!=null){
+        WishList wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
+        if(Objects.nonNull(wishList)){
+          courseCardDto.setIsWishListed(Boolean.TRUE);
+          courseCardDto.setWishListId(wishList.getId());
+        }
+      }
 
       courseCardDtoList.add(courseCardDto);
     }
@@ -163,7 +181,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  public List<CourseCardDto> getFreeCourses() {
+  public List<CourseCardDto> getFreeCourses(String userId) {
     List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getFreeCourses();
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailList) {
@@ -183,6 +201,14 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setCourseLevelCategory(CourseLevelCategory.FREE_COURSES);
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
+      courseCardDto.setIsWishListed(Boolean.FALSE);
+      if(userId!=null){
+        WishList wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
+        if(Objects.nonNull(wishList)){
+          courseCardDto.setIsWishListed(Boolean.TRUE);
+          courseCardDto.setWishListId(wishList.getId());
+        }
+      }
 
       courseCardDtoList.add(courseCardDto);
     }
@@ -190,7 +216,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  public PaginationDto getAllCoursesByCategory(
+  public PaginationDto getAllCoursesByCategory( String userId,
       CourseLevelCategory category, Integer pageNumber, Integer pageSize) {
 
     Page<CourseDetails> courseDetailsPage = null;
@@ -238,6 +264,14 @@ public class CourseDetailServiceImpl implements CourseDetailService {
 
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
+      courseCardDto.setIsWishListed(Boolean.FALSE);
+      if(userId!=null){
+        WishList wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
+        if(Objects.nonNull(wishList)){
+          courseCardDto.setIsWishListed(Boolean.TRUE);
+          courseCardDto.setWishListId(wishList.getId());
+        }
+      }
 
       courseCardDtoList.add(courseCardDto);
     }
