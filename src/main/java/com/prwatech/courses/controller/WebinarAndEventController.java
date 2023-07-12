@@ -25,7 +25,7 @@ import javax.validation.constraints.NotNull;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/vi")
+@RequestMapping("/api/v1")
 @AllArgsConstructor
 public class WebinarAndEventController {
 
