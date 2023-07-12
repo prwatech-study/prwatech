@@ -1,5 +1,6 @@
 package com.prwatech.courses.service.impl;
 
+import com.prwatech.common.exception.AlreadyPresentException;
 import com.prwatech.courses.dto.AddCartDto;
 import com.prwatech.courses.dto.AddWishListDto;
 import com.prwatech.courses.dto.CourseCardDto;
@@ -21,9 +22,11 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 @Component
 @AllArgsConstructor
@@ -42,14 +45,13 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
 
 
     @Override
-    public List<CourseCardDto> getUserCartListByUserId(ObjectId User_Id) {
+    public Set<CourseCardDto> getUserCartListByUserId(ObjectId User_Id) {
 
 
         List<Cart> cartList = cartTemplate.getByUserId(User_Id);
 
-        List<CourseCardDto> courseCardDtoList = new ArrayList<>();
+        Set<CourseCardDto> courseCardDtoList = new HashSet<>();
         for(Cart cart: cartList){
-            System.out.println("Cart value: " + cart);
             List<Cart.Cart_Items> cart_items = cart.getCart_Items();
             for(com.prwatech.courses.model.Cart.Cart_Items cartItem:cart_items){
                 CourseDetails courseDetail = courseDetailRepository.findById(cartItem.getCourse_Id().toString())
@@ -57,7 +59,7 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
                 if(Objects.nonNull(courseDetail)){
                     CourseRatingDto courseRatingDto = courseDetailService.getRatingOfCourse(courseDetail.getId());
                     CourseCardDto courseCardDto = new CourseCardDto();
-
+                    courseCardDto.setCartId(cart.getId());
                     courseCardDto.setCourseId(courseDetail.getId());
                     courseCardDto.setTitle(courseDetail.getCourse_Title());
                     courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
@@ -80,18 +82,18 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
     }
 
     @Override
-    public List<CourseCardDto> getWishListByUserId(ObjectId User_Id) {
+    public Set<CourseCardDto> getWishListByUserId(ObjectId User_Id) {
 
 
         List<WishList> wishLists = wishListTemplate.getWishListByUserId(User_Id);
-        List<CourseCardDto> courseCardDtoList = new ArrayList<>();
+        Set<CourseCardDto> courseCardDtoList = new HashSet<>();
 
         for (WishList wishList : wishLists){
             CourseDetails courseDetail = courseDetailRepository.findById(wishList.getCourseId().toString()).orElse(null);
             if(Objects.nonNull(courseDetail)){
                 CourseRatingDto courseRatingDto = courseDetailService.getRatingOfCourse(courseDetail.getId());
                 CourseCardDto courseCardDto = new CourseCardDto();
-
+                courseCardDto.setWishListId(wishList.getId());
                 courseCardDto.setCourseId(courseDetail.getId());
                 courseCardDto.setTitle(courseDetail.getCourse_Title());
                 courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
@@ -115,7 +117,11 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
     @Override
     public void AddToWishList(AddWishListDto addWishListDto) {
 
-        WishList wishList = new WishList();
+        WishList wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(addWishListDto.getUserId()), new ObjectId(addWishListDto.getCourseId()));
+        if(Objects.nonNull(wishList)){
+            throw new AlreadyPresentException("This course is already in wish list.");
+        }
+
         wishList.setUserId(new ObjectId(addWishListDto.getUserId()));
         wishList.setCourseId(new ObjectId(addWishListDto.getCourseId()));
         wishList.setCourseType(addWishListDto.getCourseLevelCategory());
@@ -130,23 +136,16 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
 
     @Override
     public void addToCart(AddCartDto addCartDto) {
-        Optional<Cart> cartOptional = cartTemplate.getACartByUserId(new ObjectId(addCartDto.getUser_Id()));
-        if(!cartOptional.isPresent()){
-            Cart cart = new Cart();
-            cart.setUser_Id(new ObjectId(addCartDto.getUser_Id()));
 
-            com.prwatech.courses.model.Cart.Cart_Items cart_items = new Cart.Cart_Items();
-            cart_items.setCourse_Id(new ObjectId(addCartDto.getCourseId()));
-            cart_items.setCourse_Type(addCartDto.getCourse_Type().getValue());
-            cart_items.setPurchase_Type("Course");
+        Cart cart = cartTemplate.getByUserIdAndCourseId(
+                new ObjectId(addCartDto.getUser_Id()),
+                new ObjectId(addCartDto.getCourseId()));
 
-            cart.setCart_Items(Arrays.asList(cart_items));
-
-            cartRepository.save(cart);
+        if(Objects.nonNull(cart)){
+            throw new AlreadyPresentException("This course is already in cart.");
         }
-        else {
-            Cart cart = cartOptional.get();
 
+            cart.setUser_Id(new ObjectId(addCartDto.getUser_Id()));
             com.prwatech.courses.model.Cart.Cart_Items cart_items = new Cart.Cart_Items();
             cart_items.setCourse_Id(new ObjectId(addCartDto.getCourseId()));
             cart_items.setCourse_Type(addCartDto.getCourse_Type().getValue());
@@ -156,7 +155,7 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
             cart.setCart_Items(cart_itemsList);
 
             cartRepository.save(cart);
-        }
+
 
     }
 
