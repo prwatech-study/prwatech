@@ -12,6 +12,8 @@ import lombok.Setter;
 @NoArgsConstructor
 public class CourseCardDto {
 
+  private String cartId;
+  private String wishListId;
   private String courseId;
   private String title;
   private Boolean isImgPresent;
@@ -23,4 +25,5 @@ public class CourseCardDto {
   private Integer courseDurationHours;
   private Integer courseDurationMinute;
   private CourseLevelCategory courseLevelCategory;
+  private Boolean isWishListed;
 }

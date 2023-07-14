@@ -54,8 +54,10 @@ public class CourseDetailsController {
       })
   @GetMapping("/most-popular-course/listing/")
   @ResponseStatus(HttpStatus.OK)
-  public List<CourseCardDto> getHomeListingMostPopularCourses() {
-    return courseDetailService.getMostPopularCourses();
+  public List<CourseCardDto> getHomeListingMostPopularCourses(
+          @RequestParam(value = "userId", required = false) String userId
+  ) {
+    return courseDetailService.getMostPopularCourses(userId);
   }
 
   @ApiOperation(
@@ -73,8 +75,10 @@ public class CourseDetailsController {
       })
   @GetMapping("/self-placed-course/listing/")
   @ResponseStatus(HttpStatus.OK)
-  public List<CourseCardDto> getHomeListingSelfPlacedCourses() {
-    return courseDetailService.getSelfPlacedCourses();
+  public List<CourseCardDto> getHomeListingSelfPlacedCourses(
+          @RequestParam(value = "userId", required = false) String userId
+  ) {
+    return courseDetailService.getSelfPlacedCourses(userId);
   }
 
   @ApiOperation(value = "Get free courses on home page", notes = "Get free courses on home page")
@@ -90,8 +94,10 @@ public class CourseDetailsController {
       })
   @GetMapping("/free-course/listing/")
   @ResponseStatus(HttpStatus.OK)
-  public List<CourseCardDto> getHomeListingFreeCourses() {
-    return courseDetailService.getFreeCourses();
+  public List<CourseCardDto> getHomeListingFreeCourses(
+          @RequestParam(value = "userId", required = false) String userId
+  ) {
+    return courseDetailService.getFreeCourses(userId);
   }
 
   @ApiOperation(
@@ -148,10 +154,11 @@ public class CourseDetailsController {
   @GetMapping("/course/listing/all")
   @ResponseStatus(HttpStatus.OK)
   public PaginationDto getAllCoursesByType(
+          @RequestParam(value = "userId", required = false) String userId,
       @RequestParam(value = "type") @NotNull CourseLevelCategory courseLevelCategory,
       @RequestParam(value = "pageNumber", defaultValue = "0") Integer pageNumber,
       @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize) {
-    return courseDetailService.getAllCoursesByCategory(courseLevelCategory, pageNumber, pageSize);
+    return courseDetailService.getAllCoursesByCategory(userId, courseLevelCategory, pageNumber, pageSize);
   }
 
   @ApiOperation(
