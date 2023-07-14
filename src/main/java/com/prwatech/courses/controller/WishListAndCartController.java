@@ -137,6 +137,8 @@ public class WishListAndCartController {
     ) {
         cartAndWishListService.removeFromByCartId(id);
     }
+
+    //Add coursed to wishlist.
     @ApiOperation(value = "Add Item to WishList", notes = "Add Item to WishList")
     @ApiResponses(
             value = {
