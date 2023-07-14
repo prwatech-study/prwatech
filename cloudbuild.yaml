@@ -44,7 +44,7 @@ steps:
     - '--zone=asia-south1-c'
     - '--project=eduprwa'
     - '--'
-    - 'cd /prwatech/ && sudo rm /prwatech/cloudbuild.yaml && gradle clean && gradle build'    # previously: After cd /prwatech/ -> && git clean -fdx && git checkout test-dev
+    - 'cd /prwatech/ && sudo rm -f /prwatech/cloudbuild.yaml && gradle clean && gradle build'    # previously: After cd /prwatech/ -> && git clean -fdx && git checkout test-dev
     
 - name: 'gcr.io/cloud-builders/gcloud'
   args:
