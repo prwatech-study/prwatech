@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 @AllArgsConstructor
 @Component
@@ -26,11 +27,11 @@ public class WishListTemplate {
         return mongoTemplate.find(query, WishList.class);
     }
 
-    public WishList getByUserIdAndCourseId(ObjectId userId, ObjectId courseId){
+    public Optional<WishList> getByUserIdAndCourseId(ObjectId userId, ObjectId courseId){
         Query query = new Query();
         query.addCriteria(Criteria.where("user_id").is(userId)
                         .and("course_id").is(courseId));
 
-        return mongoTemplate.findOne(query, WishList.class);
+        return Optional.ofNullable(mongoTemplate.findOne(query, WishList.class));
     }
 }

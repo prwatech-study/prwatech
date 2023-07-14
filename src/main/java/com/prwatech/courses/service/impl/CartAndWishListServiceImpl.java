@@ -117,11 +117,12 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
     @Override
     public void AddToWishList(AddWishListDto addWishListDto) {
 
-        WishList wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(addWishListDto.getUserId()), new ObjectId(addWishListDto.getCourseId()));
-        if(Objects.nonNull(wishList)){
+        Optional<WishList> wishListOp = wishListTemplate.getByUserIdAndCourseId(new ObjectId(addWishListDto.getUserId()), new ObjectId(addWishListDto.getCourseId()));
+        if(wishListOp.isPresent()){
             throw new AlreadyPresentException("This course is already in wish list.");
         }
 
+        WishList  wishList = new WishList();
         wishList.setUserId(new ObjectId(addWishListDto.getUserId()));
         wishList.setCourseId(new ObjectId(addWishListDto.getCourseId()));
         wishList.setCourseType(addWishListDto.getCourseLevelCategory());

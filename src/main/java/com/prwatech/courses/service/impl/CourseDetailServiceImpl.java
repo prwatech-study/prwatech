@@ -80,10 +80,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setCourseDurationMinute(30);
       courseCardDto.setIsWishListed(Boolean.FALSE);
       if(userId!=null){
-        WishList wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
-        if(Objects.nonNull(wishList)){
+        Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
+        if(wishList.isPresent()){
           courseCardDto.setIsWishListed(Boolean.TRUE);
-          courseCardDto.setWishListId(wishList.getId());
+          courseCardDto.setWishListId(wishList.get().getId());
         }
       }
 
@@ -168,10 +168,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setCourseDurationMinute(30);
       courseCardDto.setIsWishListed(Boolean.FALSE);
       if(userId!=null){
-        WishList wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
-        if(Objects.nonNull(wishList)){
+        Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
+        if(wishList.isPresent()){
           courseCardDto.setIsWishListed(Boolean.TRUE);
-          courseCardDto.setWishListId(wishList.getId());
+          courseCardDto.setWishListId(wishList.get().getId());
         }
       }
 
@@ -203,10 +203,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setCourseDurationMinute(30);
       courseCardDto.setIsWishListed(Boolean.FALSE);
       if(userId!=null){
-        WishList wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
-        if(Objects.nonNull(wishList)){
+        Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
+        if(wishList.isPresent()){
           courseCardDto.setIsWishListed(Boolean.TRUE);
-          courseCardDto.setWishListId(wishList.getId());
+          courseCardDto.setWishListId(wishList.get().getId());
         }
       }
 
@@ -266,10 +266,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setCourseDurationMinute(30);
       courseCardDto.setIsWishListed(Boolean.FALSE);
       if(userId!=null){
-        WishList wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
-        if(Objects.nonNull(wishList)){
+        Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
+        if(wishList.isPresent()){
           courseCardDto.setIsWishListed(Boolean.TRUE);
-          courseCardDto.setWishListId(wishList.getId());
+          courseCardDto.setWishListId(wishList.get().getId());
         }
       }
 
