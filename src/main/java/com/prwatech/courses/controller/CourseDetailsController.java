@@ -116,8 +116,9 @@ public class CourseDetailsController {
   @GetMapping("/course-details/{courseId}")
   @ResponseStatus(HttpStatus.OK)
   public CourseDetailsDto getCourseDetailsByCourseId(
-      @PathVariable(value = "courseId") @NotNull String courseId) {
-    return courseDetailService.getCourseDescriptionById(courseId);
+      @PathVariable(value = "courseId") @NotNull String courseId,
+      @RequestParam(value = "userId", required = false) String userId) {
+    return courseDetailService.getCourseDescriptionById(courseId, userId);
   }
 
   @ApiOperation(value = "Get course price by course id", notes = "Get course price by course id")

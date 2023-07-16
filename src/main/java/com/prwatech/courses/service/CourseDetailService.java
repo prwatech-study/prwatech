@@ -17,7 +17,7 @@ public interface CourseDetailService {
 
   List<CourseCardDto> getMostPopularCourses(String userId);
 
-  CourseDetailsDto getCourseDescriptionById(String id);
+  CourseDetailsDto getCourseDescriptionById(String id, String userId);
 
   Pricing getPriceByCourseId(ObjectId courseId, String type);
 
