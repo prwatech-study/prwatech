@@ -3,6 +3,9 @@ package com.prwatech.courses.model;
 import java.time.LocalDateTime;
 import java.util.List;
 import javax.persistence.Id;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.prwatech.courses.dto.Course_Curriculam;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -31,7 +34,8 @@ public class CourseCurriculam {
   private ObjectId Course_Detail_Id;
 
   @Field(value = "Course_Curriculam")
-  private List<Object> Course_Curriculam;
+  @JsonProperty(value = "Course_Curriculam")
+  private List<com.prwatech.courses.dto.Course_Curriculam> Course_Curriculam;
 
   @Field(value = "Last_Updated")
   @UpdateTimestamp
