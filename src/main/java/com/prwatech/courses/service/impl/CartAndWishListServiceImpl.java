@@ -158,7 +158,7 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
         if(Objects.nonNull(cart)){
             throw new AlreadyPresentException("This course is already in cart.");
         }
-
+            cart = new Cart();
             cart.setUser_Id(new ObjectId(addCartDto.getUser_Id()));
             com.prwatech.courses.model.Cart.Cart_Items cart_items = new Cart.Cart_Items();
             cart_items.setCourse_Id(new ObjectId(addCartDto.getCourseId()));
