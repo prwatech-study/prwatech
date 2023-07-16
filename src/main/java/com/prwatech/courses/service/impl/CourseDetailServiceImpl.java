@@ -93,7 +93,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  public CourseDetailsDto getCourseDescriptionById(String id) {
+  public CourseDetailsDto getCourseDescriptionById(String id, String userId) {
 
 
     CourseDetails courseDetail =  courseDetailRepository
@@ -101,7 +101,17 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         .orElseThrow(() -> new NotFoundException("No course found by this id :"));
 
     CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
-    return new CourseDetailsDto(courseDetail, courseRatingDto);
+    CourseDetailsDto courseDetailsDto = new CourseDetailsDto(courseDetail, courseRatingDto, false, null);
+    if(userId!=null){
+     Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(
+              new ObjectId(userId), new ObjectId(courseDetail.getId()));
+
+     if(wishList.isPresent()){
+       courseDetailsDto.setIsWishListed(Boolean.TRUE);
+       courseDetailsDto.setWishListId(wishList.get().getId());
+     }
+    }
+    return courseDetailsDto;
 
 
   }
