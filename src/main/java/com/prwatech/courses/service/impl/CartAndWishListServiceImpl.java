@@ -166,7 +166,7 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
             cart_items.setCourse_Id(new ObjectId(addCartDto.getCourseId()));
             cart_items.setCourse_Type(addCartDto.getCourse_Type().getValue());
             cart_items.setPurchase_Type("Course");
-            List<Cart.Cart_Items> cart_itemsList = cart.getCart_Items();
+            List<Cart.Cart_Items> cart_itemsList = new ArrayList<>();
             cart_itemsList.add(cart_items);
             cart.setCart_Items(cart_itemsList);
 
