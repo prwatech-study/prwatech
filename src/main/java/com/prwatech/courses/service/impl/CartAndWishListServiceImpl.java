@@ -1,6 +1,7 @@
 package com.prwatech.courses.service.impl;
 
 import com.prwatech.common.exception.AlreadyPresentException;
+import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.courses.dto.AddCartDto;
 import com.prwatech.courses.dto.AddWishListDto;
 import com.prwatech.courses.dto.CourseCardDto;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 @AllArgsConstructor
@@ -181,6 +183,23 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
     @Override
     public List<Cart> getCartTest(String userId) {
         return cartTemplate.getByUserId(new ObjectId(userId));
+    }
+
+    @Override
+    public void removeACourseFromCart(String cartId, String courseId) {
+        Optional<Cart> optionalCart = cartRepository.findById(cartId);
+
+        if(!optionalCart.isPresent()){
+            throw new NotFoundException("No cart found by this cart Id.");
+        }
+
+        Cart cart = optionalCart.get();
+        List<Cart.Cart_Items> cart_items =
+                cart.getCart_Items().stream().filter(cart_item -> !cart_item.getCourse_Id().toString().equals(courseId)).collect(Collectors.toList());
+
+        cart.setCart_Items(cart_items);
+
+        cartRepository.save(cart);
     }
 
 }
