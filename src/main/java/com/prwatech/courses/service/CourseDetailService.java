@@ -11,6 +11,8 @@ import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.CourseReview;
 import com.prwatech.courses.model.Pricing;
 import java.util.List;
+import java.util.Set;
+
 import org.bson.types.ObjectId;
 
 public interface CourseDetailService {
@@ -35,5 +37,7 @@ public interface CourseDetailService {
   CourseRatingDto getRatingOfCourse(String courseId);
 
   CourseReview rateACourse(CourseReviewRequestDto courseReviewRequestDto);
+
+  Set<CourseCardDto> getAllUserEnrolledCourses(ObjectId userId);
 
   }

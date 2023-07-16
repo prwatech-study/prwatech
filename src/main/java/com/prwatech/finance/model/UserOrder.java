@@ -45,4 +45,7 @@ public class UserOrder {
     @Field(name = "updated_at")
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    @Field(name = "isCompleted")
+    private Boolean isCompleted=Boolean.FALSE;
 }

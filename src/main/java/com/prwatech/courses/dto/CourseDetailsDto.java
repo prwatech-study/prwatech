@@ -16,4 +16,5 @@ public class CourseDetailsDto {
     private CourseRatingDto courseRatingDto;
     private Boolean isWishListed;
     private String wishListId;
+    private Boolean isEnrolled;
 }

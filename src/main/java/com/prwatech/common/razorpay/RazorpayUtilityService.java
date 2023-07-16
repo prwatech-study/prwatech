@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.razorpay.dto.CreateOrderDto;
 import com.prwatech.common.razorpay.dto.RazorpayOrder;
+import com.prwatech.finance.dto.RazorpayPayment;
 import com.razorpay.Order;
+import com.razorpay.Payment;
 import com.razorpay.RazorpayClient;
 import lombok.AllArgsConstructor;
 import org.json.JSONObject;
@@ -97,6 +99,33 @@ public class RazorpayUtilityService {
         return null;
     }
 
-    //webhook call to get order status.
+    public RazorpayPayment getPaymentByPaymentId(String paymentId){
+        String apiKey =appContext.getRazorpayKey();
+        String secretKey =appContext.getRazorpaySecret();
+        try{
+            RazorpayClient razorpay = new RazorpayClient(apiKey, secretKey);
+
+            Payment payment = razorpay.payments.fetch(paymentId);
+
+            RazorpayPayment razorpayPayment = RazorpayPayment
+                    .builder().paymentId(
+                            payment.get("id"))
+                    .amount(payment.get("amount"))
+                    .status(payment.get("status"))
+                    .orderId(payment.get("order_id"))
+                    .captured(payment.get("captured")).build();
+
+            if(Objects.isNull(razorpayPayment)){
+                LOGGER.error("Error :: Razorpay get payment :: got null response with response : {}", payment.toJson());
+                return null;
+            }
+            return razorpayPayment;
+
+        }catch (Exception e){
+            LOGGER.error("Error ::  Get Razorpay Payment :: due to : {}", e.getMessage());
+        }
+         return  null ;
+
+    }
 
 }

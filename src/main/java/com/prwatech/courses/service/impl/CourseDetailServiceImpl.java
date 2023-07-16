@@ -25,12 +25,16 @@ import com.prwatech.courses.service.CourseDetailService;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.prwatech.finance.model.UserOrder;
+import com.prwatech.finance.repository.template.UserOrderTemplate;
 import com.prwatech.user.model.User;
 import com.prwatech.user.repository.UserRepository;
 import lombok.AllArgsConstructor;
@@ -51,6 +55,8 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   private final CourseDetailRepository courseDetailRepository;
   private final WishListTemplate wishListTemplate;
   private final CourseReviewRepository courseReviewRepository;
+
+  private final UserOrderTemplate userOrderTemplate;
 
   private static final org.slf4j.Logger LOGGER =
           org.slf4j.LoggerFactory.getLogger(CourseDetailServiceImpl.class);
@@ -101,14 +107,20 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         .orElseThrow(() -> new NotFoundException("No course found by this id :"));
 
     CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
-    CourseDetailsDto courseDetailsDto = new CourseDetailsDto(courseDetail, courseRatingDto, false, null);
+    CourseDetailsDto courseDetailsDto = new CourseDetailsDto(courseDetail, courseRatingDto, false, null, false);
     if(userId!=null){
      Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(
               new ObjectId(userId), new ObjectId(courseDetail.getId()));
+     UserOrder userOrder =
+             userOrderTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
 
      if(wishList.isPresent()){
        courseDetailsDto.setIsWishListed(Boolean.TRUE);
        courseDetailsDto.setWishListId(wishList.get().getId());
+     }
+
+     if(Objects.nonNull(userOrder)){
+       courseDetailsDto.setIsEnrolled(userOrder.getIsCompleted());
      }
     }
     return courseDetailsDto;
@@ -336,5 +348,39 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     courseReview.setReview_From("User");
 
     return courseReviewRepository.save(courseReview);
+  }
+
+  @Override
+  public Set<CourseCardDto> getAllUserEnrolledCourses(ObjectId userId) {
+
+    List<UserOrder> userOrderList = userOrderTemplate.getAllEnrolledCourses(userId);
+    Set<CourseCardDto> courseCardList = new HashSet<>();
+    for(UserOrder userOrder: userOrderList){
+      CourseDetails courseDetail = courseDetailRepository.findById(userOrder.getCourseId().toString()).orElse(null);
+      if(Objects.nonNull(courseDetail)){
+        CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
+        CourseCardDto courseCardDto = new CourseCardDto();
+        courseCardDto.setCourseId(courseDetail.getId());
+        courseCardDto.setTitle(courseDetail.getCourse_Title());
+        courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
+        courseCardDto.setImgUrl(courseDetail.getCourse_Image());
+        courseCardDto.setCourseRatingDto(courseRatingDto);
+        courseCardDto.setPrice(
+                getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getActual_Price());
+        courseCardDto.setDiscountedPrice(
+                getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
+        courseCardDto.setCourseDurationHours(6);
+        courseCardDto.setCourseDurationMinute(30);
+          Optional<WishList> wishList1 = wishListTemplate.getByUserIdAndCourseId(userId, new ObjectId(courseDetail.getId()));
+          if(wishList1.isPresent()){
+            courseCardDto.setIsWishListed(Boolean.TRUE);
+            courseCardDto.setWishListId(wishList1.get().getId());
+          }
+
+
+        courseCardList.add(courseCardDto);
+      }
+    }
+    return courseCardList;
   }
 }

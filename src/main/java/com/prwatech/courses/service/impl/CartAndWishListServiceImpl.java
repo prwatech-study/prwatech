@@ -72,6 +72,13 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
                     courseCardDto.setCourseLevelCategory(CourseLevelCategory.MOST_POPULAR);
                     courseCardDto.setCourseDurationHours(6);
                     courseCardDto.setCourseDurationMinute(30);
+                    if(User_Id!=null){
+                        Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(User_Id, new ObjectId(courseDetail.getId()));
+                        if(wishList.isPresent()){
+                            courseCardDto.setIsWishListed(Boolean.TRUE);
+                            courseCardDto.setWishListId(wishList.get().getId());
+                        }
+                    }
 
                     courseCardDtoList.add(courseCardDto);
                 }
@@ -106,6 +113,12 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
                 courseCardDto.setCourseLevelCategory(CourseLevelCategory.MOST_POPULAR);
                 courseCardDto.setCourseDurationHours(6);
                 courseCardDto.setCourseDurationMinute(30);
+                if(User_Id!=null){
+                    Optional<WishList> wishList1 = wishListTemplate.getByUserIdAndCourseId(User_Id, new ObjectId(courseDetail.getId()));
+                    if(wishList1.isPresent()){
+                        courseCardDto.setIsWishListed(Boolean.TRUE);
+                    }
+                }
 
                 courseCardDtoList.add(courseCardDto);
             }

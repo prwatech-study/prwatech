@@ -69,4 +69,7 @@ public class Orders {
     @Field("updated_at")
     @UpdateTimestamp
     private LocalDateTime updatedAt;
+
+    @Field("payment_id")
+    private String paymentId;
 }

@@ -5,6 +5,7 @@ import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.razorpay.RazorpayUtilityService;
 import com.prwatech.common.razorpay.dto.CreateOrderDto;
 import com.prwatech.common.razorpay.dto.RazorpayOrder;
+import com.prwatech.finance.dto.RazorpayPayment;
 import com.prwatech.finance.model.Orders;
 import com.prwatech.finance.model.UserOrder;
 import com.prwatech.finance.repository.OrdersRepository;
@@ -109,7 +110,6 @@ public class RazorpayServiceImpl implements RazorpayService{
             throw new NotFoundException("No razorpay order exist by this order id "+ orderId);
         }
 
-        LOGGER.info("Getting payment details against payment id : {} ", paymentId);
         RazorpayOrder razorpayOrder = getOrderByOrderId(orderId, userId);
         if(Objects.isNull(razorpayOrder)){
             LOGGER.error("Error :: Get order details from razorpay :: getting empty response!");
@@ -119,8 +119,19 @@ public class RazorpayServiceImpl implements RazorpayService{
         //get order here and save both
         Orders orders = orderTemplate.getOrderByOrderId(orderId);
         orders.setStatus(razorpayOrder.getStatus());
-        ordersRepository.save(orders);
 
+        LOGGER.info("Getting payment details against payment id : {} ", paymentId);
+        RazorpayPayment razorpayPayment = razorpayUtilityService.getPaymentByPaymentId(paymentId);
+
+        if(Objects.isNull(razorpayPayment)){
+            LOGGER.error("Error :: Get payment details from razorpay :: getting empty response!");
+            throw new UnProcessableEntityException("Getting empty response from razorpay! for this paymentId :: " + paymentId);
+        }
+
+        userOrder.setIsCompleted(razorpayPayment.getCaptured());
+        orders.setPaymentId(razorpayPayment.getPaymentId());
+        ordersRepository.save(orders);
+        userOrderRepository.save(userOrder);
         return razorpayOrder;
     }
 }

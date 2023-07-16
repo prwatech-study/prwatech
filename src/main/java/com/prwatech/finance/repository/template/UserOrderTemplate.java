@@ -39,4 +39,12 @@ public class UserOrderTemplate {
 
         return mongoTemplate.find(query, UserOrder.class);
     }
+
+    public List<UserOrder> getAllEnrolledCourses(ObjectId userId){
+        Query query = new Query();
+        query.addCriteria(Criteria.where("user_id").is(userId))
+                .addCriteria(Criteria.where("isCompleted").is(Boolean.TRUE));
+
+        return mongoTemplate.find(query, UserOrder.class);
+    }
 }
