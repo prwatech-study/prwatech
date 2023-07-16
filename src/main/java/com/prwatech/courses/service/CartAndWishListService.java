@@ -24,6 +24,6 @@ public interface CartAndWishListService {
 
    void addToCart(AddCartDto addCartDto);
    void removeFromByCartId(String id);
-
    List<Cart> getCartTest(String userId);
+   void removeACourseFromCart(String cartId, String courseId);
 }

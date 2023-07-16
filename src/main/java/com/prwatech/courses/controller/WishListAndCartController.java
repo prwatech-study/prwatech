@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -133,9 +134,10 @@ public class WishListAndCartController {
     })
     @DeleteMapping(value = "/remove/{id}")
     public void removeFromCart(
-            @PathVariable(value = "id") String id
+            @PathVariable(value = "id") String id,
+            @RequestParam(value = "courseId") String courseId
     ) {
-        cartAndWishListService.removeFromByCartId(id);
+        cartAndWishListService.removeACourseFromCart(id, courseId);
     }
 
     //Add coursed to wishlist.
