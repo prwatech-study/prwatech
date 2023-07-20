@@ -5,6 +5,9 @@ import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.razorpay.RazorpayUtilityService;
 import com.prwatech.common.razorpay.dto.CreateOrderDto;
 import com.prwatech.common.razorpay.dto.RazorpayOrder;
+import com.prwatech.courses.model.Cart;
+import com.prwatech.courses.repository.CartRepository;
+import com.prwatech.courses.repository.CartTemplate;
 import com.prwatech.finance.dto.RazorpayPayment;
 import com.prwatech.finance.model.Orders;
 import com.prwatech.finance.model.UserOrder;
@@ -33,6 +36,8 @@ public class RazorpayServiceImpl implements RazorpayService{
     private final UserOrderRepository userOrderRepository;
     private final OrderTemplate orderTemplate;
     private final OrdersRepository ordersRepository;
+    private final CartTemplate cartTemplate;
+    private final CartRepository cartRepository;
     private final static Logger LOGGER = LoggerFactory.getLogger(RazorpayServiceImpl.class);
 
     @Override
@@ -132,6 +137,11 @@ public class RazorpayServiceImpl implements RazorpayService{
         orders.setPaymentId(razorpayPayment.getPaymentId());
         ordersRepository.save(orders);
         userOrderRepository.save(userOrder);
+
+        Cart cart = cartTemplate.getByUserIdAndCourseId(new ObjectId(userId), userOrder.getCourseId());
+        if(Objects.nonNull(cart)){
+            cartRepository.deleteById(cart.getId());
+        }
         return razorpayOrder;
     }
 }
