@@ -20,7 +20,7 @@ public class CourseTrackTemplate {
 
         Query query = new Query();
         query.addCriteria(Criteria.where("user_id")
-                .is(userId).andOperator(Criteria.where("user_id").is(userId)));
+                .is(userId).andOperator(Criteria.where("course_id").is(courseId)));
 
         return mongoTemplate.findOne(query, CourseTrack.class);
     }
