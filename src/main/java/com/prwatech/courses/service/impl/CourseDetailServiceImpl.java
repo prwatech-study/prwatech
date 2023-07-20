@@ -13,6 +13,7 @@ import com.prwatech.courses.dto.ForumFilterListingDto;
 import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.CourseReview;
+import com.prwatech.courses.model.CourseTrack;
 import com.prwatech.courses.model.Pricing;
 import com.prwatech.courses.model.WishList;
 import com.prwatech.courses.repository.CourseDetailRepository;
@@ -20,6 +21,8 @@ import com.prwatech.courses.repository.CourseDetailsRepositoryTemplate;
 import com.prwatech.courses.repository.CoursePricingRepositoryTemplate;
 import com.prwatech.courses.repository.CourseReviewRepository;
 import com.prwatech.courses.repository.CourseReviewRepositoryTemplate;
+import com.prwatech.courses.repository.CourseTrackRepository;
+import com.prwatech.courses.repository.CourseTrackTemplate;
 import com.prwatech.courses.repository.WishListTemplate;
 import com.prwatech.courses.service.CourseDetailService;
 import java.util.ArrayList;
@@ -55,8 +58,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   private final CourseDetailRepository courseDetailRepository;
   private final WishListTemplate wishListTemplate;
   private final CourseReviewRepository courseReviewRepository;
-
   private final UserOrderTemplate userOrderTemplate;
+
+  private final CourseTrackTemplate courseTrackTemplate;
+  private final CourseTrackRepository courseTrackRepository;
 
   private static final org.slf4j.Logger LOGGER =
           org.slf4j.LoggerFactory.getLogger(CourseDetailServiceImpl.class);
@@ -353,6 +358,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   @Override
   public Set<CourseCardDto> getAllUserEnrolledCourses(ObjectId userId) {
 
+    if(userId==null){
+      throw new UnProcessableEntityException("User id can not be null!");
+    }
+
     List<UserOrder> userOrderList = userOrderTemplate.getAllEnrolledCourses(userId);
     Set<CourseCardDto> courseCardList = new HashSet<>();
     for(UserOrder userOrder: userOrderList){
@@ -377,10 +386,77 @@ public class CourseDetailServiceImpl implements CourseDetailService {
             courseCardDto.setWishListId(wishList1.get().getId());
           }
 
+        CourseTrack courseTrack = courseTrackTemplate.getByCourseIdAndUserId(userId, new ObjectId(courseDetail.getId()));
+        if(Objects.nonNull(courseTrack) && courseTrack.getIsAllCompleted().equals(Boolean.FALSE)){
+          courseCardDto.setIsCompleted(Boolean.FALSE);
+          courseCardList.add(courseCardDto);
+        }
+      }
+    }
+    return courseCardList;
+  }
 
+  @Override
+  public Set<CourseCardDto> getAllCompletedCourse(ObjectId userId) {
+
+    if (userId == null) {
+      throw new UnProcessableEntityException("User id can not be null!");
+    }
+
+    List<CourseTrack> courseTrackList = courseTrackTemplate.getByUserId(userId);
+    Set<CourseCardDto> courseCardList = new HashSet<>();
+    for (CourseTrack courseTrack : courseTrackList) {
+      CourseDetails courseDetail = courseDetailRepository.findById(courseTrack.getCourseId().toString()).orElse(null);
+      if (Objects.nonNull(courseDetail)) {
+        CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
+        CourseCardDto courseCardDto = new CourseCardDto();
+        courseCardDto.setCourseId(courseDetail.getId());
+        courseCardDto.setTitle(courseDetail.getCourse_Title());
+        courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
+        courseCardDto.setImgUrl(courseDetail.getCourse_Image());
+        courseCardDto.setCourseRatingDto(courseRatingDto);
+        courseCardDto.setPrice(
+                getPriceByCourseId(new ObjectId(courseDetail.getId()), courseDetail.getCourse_Category()).getActual_Price());
+        courseCardDto.setDiscountedPrice(
+                getPriceByCourseId(new ObjectId(courseDetail.getId()), courseDetail.getCourse_Category()).getDiscounted_Price());
+        courseCardDto.setCourseDurationHours(6);
+        courseCardDto.setCourseDurationMinute(30);
+        Optional<WishList> wishList1 = wishListTemplate.getByUserIdAndCourseId(userId, new ObjectId(courseDetail.getId()));
+        if (wishList1.isPresent()) {
+          courseCardDto.setIsWishListed(Boolean.TRUE);
+          courseCardDto.setWishListId(wishList1.get().getId());
+        }
+        if (courseTrack.getIsAllCompleted().equals(Boolean.TRUE)) {
+          courseCardDto.setIsCompleted(Boolean.TRUE);
+        }
         courseCardList.add(courseCardDto);
       }
     }
     return courseCardList;
+  }
+
+  @Override
+  public void updateCurrentItem(ObjectId userId, ObjectId courseId, Integer currentItem) {
+
+    if(courseId==null || userId==null){
+       throw new UnProcessableEntityException("User id or course Id can not be null!");
+     }
+    CourseTrack courseTrack = courseTrackTemplate.getByCourseIdAndUserId(userId, courseId);
+
+    if(Objects.nonNull(courseTrack)){
+      if(courseTrack.getCurrentItem()>currentItem){
+        throw new UnProcessableEntityException("Current video list number can be updated as less than the user " +
+                "completed as in past.");
+      }
+      courseTrack.setCurrentItem(currentItem);
+      if(currentItem==courseTrack.getTotalSize()){
+        courseTrack.setIsAllCompleted(Boolean.TRUE);
+      }
+
+      courseTrackRepository.save(courseTrack);
+    }
+    else {
+      LOGGER.error("No course found by this userId and courseId !");
+    }
   }
 }

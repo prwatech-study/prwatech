@@ -15,10 +15,10 @@ public class CourseCurriculamTemplate {
 
   private final MongoTemplate mongoTemplate;
 
-  public List<CourseCurriculam> getAllCurriculamByCourseId(ObjectId courseId) {
+  public CourseCurriculam getAllCurriculamByCourseId(ObjectId courseId) {
 
     Query query = new Query();
     query.addCriteria(Criteria.where("Course_Id").is(courseId));
-    return mongoTemplate.find(query, CourseCurriculam.class);
+    return mongoTemplate.findOne(query, CourseCurriculam.class);
   }
 }
