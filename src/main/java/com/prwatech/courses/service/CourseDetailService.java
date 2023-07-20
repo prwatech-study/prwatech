@@ -40,4 +40,8 @@ public interface CourseDetailService {
 
   Set<CourseCardDto> getAllUserEnrolledCourses(ObjectId userId);
 
+  Set<CourseCardDto> getAllCompletedCourse(ObjectId userId);
+
+  void updateCurrentItem(ObjectId userId, ObjectId courseId, Integer currentItem);
+
   }

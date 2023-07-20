@@ -6,8 +6,12 @@ import com.prwatech.common.razorpay.RazorpayUtilityService;
 import com.prwatech.common.razorpay.dto.CreateOrderDto;
 import com.prwatech.common.razorpay.dto.RazorpayOrder;
 import com.prwatech.courses.model.Cart;
+import com.prwatech.courses.model.CourseCurriculam;
+import com.prwatech.courses.model.CourseTrack;
 import com.prwatech.courses.repository.CartRepository;
 import com.prwatech.courses.repository.CartTemplate;
+import com.prwatech.courses.repository.CourseCurriculamTemplate;
+import com.prwatech.courses.repository.CourseTrackRepository;
 import com.prwatech.finance.dto.RazorpayPayment;
 import com.prwatech.finance.model.Orders;
 import com.prwatech.finance.model.UserOrder;
@@ -38,6 +42,9 @@ public class RazorpayServiceImpl implements RazorpayService{
     private final OrdersRepository ordersRepository;
     private final CartTemplate cartTemplate;
     private final CartRepository cartRepository;
+    private final CourseTrackRepository courseTrackRepository;
+
+    private final CourseCurriculamTemplate courseCurriculamTemplate;
     private final static Logger LOGGER = LoggerFactory.getLogger(RazorpayServiceImpl.class);
 
     @Override
@@ -142,6 +149,17 @@ public class RazorpayServiceImpl implements RazorpayService{
         if(Objects.nonNull(cart)){
             cartRepository.deleteById(cart.getId());
         }
+
+        CourseCurriculam courseCurriculam = courseCurriculamTemplate.getAllCurriculamByCourseId(userOrder.getCourseId());
+
+        CourseTrack courseTrack = CourseTrack.builder()
+                .userId(new ObjectId(userId))
+                .courseId(userOrder.getCourseId())
+                .currentItem(1)
+                .totalSize((Objects.nonNull(courseCurriculam))?courseCurriculam.getCourse_Curriculam().size():1)
+                .build();
+
+        courseTrackRepository.save(courseTrack);
         return razorpayOrder;
     }
 }
