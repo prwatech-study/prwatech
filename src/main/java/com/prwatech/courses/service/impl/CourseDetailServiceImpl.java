@@ -378,11 +378,6 @@ public class CourseDetailServiceImpl implements CourseDetailService {
                 getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
         courseCardDto.setCourseDurationHours(6);
         courseCardDto.setCourseDurationMinute(30);
-          Optional<WishList> wishList1 = wishListTemplate.getByUserIdAndCourseId(userId, new ObjectId(courseDetail.getId()));
-          if(wishList1.isPresent()){
-            courseCardDto.setIsWishListed(Boolean.TRUE);
-            courseCardDto.setWishListId(wishList1.get().getId());
-          }
 
         CourseTrack courseTrack = courseTrackTemplate.getByCourseIdAndUserId(userId, new ObjectId(courseDetail.getId()));
         if(Objects.nonNull(courseTrack) && courseTrack.getIsAllCompleted().equals(Boolean.FALSE)){

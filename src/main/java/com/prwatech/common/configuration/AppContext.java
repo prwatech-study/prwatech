@@ -58,4 +58,10 @@ public class AppContext {
 
   @Value("${prwatech.rz.secret}")
   private String razorpaySecret;
+
+  @Value("${prwatech.twilio.account.sid}")
+  private String twilioSid;
+
+  @Value("${prwatech.twilio.account.auth.token}")
+  private String twilioAuth;
 }
