@@ -41,4 +41,5 @@ public class Constants {
       "Hey there,\nWelcome to Prwatech! We got your request for reset password.\nYour otp for reset password is : ";
   public static Integer PAGINATION_UTIL_LIST_DEFAULT_INDEX = 0;
   public static String COURSE_QUERY_EMAIl_SUBJECT = "User Query from course!";
+  public static String DEFAULT_SMS_PROVIDER_NUMBER="+12703722154";
 }

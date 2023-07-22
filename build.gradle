@@ -45,6 +45,7 @@ dependencies {
 	implementation group: 'org.hibernate', name: 'hibernate-annotations', version: '3.4.0.GA'
 	implementation group: 'com.sun.mail', name: 'javax.mail', version: '1.6.2'
 	implementation group: 'com.razorpay',name: 'razorpay-java', version: '1.4.4'
+	implementation "com.twilio.sdk:twilio:9.9.0"
 
 
 }

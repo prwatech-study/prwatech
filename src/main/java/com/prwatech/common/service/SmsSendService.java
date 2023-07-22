@@ -12,4 +12,6 @@ public interface SmsSendService {
   public Boolean sendNormalOtp(SmsSendDto smsSendDto);
 
   public Boolean sendDefaultOtpMessage(SmsSendDto smsSendDto) throws IOException;
+
+  public Boolean sendPhoneSms(SmsSendDto smsSendDto);
 }

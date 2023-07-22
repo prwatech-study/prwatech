@@ -1,5 +1,7 @@
 package com.prwatech.common.service.impl;
 
+import com.prwatech.common.Constants;
+import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.dto.FastToSmsWalletDto;
 import com.prwatech.common.dto.SmsSendDto;
 import com.prwatech.common.dto.SmsSendResponseDto;
@@ -7,6 +9,9 @@ import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.service.SmsSendService;
 import java.io.IOException;
 import java.util.Objects;
+
+import com.twilio.Twilio;
+import com.twilio.rest.api.v2010.account.Message;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +23,8 @@ public class SmsSendServiceImpl implements SmsSendService {
 
   private static final org.slf4j.Logger LOGGER =
       org.slf4j.LoggerFactory.getLogger(SmsSendServiceImpl.class);
+
+  private final AppContext context;
 
   private final FastToSmsService fastToSmsService;
 
@@ -83,5 +90,29 @@ public class SmsSendServiceImpl implements SmsSendService {
           "Please try again, service is not working as expected!");
     }
     return Boolean.TRUE;
+  }
+
+  @Override
+  public Boolean sendPhoneSms(SmsSendDto smsSendDto) {
+      final String ACCOUNT_SID = context.getTwilioSid();
+      final String AUTH_TOKEN =context.getTwilioAuth();
+    try{
+      Twilio.init(ACCOUNT_SID, AUTH_TOKEN);
+      Message message = Message.creator(
+                      new com.twilio.type.PhoneNumber("+91"+smsSendDto.getNumbers()),
+                      new com.twilio.type.PhoneNumber(Constants.DEFAULT_SMS_PROVIDER_NUMBER),
+                      smsSendDto.getMessage())
+              .create();
+
+      if(message.getSid()!=null && message.getStatus().equals("sent")){
+        LOGGER.info("Message has been sent to : {}",smsSendDto.getNumbers());
+        return true;
+      }
+
+    }catch (Exception e){
+      LOGGER.error("Something went wrong while sending sms to : {} with error: {}", smsSendDto.getNumbers(), e.getMessage());
+      return false;
+    }
+    return false;
   }
 }

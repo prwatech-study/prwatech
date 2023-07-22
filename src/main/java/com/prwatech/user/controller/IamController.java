@@ -1,5 +1,7 @@
 package com.prwatech.user.controller;
 
+import com.prwatech.common.dto.SmsSendDto;
+import com.prwatech.common.service.SmsSendService;
 import com.prwatech.user.dto.ForgetPasswordResponseDto;
 import com.prwatech.user.dto.GoogleSignInUpDto;
 import com.prwatech.user.dto.SignInResponseDto;
@@ -29,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class IamController {
 
   private final IamService iamService;
+  private final SmsSendService smsSendService;
 
   @ApiOperation(
       value = "Sign in/up user via email and password",
@@ -171,5 +174,31 @@ public class IamController {
   public SignInResponseDto signInSignUpWithGoogle(
       @RequestBody @Valid GoogleSignInUpDto googleSignInUpDto) {
     return iamService.SignInSignUpWithGoogle(googleSignInUpDto);
+  }
+
+
+  @ApiOperation(
+          value = "Sms send test api",
+          notes = "Sms send test api")
+  @ApiResponses(
+          value = {
+                  @ApiResponse(code = 200, message = "Success"),
+                  @ApiResponse(code = 400, message = "Not Available"),
+                  @ApiResponse(code = 401, message = "UnAuthorized"),
+                  @ApiResponse(code = 403, message = "Access Forbidden"),
+                  @ApiResponse(code = 404, message = "Not found"),
+                  @ApiResponse(code = 422, message = "UnProcessable entity"),
+                  @ApiResponse(code = 500, message = "Internal server error"),
+          })
+  @ResponseStatus(value = HttpStatus.OK)
+  @PutMapping("/send-sms/test")
+  public Boolean sendTestSms(){
+    return smsSendService.sendPhoneSms(new SmsSendDto(
+          "Hi testing the message",
+          "eng",
+          "rout",
+          0,
+          "7651977515"
+    ));
   }
 }

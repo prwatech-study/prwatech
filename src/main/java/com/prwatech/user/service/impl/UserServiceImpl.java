@@ -52,6 +52,7 @@ public class UserServiceImpl implements UserService {
             .orElseThrow(() -> new NotFoundException("No user find with this id!"));
     UserProfileDto userProfileDto = modelMapper.map(user, UserProfileDto.class);
 
+
     MyDashboardActivity myDashboardActivity = myCourseService.getUserDashboardActivityByUserId(id);
     userProfileDto.setEducationDetails(educationDetailsTemplates.getByUserId(id));
     userProfileDto.setEnrolledCourse(myDashboardActivity.getEnrolledCourses());
