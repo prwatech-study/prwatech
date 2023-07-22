@@ -367,13 +367,11 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     for(UserOrder userOrder: userOrderList){
       CourseDetails courseDetail = courseDetailRepository.findById(userOrder.getCourseId().toString()).orElse(null);
       if(Objects.nonNull(courseDetail)){
-        CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
         CourseCardDto courseCardDto = new CourseCardDto();
         courseCardDto.setCourseId(courseDetail.getId());
         courseCardDto.setTitle(courseDetail.getCourse_Title());
         courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
         courseCardDto.setImgUrl(courseDetail.getCourse_Image());
-        courseCardDto.setCourseRatingDto(courseRatingDto);
         courseCardDto.setPrice(
                 getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getActual_Price());
         courseCardDto.setDiscountedPrice(
@@ -408,13 +406,12 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     for (CourseTrack courseTrack : courseTrackList) {
       CourseDetails courseDetail = courseDetailRepository.findById(courseTrack.getCourseId().toString()).orElse(null);
       if (Objects.nonNull(courseDetail)) {
-        CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
+
         CourseCardDto courseCardDto = new CourseCardDto();
         courseCardDto.setCourseId(courseDetail.getId());
         courseCardDto.setTitle(courseDetail.getCourse_Title());
         courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
         courseCardDto.setImgUrl(courseDetail.getCourse_Image());
-        courseCardDto.setCourseRatingDto(courseRatingDto);
         courseCardDto.setPrice(
                 getPriceByCourseId(new ObjectId(courseDetail.getId()), courseDetail.getCourse_Category()).getActual_Price());
         courseCardDto.setDiscountedPrice(
