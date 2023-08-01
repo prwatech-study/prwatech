@@ -69,8 +69,11 @@ public class IamController {
   @ResponseStatus(value = HttpStatus.OK)
   @PostMapping("/sign/in/up/{phoneNumber}")
   public UserOtpDto signInUnWithPhoneNumber(
-      @PathVariable(value = "phoneNumber") @NotNull Long phoneNumber) throws IOException {
-    return iamService.singInUpWithPhoneNumber(phoneNumber);
+      @PathVariable(value = "phoneNumber") @NotNull Long phoneNumber,
+      @RequestParam(value = "referalCode", required = false) String referalCode
+
+  ) throws IOException {
+    return iamService.singInUpWithPhoneNumber(phoneNumber, referalCode);
   }
 
   @ApiOperation(

@@ -9,4 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 public interface WalletService {
 
   UserWalletResponseDto getUserWalletByUserId(String id);
+
+  Boolean addIntoWalletByReferal(String referalCode);
 }
