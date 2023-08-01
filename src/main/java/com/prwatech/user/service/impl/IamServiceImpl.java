@@ -18,6 +18,7 @@ import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.service.SmsSendService;
 import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.common.utility.Utility;
+import com.prwatech.finance.service.WalletService;
 import com.prwatech.user.dto.ForgetPasswordResponseDto;
 import com.prwatech.user.dto.GoogleSignInUpDto;
 import com.prwatech.user.dto.SignInResponseDto;
@@ -58,6 +59,7 @@ public class IamServiceImpl implements IamService {
   private final AppContext appContext;
   private final UserService userService;
   private final EmailServiceImpl emailService;
+  private final WalletService walletService;
 
   @Override
   public SignInResponseDto signInUpWithEmailPassword(
@@ -76,11 +78,11 @@ public class IamServiceImpl implements IamService {
   }
 
   @Override
-  public UserOtpDto singInUpWithPhoneNumber(Long phoneNumber) throws IOException {
+  public UserOtpDto singInUpWithPhoneNumber(Long phoneNumber, String referalCode) throws IOException {
     if (Objects.isNull(phoneNumber)) {
       throw new UnProcessableEntityException("Phone number can not be null!");
     }
-    return signUpWithPhoneNumber(phoneNumber);
+    return signUpWithPhoneNumber(phoneNumber, referalCode);
   }
 
   private SignInResponseDto signInWithEmailAndPassword(
@@ -152,6 +154,10 @@ public class IamServiceImpl implements IamService {
     user.setIsGoogleSignedIn(Boolean.FALSE);
     user.setDisable(Boolean.FALSE);
     user.setLastLogin(LocalDateTime.now());
+    if(signInSignUpRequestDto.getReferalCode()!=null){
+      user.setReferer_Code(signInSignUpRequestDto.getReferalCode());
+      walletService.addIntoWalletByReferal(signInSignUpRequestDto.getReferalCode());
+    }
     iamRepository.save(user);
 
     UserDetails userDetails = new UserDetails();
@@ -168,7 +174,7 @@ public class IamServiceImpl implements IamService {
     return signInResponseDto;
   }
 
-  private UserOtpDto signUpWithPhoneNumber(Long phoneNumber) throws IOException {
+  private UserOtpDto signUpWithPhoneNumber(Long phoneNumber, String referalCode) throws IOException {
     Optional<User> userObject = iamMongodbTemplateLayer.findByMobile(phoneNumber);
     User user = new User();
     if (!userObject.isPresent() && userObject.isEmpty()) {
@@ -177,6 +183,10 @@ public class IamServiceImpl implements IamService {
       user.setEmail(null);
       user.setDisable(Boolean.FALSE);
       user.setIsMobileRegistered(Boolean.TRUE);
+      if(referalCode!=null){
+        user.setReferer_Code(referalCode);
+        walletService.addIntoWalletByReferal(referalCode);
+      }
       user = iamRepository.save(user);
     } else {
       user = userObject.get();

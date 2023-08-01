@@ -1,5 +1,6 @@
 package com.prwatech.promotion.controller;
 
+import com.prwatech.promotion.dto.HelpAndSupportDto;
 import com.prwatech.promotion.dto.SendYourQueryRequestDto;
 import com.prwatech.promotion.service.SendYourQueryService;
 import io.swagger.annotations.ApiOperation;
@@ -36,5 +37,24 @@ public class SendYourQueryController {
   public Boolean sendYourQuery(
       @RequestBody @Valid SendYourQueryRequestDto sendYourQueryRequestDto) {
     return sendYourQueryService.sendYourQueryForCourse(sendYourQueryRequestDto);
+  }
+
+  @ApiOperation(
+          value = "help and support.",
+          notes = "help and support.")
+  @ApiResponses(
+          value = {
+                  @ApiResponse(code = 200, message = "Success"),
+                  @ApiResponse(code = 400, message = "Not Available"),
+                  @ApiResponse(code = 401, message = "UnAuthorized"),
+                  @ApiResponse(code = 403, message = "Access Forbidden"),
+                  @ApiResponse(code = 404, message = "Not found"),
+                  @ApiResponse(code = 422, message = "UnProcessable entity"),
+                  @ApiResponse(code = 500, message = "Internal server error"),
+          })
+  @PutMapping("/help-support")
+  public Boolean sendYourQueryToHelpAndSupport(
+          @RequestBody @Valid HelpAndSupportDto helpAndSupportDto) {
+    return sendYourQueryService.sendYourQueryToHelpAndSupport(helpAndSupportDto);
   }
 }

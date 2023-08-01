@@ -42,4 +42,6 @@ public class Constants {
   public static Integer PAGINATION_UTIL_LIST_DEFAULT_INDEX = 0;
   public static String COURSE_QUERY_EMAIl_SUBJECT = "User Query from course!";
   public static String DEFAULT_SMS_PROVIDER_NUMBER="+12703722154";
+
+  public static String DEFAULT_HELP_AND_SUPPORT_SUBJECT="User help and support!";
 }
