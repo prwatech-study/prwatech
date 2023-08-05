@@ -44,4 +44,5 @@ public class Constants {
   public static String DEFAULT_SMS_PROVIDER_NUMBER="+12703722154";
 
   public static String DEFAULT_HELP_AND_SUPPORT_SUBJECT="User help and support!";
+  public static String DEFAULT_QUIZ_URL="https://unsplash.com/photos/qDgTQOYk6B8";
 }
