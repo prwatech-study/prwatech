@@ -1,5 +1,6 @@
 package com.prwatech.coupon.service.impl;
 
+import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.coupon.dto.AddCouponDto;
 import com.prwatech.coupon.dto.GetCouponDto;
@@ -94,7 +95,9 @@ public class CouponServiceImpl implements CouponService {
         if(userId==null || couponId==null){
             LOGGER.error("Scratch coupon :: user id or users-coupon is null");
         }
-        UsersCoupon usersCoupon = userCouponTemplate.getByUserIdAndCouponId(userId, couponId);
+        UsersCoupon usersCoupon = userCouponRepository.findById(couponId.toString()).orElseThrow(
+                ()->new NotFoundException("No coupon exist by this id.")
+        );
         if(Objects.nonNull(usersCoupon)) {
             if (!usersCoupon.getIsScratched()) {
                 usersCoupon.setIsScratched(Boolean.TRUE);
