@@ -7,6 +7,7 @@ import com.prwatech.quiz.dto.QuizGetDto;
 import com.prwatech.quiz.model.Quiz;
 import com.prwatech.quiz.model.QuizContent;
 import com.prwatech.quiz.service.QuizService;
+import com.prwatech.quiz.service.QuizUserService;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,6 +34,7 @@ import java.util.List;
 public class QuizController {
 
      private final QuizService quizService;
+     private final QuizUserService quizUserService;
 
     @ApiOperation(value = "Add new quiz to database", notes = "Add new quiz to database.")
     @ApiResponses(
@@ -141,9 +144,10 @@ public class QuizController {
     @ResponseStatus(value = HttpStatus.OK)
     @GetMapping("/quiz/content/listing/{id}")
     public List<QuizContentGetDto> getAllQuizContentListing(
-            @PathVariable("id") String id
+            @PathVariable("id") String id,
+            @RequestParam(value = "userId", required = false) String userId
     ){
-        return quizService.getQuizContentByQuizId(new ObjectId(id));
+        return quizUserService.getAllQuizListing(userId, new ObjectId(id));
     }
 
 

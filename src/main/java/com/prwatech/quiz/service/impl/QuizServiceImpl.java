@@ -44,6 +44,7 @@ public class QuizServiceImpl implements QuizService {
                     .description(quizDto.getDescription())
                     .templateUrl((quizDto.getTemplateUrl()!=null)?quizDto.getTemplateUrl(): DEFAULT_QUIZ_URL)
                     .whyThisQuiz(quizDto.getWhyThisQuiz())
+                    .price((quizDto.getPrice()!=null)? quizDto.getPrice() : 0)
                     .build();
             quizzes.add(quiz);
 
@@ -117,29 +118,6 @@ public class QuizServiceImpl implements QuizService {
         quizGetDto.setQuizCount(quiz.getQuizContents().size());
 
         return quizGetDto;
-    }
-
-    @Override
-    public List<QuizContentGetDto> getQuizContentByQuizId(ObjectId quizId) {
-
-       List<QuizContent> quizContentList = quizContentTemplate.findByQuizId(quizId);
-       List<QuizContentGetDto> quizContentGetDtoList = new ArrayList<>();
-
-       for(QuizContent quizContent : quizContentList){
-           QuizContentGetDto quizContentGetDto = new QuizContentGetDto();
-           quizContentGetDto.setId(quizContent.getId());
-           quizContentGetDto.setQuizId(quizId.toString());
-           quizContentGetDto.setQuizCategory(quizContent.getQuizCategory());
-           quizContentGetDto.setQuizQuestionList(quizContent.getQuizQuestionList());
-
-           quizContentGetDtoList.add(quizContentGetDto);
-       }
-
-       //Sort the categoryWise:
-       quizContentGetDtoList = quizContentGetDtoList.stream().filter(quizContentGetDto -> quizContentGetDto.getQuizCategory().getValue().equals("UNPAID")).collect(Collectors.toList());
-       quizContentGetDtoList.addAll(quizContentGetDtoList.stream().filter(quizContentGetDto -> quizContentGetDto.getQuizCategory().getValue().equals("PAID")).collect(Collectors.toList()));
-
-        return quizContentGetDtoList;
     }
 
     @Override
