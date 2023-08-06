@@ -46,8 +46,9 @@ public class WalletServiceImpl implements WalletService {
 
   @Override
   public Boolean addIntoWalletByReferal(String referalCode) {
+
      if(referalCode==null){
-       throw new UnProcessableEntityException("Referal Code is null!");
+       return false;
      }
      User user = userTemplate.getByReferalCode(referalCode);
      if(Objects.isNull(user)){

@@ -14,13 +14,12 @@ import org.springframework.data.mongodb.core.mapping.Field;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Document(value = "Wallet")
+@Document(value = "wallet")
 public class Wallet {
 
   @Id private String id;
 
   @Field(value = "User_Id")
-  @DBRef
   private ObjectId User_Id;
 
   @Field(value = "My_Cash")
