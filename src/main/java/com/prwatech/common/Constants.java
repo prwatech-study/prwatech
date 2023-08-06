@@ -45,4 +45,7 @@ public class Constants {
 
   public static String DEFAULT_HELP_AND_SUPPORT_SUBJECT="User help and support!";
   public static String DEFAULT_QUIZ_URL="https://unsplash.com/photos/qDgTQOYk6B8";
+
+  public static String REFERAL_BIT_1="KA";
+  public static String REFERAL_BIT_2="PRTC";
 }
