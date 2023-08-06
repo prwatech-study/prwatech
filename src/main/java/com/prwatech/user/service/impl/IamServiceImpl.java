@@ -2,6 +2,8 @@ package com.prwatech.user.service.impl;
 
 import static com.prwatech.common.Constants.FORGET_PASSWORD_MAIL_BODY;
 import static com.prwatech.common.Constants.FORGET_PASSWORD_MAIL_SUBJECT;
+import static com.prwatech.common.Constants.REFERAL_BIT_1;
+import static com.prwatech.common.Constants.REFERAL_BIT_2;
 import static com.prwatech.common.Constants.SUCCESSFUL;
 
 import com.prwatech.authentication.security.JwtUtils;
@@ -146,6 +148,7 @@ public class IamServiceImpl implements IamService {
       throw new UnProcessableEntityException("This email is already in use!");
     }
 
+    Integer RF = iamRepository.findAll().size()+1;
     signInSignUpRequestDto.setPassword(
         passwordEncode.getEncryptedPassword(signInSignUpRequestDto.getPassword()));
     User user = new User();
@@ -158,6 +161,7 @@ public class IamServiceImpl implements IamService {
       user.setReferer_Code(signInSignUpRequestDto.getReferalCode());
       walletService.addIntoWalletByReferal(signInSignUpRequestDto.getReferalCode());
     }
+    user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
     iamRepository.save(user);
 
     UserDetails userDetails = new UserDetails();
