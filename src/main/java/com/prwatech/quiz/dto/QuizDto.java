@@ -20,4 +20,5 @@ public class QuizDto {
     private String secondaryTitle;
     private List<String> whyThisQuiz;
     private String templateUrl;
+    private Integer price;
 }

@@ -44,6 +44,9 @@ public class Quiz {
     @Field(name = "quiz_content")
     private List<QuizContent> quizContents=new ArrayList<>();
 
+    @Field(name = "price")
+    private Integer price;
+
     @Field(name = "created_at")
     @CreationTimestamp
     private LocalDateTime createdAt;

@@ -24,7 +24,6 @@ public interface QuizService {
 
     QuizGetDto getQuizDetailsByQuizId(String id);
 
-    List<QuizContentGetDto> getQuizContentByQuizId(ObjectId quizId);
 
     void deleteAQuizById(ObjectId id);
 
