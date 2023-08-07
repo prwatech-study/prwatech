@@ -124,13 +124,13 @@ public class QuizController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(value = HttpStatus.OK)
-    @GetMapping("/quiz/all/listing")
+    @GetMapping("/get-all-quiz-listing")
     public List<QuizGetDto> getAllQuizList(){
         return quizService.getAllQuizList();
     }
 
 
-    @ApiOperation(value = "Get all quiz content.", notes = "Get all quiz content.")
+    @ApiOperation(value = "Get all quiz content list.", notes = "Get all quiz content list.")
     @ApiResponses(
             value = {
                     @ApiResponse(code = 200, message = "Success"),
@@ -142,7 +142,7 @@ public class QuizController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(value = HttpStatus.OK)
-    @GetMapping("/quiz/content/listing/{id}")
+    @GetMapping("/quiz-content/listing-of-quiz/{id}")
     public List<QuizContentGetDto> getAllQuizContentListing(
             @PathVariable("id") String id,
             @RequestParam(value = "userId", required = false) String userId

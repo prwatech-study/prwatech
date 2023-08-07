@@ -15,4 +15,5 @@ public class QuizContentGetDto extends QuizContentDto{
     private String quizId;
     private Integer passingMarks;
     private Integer totalMarks;
+    private Integer time;
 }
