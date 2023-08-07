@@ -41,6 +41,9 @@ public class QuizUserMapping {
     @Field(name = "current_score")
     private Integer currentScore;
 
+    @Field(name = "is_ordered")
+    private Boolean isOrdered;
+
     @Field(name = "created_at")
     @CreationTimestamp
     private LocalDateTime created_at;

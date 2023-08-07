@@ -11,7 +11,9 @@ import com.prwatech.finance.repository.OrdersRepository;
 import com.prwatech.finance.repository.template.OrderTemplate;
 import com.prwatech.quiz.dto.QuizAttemptDto;
 import com.prwatech.quiz.dto.QuizContentGetDto;
+import com.prwatech.quiz.dto.QuizQuestionDto;
 import com.prwatech.quiz.enumuration.QuizCategory;
+import com.prwatech.quiz.enumuration.ResultCategory;
 import com.prwatech.quiz.model.QuizContent;
 import com.prwatech.quiz.model.QuizUserMapping;
 import com.prwatech.quiz.repository.QuizContentRepository;
@@ -111,6 +113,29 @@ public class QuizUserServiceImpl implements QuizUserService {
             throw new UnProcessableEntityException("User might attempt un-bought quiz.");
         }
 
+        Integer totalMarks = quizContent.getTotalMark();
+        Integer correctAns=0;
+        Integer wrongAns=0;
+
+        for(QuizQuestionDto quizQuestionDto : quizAttemptDto.getQuizQuestionDtoList()){
+             if(quizQuestionDto.getAttemptedAnswer().equals(quizQuestionDto.getAnswer())){
+                 correctAns++;
+             }
+             else {
+                 wrongAns++;
+             }
+        }
+        Integer division = (Integer) totalMarks/3;
+        if(correctAns<=totalMarks && correctAns>=division*2){
+            quizAttemptDto.setResultCategory(ResultCategory.EXCELLENT);
+        }
+        else if(correctAns>=division && correctAns<=division*2){
+            quizAttemptDto.setResultCategory(ResultCategory.VERY_GOOD);
+        }
+        else{
+            quizAttemptDto.setResultCategory(ResultCategory.GOOD);
+        }
+
         quizUserMapping.setAttempt(quizUserMapping.getAttempt()+1);
         quizUserMapping.setCurrentScore(quizAttemptDto.getCorrectAns());
         quizUserMapping.setLastScore((quizUserMapping.getCurrentScore()==null)?null:quizUserMapping.getCurrentScore());
@@ -118,9 +143,11 @@ public class QuizUserServiceImpl implements QuizUserService {
         //save mapping.
         quizUserMapping = quizUserMappingRepository.save(quizUserMapping);
 
-        quizAttemptDto.setAttempt(quizAttemptDto.getAttempt());
+        quizAttemptDto.setCorrectAns(correctAns);
+        quizAttemptDto.setWrongAns(wrongAns);
+        quizAttemptDto.setAttempt(quizUserMapping.getAttempt());
         quizAttemptDto.setPercentage((Integer) (quizAttemptDto.getWrongAns()/quizAttemptDto.getCorrectAns())*100);
-        return null;
+        return quizAttemptDto;
     }
 
     @Override
@@ -152,6 +179,7 @@ public class QuizUserServiceImpl implements QuizUserService {
         quizUserMapping.setQuizId(new ObjectId(quizId));
         quizUserMapping.setUserId(new ObjectId(userId));
         quizUserMapping.setOrderId(orders.getOrderId());
+        quizUserMapping.setIsOrdered(Boolean.FALSE);
         quizUserMapping.setAttempt(0);
 
         quizUserMappingRepository.save(quizUserMapping);
@@ -183,6 +211,9 @@ public class QuizUserServiceImpl implements QuizUserService {
         orders.setStatus(razorpayOrder.getStatus());
         orders.setPaymentId(razorpayPayment.getPaymentId());
         ordersRepository.save(orders);
+
+        quizUserMapping.setIsOrdered(razorpayPayment.getCaptured());
+        quizUserMappingRepository.save(quizUserMapping);
 
         return razorpayOrder;
     }

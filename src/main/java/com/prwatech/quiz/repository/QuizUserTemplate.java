@@ -17,7 +17,7 @@ public class QuizUserTemplate {
    public QuizUserMapping getByUserIdAndQuizId(ObjectId userId, ObjectId quizId){
        Query query = new Query();
        query.addCriteria(Criteria.where("user_id").is(userId).andOperator(
-               Criteria.where("quiz_id").is(quizId)
+               Criteria.where("quiz_id").is(quizId).andOperator(Criteria.where("is_ordered").is(Boolean.TRUE))
        ));
 
        return mongoTemplate.findOne(query, QuizUserMapping.class);
