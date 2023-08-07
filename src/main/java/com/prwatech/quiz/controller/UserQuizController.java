@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 
 import javax.validation.constraints.NotNull;
 
-@RequestMapping("/api/public")
+@RequestMapping("/api/v1")
 @AllArgsConstructor
 public class UserQuizController {
 
