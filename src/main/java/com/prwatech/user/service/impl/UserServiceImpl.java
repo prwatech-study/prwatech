@@ -134,6 +134,9 @@ public class UserServiceImpl implements UserService {
         userRepository
             .findById(id)
             .orElseThrow(() -> new NotFoundException("No user found by this id"));
+    if(user.getReferal_Code()==null){
+      return "";
+    }
     return user.getReferal_Code();
   }
 }
