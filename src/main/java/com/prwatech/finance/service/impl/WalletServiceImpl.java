@@ -33,7 +33,8 @@ public class WalletServiceImpl implements WalletService {
 
     Wallet wallet = walletTemplate.getByUserId(new ObjectId(id));
     if(Objects.isNull(wallet)){
-        return new UserWalletResponseDto();
+        return new UserWalletResponseDto(
+                null, id, 0, userService.getUserReferalCodeByUserId(id));
     }
     UserWalletResponseDto userWalletResponseDto = new UserWalletResponseDto();
     userWalletResponseDto.setId(wallet.getId());
