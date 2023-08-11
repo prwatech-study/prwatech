@@ -25,5 +25,7 @@ public interface CouponService {
 
     void tempAllocateToAllUser();
 
+    void deleteAllUserCoupon();
+
 
 }

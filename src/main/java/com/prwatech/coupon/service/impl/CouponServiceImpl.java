@@ -231,4 +231,10 @@ public class CouponServiceImpl implements CouponService {
         }
         return randomNumbers;
     }
+
+
+    @Override
+    public void deleteAllUserCoupon() {
+       userCouponRepository.deleteAll();
+    }
 }
