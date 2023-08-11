@@ -203,33 +203,33 @@ public class CouponController {
   public List<Coupon> getAllCoupons(){
     return couponService.getAllCoupon();
   }
-//
-//  @ApiOperation(
-//          value = "Allocate temp coupon.",
-//          notes = "Allocate tem coupon.")
-//  @ApiResponses(
-//          value = {
-//                  @ApiResponse(code = 200, message = "Success"),
-//                  @ApiResponse(code = 400, message = "Not Available"),
-//                  @ApiResponse(code = 401, message = "UnAuthorized"),
-//                  @ApiResponse(code = 403, message = "Access Forbidden"),
-//                  @ApiResponse(code = 404, message = "Not found"),
-//                  @ApiResponse(code = 422, message = "UnProcessable entity"),
-//                  @ApiResponse(code = 500, message = "Internal server error"),
-//          })
-//  @ResponseStatus(value = HttpStatus.OK)
-////  @ApiImplicitParams({
-////          @ApiImplicitParam(
-////                  name = Constants.AUTH,
-////                  value = Constants.TOKEN_TYPE,
-////                  required = true,
-////                  dataType = Constants.AUTH_DATA_TYPE,
-////                  paramType = Constants.AUTH_PARAM_TYPE)
-////  })
-//  @PostMapping("/coupon/temp-add")
-//  public void assignmentToUsers(){
-//    couponService.tempAllocateToAllUser();
-//  }
+
+  @ApiOperation(
+          value = "Allocate temp coupon.",
+          notes = "Allocate tem coupon.")
+  @ApiResponses(
+          value = {
+                  @ApiResponse(code = 200, message = "Success"),
+                  @ApiResponse(code = 400, message = "Not Available"),
+                  @ApiResponse(code = 401, message = "UnAuthorized"),
+                  @ApiResponse(code = 403, message = "Access Forbidden"),
+                  @ApiResponse(code = 404, message = "Not found"),
+                  @ApiResponse(code = 422, message = "UnProcessable entity"),
+                  @ApiResponse(code = 500, message = "Internal server error"),
+          })
+  @ResponseStatus(value = HttpStatus.OK)
+//  @ApiImplicitParams({
+//          @ApiImplicitParam(
+//                  name = Constants.AUTH,
+//                  value = Constants.TOKEN_TYPE,
+//                  required = true,
+//                  dataType = Constants.AUTH_DATA_TYPE,
+//                  paramType = Constants.AUTH_PARAM_TYPE)
+//  })
+  @PostMapping("/coupon/temp-add")
+  public void assignmentToUsers(){
+    couponService.tempAllocateToAllUser();
+  }
 
 
 }
