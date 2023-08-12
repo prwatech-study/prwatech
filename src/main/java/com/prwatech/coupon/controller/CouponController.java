@@ -256,7 +256,7 @@ public class CouponController {
 //  })
   @DeleteMapping("/coupon-user/delete")
   public void deleteAllUserCoupon(){
-
+      couponService.deleteAllUserCoupon();
   }
 
 
