@@ -4,8 +4,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum ResultCategory {
 
+    BAD("BAD"),
     GOOD("GOOD"),
-    VERY_GOOD("VERY GOOD"),
     EXCELLENT("EXCELLENT");
 
 
