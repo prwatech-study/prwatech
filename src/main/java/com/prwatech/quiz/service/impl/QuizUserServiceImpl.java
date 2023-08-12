@@ -132,16 +132,6 @@ public class QuizUserServiceImpl implements QuizUserService {
                  wrongAns++;
              }
         }
-        Integer division = (Integer) totalMarks/3;
-        if(correctAns<=totalMarks && correctAns>=division*2){
-            quizAttemptDto.setResultCategory(ResultCategory.EXCELLENT);
-        }
-        else if(correctAns>=division && correctAns<=division*2){
-            quizAttemptDto.setResultCategory(ResultCategory.VERY_GOOD);
-        }
-        else{
-            quizAttemptDto.setResultCategory(ResultCategory.GOOD);
-        }
 
         quizAttemptDto.setAttempt(1);
         if(Objects.nonNull(quizUserMapping)){
@@ -156,12 +146,22 @@ public class QuizUserServiceImpl implements QuizUserService {
         }
         quizAttemptDto.setCorrectAns(correctAns);
         quizAttemptDto.setWrongAns(wrongAns);
+        Integer percentage =(correctAns/totalMarks)*100;
+        if(percentage<=33){
+            quizAttemptDto.setResultCategory(ResultCategory.GOOD);
+        }
+        else if(percentage>33 && percentage<=66){
+            quizAttemptDto.setResultCategory(ResultCategory.VERY_GOOD);
+        }
+        else{
+            quizAttemptDto.setResultCategory(ResultCategory.GOOD);
+        }
 
         if(correctAns==0){
             quizAttemptDto.setPercentage(0);
         }
         else{
-            quizAttemptDto.setPercentage((Integer) (correctAns/totalMarks)*100);
+            quizAttemptDto.setPercentage(percentage);
         }
         return quizAttemptDto;
     }
