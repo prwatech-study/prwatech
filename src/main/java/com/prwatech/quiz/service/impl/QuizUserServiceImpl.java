@@ -150,7 +150,7 @@ public class QuizUserServiceImpl implements QuizUserService {
         if(percentage<=33){
             quizAttemptDto.setResultCategory(ResultCategory.GOOD);
         }
-        else if(percentage>33 && percentage<=66){
+        else if(percentage>33 && percentage<=80){
             quizAttemptDto.setResultCategory(ResultCategory.VERY_GOOD);
         }
         else{
