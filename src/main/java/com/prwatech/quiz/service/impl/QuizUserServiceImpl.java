@@ -157,7 +157,7 @@ public class QuizUserServiceImpl implements QuizUserService {
             quizAttemptDto.setPercentage(0);
         }
         else{
-            quizAttemptDto.setPercentage((Integer) (correctAns/(correctAns+wrongAns))*100);
+            quizAttemptDto.setPercentage((Integer) (correctAns/totalMarks)*100);
         }
         return quizAttemptDto;
     }
