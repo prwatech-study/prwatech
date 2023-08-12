@@ -153,7 +153,12 @@ public class QuizUserServiceImpl implements QuizUserService {
         quizAttemptDto.setCorrectAns(correctAns);
         quizAttemptDto.setWrongAns(wrongAns);
         quizAttemptDto.setAttempt(quizUserMapping.getAttempt());
-        quizAttemptDto.setPercentage((Integer) (quizAttemptDto.getWrongAns()/quizAttemptDto.getCorrectAns())*100);
+        if(correctAns==0){
+            quizAttemptDto.setPercentage(0);
+        }
+        else{
+            quizAttemptDto.setPercentage((Integer) (correctAns/(correctAns+wrongAns))*100);
+        }
         return quizAttemptDto;
     }
 
