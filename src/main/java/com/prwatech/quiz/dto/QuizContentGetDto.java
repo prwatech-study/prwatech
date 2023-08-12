@@ -16,4 +16,5 @@ public class QuizContentGetDto extends QuizContentDto{
     private Integer passingMarks;
     private Integer totalMarks;
     private Integer time;
+    private Boolean isPurchased;
 }

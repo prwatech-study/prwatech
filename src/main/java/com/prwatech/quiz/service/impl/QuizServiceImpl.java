@@ -116,6 +116,7 @@ public class QuizServiceImpl implements QuizService {
         quizGetDto.setDescription(quizGetDto.getDescription());
         quizGetDto.setTemplateUrl(quiz.getTemplateUrl());
         quizGetDto.setQuizCount(quiz.getQuizContents().size());
+        quizGetDto.setPrice(quiz.getPrice());
 
         return quizGetDto;
     }
