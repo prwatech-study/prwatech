@@ -66,10 +66,6 @@ public class QuizUserServiceImpl implements QuizUserService {
             quizContentGetDtoList.add(quizContentGetDto);
         }
 
-        //Sort the categoryWise:
-        quizContentGetDtoList = quizContentGetDtoList.stream().filter(quizContentGetDto -> quizContentGetDto.getQuizCategory().getValue().equals("UNPAID")).collect(Collectors.toList());
-        quizContentGetDtoList.addAll(quizContentGetDtoList.stream().filter(quizContentGetDto -> quizContentGetDto.getQuizCategory().getValue().equals("PAID")).collect(Collectors.toList()));
-
         return quizContentGetDtoList;
     }
 
