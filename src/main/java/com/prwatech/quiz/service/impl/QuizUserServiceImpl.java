@@ -144,7 +144,7 @@ public class QuizUserServiceImpl implements QuizUserService {
         }
 
         quizUserMapping.setAttempt(quizUserMapping.getAttempt()+1);
-        quizUserMapping.setCurrentScore(quizAttemptDto.getCorrectAns());
+        quizUserMapping.setCurrentScore(correctAns);
         quizUserMapping.setLastScore((quizUserMapping.getCurrentScore()==null)?null:quizUserMapping.getCurrentScore());
 
         //save mapping.
