@@ -101,6 +101,7 @@ public class QuizUserServiceImpl implements QuizUserService {
         quizContentGetDto.setTotalMarks(quizContent.getTotalMark());
         quizContentGetDto.setPassingMarks(quizContent.getPassingMark());
         quizContentGetDto.setQuizQuestionList(quizContent.getQuizQuestionList());
+        quizContentGetDto.setTime(quizContent.getQuizQuestionList().size()*60);
 
         return quizContentGetDto;
     }
@@ -148,13 +149,13 @@ public class QuizUserServiceImpl implements QuizUserService {
         quizAttemptDto.setWrongAns(wrongAns);
         Integer percentage =(correctAns*100/totalMarks);
         if(percentage<=33){
-            quizAttemptDto.setResultCategory(ResultCategory.GOOD);
+            quizAttemptDto.setResultCategory(ResultCategory.BAD);
         }
         else if(percentage>33 && percentage<=80){
-            quizAttemptDto.setResultCategory(ResultCategory.VERY_GOOD);
+            quizAttemptDto.setResultCategory(ResultCategory.GOOD);
         }
         else{
-            quizAttemptDto.setResultCategory(ResultCategory.GOOD);
+            quizAttemptDto.setResultCategory(ResultCategory.EXCELLENT);
         }
 
         if(correctAns==0){
