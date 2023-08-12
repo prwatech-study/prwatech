@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import javax.validation.constraints.NotNull;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/public/admin")
@@ -143,7 +144,7 @@ public class QuizController {
             })
     @ResponseStatus(value = HttpStatus.OK)
     @GetMapping("/quiz-content/listing-of-quiz/{id}")
-    public List<QuizContentGetDto> getAllQuizContentListing(
+    public Map<String, List<QuizContentGetDto>> getAllQuizContentListing(
             @PathVariable("id") String id,
             @RequestParam(value = "userId", required = false) String userId
     ){
