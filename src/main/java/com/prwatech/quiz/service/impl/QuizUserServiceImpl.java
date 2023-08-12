@@ -187,7 +187,7 @@ public class QuizUserServiceImpl implements QuizUserService {
         quizUserMapping.setAttempt(0);
 
         quizUserMappingRepository.save(quizUserMapping);
-
+        razorpayOrder.setAmount(razorpayOrder.getAmount()/100);
         return razorpayOrder;
 
     }
