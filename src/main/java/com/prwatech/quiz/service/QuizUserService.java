@@ -9,12 +9,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional
 public interface QuizUserService {
 
-    List<QuizContentGetDto> getAllQuizListing(String userId, ObjectId quizId);
+    Map<String, List<QuizContentGetDto>> getAllQuizListing(String userId, ObjectId quizId);
 
     QuizContentGetDto getQuizContentToAttempt(String userId, String quizId);
 

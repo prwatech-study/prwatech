@@ -27,7 +27,9 @@ import org.bson.types.ObjectId;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -45,28 +47,37 @@ public class QuizUserServiceImpl implements QuizUserService {
     private final OrderTemplate orderTemplate;
 
     @Override
-    public List<QuizContentGetDto> getAllQuizListing(String userId, ObjectId quizId) {
+    public Map<String, List<QuizContentGetDto>> getAllQuizListing(String userId, ObjectId quizId) {
 
         QuizUserMapping quizUserMapping=null;
         if(userId!=null){
             quizUserMapping = quizUserTemplate.getByUserIdAndQuizId(new ObjectId(userId), quizId);}
         List<QuizContent> quizContentList = quizContentTemplate.findByQuizId(quizId);
 
+        List<QuizContentGetDto> quizContentGetDtoListFree = new ArrayList<>();
         List<QuizContentGetDto> quizContentGetDtoList = new ArrayList<>();
-
         for(QuizContent quizContent : quizContentList){
             QuizContentGetDto quizContentGetDto = new QuizContentGetDto();
             quizContentGetDto.setId(quizContent.getId());
             quizContentGetDto.setQuizId(quizId.toString());
-            quizContentGetDto.setQuizCategory((Objects.nonNull(quizUserMapping))? QuizCategory.UNPAID :quizContent.getQuizCategory());
+            quizContentGetDto.setQuizCategory(quizContent.getQuizCategory());
             quizContentGetDto.setTotalMarks(quizContent.getTotalMark());
             quizContentGetDto.setPassingMarks(quizContent.getPassingMark());
             quizContentGetDto.setQuizQuestionList(null);
             quizContentGetDto.setIsPurchased((Objects.nonNull(quizUserMapping) && quizUserMapping.getIsOrdered().equals(Boolean.TRUE) )?Boolean.TRUE:Boolean.FALSE);
-            quizContentGetDtoList.add(quizContentGetDto);
-        }
+            if(quizContent.getQuizCategory().equals(QuizCategory.UNPAID)){
+                quizContentGetDtoListFree.add(quizContentGetDto);
+            }
+            else {
+                quizContentGetDtoList.add(quizContentGetDto);
+            }
 
-        return quizContentGetDtoList;
+        }
+        Map<String, List<QuizContentGetDto>> quizContentListMap=new HashMap<>();
+        quizContentListMap.put("Free", quizContentGetDtoListFree);
+        quizContentListMap.put("Paid", quizContentGetDtoList);
+
+        return quizContentListMap;
     }
 
     @Override
