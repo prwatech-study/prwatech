@@ -146,7 +146,7 @@ public class QuizUserServiceImpl implements QuizUserService {
         }
         quizAttemptDto.setCorrectAns(correctAns);
         quizAttemptDto.setWrongAns(wrongAns);
-        Integer percentage =(correctAns/totalMarks)*100;
+        Integer percentage =(correctAns*100/totalMarks);
         if(percentage<=33){
             quizAttemptDto.setResultCategory(ResultCategory.GOOD);
         }
