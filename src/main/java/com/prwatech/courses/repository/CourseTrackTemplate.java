@@ -26,9 +26,10 @@ public class CourseTrackTemplate {
     }
 
 
-    public List<CourseTrack> getByUserId(ObjectId userId){
+    public List<CourseTrack> getCompletedCourseByUserId(ObjectId userId){
         Query query = new Query();
-        query.addCriteria(Criteria.where("user_id").is(userId));
+        query.addCriteria(Criteria.where("user_id").is(userId).andOperator(Criteria.where("is_all_completed").is(Boolean.TRUE))
+        );
 
         return mongoTemplate.find(query, CourseTrack.class);
     };
