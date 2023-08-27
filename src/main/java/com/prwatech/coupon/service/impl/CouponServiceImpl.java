@@ -182,6 +182,7 @@ public class CouponServiceImpl implements CouponService {
          for(String couponId : couponIds){
             UsersCoupon usersCoupon = userCouponTemplate.getByUserIdAndCouponId(userId, new ObjectId(couponId));
             if(Objects.isNull(usersCoupon)){
+                usersCoupon=new UsersCoupon();
                 usersCoupon.setUserId(userId);
                 usersCoupon.setCouponId(new ObjectId(couponId));
                 usersCoupon.setIsScratched(Boolean.FALSE);

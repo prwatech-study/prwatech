@@ -47,106 +47,13 @@ public class CouponController {
                   @ApiResponse(code = 500, message = "Internal server error"),
           })
   @ResponseStatus(value = HttpStatus.OK)
-//  @ApiImplicitParams({
-//          @ApiImplicitParam(
-//                  name = Constants.AUTH,
-//                  value = Constants.TOKEN_TYPE,
-//                  required = true,
-//                  dataType = Constants.AUTH_DATA_TYPE,
-//                  paramType = Constants.AUTH_PARAM_TYPE)
-//  })
+
   @PostMapping("/coupon/add")
   public List<Coupon> addNewCoupons(
           @RequestBody List<AddCouponDto> addCouponDtoList){
     return couponService.addNewCoupons(addCouponDtoList);
   };
 
-  @ApiOperation(
-          value = "Get all coupon of user.",
-          notes = "Get all  coupon of user.")
-  @ApiResponses(
-          value = {
-                  @ApiResponse(code = 200, message = "Success"),
-                  @ApiResponse(code = 400, message = "Not Available"),
-                  @ApiResponse(code = 401, message = "UnAuthorized"),
-                  @ApiResponse(code = 403, message = "Access Forbidden"),
-                  @ApiResponse(code = 404, message = "Not found"),
-                  @ApiResponse(code = 422, message = "UnProcessable entity"),
-                  @ApiResponse(code = 500, message = "Internal server error"),
-          })
-  @ResponseStatus(value = HttpStatus.OK)
-//  @ApiImplicitParams({
-//          @ApiImplicitParam(
-//                  name = Constants.AUTH,
-//                  value = Constants.TOKEN_TYPE,
-//                  required = true,
-//                  dataType = Constants.AUTH_DATA_TYPE,
-//                  paramType = Constants.AUTH_PARAM_TYPE)
-//  })
-  @GetMapping("/coupon/{userId}")
-  public List<GetCouponDto> getUsersCoupon(
-         @PathVariable(value = "userId") String userId){
-    return couponService.getAllCouponByUserId(new ObjectId(userId));}
-
-  @ApiOperation(
-          value = "Scratch a coupon of user.",
-          notes = "Scratch a coupon of user.")
-  @ApiResponses(
-          value = {
-                  @ApiResponse(code = 200, message = "Success"),
-                  @ApiResponse(code = 400, message = "Not Available"),
-                  @ApiResponse(code = 401, message = "UnAuthorized"),
-                  @ApiResponse(code = 403, message = "Access Forbidden"),
-                  @ApiResponse(code = 404, message = "Not found"),
-                  @ApiResponse(code = 422, message = "UnProcessable entity"),
-                  @ApiResponse(code = 500, message = "Internal server error"),
-          })
-  @ResponseStatus(value = HttpStatus.OK)
-//  @ApiImplicitParams({
-//          @ApiImplicitParam(
-//                  name = Constants.AUTH,
-//                  value = Constants.TOKEN_TYPE,
-//                  required = true,
-//                  dataType = Constants.AUTH_DATA_TYPE,
-//                  paramType = Constants.AUTH_PARAM_TYPE)
-//  })
-  @PatchMapping("/coupon/scratch/{userId}")
-  public GetCouponDto scratchACoupon(
-          @PathVariable(value = "userId") String userId,
-          @RequestParam(value = "couponId") String couponId
-  ){
-    return couponService.scratchCoupon( new ObjectId(userId), new ObjectId(couponId));
-  }
-
-  @ApiOperation(
-          value = "Redeem coupon of user.",
-          notes = "Redeem coupon of user.")
-  @ApiResponses(
-          value = {
-                  @ApiResponse(code = 200, message = "Success"),
-                  @ApiResponse(code = 400, message = "Not Available"),
-                  @ApiResponse(code = 401, message = "UnAuthorized"),
-                  @ApiResponse(code = 403, message = "Access Forbidden"),
-                  @ApiResponse(code = 404, message = "Not found"),
-                  @ApiResponse(code = 422, message = "UnProcessable entity"),
-                  @ApiResponse(code = 500, message = "Internal server error"),
-          })
-  @ResponseStatus(value = HttpStatus.OK)
-//  @ApiImplicitParams({
-//          @ApiImplicitParam(
-//                  name = Constants.AUTH,
-//                  value = Constants.TOKEN_TYPE,
-//                  required = true,
-//                  dataType = Constants.AUTH_DATA_TYPE,
-//                  paramType = Constants.AUTH_PARAM_TYPE)
-//  })
-  @PatchMapping("/coupon/redeem/{userId}")
-  public GetCouponDto redeemCoupon(
-          @PathVariable(value = "userId") String userId,
-          @RequestParam(value = "code") String code
-  ){
-     return couponService.redeemCoupon(new ObjectId(userId), code);
-  }
 
   @ApiOperation(
           value = "Add new coupon to User.",
@@ -162,14 +69,7 @@ public class CouponController {
                   @ApiResponse(code = 500, message = "Internal server error"),
           })
   @ResponseStatus(value = HttpStatus.OK)
-//  @ApiImplicitParams({
-//          @ApiImplicitParam(
-//                  name = Constants.AUTH,
-//                  value = Constants.TOKEN_TYPE,
-//                  required = true,
-//                  dataType = Constants.AUTH_DATA_TYPE,
-//                  paramType = Constants.AUTH_PARAM_TYPE)
-//  })
+
   @PostMapping("/coupon/add/{userId}")
   public void allocateCouponToUser(
           @PathVariable(value = "userId") String userId,
@@ -192,14 +92,7 @@ public class CouponController {
                   @ApiResponse(code = 500, message = "Internal server error"),
           })
   @ResponseStatus(value = HttpStatus.OK)
-//  @ApiImplicitParams({
-//          @ApiImplicitParam(
-//                  name = Constants.AUTH,
-//                  value = Constants.TOKEN_TYPE,
-//                  required = true,
-//                  dataType = Constants.AUTH_DATA_TYPE,
-//                  paramType = Constants.AUTH_PARAM_TYPE)
-//  })
+
   @GetMapping("/coupon/all")
   public List<Coupon> getAllCoupons(){
     return couponService.getAllCoupon();
@@ -219,14 +112,7 @@ public class CouponController {
                   @ApiResponse(code = 500, message = "Internal server error"),
           })
   @ResponseStatus(value = HttpStatus.OK)
-//  @ApiImplicitParams({
-//          @ApiImplicitParam(
-//                  name = Constants.AUTH,
-//                  value = Constants.TOKEN_TYPE,
-//                  required = true,
-//                  dataType = Constants.AUTH_DATA_TYPE,
-//                  paramType = Constants.AUTH_PARAM_TYPE)
-//  })
+
   @PostMapping("/coupon/temp-add")
   public void assignmentToUsers(){
     couponService.tempAllocateToAllUser();
@@ -246,14 +132,7 @@ public class CouponController {
                   @ApiResponse(code = 500, message = "Internal server error"),
           })
   @ResponseStatus(value = HttpStatus.OK)
-//  @ApiImplicitParams({
-//          @ApiImplicitParam(
-//                  name = Constants.AUTH,
-//                  value = Constants.TOKEN_TYPE,
-//                  required = true,
-//                  dataType = Constants.AUTH_DATA_TYPE,
-//                  paramType = Constants.AUTH_PARAM_TYPE)
-//  })
+
   @DeleteMapping("/coupon-user/delete")
   public void deleteAllUserCoupon(){
       couponService.deleteAllUserCoupon();
