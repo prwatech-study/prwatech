@@ -48,4 +48,6 @@ public class Constants {
 
   public static String REFERAL_BIT_1="KA";
   public static String REFERAL_BIT_2="PRTC";
+
+  public static String NEW_USER_COUPON_ID="64eb5dcda2c0cf28309d7b06";
 }

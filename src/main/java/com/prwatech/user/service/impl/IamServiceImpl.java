@@ -20,6 +20,7 @@ import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.service.SmsSendService;
 import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.common.utility.Utility;
+import com.prwatech.coupon.service.CouponService;
 import com.prwatech.finance.service.WalletService;
 import com.prwatech.user.dto.ForgetPasswordResponseDto;
 import com.prwatech.user.dto.GoogleSignInUpDto;
@@ -42,6 +43,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import lombok.AllArgsConstructor;
+import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,6 +66,8 @@ public class IamServiceImpl implements IamService {
   private final UserService userService;
   private final EmailServiceImpl emailService;
   private final WalletService walletService;
+
+  private final CouponService couponService;
 
   @Override
   public SignInResponseDto signInUpWithEmailPassword(
@@ -169,6 +173,8 @@ public class IamServiceImpl implements IamService {
     //create new wallet for user.
     walletService.createNewWalletForUser(user);
 
+    couponService.allocateCouponsToUser(new ArrayList<>(Arrays.asList(Constants.NEW_USER_COUPON_ID)), new ObjectId(user.getId()));
+
     UserDetails userDetails = new UserDetails();
     userDetails.setUsername(user.getEmail());
     Map<String, String> jwtToken = jwtUtils.generateToken(userDetails);
@@ -200,6 +206,7 @@ public class IamServiceImpl implements IamService {
 
       //create new wallet for user.
       walletService.createNewWalletForUser(user);
+      couponService.allocateCouponsToUser(new ArrayList<>(Arrays.asList(Constants.NEW_USER_COUPON_ID)), new ObjectId(user.getId()));
     } else {
       user = userObject.get();
     }
@@ -405,8 +412,9 @@ public class IamServiceImpl implements IamService {
     }
 
     User user = new User();
-    if (!userObject.isEmpty()) {
+    if (userObject.isEmpty()) {
       user = userObject.get();
+      user.setLastLogin(LocalDateTime.now());
     } else {
       user.setEmail(googleSignInUpDto.getEmail());
       user.setName(googleSignInUpDto.getName());
@@ -414,10 +422,14 @@ public class IamServiceImpl implements IamService {
       user.setIsProfileImageUploaded(Boolean.TRUE);
       user.setIsGoogleSignedIn(Boolean.TRUE);
       user.setDisable(Boolean.FALSE);
+      user.setLastLogin(LocalDateTime.now());
+      user =iamRepository.save(user);
+      couponService.allocateCouponsToUser(new ArrayList<>(
+              Arrays.asList(Constants.NEW_USER_COUPON_ID)
+      ), new ObjectId(user.getId()));
+
     }
 
-    user.setLastLogin(LocalDateTime.now());
-     user =iamRepository.save(user);
     //create new wallet for user.
     walletService.createNewWalletForUser(user);
 

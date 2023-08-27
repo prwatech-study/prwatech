@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/public")
 @AllArgsConstructor
 public class CouponController {
 
@@ -47,18 +47,18 @@ public class CouponController {
                   @ApiResponse(code = 500, message = "Internal server error"),
           })
   @ResponseStatus(value = HttpStatus.OK)
-  @ApiImplicitParams({
-          @ApiImplicitParam(
-                  name = Constants.AUTH,
-                  value = Constants.TOKEN_TYPE,
-                  required = true,
-                  dataType = Constants.AUTH_DATA_TYPE,
-                  paramType = Constants.AUTH_PARAM_TYPE)
-  })
+//  @ApiImplicitParams({
+//          @ApiImplicitParam(
+//                  name = Constants.AUTH,
+//                  value = Constants.TOKEN_TYPE,
+//                  required = true,
+//                  dataType = Constants.AUTH_DATA_TYPE,
+//                  paramType = Constants.AUTH_PARAM_TYPE)
+//  })
   @PostMapping("/coupon/add")
   public List<Coupon> addNewCoupons(
           @RequestBody List<AddCouponDto> addCouponDtoList){
-    return null;//couponService.addNewCoupons(addCouponDtoList);
+    return couponService.addNewCoupons(addCouponDtoList);
   };
 
   @ApiOperation(
@@ -75,14 +75,14 @@ public class CouponController {
                   @ApiResponse(code = 500, message = "Internal server error"),
           })
   @ResponseStatus(value = HttpStatus.OK)
-  @ApiImplicitParams({
-          @ApiImplicitParam(
-                  name = Constants.AUTH,
-                  value = Constants.TOKEN_TYPE,
-                  required = true,
-                  dataType = Constants.AUTH_DATA_TYPE,
-                  paramType = Constants.AUTH_PARAM_TYPE)
-  })
+//  @ApiImplicitParams({
+//          @ApiImplicitParam(
+//                  name = Constants.AUTH,
+//                  value = Constants.TOKEN_TYPE,
+//                  required = true,
+//                  dataType = Constants.AUTH_DATA_TYPE,
+//                  paramType = Constants.AUTH_PARAM_TYPE)
+//  })
   @GetMapping("/coupon/{userId}")
   public List<GetCouponDto> getUsersCoupon(
          @PathVariable(value = "userId") String userId){
@@ -102,14 +102,14 @@ public class CouponController {
                   @ApiResponse(code = 500, message = "Internal server error"),
           })
   @ResponseStatus(value = HttpStatus.OK)
-  @ApiImplicitParams({
-          @ApiImplicitParam(
-                  name = Constants.AUTH,
-                  value = Constants.TOKEN_TYPE,
-                  required = true,
-                  dataType = Constants.AUTH_DATA_TYPE,
-                  paramType = Constants.AUTH_PARAM_TYPE)
-  })
+//  @ApiImplicitParams({
+//          @ApiImplicitParam(
+//                  name = Constants.AUTH,
+//                  value = Constants.TOKEN_TYPE,
+//                  required = true,
+//                  dataType = Constants.AUTH_DATA_TYPE,
+//                  paramType = Constants.AUTH_PARAM_TYPE)
+//  })
   @PatchMapping("/coupon/scratch/{userId}")
   public GetCouponDto scratchACoupon(
           @PathVariable(value = "userId") String userId,
@@ -132,14 +132,14 @@ public class CouponController {
                   @ApiResponse(code = 500, message = "Internal server error"),
           })
   @ResponseStatus(value = HttpStatus.OK)
-  @ApiImplicitParams({
-          @ApiImplicitParam(
-                  name = Constants.AUTH,
-                  value = Constants.TOKEN_TYPE,
-                  required = true,
-                  dataType = Constants.AUTH_DATA_TYPE,
-                  paramType = Constants.AUTH_PARAM_TYPE)
-  })
+//  @ApiImplicitParams({
+//          @ApiImplicitParam(
+//                  name = Constants.AUTH,
+//                  value = Constants.TOKEN_TYPE,
+//                  required = true,
+//                  dataType = Constants.AUTH_DATA_TYPE,
+//                  paramType = Constants.AUTH_PARAM_TYPE)
+//  })
   @PatchMapping("/coupon/redeem/{userId}")
   public GetCouponDto redeemCoupon(
           @PathVariable(value = "userId") String userId,
@@ -162,14 +162,14 @@ public class CouponController {
                   @ApiResponse(code = 500, message = "Internal server error"),
           })
   @ResponseStatus(value = HttpStatus.OK)
-  @ApiImplicitParams({
-          @ApiImplicitParam(
-                  name = Constants.AUTH,
-                  value = Constants.TOKEN_TYPE,
-                  required = true,
-                  dataType = Constants.AUTH_DATA_TYPE,
-                  paramType = Constants.AUTH_PARAM_TYPE)
-  })
+//  @ApiImplicitParams({
+//          @ApiImplicitParam(
+//                  name = Constants.AUTH,
+//                  value = Constants.TOKEN_TYPE,
+//                  required = true,
+//                  dataType = Constants.AUTH_DATA_TYPE,
+//                  paramType = Constants.AUTH_PARAM_TYPE)
+//  })
   @PostMapping("/coupon/add/{userId}")
   public void allocateCouponToUser(
           @PathVariable(value = "userId") String userId,
@@ -192,14 +192,14 @@ public class CouponController {
                   @ApiResponse(code = 500, message = "Internal server error"),
           })
   @ResponseStatus(value = HttpStatus.OK)
-  @ApiImplicitParams({
-          @ApiImplicitParam(
-                  name = Constants.AUTH,
-                  value = Constants.TOKEN_TYPE,
-                  required = true,
-                  dataType = Constants.AUTH_DATA_TYPE,
-                  paramType = Constants.AUTH_PARAM_TYPE)
-  })
+//  @ApiImplicitParams({
+//          @ApiImplicitParam(
+//                  name = Constants.AUTH,
+//                  value = Constants.TOKEN_TYPE,
+//                  required = true,
+//                  dataType = Constants.AUTH_DATA_TYPE,
+//                  paramType = Constants.AUTH_PARAM_TYPE)
+//  })
   @GetMapping("/coupon/all")
   public List<Coupon> getAllCoupons(){
     return couponService.getAllCoupon();
