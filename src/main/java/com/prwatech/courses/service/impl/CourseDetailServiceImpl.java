@@ -7,6 +7,7 @@ import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.utility.Utility;
 import com.prwatech.courses.dto.CourseCardDto;
 import com.prwatech.courses.dto.CourseDetailsDto;
+import com.prwatech.courses.dto.CourseDetailsProjection;
 import com.prwatech.courses.dto.CourseRatingDto;
 import com.prwatech.courses.dto.CourseReviewRequestDto;
 import com.prwatech.courses.dto.ForumFilterListingDto;
@@ -454,39 +455,12 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  public Set<CourseCardDto> searchByName(String name) {
+  public Map<String, String> searchByName(String name) {
 
 
-    List<CourseDetails> courseDetailsList = courseDetailsRepositoryTemplate.searchByName(name);
-    if(courseDetailsList.isEmpty()){
-      LOGGER.info("No course found by this name");
-      throw new NotFoundException("No course available by this name.");
-    }
+    List<CourseDetailsProjection> courseDetailsList = courseDetailsRepositoryTemplate.searchByName(name);
 
+   return courseDetailsList.stream().collect(Collectors.toMap(CourseDetailsProjection::getId, CourseDetailsProjection::getCourse_Title));
 
-    Set<CourseCardDto> courseCardDtoList = new HashSet<>();
-    for (CourseDetails courseDetail : courseDetailsList) {
-
-      CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
-      CourseCardDto courseCardDto = new CourseCardDto();
-
-      courseCardDto.setCourseId(courseDetail.getId());
-      courseCardDto.setTitle(courseDetail.getCourse_Title());
-      courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
-      courseCardDto.setImgUrl(courseDetail.getCourse_Image());
-      courseCardDto.setCourseRatingDto(courseRatingDto);
-      courseCardDto.setPrice(
-              getPriceByCourseId(new ObjectId(courseDetail.getId()),"Classroom").getActual_Price());
-      courseCardDto.setDiscountedPrice(
-              getPriceByCourseId(new ObjectId(courseDetail.getId()),"Classroom").getDiscounted_Price());
-      courseCardDto.setCourseLevelCategory(CourseLevelCategory.FREE_COURSES);
-      courseCardDto.setCourseDurationHours(6);
-      courseCardDto.setCourseDurationMinute(30);
-      courseCardDto.setIsWishListed(Boolean.FALSE);
-      courseCardDto.setIsWishListed(Boolean.FALSE);
-
-      courseCardDtoList.add(courseCardDto);
-    }
-    return courseCardDtoList;
   }
 }
