@@ -19,6 +19,7 @@ import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import java.util.List;
+import java.util.Set;
 import javax.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import org.bson.types.ObjectId;
@@ -262,4 +263,26 @@ public class CourseDetailsController {
           ) {
      return courseDetailService.rateACourse(courseReviewRequestDto);
   }
+
+  @ApiOperation(value = "Rate a course by user", notes = "Rate a course by user")
+  @ApiResponses(
+          value = {
+                  @ApiResponse(code = 200, message = "Success"),
+                  @ApiResponse(code = 400, message = "Not Available"),
+                  @ApiResponse(code = 401, message = "UnAuthorized"),
+                  @ApiResponse(code = 403, message = "Access Forbidden"),
+                  @ApiResponse(code = 404, message = "Not found"),
+                  @ApiResponse(code = 422, message = "UnProcessable entity"),
+                  @ApiResponse(code = 500, message = "Internal server error"),
+          })
+  @GetMapping("/course/search/{name}")
+  @ResponseStatus(HttpStatus.OK)
+  public Set<CourseCardDto> searchCoursesByName(
+          @PathVariable(value = "name") String name
+  )
+  {
+     return courseDetailService.searchByName(name);
+  }
+
+
 }
