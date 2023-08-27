@@ -12,6 +12,8 @@ import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -195,13 +197,11 @@ public class IamController {
           })
   @ResponseStatus(value = HttpStatus.OK)
   @PutMapping("/send-sms/test")
-  public Boolean sendTestSms(){
-    return smsSendService.sendPhoneSms(new SmsSendDto(
-          "Hi testing the message",
-          "eng",
-          "rout",
-          0,
-          "7651977515"
-    ));
+  public Boolean sendTestSms() throws IOException {
+    return smsSendService.sendDefaultOtpMessage(new SmsSendDto(
+          "123345",
+          "otp",
+          "7651977515")
+    );
   }
 }

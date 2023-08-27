@@ -34,4 +34,12 @@ public class CourseTrackTemplate {
         return mongoTemplate.find(query, CourseTrack.class);
     };
 
+
+    public List<CourseTrack> getAllUsersCourseByUserId(ObjectId userId){
+        Query query = new Query();
+        query.addCriteria(Criteria.where("user_id").is(userId));
+
+        return mongoTemplate.find(query, CourseTrack.class);
+    }
+
 }

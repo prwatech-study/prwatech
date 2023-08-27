@@ -70,4 +70,24 @@ public class WalletServiceImpl implements WalletService {
      walletRepository.save(wallet);
      return true;
   }
+
+    @Override
+    public Wallet createNewWalletForUser(User user) {
+
+        if(Objects.isNull(user)){
+            LOGGER.info("Unable to create wallet for user, user is null!");
+            return null;
+        }
+
+        Wallet wallet = walletTemplate.getByUserId(new ObjectId(user.getId()));
+        if(Objects.nonNull(wallet)){
+            return wallet;
+        }
+
+        wallet = new Wallet();
+        wallet.setUser_Id(new ObjectId(user.getId()));
+        wallet.setMy_Cash(0);
+        wallet.setMy_Rewards(0);
+      return  walletRepository.save(wallet);
+    }
 }
