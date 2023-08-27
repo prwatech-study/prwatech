@@ -415,7 +415,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         courseCardDto.setCourseDurationMinute(30);
         Optional<WishList> wishList1 = wishListTemplate.getByUserIdAndCourseId(userId, new ObjectId(courseDetail.getId()));
         if (wishList1.isPresent()) {
-          courseCardDto.setIsWishListed(Boolean.TRUE);
+          courseCardDto.setIsWishListed(Boolean.FALSE);
           courseCardDto.setWishListId(wishList1.get().getId());
         }
         if (courseTrack.getIsAllCompleted().equals(Boolean.TRUE)) {
@@ -451,5 +451,42 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     else {
       LOGGER.error("No course found by this userId and courseId !");
     }
+  }
+
+  @Override
+  public Set<CourseCardDto> searchByName(String name) {
+
+
+    List<CourseDetails> courseDetailsList = courseDetailsRepositoryTemplate.searchByName(name);
+    if(courseDetailsList.isEmpty()){
+      LOGGER.info("No course found by this name");
+      throw new NotFoundException("No course available by this name.");
+    }
+
+
+    Set<CourseCardDto> courseCardDtoList = new HashSet<>();
+    for (CourseDetails courseDetail : courseDetailsList) {
+
+      CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
+      CourseCardDto courseCardDto = new CourseCardDto();
+
+      courseCardDto.setCourseId(courseDetail.getId());
+      courseCardDto.setTitle(courseDetail.getCourse_Title());
+      courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
+      courseCardDto.setImgUrl(courseDetail.getCourse_Image());
+      courseCardDto.setCourseRatingDto(courseRatingDto);
+      courseCardDto.setPrice(
+              getPriceByCourseId(new ObjectId(courseDetail.getId()),"Classroom").getActual_Price());
+      courseCardDto.setDiscountedPrice(
+              getPriceByCourseId(new ObjectId(courseDetail.getId()),"Classroom").getDiscounted_Price());
+      courseCardDto.setCourseLevelCategory(CourseLevelCategory.FREE_COURSES);
+      courseCardDto.setCourseDurationHours(6);
+      courseCardDto.setCourseDurationMinute(30);
+      courseCardDto.setIsWishListed(Boolean.FALSE);
+      courseCardDto.setIsWishListed(Boolean.FALSE);
+
+      courseCardDtoList.add(courseCardDto);
+    }
+    return courseCardDtoList;
   }
 }

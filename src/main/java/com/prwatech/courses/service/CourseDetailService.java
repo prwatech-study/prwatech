@@ -44,4 +44,6 @@ public interface CourseDetailService {
 
   void updateCurrentItem(ObjectId userId, ObjectId courseId, Integer currentItem);
 
+  Set<CourseCardDto> searchByName(String name);
+
   }

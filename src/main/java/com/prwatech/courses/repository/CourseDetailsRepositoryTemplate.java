@@ -65,4 +65,10 @@ public class CourseDetailsRepositoryTemplate {
     List<CourseDetails> courseDetailsList = mongoTemplate.find(query, CourseDetails.class);
     return new PageImpl<>(courseDetailsList, pageable, count);
   }
+
+  public List<CourseDetails> searchByName(String name){
+    Criteria nameCriteria = Criteria.where("Course_Title").regex(name, "i");
+    Query query= new Query(nameCriteria);
+   return mongoTemplate.find(query, CourseDetails.class);
+  }
 }
