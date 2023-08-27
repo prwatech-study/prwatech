@@ -4,6 +4,7 @@ import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.courses.dto.CourseCardDto;
 import com.prwatech.courses.dto.CourseCurriCulamDto;
 import com.prwatech.courses.dto.CourseDetailsDto;
+import com.prwatech.courses.dto.CourseDetailsProjection;
 import com.prwatech.courses.dto.CourseRatingDto;
 import com.prwatech.courses.dto.CourseReviewRequestDto;
 import com.prwatech.courses.dto.ForumFilterListingDto;
@@ -19,6 +20,7 @@ import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import javax.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -264,7 +266,7 @@ public class CourseDetailsController {
      return courseDetailService.rateACourse(courseReviewRequestDto);
   }
 
-  @ApiOperation(value = "Rate a course by user", notes = "Rate a course by user")
+  @ApiOperation(value = "Search courses by name", notes = "Search courses by name")
   @ApiResponses(
           value = {
                   @ApiResponse(code = 200, message = "Success"),
@@ -277,7 +279,7 @@ public class CourseDetailsController {
           })
   @GetMapping("/course/search/{name}")
   @ResponseStatus(HttpStatus.OK)
-  public Set<CourseCardDto> searchCoursesByName(
+  public  Map<String, String> searchCoursesByName(
           @PathVariable(value = "name") String name
   )
   {

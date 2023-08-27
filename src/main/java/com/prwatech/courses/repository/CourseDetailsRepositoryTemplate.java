@@ -1,5 +1,6 @@
 package com.prwatech.courses.repository;
 
+import com.prwatech.courses.dto.CourseDetailsProjection;
 import com.prwatech.courses.model.CourseDetails;
 import java.util.List;
 import lombok.AllArgsConstructor;
@@ -8,6 +9,9 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
@@ -16,7 +20,7 @@ import org.springframework.stereotype.Component;
 @AllArgsConstructor
 public class CourseDetailsRepositoryTemplate {
 
-  private final MongoTemplate mongoTemplate;
+  private final MongoTemplate mongoTemplate ;
 
   public List<CourseDetails> getMostPopularCourse() {
     Query query = new Query();
@@ -66,9 +70,13 @@ public class CourseDetailsRepositoryTemplate {
     return new PageImpl<>(courseDetailsList, pageable, count);
   }
 
-  public List<CourseDetails> searchByName(String name){
-    Criteria nameCriteria = Criteria.where("Course_Title").regex(name, "i");
-    Query query= new Query(nameCriteria);
-   return mongoTemplate.find(query, CourseDetails.class);
+  public List<CourseDetailsProjection> searchByName(String name){
+
+    AggregationOperation match = Aggregation.match(Criteria.where("Course_Title").regex(name, "i"));
+    AggregationOperation project = Aggregation.project("id", "Course_Title");
+    Aggregation aggregation = Aggregation.newAggregation(match, project);
+
+    AggregationResults<CourseDetailsProjection> results = mongoTemplate.aggregate(aggregation, "CourseDetails", CourseDetailsProjection.class);
+    return results.getMappedResults();
   }
 }
