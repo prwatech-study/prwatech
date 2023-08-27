@@ -33,7 +33,7 @@ public class MyCourseServiceImpl implements MyCourseService {
   @Override
   public MyDashboardActivity getUserDashboardActivityByUserId(String userId) {
 
-    List<CourseTrack> courseTrackList = courseTrackTemplate.getByUserId(new ObjectId(userId));
+    List<CourseTrack> courseTrackList = courseTrackTemplate.getAllUsersCourseByUserId(new ObjectId(userId));
 
     Integer enrolledCourses = courseTrackList.size();
     Integer onlineCourses = 0;

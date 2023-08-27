@@ -36,6 +36,8 @@ import com.prwatech.user.template.IamMongodbTemplateLayer;
 import com.prwatech.user.template.UserOtpMappingTemplate;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -162,7 +164,10 @@ public class IamServiceImpl implements IamService {
       walletService.addIntoWalletByReferal(signInSignUpRequestDto.getReferalCode());
     }
     user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
-    iamRepository.save(user);
+    user=iamRepository.save(user);
+
+    //create new wallet for user.
+    walletService.createNewWalletForUser(user);
 
     UserDetails userDetails = new UserDetails();
     userDetails.setUsername(user.getEmail());
@@ -192,18 +197,19 @@ public class IamServiceImpl implements IamService {
         walletService.addIntoWalletByReferal(referalCode);
       }
       user = iamRepository.save(user);
+
+      //create new wallet for user.
+      walletService.createNewWalletForUser(user);
     } else {
       user = userObject.get();
     }
 
     Integer otp = Utility.createRandomOtp();
     SmsSendDto smsSendDto =
-        new SmsSendDto(
-            otp.toString(),
-            Constants.FTSMS_ROUTE,
-            Constants.DEFAULT_LANGUAGE,
-            Constants.DEFAULT_FLASH,
-            phoneNumber.toString());
+            new SmsSendDto(
+                    otp.toString(),
+                    Constants.FTSMS_OTP_ROUT,
+                    phoneNumber.toString());
 
     Boolean isSmsSent = smsSendService.sendDefaultOtpMessage(smsSendDto);
 
@@ -245,12 +251,10 @@ public class IamServiceImpl implements IamService {
 
     Integer otp = Utility.createRandomOtp();
     SmsSendDto smsSendDto =
-        new SmsSendDto(
-            otp.toString(),
-            Constants.FTSMS_ROUTE,
-            Constants.DEFAULT_LANGUAGE,
-            Constants.DEFAULT_FLASH,
-            phoneNumber.toString());
+            new SmsSendDto(
+                    otp.toString(),
+                    Constants.FTSMS_OTP_ROUT,
+                    phoneNumber.toString());
 
     Boolean isSmsSent = smsSendService.sendDefaultOtpMessage(smsSendDto);
     if (!isSmsSent.equals(Boolean.TRUE)) {
@@ -328,12 +332,10 @@ public class IamServiceImpl implements IamService {
     UserOtpMapping userOtpMapping = otpMappingObject.get();
     Integer otp = Utility.createRandomOtp();
     SmsSendDto smsSendDto =
-        new SmsSendDto(
-            otp.toString(),
-            Constants.FTSMS_ROUTE,
-            Constants.DEFAULT_LANGUAGE,
-            Constants.DEFAULT_FLASH,
-            phoneNumber.toString());
+            new SmsSendDto(
+                    otp.toString(),
+                    Constants.FTSMS_OTP_ROUT,
+                    phoneNumber.toString());
 
     Boolean isSmsSent = smsSendService.sendDefaultOtpMessage(smsSendDto);
     if (!isSmsSent.equals(Boolean.TRUE)) {
@@ -415,7 +417,9 @@ public class IamServiceImpl implements IamService {
     }
 
     user.setLastLogin(LocalDateTime.now());
-    iamRepository.save(user);
+     user =iamRepository.save(user);
+    //create new wallet for user.
+    walletService.createNewWalletForUser(user);
 
     UserDetails userDetails = new UserDetails();
     userDetails.setUsername(user.getEmail());

@@ -396,7 +396,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       throw new UnProcessableEntityException("User id can not be null!");
     }
 
-    List<CourseTrack> courseTrackList = courseTrackTemplate.getByUserId(userId);
+    List<CourseTrack> courseTrackList = courseTrackTemplate.getCompletedCourseByUserId(userId);
     Set<CourseCardDto> courseCardList = new HashSet<>();
     for (CourseTrack courseTrack : courseTrackList) {
       CourseDetails courseDetail = courseDetailRepository.findById(courseTrack.getCourseId().toString()).orElse(null);
@@ -420,8 +420,9 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         }
         if (courseTrack.getIsAllCompleted().equals(Boolean.TRUE)) {
           courseCardDto.setIsCompleted(Boolean.TRUE);
+          courseCardList.add(courseCardDto);
         }
-        courseCardList.add(courseCardDto);
+
       }
     }
     return courseCardList;
