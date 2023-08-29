@@ -35,6 +35,7 @@ public class UserOrderTemplate {
     public List<UserOrder> getByUserIdAndCourseIds(ObjectId userId, List<ObjectId> courseIds){
         Query query = new Query();
         query.addCriteria(Criteria.where("user_id").is(userId))
+                .addCriteria(Criteria.where("isCompleted").is(Boolean.TRUE))
                 .addCriteria(Criteria.where("course_id").in(courseIds));
 
         return mongoTemplate.find(query, UserOrder.class);
