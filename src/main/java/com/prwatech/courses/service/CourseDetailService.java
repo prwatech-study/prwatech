@@ -1,6 +1,7 @@
 package com.prwatech.courses.service;
 
 import com.prwatech.common.dto.PaginationDto;
+import com.prwatech.courses.dto.CertificateDetailsDto;
 import com.prwatech.courses.dto.CourseCardDto;
 import com.prwatech.courses.dto.CourseDetailsDto;
 import com.prwatech.courses.dto.CourseDetailsProjection;
@@ -47,5 +48,7 @@ public interface CourseDetailService {
   void updateCurrentItem(ObjectId userId, ObjectId courseId, Integer currentItem);
 
   Map<String, String>searchByName(String name);
+
+  CertificateDetailsDto getCertificateDetails(String userId, String courseId);
 
   }

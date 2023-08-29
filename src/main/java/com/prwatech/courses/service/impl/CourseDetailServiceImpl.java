@@ -5,6 +5,7 @@ import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.utility.Utility;
+import com.prwatech.courses.dto.CertificateDetailsDto;
 import com.prwatech.courses.dto.CourseCardDto;
 import com.prwatech.courses.dto.CourseDetailsDto;
 import com.prwatech.courses.dto.CourseDetailsProjection;
@@ -26,11 +27,14 @@ import com.prwatech.courses.repository.CourseTrackRepository;
 import com.prwatech.courses.repository.CourseTrackTemplate;
 import com.prwatech.courses.repository.WishListTemplate;
 import com.prwatech.courses.service.CourseDetailService;
+
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -60,10 +64,9 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   private final WishListTemplate wishListTemplate;
   private final CourseReviewRepository courseReviewRepository;
   private final UserOrderTemplate userOrderTemplate;
-
   private final CourseTrackTemplate courseTrackTemplate;
   private final CourseTrackRepository courseTrackRepository;
-
+  private final UserRepository userRepository;
   private static final org.slf4j.Logger LOGGER =
           org.slf4j.LoggerFactory.getLogger(CourseDetailServiceImpl.class);
 
@@ -462,5 +465,31 @@ public class CourseDetailServiceImpl implements CourseDetailService {
 
    return courseDetailsList.stream().collect(Collectors.toMap(CourseDetailsProjection::getId, CourseDetailsProjection::getCourse_Title));
 
+  }
+
+  @Override
+  public CertificateDetailsDto getCertificateDetails(String userId, String courseId) {
+    User user = userRepository.findById(userId).orElseThrow(()-> new NotFoundException("User not found by given id."));
+
+    if(user.getName()==null){
+      throw new UnProcessableEntityException("Please complete your profile details.");
+    }
+
+    CourseDetails courseDetails = courseDetailRepository.findById(courseId).orElseThrow(()-> new NotFoundException("No course found by this course id"));
+
+    CourseTrack courseTrack = courseTrackTemplate.getByCourseIdAndUserId(new ObjectId(userId), new ObjectId(courseId));
+
+    if (Objects.isNull(courseTrack)){
+      throw new NotFoundException("You have not bought this course.");
+    }
+
+    if(courseTrack.getIsAllCompleted()){
+      throw new UnProcessableEntityException("You must complete the course to get certificate.");
+    }
+
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd, MMMM, yyyy", Locale.ENGLISH);
+    String date= courseTrack.getUpdatedAt().format(formatter);
+
+    return new CertificateDetailsDto(user.getName(), courseDetails.getCourse_Title(), date);
   }
 }
