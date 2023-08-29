@@ -115,18 +115,4 @@ public class FileServiceImpl implements FileServices {
         return null;
     }
 
-    private ByteArrayOutputStream convertHtmlToPdf(String htmlFile){
-
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        try{
-
-            Document document =  new Document();
-            PdfWriter.getInstance(document, byteArrayOutputStream);
-        }
-        catch (Exception e){
-            LOGGER.error("Something went wrong while writing the file into pdf!");
-        }
-
-        return null;
-    }
 }
