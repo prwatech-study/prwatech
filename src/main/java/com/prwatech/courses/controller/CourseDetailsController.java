@@ -1,5 +1,6 @@
 package com.prwatech.courses.controller;
 
+import com.prwatech.common.Constants;
 import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.courses.dto.CourseCardDto;
@@ -18,6 +19,8 @@ import com.prwatech.courses.service.CourseCurriculamService;
 import com.prwatech.courses.service.CourseDetailService;
 import com.prwatech.courses.service.CourseFAQsService;
 import com.prwatech.courses.service.FileServices;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
@@ -56,7 +59,6 @@ public class CourseDetailsController {
 
   private final CourseFAQsService courseFAQsService;
 
-  private final FileServices fileServices;
 
   @ApiOperation(value = "Get most popular courses", notes = "Get most popular courses")
   @ApiResponses(
@@ -298,47 +300,5 @@ public class CourseDetailsController {
   {
      return courseDetailService.searchByName(name);
   }
-
-  @ApiOperation(value = "Generate Certificate.", notes = " Generate Certificate")
-  @ApiResponses(
-          value = {
-                  @ApiResponse(code = 200, message = "Success"),
-                  @ApiResponse(code = 400, message = "Not Available"),
-                  @ApiResponse(code = 401, message = "UnAuthorized"),
-                  @ApiResponse(code = 403, message = "Access Forbidden"),
-                  @ApiResponse(code = 404, message = "Not found"),
-                  @ApiResponse(code = 422, message = "UnProcessable entity"),
-                  @ApiResponse(code = 500, message = "Internal server error"),
-          })
-  @ResponseStatus(HttpStatus.OK)
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(
-//                    name = Constants.AUTH,
-//                    value = Constants.TOKEN_TYPE,
-//                    required = true,
-//                    dataType = Constants.AUTH_DATA_TYPE,
-//                    paramType = Constants.AUTH_PARAM_TYPE)
-//    })
-  @GetMapping(value = "/get/certificate")
-  public ResponseEntity<ByteArrayResource> getCertificateByUserIdAndCourseId(
-          @RequestParam(value = "userId") String userId,
-          @RequestParam(value = "courseId") String courseId
-  ) throws IOException {
-
-    ByteArrayInputStream pdfStream = fileServices.generateCertificateByUserIdAndCourseId(userId,courseId);
-
-    HttpHeaders headers = new HttpHeaders();
-    headers.add("Content-Disposition", "inline; filename=certificate.pdf");
-
-    if(Objects.isNull(pdfStream)){
-      throw new UnProcessableEntityException("Please try after sometime, Error in creating certificate.");
-    }
-
-    return ResponseEntity.ok().headers(headers)
-            .contentType(MediaType.APPLICATION_PDF)
-            .body(new ByteArrayResource(IOUtils.toByteArray(pdfStream)));
-
-  }
-
 
 }
