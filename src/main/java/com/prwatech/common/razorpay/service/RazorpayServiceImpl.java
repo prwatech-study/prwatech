@@ -1,5 +1,6 @@
 package com.prwatech.common.razorpay.service;
 
+import com.prwatech.common.exception.AlreadyPresentException;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.razorpay.RazorpayUtilityService;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
@@ -49,6 +51,14 @@ public class RazorpayServiceImpl implements RazorpayService{
 
     @Override
     public RazorpayOrder createNewOrder(CreateOrderDto createOrderDto, String userId) {
+
+        List<ObjectId> objectIdList=createOrderDto.getCourseIds().stream().map(ObjectId::new).collect(Collectors.toList());
+
+        List<UserOrder> userOrderList = userOrderTemplate.getByUserIdAndCourseIds(new ObjectId(userId), objectIdList);
+
+        if(userOrderList!=null || !userOrderList.isEmpty()){
+            throw new AlreadyPresentException("User have already bought some of these courses! please remove the bought courses." );
+        }
 
         if(createOrderDto.getAmount()==null || createOrderDto.getAmount()<1){
             throw new UnProcessableEntityException("Invalid amount entered, please provide more one rupee.");
