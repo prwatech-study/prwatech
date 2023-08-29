@@ -412,7 +412,7 @@ public class IamServiceImpl implements IamService {
     }
 
     User user = new User();
-    if (userObject.isEmpty()) {
+    if (!userObject.isEmpty()) {
       user = userObject.get();
       user.setLastLogin(LocalDateTime.now());
     } else {
