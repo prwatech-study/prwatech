@@ -56,7 +56,7 @@ public class RazorpayServiceImpl implements RazorpayService{
 
         List<UserOrder> userOrderList = userOrderTemplate.getByUserIdAndCourseIds(new ObjectId(userId), objectIdList);
 
-        if(userOrderList!=null || !userOrderList.isEmpty()){
+        if(!userOrderList.isEmpty()){
             throw new AlreadyPresentException("User have already bought some of these courses! please remove the bought courses." );
         }
 
