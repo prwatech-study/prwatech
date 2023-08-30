@@ -1,7 +1,10 @@
 package com.prwatech.courses.repository;
 
 import com.prwatech.courses.dto.CourseDetailsProjection;
+import com.prwatech.courses.dto.CourseTypeProjection;
 import com.prwatech.courses.model.CourseDetails;
+
+import java.util.Collections;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -77,6 +80,15 @@ public class CourseDetailsRepositoryTemplate {
     Aggregation aggregation = Aggregation.newAggregation(match, project);
 
     AggregationResults<CourseDetailsProjection> results = mongoTemplate.aggregate(aggregation, "CourseDetails", CourseDetailsProjection.class);
+    return results.getMappedResults();
+  }
+
+  public List<CourseTypeProjection> getCourseTypeByCourseId(List<String> courseIds){
+    AggregationOperation match = Aggregation.match(Criteria.where("id").in(courseIds));
+    AggregationOperation project = Aggregation.project("Course_Type");
+    Aggregation aggregation = Aggregation.newAggregation(match, project);
+
+    AggregationResults<CourseTypeProjection> results = mongoTemplate.aggregate(aggregation,"CourseDetails", CourseTypeProjection.class);
     return results.getMappedResults();
   }
 }
