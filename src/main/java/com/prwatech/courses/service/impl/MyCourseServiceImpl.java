@@ -1,8 +1,11 @@
 package com.prwatech.courses.service.impl;
 
 import com.prwatech.courses.dto.MyDashboardActivity;
+import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.CourseTrack;
 import com.prwatech.courses.model.MyCourses;
+import com.prwatech.courses.repository.CourseDetailRepository;
+import com.prwatech.courses.repository.CourseDetailsRepositoryTemplate;
 import com.prwatech.courses.repository.CourseTrackRepository;
 import com.prwatech.courses.repository.CourseTrackTemplate;
 import com.prwatech.courses.repository.MyCoursesRepository;
@@ -21,6 +24,8 @@ public class MyCourseServiceImpl implements MyCourseService {
 
   private final MyCoursesRepository myCoursesRepository;
   private final MyCoursesTemplate myCoursesTemplate;
+  private final CourseDetailsRepositoryTemplate courseDetailsRepositoryTemplate;
+  private final CourseDetailRepository courseDetailRepository;
 
   private final CourseTrackTemplate courseTrackTemplate;
   private final CourseTrackRepository courseTrackRepository;
@@ -35,9 +40,18 @@ public class MyCourseServiceImpl implements MyCourseService {
 
     List<CourseTrack> courseTrackList = courseTrackTemplate.getAllUsersCourseByUserId(new ObjectId(userId));
 
-    Integer enrolledCourses = courseTrackList.size();
+
+    List<String> courseIds = courseTrackList.stream().map(CourseTrack::getCourseId).map(String::valueOf).collect(Collectors.toList());
+    Integer enrolledCourses = courseTrackList.stream().filter(courseTrack -> courseTrack.getIsAllCompleted().equals(Boolean.FALSE))
+            .collect(Collectors.toList()).size();
+
+    //Get course details and filter out classroom and online course.
+
+
     Integer onlineCourses = 0;
     Integer classroomCourses = 0;
+
+
     Integer completedCourses =
              courseTrackList.stream()
                     .filter(courseTrack -> courseTrack.getIsAllCompleted()

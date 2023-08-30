@@ -20,6 +20,7 @@ public class UserOrderTemplate {
     public UserOrder getByUserIdAndCourseId(ObjectId userId, ObjectId courseId){
         Query query = new Query();
         query.addCriteria(Criteria.where("user_id").is(userId))
+                .addCriteria(Criteria.where("isCompleted").is(Boolean.TRUE))
                 .addCriteria(Criteria.where("course_id").is(courseId));
 
         return mongoTemplate.findOne(query, UserOrder.class);
@@ -41,7 +42,7 @@ public class UserOrderTemplate {
         return mongoTemplate.find(query, UserOrder.class);
     }
 
-    public List<UserOrder> getAllEnrolledCourses(ObjectId userId){
+    public List<UserOrder> getAllPurchasedCoursesOfUser(ObjectId userId){
         Query query = new Query();
         query.addCriteria(Criteria.where("user_id").is(userId))
                 .addCriteria(Criteria.where("isCompleted").is(Boolean.TRUE));

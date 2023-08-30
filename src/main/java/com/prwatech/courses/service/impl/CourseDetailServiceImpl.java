@@ -63,7 +63,6 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   private final CourseDetailRepository courseDetailRepository;
   private final WishListTemplate wishListTemplate;
   private final CourseReviewRepository courseReviewRepository;
-  private final UserOrderTemplate userOrderTemplate;
   private final CourseTrackTemplate courseTrackTemplate;
   private final CourseTrackRepository courseTrackRepository;
   private final UserRepository userRepository;
@@ -120,16 +119,16 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     if(userId!=null){
      Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(
               new ObjectId(userId), new ObjectId(courseDetail.getId()));
-     UserOrder userOrder =
-             userOrderTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
 
+     CourseTrack courseTrack = courseTrackTemplate.getByCourseIdAndUserId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
+     //get course track here .
      if(wishList.isPresent()){
        courseDetailsDto.setIsWishListed(Boolean.TRUE);
        courseDetailsDto.setWishListId(wishList.get().getId());
      }
 
-     if(Objects.nonNull(userOrder)){
-       courseDetailsDto.setIsEnrolled(userOrder.getIsCompleted());
+     if(Objects.nonNull(courseTrack)){
+       courseDetailsDto.setIsEnrolled(Boolean.TRUE);
      }
     }
     return courseDetailsDto;
@@ -366,10 +365,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       throw new UnProcessableEntityException("User id can not be null!");
     }
 
-    List<UserOrder> userOrderList = userOrderTemplate.getAllEnrolledCourses(userId);
+    List<CourseTrack> courseTrackList = courseTrackTemplate.getAllEnrolledCoursesOfUser(userId);
     Set<CourseCardDto> courseCardList = new HashSet<>();
-    for(UserOrder userOrder: userOrderList){
-      CourseDetails courseDetail = courseDetailRepository.findById(userOrder.getCourseId().toString()).orElse(null);
+    for(CourseTrack courseTrack: courseTrackList){
+      CourseDetails courseDetail = courseDetailRepository.findById(courseTrack.getCourseId().toString()).orElse(null);
       if(Objects.nonNull(courseDetail)){
         CourseCardDto courseCardDto = new CourseCardDto();
         courseCardDto.setCourseId(courseDetail.getId());
@@ -382,12 +381,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
                 getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
         courseCardDto.setCourseDurationHours(6);
         courseCardDto.setCourseDurationMinute(30);
-
-        CourseTrack courseTrack = courseTrackTemplate.getByCourseIdAndUserId(userId, new ObjectId(courseDetail.getId()));
-        if(Objects.nonNull(courseTrack) && courseTrack.getIsAllCompleted().equals(Boolean.FALSE)){
-          courseCardDto.setIsCompleted(Boolean.FALSE);
-          courseCardList.add(courseCardDto);
-        }
+        courseCardList.add(courseCardDto);
       }
     }
     return courseCardList;
