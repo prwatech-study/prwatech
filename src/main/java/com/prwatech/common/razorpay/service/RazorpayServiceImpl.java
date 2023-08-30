@@ -162,14 +162,19 @@ public class RazorpayServiceImpl implements RazorpayService{
 
         CourseCurriculam courseCurriculam = courseCurriculamTemplate.getAllCurriculamByCourseId(userOrder.getCourseId());
 
-        CourseTrack courseTrack = CourseTrack.builder()
-                .userId(new ObjectId(userId))
-                .courseId(userOrder.getCourseId())
-                .currentItem(1)
-                .totalSize((Objects.nonNull(courseCurriculam))?courseCurriculam.getCourse_Curriculam().size():1)
-                .build();
+        //if payment successful then courses will be assigned
+        if(razorpayPayment.getCaptured()){
+            LOGGER.info("The given course has been assigned to user.");
+            CourseTrack courseTrack = CourseTrack.builder()
+                    .userId(new ObjectId(userId))
+                    .courseId(userOrder.getCourseId())
+                    .currentItem(1)
+                    .totalSize((Objects.nonNull(courseCurriculam))?courseCurriculam.getCourse_Curriculam().size():1)
+                    .build();
 
-        courseTrackRepository.save(courseTrack);
+            courseTrackRepository.save(courseTrack);
+        }
+
         return razorpayOrder;
     }
 }
