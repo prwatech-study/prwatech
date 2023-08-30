@@ -1,5 +1,6 @@
 package com.prwatech.courses.service.impl;
 
+import com.prwatech.courses.dto.CourseTypeProjection;
 import com.prwatech.courses.dto.MyDashboardActivity;
 import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.CourseTrack;
@@ -47,9 +48,14 @@ public class MyCourseServiceImpl implements MyCourseService {
 
     //Get course details and filter out classroom and online course.
 
+    List<CourseTypeProjection> courseTypeProjections = courseDetailsRepositoryTemplate.getCourseTypeByCourseId(courseIds);
 
-    Integer onlineCourses = 0;
-    Integer classroomCourses = 0;
+    List<String> allTypes=courseTypeProjections.stream().
+            flatMap(courseTypeProjection -> courseTypeProjection.getGetCourse_Type().stream())
+            .collect(Collectors.toList());
+
+    Integer onlineCourses = allTypes.stream().filter(type-> type.equals("Online")).collect(Collectors.toList()).size();
+    Integer classroomCourses = allTypes.stream().filter(type-> type.equals("Classroom")).collect(Collectors.toList()).size();
 
 
     Integer completedCourses =
