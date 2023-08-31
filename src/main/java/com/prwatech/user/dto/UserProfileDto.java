@@ -22,5 +22,6 @@ public class UserProfileDto extends UserDetailsDto {
   private Integer certificate;
   private Integer wallet;
   private String Resume_URL;
+  private Boolean isPhoneLoggedIn;
   private UserEducationDetails educationDetails;
 }

@@ -191,11 +191,11 @@ public class IamServiceImpl implements IamService {
 
   private UserOtpDto signUpWithPhoneNumber(Long phoneNumber, String referalCode) throws IOException {
     Optional<User> userObject = iamMongodbTemplateLayer.findByMobile(phoneNumber);
-    User user = new User();
+    User user = null;
     if (!userObject.isPresent() && userObject.isEmpty()) {
-
+      user=new User();
+      user.setEmail(phoneNumber.toString());
       user.setPhoneNumber(phoneNumber);
-      user.setEmail(null);
       user.setDisable(Boolean.FALSE);
       user.setIsMobileRegistered(Boolean.TRUE);
       if(referalCode!=null){
@@ -411,11 +411,12 @@ public class IamServiceImpl implements IamService {
       throw new UnProcessableEntityException("This email is already in use!");
     }
 
-    User user = new User();
+    User user = null;
     if (!userObject.isEmpty()) {
       user = userObject.get();
       user.setLastLogin(LocalDateTime.now());
     } else {
+      user=new User();
       user.setEmail(googleSignInUpDto.getEmail());
       user.setName(googleSignInUpDto.getName());
       user.setProfileImage(googleSignInUpDto.getImageUrl());
