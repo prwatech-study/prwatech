@@ -52,7 +52,7 @@ public class UserServiceImpl implements UserService {
             .orElseThrow(() -> new NotFoundException("No user find with this id!"));
     UserProfileDto userProfileDto = modelMapper.map(user, UserProfileDto.class);
 
-
+    userProfileDto.setIsPhoneLoggedIn((user.getIsMobileRegistered())?Boolean.TRUE:Boolean.FALSE);
     MyDashboardActivity myDashboardActivity = myCourseService.getUserDashboardActivityByUserId(id);
     userProfileDto.setEducationDetails(educationDetailsTemplates.getByUserId(id));
     userProfileDto.setEnrolledCourse(myDashboardActivity.getEnrolledCourses());
@@ -76,9 +76,10 @@ public class UserServiceImpl implements UserService {
 //      user.setPhoneNumber(profileUpdateDto.getPhoneNumber());
 //    }
 //
-//    if (Objects.nonNull(profileUpdateDto.getEmail())) {
-//      user.setEmail(profileUpdateDto.getEmail());
-//    }
+
+    if (Objects.nonNull(profileUpdateDto.getEmail()) && user.getIsMobileRegistered()) {
+      user.setEmail(profileUpdateDto.getEmail());
+    }
 
     if (Objects.nonNull(profileUpdateDto.getGender())) {
       user.setGender(profileUpdateDto.getGender());
