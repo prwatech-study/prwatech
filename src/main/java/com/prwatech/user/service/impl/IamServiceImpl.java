@@ -192,12 +192,14 @@ public class IamServiceImpl implements IamService {
   private UserOtpDto signUpWithPhoneNumber(Long phoneNumber, String referalCode) throws IOException {
     Optional<User> userObject = iamMongodbTemplateLayer.findByMobile(phoneNumber);
     User user = null;
+    Integer RF = iamRepository.findAll().size()+1;
     if (!userObject.isPresent() && userObject.isEmpty()) {
       user=new User();
       user.setEmail(phoneNumber.toString());
       user.setPhoneNumber(phoneNumber);
       user.setDisable(Boolean.FALSE);
       user.setIsMobileRegistered(Boolean.TRUE);
+      user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
       if(referalCode!=null){
         user.setReferer_Code(referalCode);
         walletService.addIntoWalletByReferal(referalCode);
@@ -412,6 +414,7 @@ public class IamServiceImpl implements IamService {
     }
 
     User user = null;
+    Integer RF = iamRepository.findAll().size()+1;
     if (!userObject.isEmpty()) {
       user = userObject.get();
       user.setLastLogin(LocalDateTime.now());
@@ -424,6 +427,8 @@ public class IamServiceImpl implements IamService {
       user.setIsGoogleSignedIn(Boolean.TRUE);
       user.setDisable(Boolean.FALSE);
       user.setLastLogin(LocalDateTime.now());
+
+      user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
       user =iamRepository.save(user);
       couponService.allocateCouponsToUser(new ArrayList<>(
               Arrays.asList(Constants.NEW_USER_COUPON_ID)
