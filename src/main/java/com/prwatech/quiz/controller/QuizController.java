@@ -185,4 +185,24 @@ public class QuizController {
     public void removeAQuizContent(@PathVariable("id") String id){
         quizService.deleteAQuizContentByContentId(new ObjectId(id)); ;
     }
+
+    @ApiOperation(value = "Add new quiz to database", notes = "Add new quiz to database.")
+    @ApiResponses(
+            value = {
+                    @ApiResponse(code = 200, message = "Success"),
+                    @ApiResponse(code = 400, message = "Not Available"),
+                    @ApiResponse(code = 401, message = "UnAuthorized"),
+                    @ApiResponse(code = 403, message = "Access Forbidden"),
+                    @ApiResponse(code = 404, message = "Not found"),
+                    @ApiResponse(code = 422, message = "UnProcessable entity"),
+                    @ApiResponse(code = 500, message = "Internal server error"),
+            })
+    @ResponseStatus(value = HttpStatus.OK)
+    @PutMapping("/update/quiz/{quizId}")
+    public Quiz addNewQuiz(
+            @PathVariable(value = "quizId") String id,
+            @RequestBody @NotNull QuizDto quizDto
+    ){
+        return quizService.updateQuiz(id, quizDto);
+    }
 }

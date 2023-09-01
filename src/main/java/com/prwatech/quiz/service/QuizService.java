@@ -28,4 +28,5 @@ public interface QuizService {
     void deleteAQuizById(ObjectId id);
 
     void deleteAQuizContentByContentId(ObjectId id);
+    Quiz updateQuiz(String quizId, QuizDto quizDto);
 }

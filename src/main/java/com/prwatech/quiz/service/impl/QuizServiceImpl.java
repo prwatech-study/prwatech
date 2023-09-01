@@ -128,7 +128,7 @@ public class QuizServiceImpl implements QuizService {
 
     @Override
     public void deleteAQuizContentByContentId(ObjectId id) {
-          QuizContent quizContent = quizContentRepository.findById(id.toHexString()).orElseThrow(
+          QuizContent quizContent = quizContentRepository.findById(id.toString()).orElseThrow(
                   ()-> new NotFoundException("No quiz content found by this id!"));
 
           Quiz quiz = quizRepository.findById(quizContent.getQuizId().toString()).orElse(null);
@@ -140,5 +140,33 @@ public class QuizServiceImpl implements QuizService {
           List<QuizContent> quizContents = quiz.getQuizContents();
           quizContents.remove(quizContent);
           return;
+    }
+
+    @Override
+    public Quiz updateQuiz(String quizId, QuizDto quizDto) {
+
+
+            Quiz quiz = quizRepository.findById(quizId).orElseThrow(
+                    ()-> new NotFoundException("No quiz found by this id : "+ quizId));
+            if(quizDto.getQuizName()!=null){
+                quiz.setQuizName(quizDto.getQuizName());
+            }
+            if(quizDto.getWhyThisQuiz()!=null){
+               quiz.setWhyThisQuiz(quizDto.getWhyThisQuiz());
+            }
+            if(quizDto.getDescription()!=null){
+                quiz.setDescription(quizDto.getDescription());
+            }
+            if(quizDto.getPrice()!=null){
+               quiz.setPrice(quizDto.getPrice());
+            }
+            if(quizDto.getTemplateUrl()!=null){
+               quiz.setTemplateUrl(quizDto.getTemplateUrl());
+            }
+            if(quizDto.getSecondaryTitle()!=null){
+               quiz.setSecondaryTitle(quizDto.getSecondaryTitle());
+            }
+
+        return quizRepository.save(quiz);
     }
 }
