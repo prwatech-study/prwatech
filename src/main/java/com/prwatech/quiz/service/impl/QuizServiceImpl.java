@@ -1,6 +1,7 @@
 package com.prwatech.quiz.service.impl;
 
 import com.prwatech.common.exception.NotFoundException;
+import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.quiz.dto.QuizContentDto;
 import com.prwatech.quiz.dto.QuizContentGetDto;
 import com.prwatech.quiz.dto.QuizDto;
@@ -132,13 +133,15 @@ public class QuizServiceImpl implements QuizService {
                   ()-> new NotFoundException("No quiz content found by this id!"));
 
           Quiz quiz = quizRepository.findById(quizContent.getQuizId().toString()).orElse(null);
-          if(Objects.isNull(quiz)){
+          if(Objects.isNull(quiz) &&  !quiz.getQuizContents().isEmpty()){
               quizContentRepository.deleteById(id.toString());
-              return;
+              List<QuizContent> quizContents = quiz.getQuizContents();
+              quizContents.remove(quizContent);
+          }
+          else{
+              throw new UnProcessableEntityException("No quiz found by id.");
           }
 
-          List<QuizContent> quizContents = quiz.getQuizContents();
-          quizContents.remove(quizContent);
           return;
     }
 
