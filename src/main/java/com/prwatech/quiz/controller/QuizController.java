@@ -186,7 +186,7 @@ public class QuizController {
         quizService.deleteAQuizContentByContentId(new ObjectId(id)); ;
     }
 
-    @ApiOperation(value = "Add new quiz to database", notes = "Add new quiz to database.")
+    @ApiOperation(value = "update a quiz to database by id", notes = "update a quiz to database by id")
     @ApiResponses(
             value = {
                     @ApiResponse(code = 200, message = "Success"),
