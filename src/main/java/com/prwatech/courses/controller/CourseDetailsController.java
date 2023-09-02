@@ -315,7 +315,7 @@ public class CourseDetailsController {
                   @ApiResponse(code = 422, message = "UnProcessable entity"),
                   @ApiResponse(code = 500, message = "Internal server error"),
           })
-  @PutMapping("/course/free-non-free/{courseId}")
+  @PutMapping("/set-course/free/non-free/{courseId}")
   @ResponseStatus(HttpStatus.OK)
   public Boolean updateFreeOrNonFree(
           @PathVariable(value = "courseId") String courseId,
