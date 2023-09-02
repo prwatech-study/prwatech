@@ -164,11 +164,12 @@ public class RazorpayServiceImpl implements RazorpayService{
 
         //if payment successful then courses will be assigned
         if(razorpayPayment.getCaptured()){
-            LOGGER.info("The given course has been assigned to user.");
+            LOGGER.info("The given course assigning to user.");
             CourseTrack courseTrack = CourseTrack.builder()
                     .userId(new ObjectId(userId))
                     .courseId(userOrder.getCourseId())
                     .currentItem(1)
+                    .isAllCompleted(Boolean.FALSE)
                     .totalSize((Objects.nonNull(courseCurriculam))?courseCurriculam.getCourse_Curriculam().size():1)
                     .build();
 
