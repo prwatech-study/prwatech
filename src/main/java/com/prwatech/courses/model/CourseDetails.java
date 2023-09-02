@@ -70,6 +70,9 @@ public class CourseDetails {
   @Field(name = "Certification_Content")
   private String Certification_Content;
 
+  @Field(name = "isFree")
+  private Boolean isFree;
+
   @Field(name = "Disable")
   private Boolean Disable = Boolean.FALSE;
 }
