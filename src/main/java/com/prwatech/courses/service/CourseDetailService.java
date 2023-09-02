@@ -28,7 +28,7 @@ public interface CourseDetailService {
 
   List<CourseCardDto> getSelfPlacedCourses(String userId);
 
-  List<CourseCardDto> getFreeCourses(String userId);
+  PaginationDto getFreeCourses(String userId, Integer pageNumber, Integer pageSize);
 
   PaginationDto getAllCoursesByCategory(String userId,
       CourseLevelCategory category, Integer pageNumber, Integer pageSize);
@@ -50,5 +50,7 @@ public interface CourseDetailService {
   Map<String, String>searchByName(String name);
 
   CertificateDetailsDto getCertificateDetails(String userId, String courseId);
+
+  Boolean makeItFreeAndNonFree(String courseId, Boolean isFree);
 
   }

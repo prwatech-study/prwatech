@@ -91,4 +91,14 @@ public class CourseDetailsRepositoryTemplate {
     AggregationResults<CourseTypeProjection> results = mongoTemplate.aggregate(aggregation,"CourseDetails", CourseTypeProjection.class);
     return results.getMappedResults();
   }
+
+  public Page<CourseDetails> getFreeCourseByBit(Integer pageNumber, Integer pageSize){
+    Pageable pageable = PageRequest.of(pageNumber, pageSize);
+    Query query = new Query();
+    query.addCriteria(Criteria.where("isFree").in(Boolean.TRUE));
+    Long count = mongoTemplate.count(query, CourseDetails.class);
+    query.with(pageable);
+    List<CourseDetails> courseDetailsList = mongoTemplate.find(query, CourseDetails.class);
+    return new PageImpl<>(courseDetailsList, pageable, count);
+  }
 }

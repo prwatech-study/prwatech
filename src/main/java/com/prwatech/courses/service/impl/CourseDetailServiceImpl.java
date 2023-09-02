@@ -211,10 +211,11 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  public List<CourseCardDto> getFreeCourses(String userId) {
-    List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getFreeCourses();
+  public PaginationDto getFreeCourses(String userId, Integer pageNumber, Integer pageSize) {
+    Page<CourseDetails> courseDetailsPage = courseDetailsRepositoryTemplate.getFreeCourseByBit(pageNumber, pageSize);
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
-    for (CourseDetails courseDetail : courseDetailList) {
+
+    for (CourseDetails courseDetail : courseDetailsPage.getContent()) {
 
       CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
@@ -224,10 +225,8 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
       courseCardDto.setCourseRatingDto(courseRatingDto);
-      courseCardDto.setPrice(
-          getPriceByCourseId(new ObjectId(courseDetail.getId()),"Webinar").getActual_Price());
-      courseCardDto.setDiscountedPrice(
-              getPriceByCourseId(new ObjectId(courseDetail.getId()),"Webinar").getDiscounted_Price());
+      courseCardDto.setPrice(0);
+      courseCardDto.setDiscountedPrice(0);
       courseCardDto.setCourseLevelCategory(CourseLevelCategory.FREE_COURSES);
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
@@ -242,7 +241,12 @@ public class CourseDetailServiceImpl implements CourseDetailService {
 
       courseCardDtoList.add(courseCardDto);
     }
-    return courseCardDtoList;
+    return Utility.getPaginatedResponse(
+            Collections.singletonList(courseCardDtoList),
+            courseDetailsPage.getPageable(),
+            courseDetailsPage.getTotalPages(),
+            courseDetailsPage.hasNext(),
+            courseDetailsPage.getTotalElements());
   }
 
   @Override
@@ -485,5 +489,16 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     String date= courseTrack.getUpdatedAt().format(formatter);
 
     return new CertificateDetailsDto(user.getName(), courseDetails.getCourse_Title(), date);
+  }
+
+  @Override
+  public Boolean makeItFreeAndNonFree(String courseId, Boolean isFree) {
+
+   CourseDetails courseDetails = courseDetailRepository.findById(courseId).orElseThrow(
+            ()->new NotFoundException("No course find by this id."));
+
+   courseDetails.setIsFree(isFree);
+   courseDetailRepository.save(courseDetails);
+    return true;
   }
 }

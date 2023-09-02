@@ -44,8 +44,7 @@ public class CourseTrackTemplate {
 
     public List<CourseTrack> getAllEnrolledCoursesOfUser(ObjectId userId){
         Query query = new Query();
-        query.addCriteria(Criteria.where("user_id").is(userId))
-                .addCriteria(Criteria.where("is_all_completed").is(Boolean.FALSE));
+        query.addCriteria(Criteria.where("user_id").is(userId).andOperator(Criteria.where("is_all_completed").is(Boolean.FALSE)));
 
         return mongoTemplate.find(query, CourseTrack.class);
     }

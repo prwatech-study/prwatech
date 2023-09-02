@@ -43,6 +43,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -113,10 +114,12 @@ public class CourseDetailsController {
       })
   @GetMapping("/free-course/listing/")
   @ResponseStatus(HttpStatus.OK)
-  public List<CourseCardDto> getHomeListingFreeCourses(
-          @RequestParam(value = "userId", required = false) String userId
+  public PaginationDto getHomeListingFreeCourses(
+          @RequestParam(value = "userId", required = false) String userId,
+          @RequestParam(value = "pageNumber", defaultValue = "0") Integer pageNumber,
+          @RequestParam(value = "pageSize") Integer pageSize
   ) {
-    return courseDetailService.getFreeCourses(userId);
+    return courseDetailService.getFreeCourses(userId, pageNumber, pageSize);
   }
 
   @ApiOperation(
@@ -299,6 +302,27 @@ public class CourseDetailsController {
   )
   {
      return courseDetailService.searchByName(name);
+  }
+
+  @ApiOperation(value = "Update the course {Free and Non-Free}", notes = "Update the course {Free and Non-Free}")
+  @ApiResponses(
+          value = {
+                  @ApiResponse(code = 200, message = "Success"),
+                  @ApiResponse(code = 400, message = "Not Available"),
+                  @ApiResponse(code = 401, message = "UnAuthorized"),
+                  @ApiResponse(code = 403, message = "Access Forbidden"),
+                  @ApiResponse(code = 404, message = "Not found"),
+                  @ApiResponse(code = 422, message = "UnProcessable entity"),
+                  @ApiResponse(code = 500, message = "Internal server error"),
+          })
+  @PutMapping("/course/free-non-free/{courseId}")
+  @ResponseStatus(HttpStatus.OK)
+  public Boolean updateFreeOrNonFree(
+          @PathVariable(value = "courseId") String courseId,
+          @RequestParam(value = "isFree") Boolean isFree
+  )
+  {
+    return courseDetailService.makeItFreeAndNonFree(courseId, isFree);
   }
 
 }
