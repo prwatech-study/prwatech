@@ -16,4 +16,5 @@ public class CourseCurriCulamDto {
 
     private CourseCurriculam courseCurriculam;
     private Integer currentVideo;
+    private Boolean isCompleted;
 }
