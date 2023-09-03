@@ -444,7 +444,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
                 "completed as in past.");
       }
       courseTrack.setCurrentItem(currentItem);
-      if(currentItem==courseTrack.getTotalSize()){
+      if(currentItem.equals(courseTrack.getTotalSize())){
         courseTrack.setIsAllCompleted(Boolean.TRUE);
       }
 
@@ -481,7 +481,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       throw new NotFoundException("You have not bought this course.");
     }
 
-    if(courseTrack.getIsAllCompleted()){
+    if(!courseTrack.getIsAllCompleted()){
       throw new UnProcessableEntityException("You must complete the course to get certificate.");
     }
 
