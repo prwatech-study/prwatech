@@ -29,15 +29,21 @@ public class CourseCurriculamServiceImp implements CourseCurriculamService {
       throw new UnProcessableEntityException("Course Id can not be null!");
     }
 
+    Boolean isCompleted=Boolean.FALSE;
     CourseCurriculam courseCurriculam = courseCurriculamTemplate.getAllCurriculamByCourseId(courseId);
     Integer currentVideo=1;
     if(userId!=null){
       CourseTrack courseTrack = courseTrackTemplate.getByCourseIdAndUserId(new ObjectId(userId), courseId);
       if(Objects.nonNull(courseTrack)){
         currentVideo=courseTrack.getCurrentItem();
+        if(currentVideo.equals(courseCurriculam.getCourse_Curriculam().size())){
+          isCompleted=Boolean.TRUE;
+        }
       }
     }
-    return CourseCurriCulamDto.builder().courseCurriculam(courseCurriculam).currentVideo(currentVideo).build();
+    return CourseCurriCulamDto.builder().courseCurriculam(courseCurriculam).currentVideo(currentVideo)
+            .isCompleted(isCompleted)
+            .build();
 
   }
 }
