@@ -12,6 +12,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 public class UserProfileUpdateDto {
+  private String name;
   private Long phoneNumber;
   private String email;
   private UserGender gender;
