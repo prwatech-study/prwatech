@@ -82,6 +82,10 @@ public class UserServiceImpl implements UserService {
 //      user.setEmail(profileUpdateDto.getEmail());
 //    }
 
+    if(profileUpdateDto.getName()!=null){
+      user.setName(profileUpdateDto.getName());
+    }
+
     if (Objects.nonNull(profileUpdateDto.getGender())) {
       user.setGender(profileUpdateDto.getGender());
     }
