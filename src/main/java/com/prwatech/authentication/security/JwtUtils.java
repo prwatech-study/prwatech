@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 public class JwtUtils {
 
   private static long serialVersionId = -2550185165626007488L;
-  public static final long JWT_TOKEN_VALIDITY = 10000 * 60 * 60 * 10L;
+  public static final long JWT_TOKEN_VALIDITY = 10000 * 180 * 180 * 10L;
   public static final long JWT_TOKEN_REFRESH_VALIDITY = 10000 * 60 * 60 * 15L;
   private static final String SECRET_KEY = "secret";
 
