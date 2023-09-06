@@ -10,6 +10,7 @@ import com.prwatech.user.dto.UserProfileDto;
 import com.prwatech.user.dto.UserProfileUpdateDto;
 import com.prwatech.user.model.User;
 import com.prwatech.user.model.UserEducationDetails;
+import com.prwatech.user.repository.IamRepository;
 import com.prwatech.user.repository.UserEducationDetailsRepository;
 import com.prwatech.user.repository.UserRepository;
 import com.prwatech.user.service.UserService;
@@ -19,6 +20,9 @@ import lombok.AllArgsConstructor;
 import org.bson.types.ObjectId;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
+
+import static com.prwatech.common.Constants.REFERAL_BIT_1;
+import static com.prwatech.common.Constants.REFERAL_BIT_2;
 
 @Service
 @AllArgsConstructor
@@ -32,6 +36,7 @@ public class UserServiceImpl implements UserService {
   private final MyCourseService myCourseService;
   private final EducationDetailsTemplates educationDetailsTemplates;
   private final UserEducationDetailsRepository educationDetailsRepository;
+  private final IamRepository iamRepository;
 
   @Override
   public UserDetailsDto getUserDetailsById(String id) {
@@ -141,7 +146,9 @@ public class UserServiceImpl implements UserService {
             .findById(id)
             .orElseThrow(() -> new NotFoundException("No user found by this id"));
     if(user.getReferal_Code()==null){
-      return "";
+      Integer RF = iamRepository.findAll().size()+1;
+      user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
+      user = iamRepository.save(user);
     }
     return user.getReferal_Code();
   }
