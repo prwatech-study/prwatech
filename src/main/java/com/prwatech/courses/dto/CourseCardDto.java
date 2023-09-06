@@ -12,15 +12,19 @@ import lombok.Setter;
 @NoArgsConstructor
 public class CourseCardDto {
 
+  private String cartId;
+  private String wishListId;
   private String courseId;
   private String title;
   private Boolean isImgPresent;
   private String imgUrl;
-  private Double ratingNumber;
-  private Long peopleRatingNumber;
+  private CourseRatingDto courseRatingDto;
   private Integer price;
+  private Integer discountedPrice;
   private Integer lectureNumber;
   private Integer courseDurationHours;
   private Integer courseDurationMinute;
   private CourseLevelCategory courseLevelCategory;
+  private Boolean isWishListed;
+  private Boolean isCompleted;
 }

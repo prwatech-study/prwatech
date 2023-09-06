@@ -2,6 +2,8 @@ package com.prwatech.user.service.impl;
 
 import static com.prwatech.common.Constants.FORGET_PASSWORD_MAIL_BODY;
 import static com.prwatech.common.Constants.FORGET_PASSWORD_MAIL_SUBJECT;
+import static com.prwatech.common.Constants.REFERAL_BIT_1;
+import static com.prwatech.common.Constants.REFERAL_BIT_2;
 import static com.prwatech.common.Constants.SUCCESSFUL;
 
 import com.prwatech.authentication.security.JwtUtils;
@@ -18,6 +20,8 @@ import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.service.SmsSendService;
 import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.common.utility.Utility;
+import com.prwatech.coupon.service.CouponService;
+import com.prwatech.finance.service.WalletService;
 import com.prwatech.user.dto.ForgetPasswordResponseDto;
 import com.prwatech.user.dto.GoogleSignInUpDto;
 import com.prwatech.user.dto.SignInResponseDto;
@@ -33,10 +37,13 @@ import com.prwatech.user.template.IamMongodbTemplateLayer;
 import com.prwatech.user.template.UserOtpMappingTemplate;
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import lombok.AllArgsConstructor;
+import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +65,9 @@ public class IamServiceImpl implements IamService {
   private final AppContext appContext;
   private final UserService userService;
   private final EmailServiceImpl emailService;
+  private final WalletService walletService;
+
+  private final CouponService couponService;
 
   @Override
   public SignInResponseDto signInUpWithEmailPassword(
@@ -76,11 +86,11 @@ public class IamServiceImpl implements IamService {
   }
 
   @Override
-  public UserOtpDto singInUpWithPhoneNumber(Long phoneNumber) throws IOException {
+  public UserOtpDto singInUpWithPhoneNumber(Long phoneNumber, String referalCode) throws IOException {
     if (Objects.isNull(phoneNumber)) {
       throw new UnProcessableEntityException("Phone number can not be null!");
     }
-    return signUpWithPhoneNumber(phoneNumber);
+    return signUpWithPhoneNumber(phoneNumber, referalCode);
   }
 
   private SignInResponseDto signInWithEmailAndPassword(
@@ -144,6 +154,7 @@ public class IamServiceImpl implements IamService {
       throw new UnProcessableEntityException("This email is already in use!");
     }
 
+    Integer RF = iamRepository.findAll().size()+1;
     signInSignUpRequestDto.setPassword(
         passwordEncode.getEncryptedPassword(signInSignUpRequestDto.getPassword()));
     User user = new User();
@@ -152,7 +163,17 @@ public class IamServiceImpl implements IamService {
     user.setIsGoogleSignedIn(Boolean.FALSE);
     user.setDisable(Boolean.FALSE);
     user.setLastLogin(LocalDateTime.now());
-    iamRepository.save(user);
+    if(signInSignUpRequestDto.getReferalCode()!=null){
+      user.setReferer_Code(signInSignUpRequestDto.getReferalCode());
+      walletService.addIntoWalletByReferal(signInSignUpRequestDto.getReferalCode());
+    }
+    user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
+    user=iamRepository.save(user);
+
+    //create new wallet for user.
+    walletService.createNewWalletForUser(user);
+
+    couponService.allocateCouponsToUser(new ArrayList<>(Arrays.asList(Constants.NEW_USER_COUPON_ID)), new ObjectId(user.getId()));
 
     UserDetails userDetails = new UserDetails();
     userDetails.setUsername(user.getEmail());
@@ -168,28 +189,36 @@ public class IamServiceImpl implements IamService {
     return signInResponseDto;
   }
 
-  private UserOtpDto signUpWithPhoneNumber(Long phoneNumber) throws IOException {
+  private UserOtpDto signUpWithPhoneNumber(Long phoneNumber, String referalCode) throws IOException {
     Optional<User> userObject = iamMongodbTemplateLayer.findByMobile(phoneNumber);
-    User user = new User();
+    User user = null;
+    Integer RF = iamRepository.findAll().size()+1;
     if (!userObject.isPresent() && userObject.isEmpty()) {
-
+      user=new User();
+      user.setEmail(phoneNumber.toString());
       user.setPhoneNumber(phoneNumber);
-      user.setEmail(Utility.generateRandomString(6));
       user.setDisable(Boolean.FALSE);
       user.setIsMobileRegistered(Boolean.TRUE);
+      user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
+      if(referalCode!=null){
+        user.setReferer_Code(referalCode);
+        walletService.addIntoWalletByReferal(referalCode);
+      }
       user = iamRepository.save(user);
+
+      //create new wallet for user.
+      walletService.createNewWalletForUser(user);
+      couponService.allocateCouponsToUser(new ArrayList<>(Arrays.asList(Constants.NEW_USER_COUPON_ID)), new ObjectId(user.getId()));
     } else {
       user = userObject.get();
     }
 
     Integer otp = Utility.createRandomOtp();
     SmsSendDto smsSendDto =
-        new SmsSendDto(
-            otp.toString(),
-            Constants.FTSMS_ROUTE,
-            Constants.DEFAULT_LANGUAGE,
-            Constants.DEFAULT_FLASH,
-            phoneNumber.toString());
+            new SmsSendDto(
+                    otp.toString(),
+                    Constants.FTSMS_OTP_ROUT,
+                    phoneNumber.toString());
 
     Boolean isSmsSent = smsSendService.sendDefaultOtpMessage(smsSendDto);
 
@@ -231,12 +260,10 @@ public class IamServiceImpl implements IamService {
 
     Integer otp = Utility.createRandomOtp();
     SmsSendDto smsSendDto =
-        new SmsSendDto(
-            otp.toString(),
-            Constants.FTSMS_ROUTE,
-            Constants.DEFAULT_LANGUAGE,
-            Constants.DEFAULT_FLASH,
-            phoneNumber.toString());
+            new SmsSendDto(
+                    otp.toString(),
+                    Constants.FTSMS_OTP_ROUT,
+                    phoneNumber.toString());
 
     Boolean isSmsSent = smsSendService.sendDefaultOtpMessage(smsSendDto);
     if (!isSmsSent.equals(Boolean.TRUE)) {
@@ -314,12 +341,10 @@ public class IamServiceImpl implements IamService {
     UserOtpMapping userOtpMapping = otpMappingObject.get();
     Integer otp = Utility.createRandomOtp();
     SmsSendDto smsSendDto =
-        new SmsSendDto(
-            otp.toString(),
-            Constants.FTSMS_ROUTE,
-            Constants.DEFAULT_LANGUAGE,
-            Constants.DEFAULT_FLASH,
-            phoneNumber.toString());
+            new SmsSendDto(
+                    otp.toString(),
+                    Constants.FTSMS_OTP_ROUT,
+                    phoneNumber.toString());
 
     Boolean isSmsSent = smsSendService.sendDefaultOtpMessage(smsSendDto);
     if (!isSmsSent.equals(Boolean.TRUE)) {
@@ -388,20 +413,31 @@ public class IamServiceImpl implements IamService {
       throw new UnProcessableEntityException("This email is already in use!");
     }
 
-    User user = new User();
+    User user = null;
+    Integer RF = iamRepository.findAll().size()+1;
     if (!userObject.isEmpty()) {
       user = userObject.get();
+      user.setLastLogin(LocalDateTime.now());
     } else {
+      user=new User();
       user.setEmail(googleSignInUpDto.getEmail());
       user.setName(googleSignInUpDto.getName());
       user.setProfileImage(googleSignInUpDto.getImageUrl());
       user.setIsProfileImageUploaded(Boolean.TRUE);
       user.setIsGoogleSignedIn(Boolean.TRUE);
       user.setDisable(Boolean.FALSE);
+      user.setLastLogin(LocalDateTime.now());
+
+      user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
+      user =iamRepository.save(user);
+      couponService.allocateCouponsToUser(new ArrayList<>(
+              Arrays.asList(Constants.NEW_USER_COUPON_ID)
+      ), new ObjectId(user.getId()));
+
     }
 
-    user.setLastLogin(LocalDateTime.now());
-    iamRepository.save(user);
+    //create new wallet for user.
+    walletService.createNewWalletForUser(user);
 
     UserDetails userDetails = new UserDetails();
     userDetails.setUsername(user.getEmail());

@@ -11,7 +11,7 @@ public interface IamService {
 
   SignInResponseDto signInUpWithEmailPassword(SignInSignUpRequestDto signInSignUpRequestDto);
 
-  UserOtpDto singInUpWithPhoneNumber(Long phoneNumber) throws IOException;
+  UserOtpDto singInUpWithPhoneNumber(Long phoneNumber, String referalCode) throws IOException;
 
   SignInResponseDto verifyOtp(String userId, Integer otp);
 

@@ -15,11 +15,10 @@ public class CoursePricingRepositoryTemplate {
 
   private MongoTemplate mongoTemplate;
 
-  public Optional<Pricing> getPricingOfCourseByCourseId(ObjectId courseId) {
+  public Optional<Pricing> getPricingOfCourseByCourseId(ObjectId Course_Id, String Course_Type) {
 
     Query query = new Query();
-
-    query.addCriteria(Criteria.where("Course_Id").is(courseId));
+    query.addCriteria(Criteria.where("Course_Id").is(Course_Id).and("Course_Type").is(Course_Type));
     return Optional.ofNullable(mongoTemplate.findOne(query, Pricing.class));
   }
 }

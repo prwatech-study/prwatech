@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -27,6 +28,9 @@ public class CourseForum {
 
   @Field(value = "LastUpdated")
   private LocalDateTime lastUpdated;
+
+  @Field(value = "Course_Id")
+  private ObjectId Course_Id;
 
   @Field(value = "Question_By_Name")
   private String questionBy;

@@ -1,6 +1,6 @@
 pipeline{
     agent any
-    
+
     environment {
         GIT_CREDENTIALS = credentials('gitHub')
     }
@@ -12,7 +12,7 @@ pipeline{
         }
         stage("Build ,Test and Deploy"){
             steps{
-                sh "docker-compose down && docker-compose up -d --build prwatech-prod"
+                sh "docker-compose down --rmi all && docker-compose up -d --build prwatech-prod"
             }
         }
     }
