@@ -1,0 +1,7 @@
+version: "3.3"
+services:
+  prwatech-prod:
+    build: .
+    container_name: prwatech-dev-prod
+    ports:
+      - "9090:9090"
