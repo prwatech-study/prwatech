@@ -5,15 +5,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
 public class SmsSendDto {
 
-  private String message;
-  private String language;
+  private String variables_values;
   private String route;
-  private int flash;
   private String numbers;
 }

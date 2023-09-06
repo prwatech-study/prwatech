@@ -15,4 +15,5 @@ public class SignInSignUpRequestDto {
   private String email;
   @NotNull private Boolean isSignUp;
   private String password;
+  private String referalCode;
 }

@@ -52,4 +52,16 @@ public class AppContext {
 
   @Value("${prwatech.default.sale.email.id}")
   private String defaultSaleEmailId;
+
+  @Value("${prwatech.rz.key}")
+  private String razorpayKey;
+
+  @Value("${prwatech.rz.secret}")
+  private String razorpaySecret;
+
+  @Value("${prwatech.twilio.account.sid}")
+  private String twilioSid;
+
+  @Value("${prwatech.twilio.account.auth.token}")
+  private String twilioAuth;
 }

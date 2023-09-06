@@ -20,10 +20,8 @@ public class CourseReview {
   @Id private String id;
 
   @Field(name = "Course_Id")
-  @DBRef
   private ObjectId Course_Id;
 
-  @DBRef
   @Field(name = "Reviewer_Id")
   private ObjectId Reviewer_Id;
 
@@ -39,7 +37,6 @@ public class CourseReview {
   @Field(name = "Review_Course_Type")
   private String Review_Course_Type;
 
-  @DBRef
   @Field(name = "Trainer_Id")
   private ObjectId Trainer_Id;
 
