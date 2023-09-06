@@ -35,8 +35,6 @@ RUN gradle clean
 
 RUN chmod 777 ./gradlew
 
-RUN ./gradlew :spotlessApply
-
 RUN gradle build
 
 EXPOSE 9090
