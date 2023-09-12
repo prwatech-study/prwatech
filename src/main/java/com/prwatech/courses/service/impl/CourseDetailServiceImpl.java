@@ -439,11 +439,11 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     CourseTrack courseTrack = courseTrackTemplate.getByCourseIdAndUserId(userId, courseId);
 
     if(Objects.nonNull(courseTrack)){
-      if(courseTrack.getCurrentItem()>=currentItem){
-         courseTrack.setCurrentItem(courseTrack.getTotalSize());
-         courseTrack.setIsAllCompleted(Boolean.TRUE);
+      if(courseTrack.getTotalSize()<=currentItem){
+        courseTrack.setCurrentItem(courseTrack.getTotalSize());
+        courseTrack.setIsAllCompleted(Boolean.TRUE);
       }
-      else{
+      else {
         courseTrack.setCurrentItem(currentItem);
       }
       courseTrackRepository.save(courseTrack);
