@@ -439,13 +439,12 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     CourseTrack courseTrack = courseTrackTemplate.getByCourseIdAndUserId(userId, courseId);
 
     if(Objects.nonNull(courseTrack)){
-      if(courseTrack.getCurrentItem()>currentItem){
-        throw new UnProcessableEntityException("Current video list number can be updated as less than the user " +
-                "completed as in past.");
+      if(courseTrack.getTotalSize()<=currentItem){
+          courseTrack.setCurrentItem(courseTrack.getTotalSize());
+          courseTrack.setIsAllCompleted(Boolean.TRUE);
       }
-      courseTrack.setCurrentItem(currentItem);
-      if(currentItem.equals(courseTrack.getTotalSize())){
-        courseTrack.setIsAllCompleted(Boolean.TRUE);
+      else {
+        courseTrack.setCurrentItem(currentItem);
       }
 
       courseTrackRepository.save(courseTrack);
