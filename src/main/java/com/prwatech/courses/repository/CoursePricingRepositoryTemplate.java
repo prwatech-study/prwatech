@@ -18,7 +18,7 @@ public class CoursePricingRepositoryTemplate {
   public Optional<Pricing> getPricingOfCourseByCourseId(ObjectId Course_Id, String Course_Type) {
 
     Query query = new Query();
-    query.addCriteria(Criteria.where("Course_Id").is(Course_Id).and("Course_Type").is(Course_Type));
+    query.addCriteria(Criteria.where("Course_Id").andOperator(Criteria.where("Course_Type").is(Course_Type)));
     return Optional.ofNullable(mongoTemplate.findOne(query, Pricing.class));
   }
 }
