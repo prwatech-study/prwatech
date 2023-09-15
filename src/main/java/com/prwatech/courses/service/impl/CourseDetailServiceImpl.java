@@ -289,11 +289,13 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         case MOST_POPULAR -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Classroom").getActual_Price());
         case SELF_PLACED -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getActual_Price());
         case FREE_COURSES -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Webinar").getActual_Price());
+        case ALL -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getActual_Price());
       }
       switch (category){
         case MOST_POPULAR -> courseCardDto.setDiscountedPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Classroom").getDiscounted_Price());
         case SELF_PLACED -> courseCardDto.setDiscountedPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getDiscounted_Price());
         case FREE_COURSES -> courseCardDto.setDiscountedPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Webinar").getDiscounted_Price());
+        case ALL -> courseCardDto.setDiscountedPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getDiscounted_Price());
       }
 
       courseCardDto.setCourseDurationHours(6);
