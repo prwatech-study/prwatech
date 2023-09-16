@@ -46,6 +46,7 @@ import lombok.AllArgsConstructor;
 import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 @Service
 @Transactional
@@ -118,9 +119,14 @@ public class IamServiceImpl implements IamService {
     //      // TODO :: ask to log in with mobile and otp.
     //    }
 
-    if (!passwordEncode
-        .getEncryptedPassword(signInSignUpRequestDto.getPassword())
-        .equals(user.getPassword())) {
+    // comment this code - making http call to prwatech server to match password
+    // if (!passwordEncode
+    //     .getEncryptedPassword(signInSignUpRequestDto.getPassword())
+    //     .equals(user.getPassword())) {
+    //   throw new UnProcessableEntityException("Wrong password provided!");
+    // }
+
+    if (!checkLoginInPrwatechServer(user.getPassword(), signInSignUpRequestDto.getPassword())) {
       throw new UnProcessableEntityException("Wrong password provided!");
     }
 
@@ -483,5 +489,32 @@ public class IamServiceImpl implements IamService {
     userOtpMappingRepository.deleteById(userOtpMappingObject.get().getId());
 
     return Boolean.TRUE;
+  }
+
+  /**
+   * Making http call to compare encrypted and user password
+   * @param encryptedPassword
+   * @param userPassword
+   * @return
+   */
+  private Boolean checkLoginInPrwatechServer(final String encryptedPassword, final String userPassword) {
+    try {
+      StringBuffer url = new StringBuffer("https://api.prwatech.com/login/validatePassword");
+//      StringBuffer url = new StringBuffer("http://localhost:8001/login/validatePassword");
+
+      RestTemplate restTemplate = new RestTemplate();
+
+      url.append("?")
+              .append("encryptedPassword=")
+              .append(encryptedPassword)
+              .append("&")
+              .append("userPassword=")
+              .append(userPassword);
+      Map result = restTemplate.getForObject(url.toString(), Map.class);
+      return (Boolean) result.get("success");
+    } catch (Exception exception) {
+      LOGGER.error("Error while checking password");
+      return false;
+    }
   }
 }
