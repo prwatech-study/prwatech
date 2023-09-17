@@ -126,8 +126,7 @@ public class IamServiceImpl implements IamService {
     //   throw new UnProcessableEntityException("Wrong password provided!");
     // }
 
-    if (!getEncryptedPasswordFromPrwatechServer(signInSignUpRequestDto.getPassword())
-            .equals(user.getPassword())) {
+    if (!checkLoginInPrwatechServer(user.getPassword(), signInSignUpRequestDto.getPassword())) {
       throw new UnProcessableEntityException("Wrong password provided!");
     }
 
