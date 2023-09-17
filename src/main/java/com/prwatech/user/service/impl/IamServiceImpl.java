@@ -126,7 +126,8 @@ public class IamServiceImpl implements IamService {
     //   throw new UnProcessableEntityException("Wrong password provided!");
     // }
 
-    if (!checkLoginInPrwatechServer(user.getPassword(), signInSignUpRequestDto.getPassword())) {
+    if (!getEncryptedPasswordFromPrwatechServer(signInSignUpRequestDto.getPassword())
+            .equals(user.getPassword())) {
       throw new UnProcessableEntityException("Wrong password provided!");
     }
 
@@ -162,7 +163,7 @@ public class IamServiceImpl implements IamService {
 
     Integer RF = iamRepository.findAll().size()+1;
     signInSignUpRequestDto.setPassword(
-        passwordEncode.getEncryptedPassword(signInSignUpRequestDto.getPassword()));
+        getEncryptedPasswordFromPrwatechServer(signInSignUpRequestDto.getPassword()));
     User user = new User();
     user.setEmail(signInSignUpRequestDto.getEmail());
     user.setPassword(signInSignUpRequestDto.getPassword());
@@ -483,7 +484,7 @@ public class IamServiceImpl implements IamService {
     }
 
     User user = userObject.get();
-    user.setPassword(passwordEncode.getEncryptedPassword(newPassword));
+    user.setPassword(getEncryptedPasswordFromPrwatechServer(newPassword));
     iamRepository.save(user);
 
     userOtpMappingRepository.deleteById(userOtpMappingObject.get().getId());
@@ -500,7 +501,6 @@ public class IamServiceImpl implements IamService {
   private Boolean checkLoginInPrwatechServer(final String encryptedPassword, final String userPassword) {
     try {
       StringBuffer url = new StringBuffer("https://api.prwatech.com/login/validatePassword");
-//      StringBuffer url = new StringBuffer("http://localhost:8001/login/validatePassword");
 
       RestTemplate restTemplate = new RestTemplate();
 
@@ -515,6 +515,30 @@ public class IamServiceImpl implements IamService {
     } catch (Exception exception) {
       LOGGER.error("Error while checking password");
       return false;
+    }
+  }
+
+  /**
+   * get encrypted password from Main Server
+   */
+  private String getEncryptedPasswordFromPrwatechServer(final String password) {
+    try {
+      StringBuffer url = new StringBuffer("https://api.prwatech.com/login/getEncryptedPassword");
+
+      RestTemplate restTemplate = new RestTemplate();
+
+      url.append("?")
+              .append("password=")
+              .append(password);
+      Map result = restTemplate.getForObject(url.toString(), Map.class);
+      if ((Boolean) result.get("success")) {
+        return (String) result.get("password");
+      } else {
+        throw new BadRequestException("Something went wrong while encrypting.");
+      }
+    } catch (Exception exception) {
+      LOGGER.error("Error while encrypting password");
+      throw new BadRequestException("Something went wrong while encrypting.");
     }
   }
 }
