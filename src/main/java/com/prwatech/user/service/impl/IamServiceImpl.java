@@ -104,7 +104,7 @@ public class IamServiceImpl implements IamService {
       throw new NotFoundException(
           "User not found with this email id : " + signInSignUpRequestDto.getEmail());
     }
-    if (userObject.get().getIsGoogleSignedIn().equals(Boolean.TRUE)) {
+    if (userObject.get().getIsGoogleSignedIn() != null && userObject.get().getIsGoogleSignedIn().equals(Boolean.TRUE)) {
       throw new UnProcessableEntityException(
           "This email is associated with google account! Please proceed with Google Sign in!");
     }
