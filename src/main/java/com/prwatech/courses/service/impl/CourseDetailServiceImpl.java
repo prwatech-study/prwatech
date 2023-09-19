@@ -13,11 +13,13 @@ import com.prwatech.courses.dto.CourseRatingDto;
 import com.prwatech.courses.dto.CourseReviewRequestDto;
 import com.prwatech.courses.dto.ForumFilterListingDto;
 import com.prwatech.courses.enums.CourseLevelCategory;
+import com.prwatech.courses.model.CourseCurriculam;
 import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.CourseReview;
 import com.prwatech.courses.model.CourseTrack;
 import com.prwatech.courses.model.Pricing;
 import com.prwatech.courses.model.WishList;
+import com.prwatech.courses.repository.CourseCurriculamTemplate;
 import com.prwatech.courses.repository.CourseDetailRepository;
 import com.prwatech.courses.repository.CourseDetailsRepositoryTemplate;
 import com.prwatech.courses.repository.CoursePricingRepositoryTemplate;
@@ -66,6 +68,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   private final CourseTrackTemplate courseTrackTemplate;
   private final CourseTrackRepository courseTrackRepository;
   private final UserRepository userRepository;
+  private final CourseCurriculamTemplate courseCurriculamTemplate;
   private static final org.slf4j.Logger LOGGER =
           org.slf4j.LoggerFactory.getLogger(CourseDetailServiceImpl.class);
 
@@ -500,5 +503,25 @@ public class CourseDetailServiceImpl implements CourseDetailService {
    courseDetails.setIsFree(isFree);
    courseDetailRepository.save(courseDetails);
     return true;
+  }
+
+  @Override
+  public CourseTrack enrollAFreeCourse(String userId, String courseId) {
+
+   CourseTrack courseTrack = courseTrackTemplate.getByCourseIdAndUserId(new ObjectId(userId), new ObjectId(courseId));
+
+    if(Objects.isNull(courseTrack)){
+      CourseCurriculam courseCurriculam = courseCurriculamTemplate.getAllCurriculamByCourseId(new ObjectId(courseId));
+      LOGGER.info("The given course assigning to user.");
+      courseTrack = CourseTrack.builder()
+              .userId(new ObjectId(userId))
+              .courseId(new ObjectId(courseId))
+              .currentItem(1)
+              .isAllCompleted(Boolean.FALSE)
+              .totalSize((Objects.nonNull(courseCurriculam))?courseCurriculam.getCourse_Curriculam().size():1)
+              .build();
+      return courseTrackRepository.save(courseTrack);
+    }
+    return courseTrack;
   }
 }
