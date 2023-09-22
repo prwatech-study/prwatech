@@ -126,7 +126,7 @@ public class QuizUserServiceImpl implements QuizUserService {
         Integer wrongAns=0;
 
         for(QuizQuestionDto quizQuestionDto : quizAttemptDto.getQuizQuestionDtoList()){
-             if(quizQuestionDto.getAttemptedAnswer().equals(quizQuestionDto.getAnswer())){
+             if(quizQuestionDto.getAttemptedAnswer()!=null && quizQuestionDto.getAttemptedAnswer().equals(quizQuestionDto.getAnswer())){
                  correctAns++;
              }
              else {

@@ -25,18 +25,15 @@ public class MyCourses {
   @Id private String id;
 
   @Field(value = "User_Id")
-  @DBRef
   private ObjectId User_Id;
 
   @Field(value = "Course_Id")
-  @DBRef
   private ObjectId Course_Id;
 
   @Field(value = "Course_Type")
   private String Course_Type;
 
   @Field(value = "Schedule_Id")
-  @DBRef
   private ObjectId Schedule_Id;
 
   @Field(value = "Status")
