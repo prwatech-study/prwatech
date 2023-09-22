@@ -33,6 +33,7 @@ import com.prwatech.courses.repository.MyCoursesTemplate;
 import com.prwatech.courses.repository.WishListTemplate;
 import com.prwatech.courses.service.CourseDetailService;
 
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -470,6 +471,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       if(courseTrack.getTotalSize()<=currentItem){
         courseTrack.setCurrentItem(courseTrack.getTotalSize());
         courseTrack.setIsAllCompleted(Boolean.TRUE);
+        courseTrack.setUpdatedAt(LocalDateTime.now());
       }
       else {
         courseTrack.setCurrentItem(currentItem);
