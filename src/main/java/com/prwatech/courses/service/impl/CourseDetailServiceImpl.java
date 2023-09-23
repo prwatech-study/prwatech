@@ -380,25 +380,25 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       throw new UnProcessableEntityException("User id can not be null!");
     }
 
-    List<CourseTrack> courseTrackList = courseTrackTemplate.getAllEnrolledCoursesOfUser(userId);
+//    List<CourseTrack> courseTrackList = courseTrackTemplate.getAllEnrolledCoursesOfUser(userId);
     Set<CourseCardDto> courseCardList = new HashSet<>();
-    for(CourseTrack courseTrack: courseTrackList){
-      CourseDetails courseDetail = courseDetailRepository.findById(courseTrack.getCourseId().toString()).orElse(null);
-      if(Objects.nonNull(courseDetail)){
-        CourseCardDto courseCardDto = new CourseCardDto();
-        courseCardDto.setCourseId(courseDetail.getId());
-        courseCardDto.setTitle(courseDetail.getCourse_Title());
-        courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
-        courseCardDto.setImgUrl(courseDetail.getCourse_Image());
-        courseCardDto.setPrice(
-                getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getActual_Price());
-        courseCardDto.setDiscountedPrice(
-                getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
-        courseCardDto.setCourseDurationHours(6);
-        courseCardDto.setCourseDurationMinute(30);
-        courseCardList.add(courseCardDto);
-      }
-    }
+//    for(CourseTrack courseTrack: courseTrackList){
+//      CourseDetails courseDetail = courseDetailRepository.findById(courseTrack.getCourseId().toString()).orElse(null);
+//      if(Objects.nonNull(courseDetail)){
+//        CourseCardDto courseCardDto = new CourseCardDto();
+//        courseCardDto.setCourseId(courseDetail.getId());
+//        courseCardDto.setTitle(courseDetail.getCourse_Title());
+//        courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
+//        courseCardDto.setImgUrl(courseDetail.getCourse_Image());
+//        courseCardDto.setPrice(
+//                getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getActual_Price());
+//        courseCardDto.setDiscountedPrice(
+//                getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
+//        courseCardDto.setCourseDurationHours(6);
+//        courseCardDto.setCourseDurationMinute(30);
+//        courseCardList.add(courseCardDto);
+//      }
+//    }
     List<MyCourses> myCourses = myCoursesTemplate.findCourseByUserId(userId);
     for(MyCourses myCourse: myCourses){
       CourseDetails courseDetail = courseDetailRepository.findById(myCourse.getCourse_Id().toString()).orElse(null);
