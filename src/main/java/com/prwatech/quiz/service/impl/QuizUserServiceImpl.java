@@ -133,7 +133,6 @@ public class QuizUserServiceImpl implements QuizUserService {
                  wrongAns++;
              }
         }
-
         if(Objects.nonNull(quizUserMapping)){
             quizUserMapping.setAttempt(quizUserMapping.getAttempt()+1);
             quizUserMapping.setCurrentScore(correctAns);
@@ -142,7 +141,19 @@ public class QuizUserServiceImpl implements QuizUserService {
             //save mapping.
             quizUserMapping = quizUserMappingRepository.save(quizUserMapping);
             quizAttemptDto.setAttempt(quizUserMapping.getAttempt());
-
+        }
+        else{
+            quizUserMapping = new QuizUserMapping();
+            quizUserMapping.setQuizId(quizContent.getQuizId());
+            quizUserMapping.setUserId(new ObjectId(quizAttemptDto.getUserId()));
+            quizUserMapping.setIsOrdered((quizContent.getQuizCategory().equals(QuizCategory.UNPAID))
+                    ?Boolean.TRUE:Boolean.FALSE);
+            quizUserMapping.setAttempt(1);
+            quizUserMapping.setCurrentScore(correctAns);
+            quizUserMapping.setLastScore((quizUserMapping.getCurrentScore()==null)?null:quizUserMapping.getCurrentScore());
+            //save mapping.
+            quizUserMapping = quizUserMappingRepository.save(quizUserMapping);
+            quizAttemptDto.setAttempt(quizUserMapping.getAttempt());
         }
         quizAttemptDto.setCorrectAns(correctAns);
         quizAttemptDto.setWrongAns(wrongAns);
@@ -163,7 +174,7 @@ public class QuizUserServiceImpl implements QuizUserService {
         else{
             quizAttemptDto.setPercentage(percentage);
         }
-        quizAttemptDto.setAttempt(quizUserMapping.getAttempt());
+
         return quizAttemptDto;
     }
 
