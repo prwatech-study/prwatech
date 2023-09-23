@@ -15,7 +15,7 @@ public class QuizAttemptMapTemplate {
     private final MongoTemplate mongoTemplate;
 
 
-    public QuizContentAttemptMap findByUserIdQuizIdContentId(ObjectId userId, ObjectId quizId, ObjectId contentId){
+    public QuizContentAttemptMap findByUserIdQuizIdContentId(ObjectId userId, ObjectId contentId){
         Query query = new Query();
         query.addCriteria(Criteria.where("user_id").is(userId)
                 .andOperator(Criteria.where("quiz_content_id").is(contentId)));

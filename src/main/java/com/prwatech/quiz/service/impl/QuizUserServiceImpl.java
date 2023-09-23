@@ -151,7 +151,6 @@ public class QuizUserServiceImpl implements QuizUserService {
 
         QuizContentAttemptMap quizContentAttemptMap = quizAttemptMapTemplate.findByUserIdQuizIdContentId(
                new ObjectId(quizAttemptDto.getUserId()),
-                quizContent.getQuizId(),
                 new ObjectId(quizContent.getId()));
 
         if(Objects.isNull(quizContentAttemptMap)){
