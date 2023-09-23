@@ -15,7 +15,10 @@ import com.prwatech.quiz.dto.QuizQuestionDto;
 import com.prwatech.quiz.enumuration.QuizCategory;
 import com.prwatech.quiz.enumuration.ResultCategory;
 import com.prwatech.quiz.model.QuizContent;
+import com.prwatech.quiz.model.QuizContentAttemptMap;
 import com.prwatech.quiz.model.QuizUserMapping;
+import com.prwatech.quiz.repository.QuizAttemptMapTemplate;
+import com.prwatech.quiz.repository.QuizAttemptRepository;
 import com.prwatech.quiz.repository.QuizContentRepository;
 import com.prwatech.quiz.repository.QuizContentTemplate;
 import com.prwatech.quiz.repository.QuizRepository;
@@ -41,10 +44,12 @@ public class QuizUserServiceImpl implements QuizUserService {
     private final QuizUserTemplate quizUserTemplate;
     private final QuizContentTemplate quizContentTemplate;
     private final QuizContentRepository quizContentRepository;
-    private final QuizRepository quizRepository;
+    private final QuizAttemptRepository quizAttemptRepository;
     private final OrdersRepository ordersRepository;
     private final RazorpayUtilityService razorpayUtilityService;
     private final OrderTemplate orderTemplate;
+
+    private final QuizAttemptMapTemplate quizAttemptMapTemplate;
 
     @Override
     public Map<String, List<QuizContentGetDto>> getAllQuizListing(String userId, ObjectId quizId) {
@@ -94,6 +99,16 @@ public class QuizUserServiceImpl implements QuizUserService {
             throw new UnProcessableEntityException("User has no bought this quiz.");
         }
 
+         QuizContentAttemptMap quizContentAttemptMap = QuizContentAttemptMap.builder()
+                .attempt(0)
+                .quizContentId(new ObjectId(quizContent.getId()))
+                .userId(new ObjectId(userId))
+                .quizId(quizContent.getQuizId())
+                .currentScore(0)
+                .lastScore(null)
+                .build();
+        quizContentAttemptMap = quizAttemptRepository.save(quizContentAttemptMap);
+
         QuizContentGetDto quizContentGetDto = new QuizContentGetDto();
         quizContentGetDto.setId(quizContent.getId());
         quizContentGetDto.setQuizId(quizContent.getQuizId().toString());
@@ -133,16 +148,34 @@ public class QuizUserServiceImpl implements QuizUserService {
                  wrongAns++;
              }
         }
-        if(Objects.nonNull(quizUserMapping)){
-            quizUserMapping.setAttempt(quizUserMapping.getAttempt()+1);
-            quizUserMapping.setCurrentScore(correctAns);
-            quizUserMapping.setLastScore((quizUserMapping.getCurrentScore()==null)?null:quizUserMapping.getCurrentScore());
 
-            //save mapping.
-            quizUserMapping = quizUserMappingRepository.save(quizUserMapping);
-            quizAttemptDto.setAttempt(quizUserMapping.getAttempt());
+        QuizContentAttemptMap quizContentAttemptMap = quizAttemptMapTemplate.findByUserIdQuizIdContentId(
+               new ObjectId(quizAttemptDto.getUserId()),
+                quizContent.getQuizId(),
+                new ObjectId(quizContent.getId()));
+
+        if(Objects.isNull(quizContentAttemptMap)){
+            quizContentAttemptMap = QuizContentAttemptMap.builder()
+                    .attempt(1)
+                    .quizContentId(new ObjectId(quizContent.getId()))
+                    .userId(new ObjectId(quizAttemptDto.getUserId()))
+                    .quizId(quizContent.getQuizId())
+                    .currentScore(correctAns)
+                    .lastScore(null)
+                    .build();
         }
         else{
+            quizContentAttemptMap.setAttempt(quizContentAttemptMap.getAttempt()+1);
+            quizContentAttemptMap.setLastScore((quizContentAttemptMap.getCurrentScore()==null)
+                    ?null:quizContentAttemptMap.getCurrentScore());
+            quizContentAttemptMap.setCurrentScore(correctAns);
+
+        }
+        quizContentAttemptMap = quizAttemptRepository.save(quizContentAttemptMap);
+        quizAttemptDto.setAttempt(quizContentAttemptMap.getAttempt());
+
+        if(Objects.isNull(quizUserMapping))
+        {
             quizUserMapping = new QuizUserMapping();
             quizUserMapping.setQuizId(quizContent.getQuizId());
             quizUserMapping.setUserId(new ObjectId(quizAttemptDto.getUserId()));
@@ -153,8 +186,8 @@ public class QuizUserServiceImpl implements QuizUserService {
             quizUserMapping.setLastScore((quizUserMapping.getCurrentScore()==null)?null:quizUserMapping.getCurrentScore());
             //save mapping.
             quizUserMapping = quizUserMappingRepository.save(quizUserMapping);
-            quizAttemptDto.setAttempt(quizUserMapping.getAttempt());
         }
+
         quizAttemptDto.setCorrectAns(correctAns);
         quizAttemptDto.setWrongAns(wrongAns);
         Integer percentage =(correctAns*100/totalMarks);
