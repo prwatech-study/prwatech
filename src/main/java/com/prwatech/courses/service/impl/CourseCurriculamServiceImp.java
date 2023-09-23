@@ -39,6 +39,9 @@ public class CourseCurriculamServiceImp implements CourseCurriculamService {
         if(currentVideo.equals(courseCurriculam.getCourse_Curriculam().size())){
           isCompleted=Boolean.TRUE;
         }
+      }else {
+        currentVideo=courseCurriculam.getCourse_Curriculam().size();
+        isCompleted=Boolean.TRUE;
       }
     }
     return CourseCurriCulamDto.builder().courseCurriculam(courseCurriculam).currentVideo(currentVideo)
