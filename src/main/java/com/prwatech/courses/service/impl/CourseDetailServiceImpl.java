@@ -504,17 +504,18 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     CourseDetails courseDetails = courseDetailRepository.findById(courseId).orElseThrow(()-> new NotFoundException("No course found by this course id"));
 
     CourseTrack courseTrack = courseTrackTemplate.getByCourseIdAndUserId(new ObjectId(userId), new ObjectId(courseId));
-
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd, MMMM, yyyy", Locale.ENGLISH);
+    String date= LocalDateTime.now().format(formatter);
     if (Objects.isNull(courseTrack)){
-      throw new NotFoundException("You have not bought this course.");
+      return new CertificateDetailsDto(user.getName(), courseDetails.getCourse_Title(), date);
     }
 
     if(!courseTrack.getIsAllCompleted()){
       throw new UnProcessableEntityException("You must complete the course to get certificate.");
     }
-
-    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd, MMMM, yyyy", Locale.ENGLISH);
-    String date= courseTrack.getUpdatedAt().format(formatter);
+    if(courseTrack.getUpdatedAt()!=null){
+      date= courseTrack.getUpdatedAt().format(formatter);
+    }
 
     return new CertificateDetailsDto(user.getName(), courseDetails.getCourse_Title(), date);
   }
