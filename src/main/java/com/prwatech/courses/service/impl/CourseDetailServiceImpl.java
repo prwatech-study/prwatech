@@ -496,9 +496,9 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   @Override
   public CertificateDetailsDto getCertificateDetails(String userId, String courseId) {
     User user = userRepository.findById(userId).orElseThrow(()-> new NotFoundException("User not found by given id."));
-
-    if(user.getName()==null){
-      throw new UnProcessableEntityException("Please complete your profile details.");
+    String name=null;
+    if(user.getName()!=null){
+     name=user.getName();
     }
 
     CourseDetails courseDetails = courseDetailRepository.findById(courseId).orElseThrow(()-> new NotFoundException("No course found by this course id"));
@@ -507,7 +507,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd, MMMM, yyyy", Locale.ENGLISH);
     String date= LocalDateTime.now().format(formatter);
     if (Objects.isNull(courseTrack)){
-      return new CertificateDetailsDto(user.getName(), courseDetails.getCourse_Title(), date);
+      return new CertificateDetailsDto(name, courseDetails.getCourse_Title(), date);
     }
 
     if(!courseTrack.getIsAllCompleted()){
@@ -517,7 +517,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       date= courseTrack.getUpdatedAt().format(formatter);
     }
 
-    return new CertificateDetailsDto(user.getName(), courseDetails.getCourse_Title(), date);
+    return new CertificateDetailsDto(name, courseDetails.getCourse_Title(), date);
   }
 
   @Override
