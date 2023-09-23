@@ -43,8 +43,7 @@ public class MyCourseServiceImpl implements MyCourseService {
 
 
     List<String> courseIds = courseTrackList.stream().map(CourseTrack::getCourseId).map(String::valueOf).collect(Collectors.toList());
-    Integer enrolledCourses = courseTrackList.stream().filter(courseTrack -> courseTrack.getIsAllCompleted().equals(Boolean.FALSE))
-            .collect(Collectors.toList()).size();
+    Integer enrolledCourses = myCoursesTemplate.findCourseByUserId(new ObjectId(userId)).size();
 
     //Get course details and filter out classroom and online course.
 

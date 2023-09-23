@@ -134,7 +134,6 @@ public class QuizUserServiceImpl implements QuizUserService {
              }
         }
 
-        quizAttemptDto.setAttempt(1);
         if(Objects.nonNull(quizUserMapping)){
             quizUserMapping.setAttempt(quizUserMapping.getAttempt()+1);
             quizUserMapping.setCurrentScore(correctAns);
@@ -164,6 +163,7 @@ public class QuizUserServiceImpl implements QuizUserService {
         else{
             quizAttemptDto.setPercentage(percentage);
         }
+        quizAttemptDto.setAttempt(quizUserMapping.getAttempt());
         return quizAttemptDto;
     }
 
