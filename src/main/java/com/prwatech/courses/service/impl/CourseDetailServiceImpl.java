@@ -124,7 +124,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         .orElseThrow(() -> new NotFoundException("No course found by this id :"));
 
     CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
-    CourseDetailsDto courseDetailsDto = new CourseDetailsDto(courseDetail, courseRatingDto, false, null, false);
+    CourseDetailsDto courseDetailsDto = new CourseDetailsDto(courseDetail, courseRatingDto, false, null, false, null);
     if(userId!=null){
      Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(
               new ObjectId(userId), new ObjectId(courseDetail.getId()));
@@ -135,7 +135,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
        courseDetailsDto.setIsWishListed(Boolean.TRUE);
        courseDetailsDto.setWishListId(wishList.get().getId());
      }
-
+     CourseReview courseReview = courseReviewRepositoryTemplate.getCourseReviewByCourseIdAndUserId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
+     if(Objects.nonNull(courseReview)){
+       courseDetailsDto.setRating(courseReview.getReview_Number());
+     }
      if(Objects.nonNull(courseTrack)){
        courseDetailsDto.setIsEnrolled(Boolean.TRUE);
      }
@@ -560,16 +563,17 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   @Override
   public Boolean rateACourse(String userId, String courseId, Integer rating) {
 
-    CourseDetails courseDetails = courseDetailRepository.findById(courseId).orElseThrow(
-            ()-> new NotFoundException("no course found by this id: "+ courseId));
+    CourseReview  courseReview = courseReviewRepositoryTemplate.getCourseReviewByCourseIdAndUserId(new ObjectId(userId), new ObjectId(courseId));
 
-    User user = userRepository.findById(userId).orElseThrow(()-> new NotFoundException("no user found by this user id: "+ userId));
-
-    CourseReview courseReview = CourseReview.builder()
-            .Course_Id(new ObjectId(courseId))
-            .Reviewer_Id(new ObjectId(userId))
-            .Review_Number(rating)
-            .build();
+    if(Objects.nonNull(courseReview)){
+      LOGGER.error("This user has been given already the review for this course.");
+      return Boolean.FALSE;
+    }
+      courseReview = CourseReview.builder()
+              .Course_Id(new ObjectId(courseId))
+              .Reviewer_Id(new ObjectId(userId))
+              .Review_Number(rating)
+              .build();
     courseReviewRepository.save(courseReview);
     return Boolean.TRUE;
   }
