@@ -57,11 +57,7 @@ public class MyCourseServiceImpl implements MyCourseService {
     Integer classroomCourses = allTypes.stream().filter(type-> type.equals("Classroom")).collect(Collectors.toList()).size();
 
 
-    Integer completedCourses =
-             courseTrackList.stream()
-                    .filter(courseTrack -> courseTrack.getIsAllCompleted()
-                            .equals(Boolean.TRUE))
-                     .collect(Collectors.toList()).size();
+    Integer completedCourses = courseTrackTemplate.getCompletedCourseByUserId(new ObjectId(userId)).size();
 
     return new MyDashboardActivity(
         enrolledCourses, onlineCourses, classroomCourses, completedCourses);
