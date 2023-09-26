@@ -556,4 +556,21 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     }
     return courseTrack;
   }
+
+  @Override
+  public Boolean rateACourse(String userId, String courseId, Integer rating) {
+
+    CourseDetails courseDetails = courseDetailRepository.findById(courseId).orElseThrow(
+            ()-> new NotFoundException("no course found by this id: "+ courseId));
+
+    User user = userRepository.findById(userId).orElseThrow(()-> new NotFoundException("no user found by this user id: "+ userId));
+
+    CourseReview courseReview = CourseReview.builder()
+            .Course_Id(new ObjectId(courseId))
+            .Reviewer_Id(new ObjectId(userId))
+            .Review_Number(rating)
+            .build();
+    courseReviewRepository.save(courseReview);
+    return Boolean.TRUE;
+  }
 }

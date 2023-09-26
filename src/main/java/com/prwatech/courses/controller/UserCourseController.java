@@ -231,4 +231,34 @@ public class UserCourseController {
         return courseDetailService.enrollAFreeCourse(userId, courseId) ;
     }
 
+    @ApiOperation(value = "Rate a course.", notes = " rate a course")
+    @ApiResponses(
+            value = {
+                    @ApiResponse(code = 200, message = "Success"),
+                    @ApiResponse(code = 400, message = "Not Available"),
+                    @ApiResponse(code = 401, message = "UnAuthorized"),
+                    @ApiResponse(code = 403, message = "Access Forbidden"),
+                    @ApiResponse(code = 404, message = "Not found"),
+                    @ApiResponse(code = 422, message = "UnProcessable entity"),
+                    @ApiResponse(code = 500, message = "Internal server error"),
+            })
+    @ResponseStatus(HttpStatus.OK)
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
+    @PutMapping("/course/{courseId}/{userId}")
+    public Boolean rateACourse(
+            @PathVariable(value = "courseId") String courseId,
+            @PathVariable(value = "userId") String userId,
+            @RequestParam(value = "rating") Integer rating
+
+    ){
+        return courseDetailService.rateACourse(userId, courseId, rating);
+    }
+
 }
