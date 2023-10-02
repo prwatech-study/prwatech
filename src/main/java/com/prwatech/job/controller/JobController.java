@@ -12,13 +12,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/public")
 @AllArgsConstructor
-public class JobController {
+public class  JobController {
 
   private final JobService jobService;
 
@@ -55,5 +56,23 @@ public class JobController {
   @ResponseStatus(HttpStatus.OK)
   public JobDto jobsDescriptionById(@PathVariable(value = "jobId") @NotNull String jobId) {
     return jobService.getJobDescription(jobId);
+  }
+
+  @ApiOperation(value = "Apply to job", notes = "Apply to the jon")
+  @ApiResponses(
+          value = {
+                  @ApiResponse(code = 200, message = "Success"),
+                  @ApiResponse(code = 400, message = "Not Available"),
+                  @ApiResponse(code = 401, message = "UnAuthorized"),
+                  @ApiResponse(code = 403, message = "Access Forbidden"),
+                  @ApiResponse(code = 404, message = "Not found"),
+                  @ApiResponse(code = 422, message = "UnProcessable entity"),
+                  @ApiResponse(code = 500, message = "Internal server error"),
+          })
+  @GetMapping("/job/apply/{jobId}")
+  @ResponseStatus(HttpStatus.OK)
+  public Boolean applyToJob(@PathVariable(value = "jobId") @NotNull String jobId,
+                           @RequestParam(value = "userId") String userId) {
+    return jobService.applyToJob(userId, jobId);
   }
 }
