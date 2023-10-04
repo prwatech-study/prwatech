@@ -78,14 +78,14 @@ public class UserServiceImpl implements UserService {
       throw new UnProcessableEntityException("update data is empty or missing!");
     }
 
-//    if (Objects.nonNull(profileUpdateDto.getPhoneNumber())) {
-//      user.setPhoneNumber(profileUpdateDto.getPhoneNumber());
-//    }
-//
+    if (!user.getIsMobileRegistered() && Objects.nonNull(profileUpdateDto.getPhoneNumber())) {
+      user.setPhoneNumber(profileUpdateDto.getPhoneNumber());
+    }
 
-//    if (Objects.nonNull(profileUpdateDto.getEmail()) && user.getIsMobileRegistered()) {
-//      user.setEmail(profileUpdateDto.getEmail());
-//    }
+
+    if (!user.getIsGoogleSignedIn()&& Objects.nonNull(profileUpdateDto.getEmail()) && user.getIsMobileRegistered()) {
+      user.setEmail(profileUpdateDto.getEmail());
+    }
 
     if(profileUpdateDto.getName()!=null){
       user.setName(profileUpdateDto.getName());

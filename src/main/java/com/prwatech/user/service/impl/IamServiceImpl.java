@@ -205,6 +205,7 @@ public class IamServiceImpl implements IamService {
       user.setPhoneNumber(phoneNumber);
       user.setDisable(Boolean.FALSE);
       user.setIsMobileRegistered(Boolean.TRUE);
+      user.setIsGoogleSignedIn(Boolean.FALSE);
       user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
       if(referalCode!=null){
         user.setReferer_Code(referalCode);
