@@ -169,7 +169,7 @@ public class UserQuizController {
                     dataType = Constants.AUTH_DATA_TYPE,
                     paramType = Constants.AUTH_PARAM_TYPE)
     })
-    @GetMapping("/quiz-attempt-history/{userId}")
+    @GetMapping("/quiz-attempt-history")
     public List<AttemptHistoryDto> getQuizAttemptedHistory(
             @RequestParam(value = "userId") String userId
     ){
