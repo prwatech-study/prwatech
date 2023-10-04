@@ -9,11 +9,13 @@ import com.prwatech.finance.dto.RazorpayPayment;
 import com.prwatech.finance.model.Orders;
 import com.prwatech.finance.repository.OrdersRepository;
 import com.prwatech.finance.repository.template.OrderTemplate;
+import com.prwatech.quiz.dto.AttemptHistoryDto;
 import com.prwatech.quiz.dto.QuizAttemptDto;
 import com.prwatech.quiz.dto.QuizContentGetDto;
 import com.prwatech.quiz.dto.QuizQuestionDto;
 import com.prwatech.quiz.enumuration.QuizCategory;
 import com.prwatech.quiz.enumuration.ResultCategory;
+import com.prwatech.quiz.model.Quiz;
 import com.prwatech.quiz.model.QuizContent;
 import com.prwatech.quiz.model.QuizContentAttemptMap;
 import com.prwatech.quiz.model.QuizUserMapping;
@@ -48,6 +50,7 @@ public class QuizUserServiceImpl implements QuizUserService {
     private final OrdersRepository ordersRepository;
     private final RazorpayUtilityService razorpayUtilityService;
     private final OrderTemplate orderTemplate;
+    private final QuizRepository quizRepository;
 
     private final QuizAttemptMapTemplate quizAttemptMapTemplate;
 
@@ -139,13 +142,17 @@ public class QuizUserServiceImpl implements QuizUserService {
         Integer totalMarks = quizContent.getTotalMark();
         Integer correctAns=0;
         Integer wrongAns=0;
+        Integer unAttempted=0;
 
         for(QuizQuestionDto quizQuestionDto : quizAttemptDto.getQuizQuestionDtoList()){
              if(quizQuestionDto.getAttemptedAnswer()!=null && quizQuestionDto.getAttemptedAnswer().equals(quizQuestionDto.getAnswer())){
                  correctAns++;
              }
-             else {
+             else if(quizQuestionDto.getAttemptedAnswer()!=null && !quizQuestionDto.getAttemptedAnswer().equals(quizQuestionDto.getAnswer())) {
                  wrongAns++;
+             }
+             else{
+                 unAttempted++;
              }
         }
 
@@ -160,6 +167,7 @@ public class QuizUserServiceImpl implements QuizUserService {
                     .userId(new ObjectId(quizAttemptDto.getUserId()))
                     .quizId(quizContent.getQuizId())
                     .currentScore(correctAns)
+                    .unAttempted(unAttempted)
                     .lastScore(null)
                     .build();
         }
@@ -280,5 +288,34 @@ public class QuizUserServiceImpl implements QuizUserService {
         quizUserMappingRepository.save(quizUserMapping);
 
         return razorpayOrder;
+    }
+
+    @Override
+    public List<AttemptHistoryDto> getAttemptHistoryOfUser(String userId) {
+
+        List<QuizContentAttemptMap> contentAttemptMapList = quizAttemptMapTemplate.findByUserId(new ObjectId(userId));
+
+        List<AttemptHistoryDto> attemptHistoryList = new ArrayList<>();
+        for(QuizContentAttemptMap quizContentAttemptMap: contentAttemptMapList){
+
+            QuizContent quizContent= quizContentRepository.findById(quizContentAttemptMap.getQuizContentId().toString())
+                    .orElse(null);
+            Quiz quiz = quizRepository.findById(quizContentAttemptMap.getQuizId().toString()).orElse(null);
+
+            if(Objects.nonNull(quizContent) && Objects.nonNull(quiz)){
+
+            AttemptHistoryDto attemptHistoryDto = AttemptHistoryDto.builder()
+                    .quizName(quiz.getQuizName())
+                    .totalQuestion(quizContent.getQuizQuestionList().size())
+                    .correct(quizContentAttemptMap.getCurrentScore())
+                    .unAttempted(quizContentAttemptMap.getUnAttempted())
+                    .incorrect(quizContent.getQuizQuestionList().size()-quizContentAttemptMap.getUnAttempted()-quizContentAttemptMap.getCurrentScore())
+                    .build();
+
+            attemptHistoryList.add(attemptHistoryDto);
+            }
+        }
+
+        return null;
     }
 }

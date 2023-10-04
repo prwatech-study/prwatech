@@ -2,6 +2,7 @@ package com.prwatech.quiz.service;
 
 import com.prwatech.common.razorpay.dto.CreateOrderDto;
 import com.prwatech.common.razorpay.dto.RazorpayOrder;
+import com.prwatech.quiz.dto.AttemptHistoryDto;
 import com.prwatech.quiz.dto.QuizAttemptDto;
 import com.prwatech.quiz.dto.QuizContentGetDto;
 import org.bson.types.ObjectId;
@@ -24,4 +25,6 @@ public interface QuizUserService {
     RazorpayOrder getQuizToBuy(String userId, String quizId, CreateOrderDto createOrderDto);
 
     RazorpayOrder updateQuizOrder(String userId, String orderId, String paymentId);
+
+    List<AttemptHistoryDto> getAttemptHistoryOfUser(String userId);
 }

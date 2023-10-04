@@ -3,6 +3,7 @@ package com.prwatech.quiz.controller;
 import com.prwatech.common.Constants;
 import com.prwatech.common.razorpay.dto.CreateOrderDto;
 import com.prwatech.common.razorpay.dto.RazorpayOrder;
+import com.prwatech.quiz.dto.AttemptHistoryDto;
 import com.prwatech.quiz.dto.QuizAttemptDto;
 import com.prwatech.quiz.dto.QuizContentGetDto;
 import com.prwatech.quiz.service.QuizUserService;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.validation.constraints.NotNull;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -144,6 +146,34 @@ public class UserQuizController {
             @RequestParam(value = "paymentId") String paymentId
     ){
         return quizUserService.updateQuizOrder(userId,orderId, paymentId);
+    }
+
+
+    @ApiOperation(value = "Get quiz attempt history ", notes = "Get quiz attempt history")
+    @ApiResponses(
+            value = {
+                    @ApiResponse(code = 200, message = "Success"),
+                    @ApiResponse(code = 400, message = "Not Available"),
+                    @ApiResponse(code = 401, message = "UnAuthorized"),
+                    @ApiResponse(code = 403, message = "Access Forbidden"),
+                    @ApiResponse(code = 404, message = "Not found"),
+                    @ApiResponse(code = 422, message = "UnProcessable entity"),
+                    @ApiResponse(code = 500, message = "Internal server error"),
+            })
+    @ResponseStatus(value = HttpStatus.OK)
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
+    @GetMapping("/quiz-attempt-history/{userId}")
+    public List<AttemptHistoryDto> getQuizAttemptedHistory(
+            @RequestParam(value = "userId") String userId
+    ){
+         return quizUserService.getAttemptHistoryOfUser(userId);
     }
 
 }

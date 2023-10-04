@@ -43,6 +43,9 @@ public class QuizContentAttemptMap {
     @Field(name = "current_score")
     private Integer currentScore;
 
+    @Field(name = "un_attempted")
+    private Integer unAttempted=0;
+
     @Field(name = "created_at")
     @CreationTimestamp
     private LocalDateTime created_at;
