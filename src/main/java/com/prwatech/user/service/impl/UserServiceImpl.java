@@ -83,8 +83,11 @@ public class UserServiceImpl implements UserService {
     }
 
 
-    if (!user.getIsGoogleSignedIn()&& Objects.nonNull(profileUpdateDto.getEmail()) && user.getIsMobileRegistered()) {
-      user.setEmail(profileUpdateDto.getEmail());
+    if ( Objects.nonNull(profileUpdateDto.getEmail())) {
+         if(Objects.isNull(user.getIsGoogleSignedIn()) && user.getIsMobileRegistered()){
+           user.setEmail(profileUpdateDto.getEmail());
+         }
+
     }
 
     if(profileUpdateDto.getName()!=null){

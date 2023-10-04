@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.Objects;
 
+import static com.prwatech.common.Constants.DEFAULT_REF_AMOUNT;
+
 @Service
 @AllArgsConstructor
 public class WalletServiceImpl implements WalletService {
@@ -61,12 +63,12 @@ public class WalletServiceImpl implements WalletService {
      if(Objects.isNull(wallet)){
        wallet = new Wallet();
        wallet.setUser_Id(new ObjectId(user.getId()));
-       wallet.setMy_Cash(100);
-       wallet.setMy_Rewards(100);
+       wallet.setMy_Cash(DEFAULT_REF_AMOUNT);
+       wallet.setMy_Rewards(DEFAULT_REF_AMOUNT);
        walletRepository.save(wallet);
        return true;
      }
-     wallet.setMy_Cash(wallet.getMy_Cash()+100);
+     wallet.setMy_Cash(wallet.getMy_Cash()+DEFAULT_REF_AMOUNT);
      walletRepository.save(wallet);
      return true;
   }
