@@ -28,25 +28,25 @@ public class SendYourQueryServiceImpl implements SendYourQueryService {
 
     String message =
         "User name : "
-            + sendYourQueryRequestDto.getName()
-            + "\n"
+            + ((sendYourQueryRequestDto.getName()!=null)?sendYourQueryRequestDto.getName():"")
+            + "\n%s"
             + "User Mobile : "
-            + sendYourQueryRequestDto.getMobileNumber()
-            + "\n"
+            + ((sendYourQueryRequestDto.getMobileNumber()!=null)?sendYourQueryRequestDto.getMobileNumber():"")
+            + "\n%s"
             + "User Email id: "
-            + sendYourQueryRequestDto.getEmailId()
-            + "\n"
+            + ((sendYourQueryRequestDto.getEmailId()!=null)?sendYourQueryRequestDto.getEmailId():"")
+            + "\n%s"
             + "User query message: "
-            + sendYourQueryRequestDto.getMessage();
+            + ((sendYourQueryRequestDto.getMessage()!=null)?sendYourQueryRequestDto.getMessage():"");
 
     LOGGER.info("message body :: {}", message);
     EmailSendDto emailSendDto =
         new EmailSendDto(
-            appContext.getDefaultMailSenderId(),
-            appContext.getDefaultSaleEmailId(),
+            appContext.getEmailHostUsername(),
+                "manishsinghonline2@gmail.com",
             Constants.COURSE_QUERY_EMAIl_SUBJECT,
             message);
-    Boolean isEmailSent = emailService.sendNormalEmailWithPlanText(emailSendDto);
+    Boolean isEmailSent = emailService.sendSimpleMail(emailSendDto);
     if (!isEmailSent) {
       LOGGER.error("Email service is not working to send query to admin.");
       throw new UnProcessableEntityException("Unable to sent the query, please try again!");
@@ -58,8 +58,8 @@ public class SendYourQueryServiceImpl implements SendYourQueryService {
   public Boolean sendYourQueryToHelpAndSupport(HelpAndSupportDto helpAndSupportDto) {
 
     String message = "From Course: "+helpAndSupportDto.getCourseTitle()
-            +"\n To question type: "+ helpAndSupportDto.getQuestionTitle()
-            +"\n Description: "+ helpAndSupportDto.getDescription();
+            +"\n%s To question type: "+ helpAndSupportDto.getQuestionTitle()
+            +"\n%s Description: "+ helpAndSupportDto.getDescription();
 
     LOGGER.info("Message body: {}", message);
     EmailSendDto emailSendDto = new EmailSendDto(
@@ -69,7 +69,7 @@ public class SendYourQueryServiceImpl implements SendYourQueryService {
             message
     );
 
-    Boolean isEmailSent = emailService.sendNormalEmailWithPlanText(emailSendDto);
+    Boolean isEmailSent = emailService.sendSimpleMail(emailSendDto);
     if (!isEmailSent) {
       LOGGER.error("Email service is not working to send query to admin.");
       throw new UnProcessableEntityException("Unable to sent the query, please try again!");

@@ -3,19 +3,24 @@ package com.prwatech.common.service.impl;
 import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.exception.UnProcessableEntityException;
-import java.util.Properties;
-import javax.mail.Authenticator;
-import javax.mail.Message;
-import javax.mail.Multipart;
-import javax.mail.PasswordAuthentication;
-import javax.mail.Session;
-import javax.mail.Transport;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeBodyPart;
-import javax.mail.internet.MimeMessage;
-import javax.mail.internet.MimeMultipart;
+
+import jakarta.mail.Authenticator;
+import jakarta.mail.Message;
+import jakarta.mail.Multipart;
+import jakarta.mail.PasswordAuthentication;
+import jakarta.mail.Session;
+import jakarta.mail.Transport;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeBodyPart;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 import lombok.AllArgsConstructor;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
+
+import java.util.Properties;
+
 
 @Component
 @AllArgsConstructor
@@ -24,6 +29,7 @@ public class EmailServiceImpl {
   private static final org.slf4j.Logger LOGGER =
       org.slf4j.LoggerFactory.getLogger(EmailServiceImpl.class);
   private final AppContext appContext;
+  private final JavaMailSender mailSender;
 
   private Properties getProperties() {
     Properties property = new Properties();
@@ -78,4 +84,27 @@ public class EmailServiceImpl {
           "Something went wrong while sending email, please try again!");
     }
   }
+
+  public Boolean sendSimpleMail(EmailSendDto emailSendDto){
+    try {
+
+      MimeMessage mimeMessage = mailSender.createMimeMessage();
+      MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(mimeMessage);
+
+      mimeMessageHelper.setFrom(appContext.getEmailHostUsername());
+      mimeMessageHelper.setSubject(emailSendDto.getSubject());
+      mimeMessageHelper.setTo(emailSendDto.getReceiverEmailId());
+      mimeMessage.setText(emailSendDto.getTextMessage());
+
+      mailSender.send(mimeMessage);
+
+      return Boolean.TRUE;
+    }
+    catch (Exception e){
+      LOGGER.error("Something went wrong while sending the mail to email id: "+ emailSendDto.getReceiverEmailId()+
+              "with error: "+ e.getMessage());
+    }
+    return Boolean.FALSE;
+  }
+
 }

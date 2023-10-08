@@ -387,7 +387,7 @@ public class IamServiceImpl implements IamService {
             FORGET_PASSWORD_MAIL_SUBJECT,
             FORGET_PASSWORD_MAIL_BODY + otp);
 
-    Boolean isEmailSent = emailService.sendNormalEmailWithPlanText(emailSendDto);
+    Boolean isEmailSent = emailService.sendSimpleMail(emailSendDto);
 
     if (!isEmailSent) {
       throw new UnProcessableEntityException(
