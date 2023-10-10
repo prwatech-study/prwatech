@@ -279,7 +279,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
             courseDetailsRepositoryTemplate.getAllSelfPlacedCourses(pageNumber, pageSize);
         break;
       case ALL:
-        courseDetailsPage = courseDetailRepository.findAll(PageRequest.of(pageNumber, pageSize));
+        courseDetailsPage = courseDetailsRepositoryTemplate.getAllCourses(pageNumber, pageSize);
         break;
       default:
         throw new UnProcessableEntityException("This category does not exist!");

@@ -101,4 +101,14 @@ public class CourseDetailsRepositoryTemplate {
     List<CourseDetails> courseDetailsList = mongoTemplate.find(query, CourseDetails.class);
     return new PageImpl<>(courseDetailsList, pageable, count);
   }
+
+  public Page<CourseDetails> getAllCourses(Integer pageNumber, Integer pageSize) {
+    Pageable pageable = PageRequest.of(pageNumber, pageSize);
+    Query query = new Query();
+    query.addCriteria(Criteria.where("Disable").is(false));
+    Long count = mongoTemplate.count(query, CourseDetails.class);
+    query.with(pageable);
+    List<CourseDetails> courseDetailsList = mongoTemplate.find(query, CourseDetails.class);
+    return new PageImpl<>(courseDetailsList, pageable, count);
+  }
 }
