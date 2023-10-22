@@ -34,6 +34,7 @@ public class PushNotificationServiceImpl implements PushNotificationService {
 
         UserFcmToken userFcmToken = userFcmTokenTemplate.getByUserId(new ObjectId(userId));
         if(Objects.isNull(userFcmToken)){
+            userFcmToken= new UserFcmToken();
             userFcmToken.setUserId(new ObjectId(userId));
         }
         userFcmToken.setFcmToken(token);
