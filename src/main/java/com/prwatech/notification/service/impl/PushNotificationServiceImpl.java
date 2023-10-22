@@ -3,6 +3,7 @@ package com.prwatech.notification.service.impl;
 import com.google.firebase.messaging.BatchResponse;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.MulticastMessage;
+import com.google.firebase.messaging.Notification;
 import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.notification.dto.PushNotificationRequestDto;
 import com.prwatech.notification.service.PushNotificationService;
@@ -48,12 +49,18 @@ public class PushNotificationServiceImpl implements PushNotificationService {
 
         List<String> tokens= userFcmRepository.findAll().stream().map(UserFcmToken::getFcmToken).collect(Collectors.toList());
 
+        Notification notification = Notification.builder()
+                .setBody((requestDto.getMessage().length()<10)? requestDto.getMessage() : requestDto.getMessage().substring(0,10))
+                .setTitle((requestDto.getTitle().length()>10)?requestDto.getTitle().substring(0,10):requestDto.getTitle())
+                .build();
         MulticastMessage message = MulticastMessage.builder()
                 .addAllTokens(tokens)
-                .putData(requestDto.getTitle(), requestDto.getMessage().substring(0,8))
+                .setNotification(notification)
                 .build();
         try {
             BatchResponse response = FirebaseMessaging.getInstance().sendMulticast(message);
+            LOGGER.info("Successful hits for notification :: {}", response.getSuccessCount());
+            LOGGER.info("Failed hits for notification :: {}", response.getFailureCount());
         }
         catch (Exception ex){
              LOGGER.error("Unable to sent push notification :: {}", ex.getMessage());
