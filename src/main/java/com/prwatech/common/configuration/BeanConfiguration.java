@@ -22,7 +22,7 @@ import java.io.InputStream;
 public class BeanConfiguration {
 
   private final AppContext appContext;
-  private final static String firebaseCredPath="/templates/firebase_sdk.json";
+  private final static String firebaseCredPath="/templates/firbase_sdk.json";
   @Bean
   public JavaMailSender javaMailSender(){
 
