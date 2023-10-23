@@ -49,6 +49,10 @@ public class PushNotificationServiceImpl implements PushNotificationService {
 
         List<String> tokens= userFcmRepository.findAll().stream().map(UserFcmToken::getFcmToken).collect(Collectors.toList());
 
+        if(tokens.size()==0 || tokens.isEmpty()){
+            LOGGER.error("No token found to send notification!");
+            return;
+        }
         Notification notification = Notification.builder()
                 .setBody((requestDto.getMessage().length()<10)? requestDto.getMessage() : requestDto.getMessage().substring(0,10))
                 .setTitle((requestDto.getTitle().length()>10)?requestDto.getTitle().substring(0,10):requestDto.getTitle())
