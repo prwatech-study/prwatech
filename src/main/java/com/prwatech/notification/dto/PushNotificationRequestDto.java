@@ -17,8 +17,6 @@ public class PushNotificationRequestDto {
 
     @NotNull
     private String title;
-    private String topic;
     @NotNull
     private String message;
-    private String token;
 }
