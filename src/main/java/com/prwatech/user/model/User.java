@@ -60,6 +60,12 @@ public class User {
   @Field(name = "is_google_signed_in")
   private Boolean isGoogleSignedIn;
 
+  @Field(name = "is_apple_sign_in")
+  private Boolean isAppleSingIn=Boolean.FALSE;
+
+  @Field(name = "apple_user")
+  private String appleUser;
+
   @Field(name = "profileImage")
   private String profileImage;
 
