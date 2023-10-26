@@ -24,4 +24,10 @@ public class IamMongodbTemplateLayer {
     Query query = new Query().addCriteria(Criteria.where("Phone_Number").is(mobileNumber));
     return Optional.ofNullable(mongoTemplate.findOne(query, User.class));
   }
+
+  public Optional<User> findByAppleUser(String appleString)
+  {
+    Query query = new Query().addCriteria(Criteria.where("apple_user").is(appleString));
+    return Optional.ofNullable(mongoTemplate.findOne(query, User.class));
+  }
 }

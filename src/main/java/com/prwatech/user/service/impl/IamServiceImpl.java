@@ -22,6 +22,7 @@ import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.common.utility.Utility;
 import com.prwatech.coupon.service.CouponService;
 import com.prwatech.finance.service.WalletService;
+import com.prwatech.user.dto.AppleSignInDto;
 import com.prwatech.user.dto.ForgetPasswordResponseDto;
 import com.prwatech.user.dto.GoogleSignInUpDto;
 import com.prwatech.user.dto.SignInResponseDto;
@@ -109,6 +110,10 @@ public class IamServiceImpl implements IamService {
           "This email is associated with google account! Please proceed with Google Sign in!");
     }
 
+    if(userObject.get().getIsAppleSingIn()!=null && userObject.get().getIsAppleSingIn()){
+      throw new UnProcessableEntityException("This email is already in use with apple id sing in.");
+    }
+
     User user = userObject.get();
 
     if (user.getDisable()) {
@@ -159,6 +164,10 @@ public class IamServiceImpl implements IamService {
     if (userObject.isPresent() && userObject.get().getIsGoogleSignedIn().equals(Boolean.TRUE)) {
       throw new UnProcessableEntityException("This email is already in use!");
     }
+    if(userObject.isPresent() && userObject.get().getIsAppleSingIn()!=null && userObject.get().getIsAppleSingIn())
+    {
+      throw new UnProcessableEntityException("This email is already in use!");
+    }
 
     Integer RF = iamRepository.findAll().size()+1;
     signInSignUpRequestDto.setPassword(
@@ -167,6 +176,7 @@ public class IamServiceImpl implements IamService {
     user.setEmail(signInSignUpRequestDto.getEmail());
     user.setPassword(signInSignUpRequestDto.getPassword());
     user.setIsGoogleSignedIn(Boolean.FALSE);
+    user.setIsAppleSingIn(Boolean.FALSE);
     user.setDisable(Boolean.FALSE);
     user.setLastLogin(LocalDateTime.now());
     if(signInSignUpRequestDto.getReferalCode()!=null){
@@ -206,6 +216,7 @@ public class IamServiceImpl implements IamService {
       user.setDisable(Boolean.FALSE);
       user.setIsMobileRegistered(Boolean.TRUE);
       user.setIsGoogleSignedIn(Boolean.FALSE);
+      user.setIsAppleSingIn(Boolean.FALSE);
       user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
       if(referalCode!=null){
         user.setReferer_Code(referalCode);
@@ -420,6 +431,11 @@ public class IamServiceImpl implements IamService {
       throw new UnProcessableEntityException("This email is already in use!");
     }
 
+    if(userObject.isPresent() && userObject.get().getIsAppleSingIn()!=null && userObject.get().getIsAppleSingIn())
+    {
+      throw new UnProcessableEntityException("This email is in use with apple sing in!");
+    }
+
     User user = null;
     Integer RF = iamRepository.findAll().size()+1;
     if (!userObject.isEmpty()) {
@@ -432,6 +448,7 @@ public class IamServiceImpl implements IamService {
       user.setProfileImage(googleSignInUpDto.getImageUrl());
       user.setIsProfileImageUploaded(Boolean.TRUE);
       user.setIsGoogleSignedIn(Boolean.TRUE);
+      user.setIsAppleSingIn(Boolean.FALSE);
       user.setDisable(Boolean.FALSE);
       user.setLastLogin(LocalDateTime.now());
 
@@ -540,5 +557,69 @@ public class IamServiceImpl implements IamService {
       LOGGER.error("Error while encrypting password");
       throw new BadRequestException("Something went wrong while encrypting.");
     }
+  }
+
+
+  @Override
+  public SignInResponseDto signInSignUpWithApple(AppleSignInDto appleSignInDto){
+
+    if(Objects.isNull(appleSignInDto)){
+      throw new UnProcessableEntityException("Apple data is null in request.");
+    }
+    if(appleSignInDto.getAppleString()==null){
+      throw new UnProcessableEntityException("user string can not be null for apple sso.");
+    }
+    Integer RF = iamRepository.findAll().size()+1;
+
+    User user = null;
+    if(appleSignInDto.getEmail()==null){
+      Optional<User> optionalUser = iamMongodbTemplateLayer.findByAppleUser(appleSignInDto.getAppleString());
+      if(optionalUser.isPresent() && optionalUser.get().getIsGoogleSignedIn()!=null && optionalUser.get().getIsGoogleSignedIn()){
+        throw new UnProcessableEntityException("User is already sing in with email as google account.");
+      }
+      else if(optionalUser.isPresent()){
+        user=optionalUser.get();
+      }
+    }
+    else {
+      Optional<User> opUser = iamMongodbTemplateLayer.findByEmail(appleSignInDto.getEmail());
+      if(opUser.isPresent() && Objects.nonNull(opUser.get()) && (opUser.get().getIsGoogleSignedIn()==null ||opUser.get().getIsGoogleSignedIn().equals(Boolean.FALSE))
+              && (opUser.get().getIsAppleSingIn()==null || opUser.get().getIsAppleSingIn().equals(Boolean.FALSE))){
+        throw new UnProcessableEntityException("User already has created account with email and password.");
+      }
+        user=new User();
+        user.setEmail(appleSignInDto.getEmail());
+        user.setName(appleSignInDto.getName());
+        user.setProfileImage(appleSignInDto.getImgUrl());
+        user.setIsProfileImageUploaded(Boolean.TRUE);
+        user.setIsGoogleSignedIn(Boolean.FALSE);
+        user.setIsAppleSingIn(Boolean.TRUE);
+        user.setAppleUser(appleSignInDto.getAppleString());
+        user.setDisable(Boolean.FALSE);
+        user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
+      couponService.allocateCouponsToUser(new ArrayList<>(
+              Arrays.asList(Constants.NEW_USER_COUPON_ID)
+      ), new ObjectId(user.getId()));
+    }
+
+      user.setLastLogin(LocalDateTime.now());
+      user =iamRepository.save(user);
+
+    //create new wallet for user.
+    walletService.createNewWalletForUser(user);
+
+    UserDetails userDetails = new UserDetails();
+    userDetails.setUsername(user.getEmail());
+    Map<String, String> jwtToken = jwtUtils.generateToken(userDetails);
+
+    SignInResponseDto signInResponseDto = new SignInResponseDto();
+    signInResponseDto.setUserId(user.getId());
+    signInResponseDto.setAccessToken(jwtToken.get("accessToken"));
+    signInResponseDto.setExpiresIn(LocalDateTime.now().plusMinutes(60));
+    signInResponseDto.setRefreshToken(jwtToken.get("refreshToken"));
+    signInResponseDto.setRefreshTokenExpiresIn(LocalDateTime.now().plusMinutes(65));
+    signInResponseDto.setUserDetailsDto(userService.getUserDetailsById(user.getId()));
+
+    return signInResponseDto;
   }
 }
