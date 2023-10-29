@@ -583,7 +583,7 @@ public class IamServiceImpl implements IamService {
     }
     else {
       Optional<User> opUser = iamMongodbTemplateLayer.findByEmail(appleSignInDto.getEmail());
-      if(opUser.isPresent() && Objects.nonNull(opUser.get()) && (opUser.get().getIsGoogleSignedIn()==null ||opUser.get().getIsGoogleSignedIn().equals(Boolean.FALSE))
+      if(opUser.isPresent() && (opUser.get().getIsGoogleSignedIn()==null ||opUser.get().getIsGoogleSignedIn().equals(Boolean.TRUE))
               && (opUser.get().getIsAppleSingIn()==null || opUser.get().getIsAppleSingIn().equals(Boolean.FALSE))){
         throw new UnProcessableEntityException("User already has created account with email and password.");
       }
