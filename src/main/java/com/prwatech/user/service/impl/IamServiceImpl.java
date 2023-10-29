@@ -597,14 +597,16 @@ public class IamServiceImpl implements IamService {
         user.setAppleUser(appleSignInDto.getAppleString());
         user.setDisable(Boolean.FALSE);
         user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
-      couponService.allocateCouponsToUser(new ArrayList<>(
-              Arrays.asList(Constants.NEW_USER_COUPON_ID)
-      ), new ObjectId(user.getId()));
     }
 
       user.setLastLogin(LocalDateTime.now());
       user =iamRepository.save(user);
 
+      if(appleSignInDto.getEmail()!=null){
+        couponService.allocateCouponsToUser(new ArrayList<>(
+                Arrays.asList(Constants.NEW_USER_COUPON_ID)
+        ), new ObjectId(user.getId()));
+      }
     //create new wallet for user.
     walletService.createNewWalletForUser(user);
 
