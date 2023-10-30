@@ -67,4 +67,8 @@ public class AppContext {
 
   @Value("${prwatech.email.access.key}")
   private String emailAccessKey;
+
+  @Value("${it-course.category.id}")
+  private String courseCategoryId;
+
 }

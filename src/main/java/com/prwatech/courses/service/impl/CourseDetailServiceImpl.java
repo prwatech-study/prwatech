@@ -1,6 +1,7 @@
 package com.prwatech.courses.service.impl;
 
 import com.prwatech.common.Constants;
+import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
@@ -75,6 +76,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   private final CourseCurriculamTemplate courseCurriculamTemplate;
   private final MyCoursesTemplate myCoursesTemplate;
   private final MyCoursesRepository myCoursesRepository;
+  private final AppContext appContext;
   private static final org.slf4j.Logger LOGGER =
           org.slf4j.LoggerFactory.getLogger(CourseDetailServiceImpl.class);
 
@@ -279,7 +281,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
             courseDetailsRepositoryTemplate.getAllSelfPlacedCourses(pageNumber, pageSize);
         break;
       case ALL:
-        courseDetailsPage = courseDetailsRepositoryTemplate.getAllCourses(pageNumber, pageSize);
+        courseDetailsPage = courseDetailsRepositoryTemplate.getAllCourses(pageNumber, pageSize, appContext.getCourseCategoryId());
         break;
       default:
         throw new UnProcessableEntityException("This category does not exist!");
