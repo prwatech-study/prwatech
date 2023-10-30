@@ -47,6 +47,12 @@ public class AppContext {
   @Value("${spring.mail.properties.mail.smtp.starttls.enable}")
   private Boolean emailStarttls;
 
+  @Value("${prwatech.default.email.id}")
+  private String defaultMailSenderId;
+
+  @Value("${prwatech.default.sale.email.id}")
+  private String defaultSaleEmailId;
+
   @Value("${prwatech.rz.key}")
   private String razorpayKey;
 
