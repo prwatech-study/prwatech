@@ -43,7 +43,7 @@ public class SendYourQueryServiceImpl implements SendYourQueryService {
     EmailSendDto emailSendDto =
         new EmailSendDto(
             appContext.getEmailHostUsername(),
-                "manishsinghonline2@gmail.com",
+            sendYourQueryRequestDto.getEmailId(),
             Constants.COURSE_QUERY_EMAIl_SUBJECT,
             message);
     Boolean isEmailSent = emailService.sendSimpleMail(emailSendDto);
