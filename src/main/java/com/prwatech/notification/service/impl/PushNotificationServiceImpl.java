@@ -34,8 +34,8 @@ public class PushNotificationServiceImpl implements PushNotificationService {
     public Boolean createOrUpdateFcmToken(String userId, String token) {
 
         UserFcmToken userFcmToken = userFcmTokenTemplate.getByUserId(new ObjectId(userId));
-        if(Objects.isNull(userFcmToken)){
-            userFcmToken= new UserFcmToken();
+        if (Objects.isNull(userFcmToken)) {
+            userFcmToken = new UserFcmToken();
             userFcmToken.setUserId(new ObjectId(userId));
         }
         userFcmToken.setFcmToken(token);
@@ -47,15 +47,18 @@ public class PushNotificationServiceImpl implements PushNotificationService {
     @Override
     public void sendPushNotification(PushNotificationRequestDto requestDto) {
 
-        List<String> tokens= userFcmRepository.findAll().stream().map(UserFcmToken::getFcmToken).collect(Collectors.toList());
+        List<String> tokens = userFcmRepository.findAll().stream().map(UserFcmToken::getFcmToken)
+                .collect(Collectors.toList());
 
-        if(tokens.size()==0 || tokens.isEmpty()){
+        if (tokens.size() == 0 || tokens.isEmpty()) {
             LOGGER.error("No token found to send notification!");
             return;
         }
         Notification notification = Notification.builder()
-                .setBody((requestDto.getMessage().length()<10)? requestDto.getMessage() : requestDto.getMessage().substring(0,10))
-                .setTitle((requestDto.getTitle().length()>10)?requestDto.getTitle().substring(0,10):requestDto.getTitle())
+                .setBody((requestDto.getMessage().length() > 100) ? requestDto.getMessage().substring(0, 100)
+                        : requestDto.getMessage())
+                .setTitle((requestDto.getTitle().length() > 50) ? requestDto.getTitle().substring(0, 50)
+                        : requestDto.getTitle())
                 .build();
         MulticastMessage message = MulticastMessage.builder()
                 .addAllTokens(tokens)
@@ -65,10 +68,9 @@ public class PushNotificationServiceImpl implements PushNotificationService {
             BatchResponse response = FirebaseMessaging.getInstance().sendMulticast(message);
             LOGGER.info("Successful hits for notification :: {}", response.getSuccessCount());
             LOGGER.info("Failed hits for notification :: {}", response.getFailureCount());
-        }
-        catch (Exception ex){
-             LOGGER.error("Unable to sent push notification :: {}", ex.getMessage());
-             throw new UnProcessableEntityException("Unable to sent notifications due to ::"+ex.getMessage());
+        } catch (Exception ex) {
+            LOGGER.error("Unable to sent push notification :: {}", ex.getMessage());
+            throw new UnProcessableEntityException("Unable to sent notifications due to ::" + ex.getMessage());
         }
     }
 }
