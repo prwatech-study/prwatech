@@ -29,29 +29,24 @@ public class SendYourQueryServiceImpl implements SendYourQueryService {
     String message =
         "User name : "
             + ((sendYourQueryRequestDto.getName()!=null)?sendYourQueryRequestDto.getName():"")
-            + "\n%s"
+            + "\n"
             + "User Mobile : "
             + ((sendYourQueryRequestDto.getMobileNumber()!=null)?sendYourQueryRequestDto.getMobileNumber():"")
-            + "\n%s"
+            + "\n"
             + "User Email id: "
             + ((sendYourQueryRequestDto.getEmailId()!=null)?sendYourQueryRequestDto.getEmailId():"")
-            + "\n%s"
+            + "\n"
             + "User query message: "
             + ((sendYourQueryRequestDto.getMessage()!=null)?sendYourQueryRequestDto.getMessage():"");
 
     LOGGER.info("message body :: {}", message);
     EmailSendDto emailSendDto =
         new EmailSendDto(
-            appContext.getEmailHostUsername(),
-            sendYourQueryRequestDto.getEmailId(),
+            appContext.getDefaultSaleEmailId(),
             Constants.COURSE_QUERY_EMAIl_SUBJECT,
             message);
-    Boolean isEmailSent = emailService.sendSimpleMail(emailSendDto);
-    if (!isEmailSent) {
-      LOGGER.error("Email service is not working to send query to admin.");
-      throw new UnProcessableEntityException("Unable to sent the query, please try again!");
-    }
-    return isEmailSent;
+    emailService.sendEmail(emailSendDto);
+    return Boolean.TRUE;
   }
 
   @Override
@@ -63,17 +58,12 @@ public class SendYourQueryServiceImpl implements SendYourQueryService {
 
     LOGGER.info("Message body: {}", message);
     EmailSendDto emailSendDto = new EmailSendDto(
-            appContext.getDefaultMailSenderId(),
             appContext.getDefaultSaleEmailId(),
             Constants.DEFAULT_HELP_AND_SUPPORT_SUBJECT,
             message
     );
 
-    Boolean isEmailSent = emailService.sendSimpleMail(emailSendDto);
-    if (!isEmailSent) {
-      LOGGER.error("Email service is not working to send query to admin.");
-      throw new UnProcessableEntityException("Unable to sent the query, please try again!");
-    }
-    return isEmailSent;
+    emailService.sendEmail(emailSendDto);
+    return Boolean.TRUE;
   }
 }

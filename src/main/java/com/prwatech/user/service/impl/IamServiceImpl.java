@@ -393,17 +393,11 @@ public class IamServiceImpl implements IamService {
 
     EmailSendDto emailSendDto =
         new EmailSendDto(
-            appContext.getDefaultMailSenderId(),
             emailId,
             FORGET_PASSWORD_MAIL_SUBJECT,
             FORGET_PASSWORD_MAIL_BODY + otp);
 
-    Boolean isEmailSent = emailService.sendSimpleMail(emailSendDto);
-
-    if (!isEmailSent) {
-      throw new UnProcessableEntityException(
-          "Something went wrong, Please try again to reset password! ");
-    }
+     emailService.sendEmail(emailSendDto);
 
     Optional<UserOtpMapping> userOtpMappingObject =
         userOtpMappingTemplate.findOtpMappingByUserId(userObject.get().getId());
