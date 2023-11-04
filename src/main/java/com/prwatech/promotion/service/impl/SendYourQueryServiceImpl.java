@@ -42,7 +42,7 @@ public class SendYourQueryServiceImpl implements SendYourQueryService {
     LOGGER.info("message body :: {}", message);
     EmailSendDto emailSendDto =
         new EmailSendDto(
-            appContext.getDefaultSaleEmailId(),
+            appContext.getDefaultMailSenderId(),
             Constants.COURSE_QUERY_EMAIl_SUBJECT,
             message);
     emailService.sendEmail(emailSendDto);
@@ -58,7 +58,7 @@ public class SendYourQueryServiceImpl implements SendYourQueryService {
 
     LOGGER.info("Message body: {}", message);
     EmailSendDto emailSendDto = new EmailSendDto(
-            appContext.getDefaultSaleEmailId(),
+            appContext.getDefaultMailSenderId(),
             Constants.DEFAULT_HELP_AND_SUPPORT_SUBJECT,
             message
     );
