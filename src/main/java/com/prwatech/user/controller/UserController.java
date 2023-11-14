@@ -49,6 +49,7 @@ public class UserController {
         dataType = Constants.AUTH_DATA_TYPE,
         paramType = Constants.AUTH_PARAM_TYPE)
   })
+
   @GetMapping("/user/{id}")
   public UserDetailsDto getUserDetails(@PathVariable(value = "id") @NotNull String id) {
     return userService.getUserDetailsById(id);
@@ -130,8 +131,14 @@ public class UserController {
         dataType = Constants.AUTH_DATA_TYPE,
         paramType = Constants.AUTH_PARAM_TYPE)
   })
+
   @DeleteMapping("/remove-education/{id}")
   public void deleteEducationDetails(@PathVariable(value = "id") @NotNull String id) {
     userService.deleteEducationDetailsById(id);
+  }
+
+  @DeleteMapping("/delete/user/{id}")
+  public void deleteUserDetails(@PathVariable(value = "id") @NotNull String id) {
+    userService.deleteUserDetails(id);
   }
 }

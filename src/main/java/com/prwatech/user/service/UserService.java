@@ -19,4 +19,6 @@ public interface UserService {
   void deleteEducationDetailsById(String id);
 
   String getUserReferalCodeByUserId(String id);
+
+  public void deleteUserDetails(String id);
 }

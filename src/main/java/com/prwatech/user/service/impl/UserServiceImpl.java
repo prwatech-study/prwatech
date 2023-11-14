@@ -1,15 +1,19 @@
 package com.prwatech.user.service.impl;
 
+import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
+import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.courses.dto.MyDashboardActivity;
 import com.prwatech.courses.service.MyCourseService;
 import com.prwatech.user.dto.EducationUpdateDto;
 import com.prwatech.user.dto.UserDetailsDto;
 import com.prwatech.user.dto.UserProfileDto;
 import com.prwatech.user.dto.UserProfileUpdateDto;
+import com.prwatech.user.model.DeletedUser;
 import com.prwatech.user.model.User;
 import com.prwatech.user.model.UserEducationDetails;
+import com.prwatech.user.repository.DeletedUserRepository;
 import com.prwatech.user.repository.IamRepository;
 import com.prwatech.user.repository.UserEducationDetailsRepository;
 import com.prwatech.user.repository.UserRepository;
@@ -21,8 +25,8 @@ import org.bson.types.ObjectId;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 
-import static com.prwatech.common.Constants.REFERAL_BIT_1;
-import static com.prwatech.common.Constants.REFERAL_BIT_2;
+import static com.prwatech.common.Constants.*;
+import static com.prwatech.common.Constants.FORGET_PASSWORD_MAIL_BODY;
 
 @Service
 @AllArgsConstructor
@@ -32,12 +36,13 @@ public class UserServiceImpl implements UserService {
       org.slf4j.LoggerFactory.getLogger(UserServiceImpl.class);
 
   private final UserRepository userRepository;
+  private final DeletedUserRepository deletedUserRepository;
   private final ModelMapper modelMapper;
   private final MyCourseService myCourseService;
   private final EducationDetailsTemplates educationDetailsTemplates;
   private final UserEducationDetailsRepository educationDetailsRepository;
   private final IamRepository iamRepository;
-
+  private final EmailServiceImpl emailService;
   @Override
   public UserDetailsDto getUserDetailsById(String id) {
     User user =
@@ -152,5 +157,28 @@ public class UserServiceImpl implements UserService {
       user = iamRepository.save(user);
     }
     return user.getReferal_Code();
+  }
+
+  @Override
+  public void deleteUserDetails(String id) {
+    User user =
+            userRepository
+                    .findById(id)
+                    .orElseThrow(() -> new NotFoundException("No user find with this id!"));
+    if (user != null) {
+      DeletedUser deletedUser = modelMapper.map(user, DeletedUser.class);
+      deletedUserRepository.save(deletedUser);
+    }
+    userRepository.deleteById(id);
+
+    if (user.getEmail()!=null) {
+      EmailSendDto emailSendDto =
+              new EmailSendDto(
+                      user.getEmail(),
+                      USER_ACCOUNT_DELETION_REQUEST,
+                      USER_ACCOUNT_DELETION_MESSAGE.replace("XXXX", user.getName() != null ? user.getName() : "User"));
+
+      emailService.sendEmail(emailSendDto);
+    }
   }
 }
