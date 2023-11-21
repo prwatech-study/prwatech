@@ -211,7 +211,7 @@ public class IamServiceImpl implements IamService {
     Integer RF = iamRepository.findAll().size()+1;
     if (!userObject.isPresent() && userObject.isEmpty()) {
       user=new User();
-      user.setEmail(phoneNumber.toString());
+//      user.setEmail(phoneNumber.toString());
       user.setPhoneNumber(phoneNumber);
       user.setDisable(Boolean.FALSE);
       user.setIsMobileRegistered(Boolean.TRUE);

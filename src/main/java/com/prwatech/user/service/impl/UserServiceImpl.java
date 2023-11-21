@@ -171,14 +171,20 @@ public class UserServiceImpl implements UserService {
     }
     userRepository.deleteById(id);
 
-    if (user.getEmail()!=null) {
-      EmailSendDto emailSendDto =
-              new EmailSendDto(
-                      user.getEmail(),
-                      USER_ACCOUNT_DELETION_REQUEST,
-                      USER_ACCOUNT_DELETION_MESSAGE.replace("XXXX", user.getName() != null ? user.getName() : "User"));
+      if (user.getEmail()!=null) {
+        new Thread(() -> {
+          try {
+            EmailSendDto emailSendDto =
+                    new EmailSendDto(
+                            user.getEmail(),
+                            USER_ACCOUNT_DELETION_REQUEST,
+                            USER_ACCOUNT_DELETION_MESSAGE.replace("XXXX", user.getName() != null ? user.getName() : "User"));
 
-      emailService.sendEmail(emailSendDto);
-    }
+            emailService.sendEmail(emailSendDto);
+          } catch (Exception ex) {
+            LOGGER.error("Error while sending EMAIL to Deleted User.");
+          }
+        });
+      }
   }
 }
