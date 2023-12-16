@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "infra-hulling-316012",
+  "private_key_id": "6bded369de0bc0709cf60a36cf00b769b6a3a240",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCTrZizn+LLrSJQ\nM8uEFrkj1Po5utDssc/uweyiVIEw1KuA7HGZLYOzUBGrvNwyUOCsU1ovfYEw7Vl3\nqR5ntrKB+iBRAhih1sV5YlfNdrcsJ2P4SbhlZ61kFY+OYx4IhFPf4en8AuOEo4UI\nvEToMDlY+iMK3EB1V2xv3oZjUu0SdVgkG3AY8W2+J0BH8MNSSb3OQYnhO0AgXCGA\nqUAv8VAuCa1U/bNkn1QwTClX7aJ8fVeQzU6gV/8IjkgHJPE89HlZpkTbZgwTYzlD\n1UG0rqOfoG17RAbpCede28Pn9yZWibFxBUrGSa5qppv2eO5sxAQWtCoCma9x49OJ\nthye+CCvAgMBAAECggEAOA+rq2zj3Owh3Y58EO3LZMXiI+4+h8xMolet7EXmMVJa\ntPuNeFfl6jlYK/jrIpK/Z8vQrbyYQamo0Bs8dqTNiTgZ8oa4MR/mIVlq+Y26paFi\newwJWz2LfjYNJEGOUi9h49jQSaITGvQ0eYd3JSnBa3yxttq8AY+pk6JHJAeEBgBA\nRNqoWGXvchOzurQB1E8JeiKrY3bkklQC1IU8Vb3/0Egsp4DW75xmVEaJinCJl0Sa\nZU7Zwrf3FwGn9GVhpxhxwp3Lz0B2wjKDAoeDHGb4IKGQWa60E6K4Nu/KalIn5zko\nLzGENcT4uj2hRjT4OldyfFGfESrrSk0+Iyt5wc0fkQKBgQDHU7jFdhjM0ONABXk3\n4jvmCK5KsQRSTRD7+bPDnYSBK0Q5bPubt1D7ntM74IrQX6paS/fveNEX2g2AEbmL\nKipJxLBmsWWjo3F/cUAW0YrHVqdH2qAhlZRs/B+gsTUMSju5eT5G/9dvIjHHrFmV\nJGLX/fMhInBPNlFmmWrVBQpwFwKBgQC9qopPpI/Mi4/7oAOnywxVHC7VYyAoROhU\n/RMslu20CdHncYleNXz1mrGDW69gZuikfUfi3kl28NbAttAaweaRDnouFZ/+DfOg\nmhN1PgTPikPkbcRSSqHhTs2y2R15D2lV1pCjp7q2kg4+srSbsJ5eE6DtMB0QiTFY\n1qKhbaxbKQKBgG2W2j+2bmwtbMQGPl87QzN2El1+daHKPUxMPUmPkQpzf08TXEKA\nx0WQTRLeoXNvJXn/ypEfG9bBTCrdk+WviRCF03aikf8mHYC0A0iIbISsX8xhpyjP\n1IsXE0yGIWRga/XNczAV+ZxgcH4XhCk7mByowsO064qhkp+WOeZknxiBAoGBALQk\nVHXMkR/vtnOBybcG7dGwkPLv0U0uFZUTQbDqMR787LbsaVJnbyY/JTbkUDA5zeDd\ndPePtSsZGH+1ovanD/zaSUWYGHvOeIUjkjObEiqk4lMFxp96b0J1/H1QJeQjtSJo\nRryJxJc/JfR6+3ucRu6HqiNdvV1FUO9V/OViK3/xAoGAafEklvsDQ2UInNDAFlJT\nhw3HHIo7Xz7UG8VbWHPDK0MtBiaTnr4vaRdDsxTu1xdFbLq9uv5ontPl+in6vSkO\nfwfbWEjngDRVOq0STjN8XgW0p2x5nFrHsv601rY4YIaTIdQZ2IABNANL/jYcgbJo\n8dPsup+huFNTLX2gTi+9kAA=\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-4bnzn@infra-hulling-316012.iam.gserviceaccount.com",
+  "client_id": "115481624389697344701",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-4bnzn%40infra-hulling-316012.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

@@ -42,12 +42,21 @@ public class Constants {
   public static Integer PAGINATION_UTIL_LIST_DEFAULT_INDEX = 0;
   public static String COURSE_QUERY_EMAIl_SUBJECT = "User Query from course!";
   public static String DEFAULT_SMS_PROVIDER_NUMBER="+12703722154";
-
   public static String DEFAULT_HELP_AND_SUPPORT_SUBJECT="User help and support!";
   public static String DEFAULT_QUIZ_URL="https://unsplash.com/photos/qDgTQOYk6B8";
-
   public static String REFERAL_BIT_1="KA";
   public static String REFERAL_BIT_2="PRTC";
+  public static String NEW_USER_COUPON_ID="64f8c81101adc23e4d5953e1";
 
-  public static String NEW_USER_COUPON_ID="64eb5dcda2c0cf28309d7b06";
+  public static Integer DEFAULT_REF_AMOUNT=500;
+
+  public static String USER_ACCOUNT_DELETION_REQUEST = "User Account Deletion Request";
+  public static String USER_ACCOUNT_DELETION_MESSAGE =
+          "Dear XXXX,\n" +
+                  "\n" +
+                  "Your account has been successfully deleted. If you have any questions, " +
+                  "feel free to contact us at support@prwatech.com.\n" +
+                  "\n" +
+                  "Thank you,\n" +
+                  "Prwatech";
 }

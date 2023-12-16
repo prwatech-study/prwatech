@@ -11,6 +11,7 @@ import com.prwatech.courses.dto.ForumFilterListingDto;
 import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.CourseReview;
+import com.prwatech.courses.model.CourseTrack;
 import com.prwatech.courses.model.Pricing;
 import java.util.List;
 import java.util.Map;
@@ -52,5 +53,9 @@ public interface CourseDetailService {
   CertificateDetailsDto getCertificateDetails(String userId, String courseId);
 
   Boolean makeItFreeAndNonFree(String courseId, Boolean isFree);
+
+  CourseTrack enrollAFreeCourse(String userId, String courseId);
+
+  Boolean rateACourse(String userId, String courseId, Integer rating);
 
   }

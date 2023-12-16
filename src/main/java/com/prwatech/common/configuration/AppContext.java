@@ -45,7 +45,7 @@ public class AppContext {
   private Boolean emailAuth;
 
   @Value("${spring.mail.properties.mail.smtp.starttls.enable}")
-  private String emailStarttls;
+  private Boolean emailStarttls;
 
   @Value("${prwatech.default.email.id}")
   private String defaultMailSenderId;
@@ -64,4 +64,11 @@ public class AppContext {
 
   @Value("${prwatech.twilio.account.auth.token}")
   private String twilioAuth;
+
+  @Value("${prwatech.email.access.key}")
+  private String emailAccessKey;
+
+  @Value("${it-course.category.id}")
+  private String courseCategoryId;
+
 }

@@ -20,4 +20,11 @@ public class MyCoursesTemplate {
     query.addCriteria(Criteria.where("User_Id").is(userId));
     return mongoTemplate.find(query, MyCourses.class);
   }
+
+  public MyCourses findByUserIdAndCourseId(ObjectId userId, ObjectId courseId){
+    Query query = new Query();
+    query.addCriteria(Criteria.where("User_Id").is(userId)
+            .andOperator(Criteria.where("Course_Id").is(courseId)));
+    return mongoTemplate.findOne(query, MyCourses.class);
+  }
 }

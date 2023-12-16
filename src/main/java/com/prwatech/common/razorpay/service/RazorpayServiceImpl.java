@@ -9,10 +9,13 @@ import com.prwatech.common.razorpay.dto.RazorpayOrder;
 import com.prwatech.courses.model.Cart;
 import com.prwatech.courses.model.CourseCurriculam;
 import com.prwatech.courses.model.CourseTrack;
+import com.prwatech.courses.model.MyCourses;
 import com.prwatech.courses.repository.CartRepository;
 import com.prwatech.courses.repository.CartTemplate;
 import com.prwatech.courses.repository.CourseCurriculamTemplate;
 import com.prwatech.courses.repository.CourseTrackRepository;
+import com.prwatech.courses.repository.MyCoursesRepository;
+import com.prwatech.courses.repository.MyCoursesTemplate;
 import com.prwatech.finance.dto.RazorpayPayment;
 import com.prwatech.finance.model.Orders;
 import com.prwatech.finance.model.UserOrder;
@@ -45,7 +48,8 @@ public class RazorpayServiceImpl implements RazorpayService{
     private final CartTemplate cartTemplate;
     private final CartRepository cartRepository;
     private final CourseTrackRepository courseTrackRepository;
-
+    private final MyCoursesTemplate myCoursesTemplate;
+    private final MyCoursesRepository myCoursesRepository;
     private final CourseCurriculamTemplate courseCurriculamTemplate;
     private final static Logger LOGGER = LoggerFactory.getLogger(RazorpayServiceImpl.class);
 
@@ -165,6 +169,18 @@ public class RazorpayServiceImpl implements RazorpayService{
         //if payment successful then courses will be assigned
         if(razorpayPayment.getCaptured()){
             LOGGER.info("The given course assigning to user.");
+            MyCourses myCourses = myCoursesTemplate.findByUserIdAndCourseId(
+                    new ObjectId(userId), userOrder.getCourseId()
+            );
+            if(Objects.isNull(myCourses)){
+                myCourses= MyCourses.builder()
+                    .Course_Id(userOrder.getCourseId())
+                    .User_Id(new ObjectId(userId))
+                    .Course_Type("Online")
+                    .build();
+                myCoursesRepository.save(myCourses);
+            }
+
             CourseTrack courseTrack = CourseTrack.builder()
                     .userId(new ObjectId(userId))
                     .courseId(userOrder.getCourseId())

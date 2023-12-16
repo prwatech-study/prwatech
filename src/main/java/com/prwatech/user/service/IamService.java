@@ -1,5 +1,6 @@
 package com.prwatech.user.service;
 
+import com.prwatech.user.dto.AppleSignInDto;
 import com.prwatech.user.dto.ForgetPasswordResponseDto;
 import com.prwatech.user.dto.GoogleSignInUpDto;
 import com.prwatech.user.dto.SignInResponseDto;
@@ -22,4 +23,6 @@ public interface IamService {
   Boolean resetPassword(String userId, String newPassword, Integer otp);
 
   SignInResponseDto SignInSignUpWithGoogle(GoogleSignInUpDto googleSignInUpDto);
+
+  SignInResponseDto signInSignUpWithApple(AppleSignInDto appleSignInDto);
 }

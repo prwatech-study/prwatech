@@ -7,6 +7,8 @@ import com.prwatech.courses.model.CourseDetails;
 import java.util.Collections;
 import java.util.List;
 import lombok.AllArgsConstructor;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -96,6 +98,16 @@ public class CourseDetailsRepositoryTemplate {
     Pageable pageable = PageRequest.of(pageNumber, pageSize);
     Query query = new Query();
     query.addCriteria(Criteria.where("isFree").in(Boolean.TRUE));
+    Long count = mongoTemplate.count(query, CourseDetails.class);
+    query.with(pageable);
+    List<CourseDetails> courseDetailsList = mongoTemplate.find(query, CourseDetails.class);
+    return new PageImpl<>(courseDetailsList, pageable, count);
+  }
+
+  public Page<CourseDetails> getAllCourses(Integer pageNumber, Integer pageSize, String courseCategoryId) {
+    Pageable pageable = PageRequest.of(pageNumber, pageSize);
+    Query query = new Query();
+    query.addCriteria(Criteria.where("Course_CategoryId").is(new ObjectId(courseCategoryId)).and("Course_Status").is(0));
     Long count = mongoTemplate.count(query, CourseDetails.class);
     query.with(pageable);
     List<CourseDetails> courseDetailsList = mongoTemplate.find(query, CourseDetails.class);

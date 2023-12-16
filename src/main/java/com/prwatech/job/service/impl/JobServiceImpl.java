@@ -3,12 +3,17 @@ package com.prwatech.job.service.impl;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.job.dto.JobDto;
 import com.prwatech.job.model.Jobs;
+import com.prwatech.job.model.JobsApplied;
 import com.prwatech.job.repository.JobRepository;
+import com.prwatech.job.repository.JobsAppliedRepository;
 import com.prwatech.job.service.JobService;
+
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
+import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 
 @AllArgsConstructor
@@ -16,6 +21,7 @@ import org.springframework.stereotype.Service;
 public class JobServiceImpl implements JobService {
 
   private final JobRepository jobRepository;
+  private final JobsAppliedRepository jobsAppliedRepository;
 
   @Override
   public List<JobDto> getJobListing() {
@@ -53,5 +59,18 @@ public class JobServiceImpl implements JobService {
     jobDto.setLocation(jobs.get().getLocation());
 
     return jobDto;
+  }
+
+  @Override
+  public Boolean applyToJob(String userId, String jobId) {
+
+    JobsApplied jobsApplied = JobsApplied.builder()
+            .Job_Id(new ObjectId(jobId))
+            .User_Id(new ObjectId(userId))
+            .Created_On(LocalDateTime.now())
+            .build();
+
+    jobsAppliedRepository.save(jobsApplied);
+    return Boolean.TRUE;
   }
 }

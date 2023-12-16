@@ -22,6 +22,7 @@ import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.common.utility.Utility;
 import com.prwatech.coupon.service.CouponService;
 import com.prwatech.finance.service.WalletService;
+import com.prwatech.user.dto.AppleSignInDto;
 import com.prwatech.user.dto.ForgetPasswordResponseDto;
 import com.prwatech.user.dto.GoogleSignInUpDto;
 import com.prwatech.user.dto.SignInResponseDto;
@@ -46,6 +47,7 @@ import lombok.AllArgsConstructor;
 import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 @Service
 @Transactional
@@ -103,9 +105,13 @@ public class IamServiceImpl implements IamService {
       throw new NotFoundException(
           "User not found with this email id : " + signInSignUpRequestDto.getEmail());
     }
-    if (userObject.get().getIsGoogleSignedIn().equals(Boolean.TRUE)) {
+    if (userObject.get().getIsGoogleSignedIn() != null && userObject.get().getIsGoogleSignedIn().equals(Boolean.TRUE)) {
       throw new UnProcessableEntityException(
           "This email is associated with google account! Please proceed with Google Sign in!");
+    }
+
+    if(userObject.get().getIsAppleSingIn()!=null && userObject.get().getIsAppleSingIn()){
+      throw new UnProcessableEntityException("This email is already in use with apple id sing in.");
     }
 
     User user = userObject.get();
@@ -118,9 +124,14 @@ public class IamServiceImpl implements IamService {
     //      // TODO :: ask to log in with mobile and otp.
     //    }
 
-    if (!passwordEncode
-        .getEncryptedPassword(signInSignUpRequestDto.getPassword())
-        .equals(user.getPassword())) {
+    // comment this code - making http call to prwatech server to match password
+    // if (!passwordEncode
+    //     .getEncryptedPassword(signInSignUpRequestDto.getPassword())
+    //     .equals(user.getPassword())) {
+    //   throw new UnProcessableEntityException("Wrong password provided!");
+    // }
+
+    if (!checkLoginInPrwatechServer(user.getPassword(), signInSignUpRequestDto.getPassword())) {
       throw new UnProcessableEntityException("Wrong password provided!");
     }
 
@@ -153,14 +164,19 @@ public class IamServiceImpl implements IamService {
     if (userObject.isPresent() && userObject.get().getIsGoogleSignedIn().equals(Boolean.TRUE)) {
       throw new UnProcessableEntityException("This email is already in use!");
     }
+    if(userObject.isPresent() && userObject.get().getIsAppleSingIn()!=null && userObject.get().getIsAppleSingIn())
+    {
+      throw new UnProcessableEntityException("This email is already in use!");
+    }
 
     Integer RF = iamRepository.findAll().size()+1;
     signInSignUpRequestDto.setPassword(
-        passwordEncode.getEncryptedPassword(signInSignUpRequestDto.getPassword()));
+        getEncryptedPasswordFromPrwatechServer(signInSignUpRequestDto.getPassword()));
     User user = new User();
     user.setEmail(signInSignUpRequestDto.getEmail());
     user.setPassword(signInSignUpRequestDto.getPassword());
     user.setIsGoogleSignedIn(Boolean.FALSE);
+    user.setIsAppleSingIn(Boolean.FALSE);
     user.setDisable(Boolean.FALSE);
     user.setLastLogin(LocalDateTime.now());
     if(signInSignUpRequestDto.getReferalCode()!=null){
@@ -195,10 +211,12 @@ public class IamServiceImpl implements IamService {
     Integer RF = iamRepository.findAll().size()+1;
     if (!userObject.isPresent() && userObject.isEmpty()) {
       user=new User();
-      user.setEmail(phoneNumber.toString());
+//      user.setEmail(phoneNumber.toString());
       user.setPhoneNumber(phoneNumber);
       user.setDisable(Boolean.FALSE);
       user.setIsMobileRegistered(Boolean.TRUE);
+      user.setIsGoogleSignedIn(Boolean.FALSE);
+      user.setIsAppleSingIn(Boolean.FALSE);
       user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
       if(referalCode!=null){
         user.setReferer_Code(referalCode);
@@ -375,17 +393,11 @@ public class IamServiceImpl implements IamService {
 
     EmailSendDto emailSendDto =
         new EmailSendDto(
-            appContext.getDefaultMailSenderId(),
             emailId,
             FORGET_PASSWORD_MAIL_SUBJECT,
             FORGET_PASSWORD_MAIL_BODY + otp);
 
-    Boolean isEmailSent = emailService.sendNormalEmailWithPlanText(emailSendDto);
-
-    if (!isEmailSent) {
-      throw new UnProcessableEntityException(
-          "Something went wrong, Please try again to reset password! ");
-    }
+     emailService.sendEmail(emailSendDto);
 
     Optional<UserOtpMapping> userOtpMappingObject =
         userOtpMappingTemplate.findOtpMappingByUserId(userObject.get().getId());
@@ -409,8 +421,13 @@ public class IamServiceImpl implements IamService {
 
     Optional<User> userObject = iamMongodbTemplateLayer.findByEmail(googleSignInUpDto.getEmail());
 
-    if (!userObject.isEmpty() && !userObject.get().getIsGoogleSignedIn()) {
+    if (!userObject.isEmpty() && userObject.get().getIsGoogleSignedIn()!=null && !userObject.get().getIsGoogleSignedIn()) {
       throw new UnProcessableEntityException("This email is already in use!");
+    }
+
+    if(userObject.isPresent() && userObject.get().getIsAppleSingIn()!=null && userObject.get().getIsAppleSingIn())
+    {
+      throw new UnProcessableEntityException("This email is in use with apple sing in!");
     }
 
     User user = null;
@@ -425,6 +442,7 @@ public class IamServiceImpl implements IamService {
       user.setProfileImage(googleSignInUpDto.getImageUrl());
       user.setIsProfileImageUploaded(Boolean.TRUE);
       user.setIsGoogleSignedIn(Boolean.TRUE);
+      user.setIsAppleSingIn(Boolean.FALSE);
       user.setDisable(Boolean.FALSE);
       user.setLastLogin(LocalDateTime.now());
 
@@ -477,11 +495,127 @@ public class IamServiceImpl implements IamService {
     }
 
     User user = userObject.get();
-    user.setPassword(passwordEncode.getEncryptedPassword(newPassword));
+    user.setPassword(getEncryptedPasswordFromPrwatechServer(newPassword));
     iamRepository.save(user);
 
     userOtpMappingRepository.deleteById(userOtpMappingObject.get().getId());
 
     return Boolean.TRUE;
+  }
+
+  /**
+   * Making http call to compare encrypted and user password
+   * @param encryptedPassword
+   * @param userPassword
+   * @return
+   */
+  private Boolean checkLoginInPrwatechServer(final String encryptedPassword, final String userPassword) {
+    try {
+      StringBuffer url = new StringBuffer("https://api.prwatech.com/login/validatePassword");
+
+      RestTemplate restTemplate = new RestTemplate();
+
+      url.append("?")
+              .append("encryptedPassword=")
+              .append(encryptedPassword)
+              .append("&")
+              .append("userPassword=")
+              .append(userPassword);
+      Map result = restTemplate.getForObject(url.toString(), Map.class);
+      return (Boolean) result.get("success");
+    } catch (Exception exception) {
+      LOGGER.error("Error while checking password");
+      return false;
+    }
+  }
+
+  /**
+   * get encrypted password from Main Server
+   */
+  private String getEncryptedPasswordFromPrwatechServer(final String password) {
+    try {
+      StringBuffer url = new StringBuffer("https://api.prwatech.com/login/getEncryptedPassword");
+
+      RestTemplate restTemplate = new RestTemplate();
+
+      url.append("?")
+              .append("password=")
+              .append(password);
+      Map result = restTemplate.getForObject(url.toString(), Map.class);
+      if ((Boolean) result.get("success")) {
+        return (String) result.get("password");
+      } else {
+        throw new BadRequestException("Something went wrong while encrypting.");
+      }
+    } catch (Exception exception) {
+      LOGGER.error("Error while encrypting password");
+      throw new BadRequestException("Something went wrong while encrypting.");
+    }
+  }
+
+
+  @Override
+  public SignInResponseDto signInSignUpWithApple(AppleSignInDto appleSignInDto){
+
+    if(Objects.isNull(appleSignInDto)){
+      throw new UnProcessableEntityException("Apple data is null in request.");
+    }
+    if(appleSignInDto.getAppleString()==null){
+      throw new UnProcessableEntityException("user string can not be null for apple sso.");
+    }
+    Integer RF = iamRepository.findAll().size()+1;
+
+    User user = null;
+    if(appleSignInDto.getEmail()==null){
+      Optional<User> optionalUser = iamMongodbTemplateLayer.findByAppleUser(appleSignInDto.getAppleString());
+      if(optionalUser.isPresent() && optionalUser.get().getIsGoogleSignedIn()!=null && optionalUser.get().getIsGoogleSignedIn()){
+        throw new UnProcessableEntityException("User is already sing in with email as google account.");
+      }
+      else if(optionalUser.isPresent()){
+        user=optionalUser.get();
+      }
+    }
+    else {
+      Optional<User> opUser = iamMongodbTemplateLayer.findByEmail(appleSignInDto.getEmail());
+      if(opUser.isPresent() && (opUser.get().getIsGoogleSignedIn()==null ||opUser.get().getIsGoogleSignedIn().equals(Boolean.TRUE))
+              && (opUser.get().getIsAppleSingIn()==null || opUser.get().getIsAppleSingIn().equals(Boolean.FALSE))){
+        throw new UnProcessableEntityException("User already has created account with email and password.");
+      }
+        user=new User();
+        user.setEmail(appleSignInDto.getEmail());
+        user.setName(appleSignInDto.getName());
+        user.setProfileImage(appleSignInDto.getImgUrl());
+        user.setIsProfileImageUploaded(Boolean.TRUE);
+        user.setIsGoogleSignedIn(Boolean.FALSE);
+        user.setIsAppleSingIn(Boolean.TRUE);
+        user.setAppleUser(appleSignInDto.getAppleString());
+        user.setDisable(Boolean.FALSE);
+        user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
+    }
+
+      user.setLastLogin(LocalDateTime.now());
+      user =iamRepository.save(user);
+
+      if(appleSignInDto.getEmail()!=null){
+        couponService.allocateCouponsToUser(new ArrayList<>(
+                Arrays.asList(Constants.NEW_USER_COUPON_ID)
+        ), new ObjectId(user.getId()));
+      }
+    //create new wallet for user.
+    walletService.createNewWalletForUser(user);
+
+    UserDetails userDetails = new UserDetails();
+    userDetails.setUsername(user.getEmail());
+    Map<String, String> jwtToken = jwtUtils.generateToken(userDetails);
+
+    SignInResponseDto signInResponseDto = new SignInResponseDto();
+    signInResponseDto.setUserId(user.getId());
+    signInResponseDto.setAccessToken(jwtToken.get("accessToken"));
+    signInResponseDto.setExpiresIn(LocalDateTime.now().plusMinutes(60));
+    signInResponseDto.setRefreshToken(jwtToken.get("refreshToken"));
+    signInResponseDto.setRefreshTokenExpiresIn(LocalDateTime.now().plusMinutes(65));
+    signInResponseDto.setUserDetailsDto(userService.getUserDetailsById(user.getId()));
+
+    return signInResponseDto;
   }
 }

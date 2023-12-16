@@ -8,4 +8,6 @@ public interface JobService {
   List<JobDto> getJobListing();
 
   JobDto getJobDescription(String jobId);
+
+  Boolean applyToJob(String userId, String jobId);
 }

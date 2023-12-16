@@ -22,4 +22,11 @@ public class CourseReviewRepositoryTemplate {
 
     return mongoTemplate.find(query, CourseReview.class);
   }
+
+  public CourseReview getCourseReviewByCourseIdAndUserId(ObjectId userId, ObjectId courseId){
+    Query query = new Query();
+    query.addCriteria(Criteria.where("Course_Id")
+            .is(courseId).andOperator(Criteria.where("Reviewer_Id").is(userId)));
+    return mongoTemplate.findOne(query, CourseReview.class);
+  }
 }

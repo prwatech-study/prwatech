@@ -1,6 +1,7 @@
 package com.prwatech.courses.service.impl;
 
 import com.prwatech.common.Constants;
+import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
@@ -13,11 +14,14 @@ import com.prwatech.courses.dto.CourseRatingDto;
 import com.prwatech.courses.dto.CourseReviewRequestDto;
 import com.prwatech.courses.dto.ForumFilterListingDto;
 import com.prwatech.courses.enums.CourseLevelCategory;
+import com.prwatech.courses.model.CourseCurriculam;
 import com.prwatech.courses.model.CourseDetails;
 import com.prwatech.courses.model.CourseReview;
 import com.prwatech.courses.model.CourseTrack;
+import com.prwatech.courses.model.MyCourses;
 import com.prwatech.courses.model.Pricing;
 import com.prwatech.courses.model.WishList;
+import com.prwatech.courses.repository.CourseCurriculamTemplate;
 import com.prwatech.courses.repository.CourseDetailRepository;
 import com.prwatech.courses.repository.CourseDetailsRepositoryTemplate;
 import com.prwatech.courses.repository.CoursePricingRepositoryTemplate;
@@ -25,9 +29,12 @@ import com.prwatech.courses.repository.CourseReviewRepository;
 import com.prwatech.courses.repository.CourseReviewRepositoryTemplate;
 import com.prwatech.courses.repository.CourseTrackRepository;
 import com.prwatech.courses.repository.CourseTrackTemplate;
+import com.prwatech.courses.repository.MyCoursesRepository;
+import com.prwatech.courses.repository.MyCoursesTemplate;
 import com.prwatech.courses.repository.WishListTemplate;
 import com.prwatech.courses.service.CourseDetailService;
 
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -66,6 +73,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   private final CourseTrackTemplate courseTrackTemplate;
   private final CourseTrackRepository courseTrackRepository;
   private final UserRepository userRepository;
+  private final CourseCurriculamTemplate courseCurriculamTemplate;
+  private final MyCoursesTemplate myCoursesTemplate;
+  private final MyCoursesRepository myCoursesRepository;
+  private final AppContext appContext;
   private static final org.slf4j.Logger LOGGER =
           org.slf4j.LoggerFactory.getLogger(CourseDetailServiceImpl.class);
 
@@ -93,7 +104,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
       courseCardDto.setIsWishListed(Boolean.FALSE);
-      if(userId!=null){
+      if(Objects.nonNull(userId)){
         Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
         if(wishList.isPresent()){
           courseCardDto.setIsWishListed(Boolean.TRUE);
@@ -115,7 +126,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         .orElseThrow(() -> new NotFoundException("No course found by this id :"));
 
     CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
-    CourseDetailsDto courseDetailsDto = new CourseDetailsDto(courseDetail, courseRatingDto, false, null, false);
+    CourseDetailsDto courseDetailsDto = new CourseDetailsDto(courseDetail, courseRatingDto, false, null, false, null);
     if(userId!=null){
      Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(
               new ObjectId(userId), new ObjectId(courseDetail.getId()));
@@ -126,7 +137,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
        courseDetailsDto.setIsWishListed(Boolean.TRUE);
        courseDetailsDto.setWishListId(wishList.get().getId());
      }
-
+     CourseReview courseReview = courseReviewRepositoryTemplate.getCourseReviewByCourseIdAndUserId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
+     if(Objects.nonNull(courseReview)){
+       courseDetailsDto.setRating(courseReview.getReview_Number());
+     }
      if(Objects.nonNull(courseTrack)){
        courseDetailsDto.setIsEnrolled(Boolean.TRUE);
      }
@@ -267,7 +281,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
             courseDetailsRepositoryTemplate.getAllSelfPlacedCourses(pageNumber, pageSize);
         break;
       case ALL:
-        courseDetailsPage = courseDetailRepository.findAll(PageRequest.of(pageNumber, pageSize));
+        courseDetailsPage = courseDetailsRepositoryTemplate.getAllCourses(pageNumber, pageSize, appContext.getCourseCategoryId());
         break;
       default:
         throw new UnProcessableEntityException("This category does not exist!");
@@ -295,7 +309,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         case MOST_POPULAR -> courseCardDto.setDiscountedPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Classroom").getDiscounted_Price());
         case SELF_PLACED -> courseCardDto.setDiscountedPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getDiscounted_Price());
         case FREE_COURSES -> courseCardDto.setDiscountedPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Webinar").getDiscounted_Price());
-        case ALL -> courseCardDto.setDiscountedPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getDiscounted_Price());
+        case ALL -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getActual_Price());
       }
 
       courseCardDto.setCourseDurationHours(6);
@@ -371,10 +385,28 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       throw new UnProcessableEntityException("User id can not be null!");
     }
 
-    List<CourseTrack> courseTrackList = courseTrackTemplate.getAllEnrolledCoursesOfUser(userId);
+//    List<CourseTrack> courseTrackList = courseTrackTemplate.getAllEnrolledCoursesOfUser(userId);
     Set<CourseCardDto> courseCardList = new HashSet<>();
-    for(CourseTrack courseTrack: courseTrackList){
-      CourseDetails courseDetail = courseDetailRepository.findById(courseTrack.getCourseId().toString()).orElse(null);
+//    for(CourseTrack courseTrack: courseTrackList){
+//      CourseDetails courseDetail = courseDetailRepository.findById(courseTrack.getCourseId().toString()).orElse(null);
+//      if(Objects.nonNull(courseDetail)){
+//        CourseCardDto courseCardDto = new CourseCardDto();
+//        courseCardDto.setCourseId(courseDetail.getId());
+//        courseCardDto.setTitle(courseDetail.getCourse_Title());
+//        courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
+//        courseCardDto.setImgUrl(courseDetail.getCourse_Image());
+//        courseCardDto.setPrice(
+//                getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getActual_Price());
+//        courseCardDto.setDiscountedPrice(
+//                getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
+//        courseCardDto.setCourseDurationHours(6);
+//        courseCardDto.setCourseDurationMinute(30);
+//        courseCardList.add(courseCardDto);
+//      }
+//    }
+    List<MyCourses> myCourses = myCoursesTemplate.findCourseByUserId(userId);
+    for(MyCourses myCourse: myCourses){
+      CourseDetails courseDetail = courseDetailRepository.findById(myCourse.getCourse_Id().toString()).orElse(null);
       if(Objects.nonNull(courseDetail)){
         CourseCardDto courseCardDto = new CourseCardDto();
         courseCardDto.setCourseId(courseDetail.getId());
@@ -442,13 +474,13 @@ public class CourseDetailServiceImpl implements CourseDetailService {
 
     if(Objects.nonNull(courseTrack)){
       if(courseTrack.getTotalSize()<=currentItem){
-          courseTrack.setCurrentItem(courseTrack.getTotalSize());
-          courseTrack.setIsAllCompleted(Boolean.TRUE);
+        courseTrack.setCurrentItem(courseTrack.getTotalSize());
+        courseTrack.setIsAllCompleted(Boolean.TRUE);
+        courseTrack.setUpdatedAt(LocalDateTime.now());
       }
       else {
         courseTrack.setCurrentItem(currentItem);
       }
-
       courseTrackRepository.save(courseTrack);
     }
     else {
@@ -469,27 +501,28 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   @Override
   public CertificateDetailsDto getCertificateDetails(String userId, String courseId) {
     User user = userRepository.findById(userId).orElseThrow(()-> new NotFoundException("User not found by given id."));
-
-    if(user.getName()==null){
-      throw new UnProcessableEntityException("Please complete your profile details.");
+    String name=null;
+    if(user.getName()!=null){
+     name=user.getName();
     }
 
     CourseDetails courseDetails = courseDetailRepository.findById(courseId).orElseThrow(()-> new NotFoundException("No course found by this course id"));
 
     CourseTrack courseTrack = courseTrackTemplate.getByCourseIdAndUserId(new ObjectId(userId), new ObjectId(courseId));
-
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd, MMMM, yyyy", Locale.ENGLISH);
+    String date= LocalDateTime.now().format(formatter);
     if (Objects.isNull(courseTrack)){
-      throw new NotFoundException("You have not bought this course.");
+      return new CertificateDetailsDto(name, courseDetails.getCourse_Title(), date);
     }
 
     if(!courseTrack.getIsAllCompleted()){
       throw new UnProcessableEntityException("You must complete the course to get certificate.");
     }
+    if(courseTrack.getUpdatedAt()!=null){
+      date= courseTrack.getUpdatedAt().format(formatter);
+    }
 
-    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd, MMMM, yyyy", Locale.ENGLISH);
-    String date= courseTrack.getUpdatedAt().format(formatter);
-
-    return new CertificateDetailsDto(user.getName(), courseDetails.getCourse_Title(), date);
+    return new CertificateDetailsDto(name, courseDetails.getCourse_Title(), date);
   }
 
   @Override
@@ -501,5 +534,49 @@ public class CourseDetailServiceImpl implements CourseDetailService {
    courseDetails.setIsFree(isFree);
    courseDetailRepository.save(courseDetails);
     return true;
+  }
+
+  @Override
+  public CourseTrack enrollAFreeCourse(String userId, String courseId) {
+
+    MyCourses myCourses= myCoursesTemplate.findByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseId));
+    CourseTrack courseTrack = courseTrackTemplate.getByCourseIdAndUserId(new ObjectId(userId), new ObjectId(courseId));
+
+    if(Objects.isNull(myCourses)){
+      CourseCurriculam courseCurriculam = courseCurriculamTemplate.getAllCurriculamByCourseId(new ObjectId(courseId));
+      LOGGER.info("The given course assigning to user.");
+      myCourses= MyCourses.builder().Course_Id(new ObjectId(courseId)).User_Id(new ObjectId(userId)).build();
+
+      if(Objects.isNull(courseTrack)){
+        courseTrack = CourseTrack.builder()
+                .userId(new ObjectId(userId))
+                .courseId(new ObjectId(courseId))
+                .currentItem(1)
+                .isAllCompleted(Boolean.FALSE)
+                .totalSize((Objects.nonNull(courseCurriculam))?courseCurriculam.getCourse_Curriculam().size():1)
+                .build();
+      }
+      myCoursesRepository.save(myCourses);
+      return courseTrackRepository.save(courseTrack);
+    }
+    return courseTrack;
+  }
+
+  @Override
+  public Boolean rateACourse(String userId, String courseId, Integer rating) {
+
+    CourseReview  courseReview = courseReviewRepositoryTemplate.getCourseReviewByCourseIdAndUserId(new ObjectId(userId), new ObjectId(courseId));
+
+    if(Objects.nonNull(courseReview)){
+      LOGGER.error("This user has been given already the review for this course.");
+      return Boolean.FALSE;
+    }
+      courseReview = CourseReview.builder()
+              .Course_Id(new ObjectId(courseId))
+              .Reviewer_Id(new ObjectId(userId))
+              .Review_Number(rating)
+              .build();
+    courseReviewRepository.save(courseReview);
+    return Boolean.TRUE;
   }
 }

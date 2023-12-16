@@ -34,4 +34,7 @@ public class QuizQuestionDto {
 
     @JsonProperty(value = "attempted_answer")
     private String attemptedAnswer;
+
+    @JsonProperty(value = "description")
+    private String description;
 }

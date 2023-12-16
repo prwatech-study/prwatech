@@ -1,15 +1,20 @@
 package com.prwatech.user.service.impl;
 
+import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
+import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.courses.dto.MyDashboardActivity;
 import com.prwatech.courses.service.MyCourseService;
 import com.prwatech.user.dto.EducationUpdateDto;
 import com.prwatech.user.dto.UserDetailsDto;
 import com.prwatech.user.dto.UserProfileDto;
 import com.prwatech.user.dto.UserProfileUpdateDto;
+import com.prwatech.user.model.DeletedUser;
 import com.prwatech.user.model.User;
 import com.prwatech.user.model.UserEducationDetails;
+import com.prwatech.user.repository.DeletedUserRepository;
+import com.prwatech.user.repository.IamRepository;
 import com.prwatech.user.repository.UserEducationDetailsRepository;
 import com.prwatech.user.repository.UserRepository;
 import com.prwatech.user.service.UserService;
@@ -20,6 +25,9 @@ import org.bson.types.ObjectId;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 
+import static com.prwatech.common.Constants.*;
+import static com.prwatech.common.Constants.FORGET_PASSWORD_MAIL_BODY;
+
 @Service
 @AllArgsConstructor
 public class UserServiceImpl implements UserService {
@@ -28,11 +36,13 @@ public class UserServiceImpl implements UserService {
       org.slf4j.LoggerFactory.getLogger(UserServiceImpl.class);
 
   private final UserRepository userRepository;
+  private final DeletedUserRepository deletedUserRepository;
   private final ModelMapper modelMapper;
   private final MyCourseService myCourseService;
   private final EducationDetailsTemplates educationDetailsTemplates;
   private final UserEducationDetailsRepository educationDetailsRepository;
-
+  private final IamRepository iamRepository;
+  private final EmailServiceImpl emailService;
   @Override
   public UserDetailsDto getUserDetailsById(String id) {
     User user =
@@ -53,7 +63,7 @@ public class UserServiceImpl implements UserService {
     UserProfileDto userProfileDto = modelMapper.map(user, UserProfileDto.class);
 
     userProfileDto.setIsPhoneLoggedIn((user.getIsMobileRegistered())?Boolean.TRUE:Boolean.FALSE);
-    userProfileDto.setEmail((user.getIsMobileRegistered())?null: user.getEmail());
+    userProfileDto.setEmail((user.getEmail()==null)?null: user.getEmail());
     MyDashboardActivity myDashboardActivity = myCourseService.getUserDashboardActivityByUserId(id);
     userProfileDto.setEducationDetails(educationDetailsTemplates.getByUserId(id));
     userProfileDto.setEnrolledCourse(myDashboardActivity.getEnrolledCourses());
@@ -73,14 +83,15 @@ public class UserServiceImpl implements UserService {
       throw new UnProcessableEntityException("update data is empty or missing!");
     }
 
-//    if (Objects.nonNull(profileUpdateDto.getPhoneNumber())) {
-//      user.setPhoneNumber(profileUpdateDto.getPhoneNumber());
-//    }
-//
+    if (!user.getIsMobileRegistered() && Objects.nonNull(profileUpdateDto.getPhoneNumber())) {
+      user.setPhoneNumber(profileUpdateDto.getPhoneNumber());
+    }
 
-//    if (Objects.nonNull(profileUpdateDto.getEmail()) && user.getIsMobileRegistered()) {
-//      user.setEmail(profileUpdateDto.getEmail());
-//    }
+
+    if ( Objects.nonNull(profileUpdateDto.getEmail()) && user.getIsMobileRegistered()) {
+           user.setEmail(profileUpdateDto.getEmail());
+
+    }
 
     if(profileUpdateDto.getName()!=null){
       user.setName(profileUpdateDto.getName());
@@ -141,8 +152,39 @@ public class UserServiceImpl implements UserService {
             .findById(id)
             .orElseThrow(() -> new NotFoundException("No user found by this id"));
     if(user.getReferal_Code()==null){
-      return "";
+      Integer RF = iamRepository.findAll().size()+1;
+      user.setReferal_Code(REFERAL_BIT_1+RF+REFERAL_BIT_2);
+      user = iamRepository.save(user);
     }
     return user.getReferal_Code();
+  }
+
+  @Override
+  public void deleteUserDetails(String id) {
+    User user =
+            userRepository
+                    .findById(id)
+                    .orElseThrow(() -> new NotFoundException("No user find with this id!"));
+    if (user != null) {
+      DeletedUser deletedUser = modelMapper.map(user, DeletedUser.class);
+      deletedUserRepository.save(deletedUser);
+    }
+    userRepository.deleteById(id);
+
+      if (user.getEmail()!=null) {
+        new Thread(() -> {
+          try {
+            EmailSendDto emailSendDto =
+                    new EmailSendDto(
+                            user.getEmail(),
+                            USER_ACCOUNT_DELETION_REQUEST,
+                            USER_ACCOUNT_DELETION_MESSAGE.replace("XXXX", user.getName() != null ? user.getName() : "User"));
+
+            emailService.sendEmail(emailSendDto);
+          } catch (Exception ex) {
+            LOGGER.error("Error while sending EMAIL to Deleted User.");
+          }
+        });
+      }
   }
 }

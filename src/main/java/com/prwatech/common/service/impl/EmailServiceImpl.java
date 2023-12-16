@@ -1,21 +1,16 @@
 package com.prwatech.common.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.dto.EmailSendDto;
-import com.prwatech.common.exception.UnProcessableEntityException;
-import java.util.Properties;
-import javax.mail.Authenticator;
-import javax.mail.Message;
-import javax.mail.Multipart;
-import javax.mail.PasswordAuthentication;
-import javax.mail.Session;
-import javax.mail.Transport;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeBodyPart;
-import javax.mail.internet.MimeMessage;
-import javax.mail.internet.MimeMultipart;
 import lombok.AllArgsConstructor;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
+
+
 
 @Component
 @AllArgsConstructor
@@ -25,57 +20,36 @@ public class EmailServiceImpl {
       org.slf4j.LoggerFactory.getLogger(EmailServiceImpl.class);
   private final AppContext appContext;
 
-  private Properties getProperties() {
-    Properties property = new Properties();
-    property.put("mail.smtp.auth", appContext.getEmailAuth());
-    property.put("mail.smtp.starttls.enable", appContext.getEmailStarttls());
-    property.put("mail.smtp.host", appContext.getEmailHostName());
-    property.put("mail.smtp.port", appContext.getEmailPort());
-    property.put("mail.smtp.ssl.trust", appContext.getEmailHostName());
-    return property;
+  public Boolean sendSimpleMail(EmailSendDto emailSendDto){
+    try {
+
+    }
+    catch (Exception e){
+      LOGGER.error("Something went wrong while sending the mail to email id: with error: "+ e.getMessage());
+    }
+    return Boolean.FALSE;
   }
 
-  public Boolean sendNormalEmailWithPlanText(EmailSendDto emailSendDto) {
+  public void sendEmail(EmailSendDto emailSendDto){
 
-    try {
-      Session session =
-          Session.getInstance(
-              getProperties(),
-              new Authenticator() {
-                @Override
-                protected PasswordAuthentication getPasswordAuthentication() {
-                  return new PasswordAuthentication(
-                      appContext.getEmailHostUsername(), appContext.getEmailHostPassword());
-                }
-              });
+    try
+    {
+      String apiUrl ="https://api.prwatech.com/support/sendEmail";
+      ObjectMapper objectMapper = new ObjectMapper();
+      RestTemplate restTemplate = new RestTemplate();
 
-      Message message = new MimeMessage(session);
+      HttpHeaders headers = new HttpHeaders();
+      headers.setContentType(MediaType.APPLICATION_JSON);
 
-      LOGGER.info("Preparing text email to send!");
+      String requestBody = objectMapper.writeValueAsString(emailSendDto);
 
-      message.setFrom(new InternetAddress(emailSendDto.getSenderEmailId()));
-      message.setRecipient(
-          Message.RecipientType.TO, new InternetAddress(emailSendDto.getReceiverEmailId()));
-      message.setSubject(emailSendDto.getSubject());
+      HttpEntity<String> requestEntity = new HttpEntity<>(requestBody, headers);
+      restTemplate.postForEntity(apiUrl, requestEntity, String.class);
 
-      MimeBodyPart mimeBodyPart = new MimeBodyPart();
-      mimeBodyPart.setContent(emailSendDto.getTextMessage(), "text/html; charset=utf-8");
-
-      Multipart multipart = new MimeMultipart();
-      multipart.addBodyPart(mimeBodyPart);
-
-      message.setContent(multipart);
-
-      Transport.send(message);
-      LOGGER.info(
-          "Email delivered successfully to receiver with email id : {}",
-          emailSendDto.getReceiverEmailId());
-      return Boolean.TRUE;
-
-    } catch (Exception e) {
-      LOGGER.error("Something went while sending email! due to:: {}", e.getMessage());
-      throw new UnProcessableEntityException(
-          "Something went wrong while sending email, please try again!");
+    }
+    catch (Exception e){
+      LOGGER.error("Not able to connect or send email via node server :: {}", e.getMessage());
     }
   }
+
 }
