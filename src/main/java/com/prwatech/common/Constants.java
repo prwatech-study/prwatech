@@ -33,7 +33,7 @@ public class Constants {
   public static final String DEFAULT_OTP_SMS_BODY = "Welcome to Prwatech, your OTP is : ";
   public static final int DEFAULT_FLASH = 0;
   public static final String DEFAULT_LANGUAGE = "english";
-  public static Integer DEFAULT_PRICING = 1999;
+  public static Integer DEFAULT_PRICING = 19999;
   public static String SUCCESSFUL = "Successful";
   public static String UNSUCCESSFUL = "Unsuccessful";
   public static String FORGET_PASSWORD_MAIL_SUBJECT = "Prwatech - Otp for forget password";
