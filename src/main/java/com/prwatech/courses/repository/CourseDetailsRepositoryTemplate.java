@@ -27,9 +27,12 @@ public class CourseDetailsRepositoryTemplate {
 
   private final MongoTemplate mongoTemplate ;
 
+  //Webinar - Online
+  //Online - Self Paced
+  //Classroom - Class Room
   public List<CourseDetails> getMostPopularCourse() {
     Query query = new Query();
-    query.addCriteria(Criteria.where("Course_Types").in("Classroom")).limit(10);
+    query.addCriteria(Criteria.where("Course_Types").in("Webinar")).limit(10);
     return mongoTemplate.find(query, CourseDetails.class);
   };
 
@@ -48,7 +51,7 @@ public class CourseDetailsRepositoryTemplate {
   public Page<CourseDetails> getAllMostPopularCourses(Integer pageNumber, Integer pageSize) {
     Pageable pageable = PageRequest.of(pageNumber, pageSize);
     Query query = new Query();
-    query.addCriteria(Criteria.where("Course_Types").in("Classroom"));
+    query.addCriteria(Criteria.where("Course_Types").in("Webinar"));
     Long count = mongoTemplate.count(query, CourseDetails.class);
     query.with(pageable);
     List<CourseDetails> courseDetailsList = mongoTemplate.find(query, CourseDetails.class);
