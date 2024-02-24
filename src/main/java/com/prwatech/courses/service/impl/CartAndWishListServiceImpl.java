@@ -68,7 +68,7 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
                     courseCardDto.setImgUrl(courseDetail.getCourse_Image());
                     courseCardDto.setCourseRatingDto(courseRatingDto);
                     courseCardDto.setPrice( courseDetailService.
-                            getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getActual_Price());
+                            getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
                     courseCardDto.setDiscountedPrice( courseDetailService.
                             getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
                     courseCardDto.setCourseLevelCategory(CourseLevelCategory.MOST_POPULAR);
@@ -109,7 +109,7 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
                 courseCardDto.setImgUrl(courseDetail.getCourse_Image());
                 courseCardDto.setCourseRatingDto(courseRatingDto);
                 courseCardDto.setPrice( courseDetailService.
-                        getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getActual_Price());
+                        getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
                 courseCardDto.setDiscountedPrice( courseDetailService.
                         getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
                 courseCardDto.setCourseLevelCategory(CourseLevelCategory.MOST_POPULAR);

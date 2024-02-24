@@ -97,7 +97,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
       courseCardDto.setCourseRatingDto(courseRatingDto);
       courseCardDto.setPrice(
-          getPriceByCourseId(new ObjectId(courseDetail.getId()),"Webinar").getActual_Price());
+          getPriceByCourseId(new ObjectId(courseDetail.getId()),"Webinar").getDiscounted_Price());
       courseCardDto.setDiscountedPrice(
               getPriceByCourseId(new ObjectId(courseDetail.getId()),"Webinar").getDiscounted_Price());
       courseCardDto.setCourseLevelCategory(CourseLevelCategory.MOST_POPULAR);
@@ -204,7 +204,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
       courseCardDto.setCourseRatingDto(courseRatingDto);
       courseCardDto.setPrice(
-          getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getActual_Price());
+          getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getDiscounted_Price());
       courseCardDto.setDiscountedPrice(
               getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getDiscounted_Price());
       courseCardDto.setCourseLevelCategory(CourseLevelCategory.SELF_PLACED);
@@ -300,8 +300,8 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setCourseRatingDto(courseRatingDto);
 
       switch (category){
-        case MOST_POPULAR, FREE_COURSES -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Webinar").getActual_Price());
-        case SELF_PLACED, ALL -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getActual_Price());
+        case MOST_POPULAR, FREE_COURSES -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Webinar").getDiscounted_Price());
+        case SELF_PLACED, ALL -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getDiscounted_Price());
       }
       switch (category){
         case MOST_POPULAR, FREE_COURSES -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Webinar").getDiscounted_Price());
@@ -409,7 +409,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
         courseCardDto.setImgUrl(courseDetail.getCourse_Image());
         courseCardDto.setPrice(
-                getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getActual_Price());
+                getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
         courseCardDto.setDiscountedPrice(
                 getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
         courseCardDto.setCourseDurationHours(6);
@@ -439,7 +439,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
         courseCardDto.setImgUrl(courseDetail.getCourse_Image());
         courseCardDto.setPrice(
-                getPriceByCourseId(new ObjectId(courseDetail.getId()), courseDetail.getCourse_Category()).getActual_Price());
+                getPriceByCourseId(new ObjectId(courseDetail.getId()), courseDetail.getCourse_Category()).getDiscounted_Price());
         courseCardDto.setDiscountedPrice(
                 getPriceByCourseId(new ObjectId(courseDetail.getId()), courseDetail.getCourse_Category()).getDiscounted_Price());
         courseCardDto.setCourseDurationHours(6);
