@@ -346,9 +346,8 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     String Course_Type="";
 
     switch (category){
-      case MOST_POPULAR -> Course_Type="Classroom";
+      case MOST_POPULAR, FREE_COURSES -> Course_Type="Webinar";
       case SELF_PLACED -> Course_Type="Online";
-      case FREE_COURSES -> Course_Type="Webinar";
     }
     return getPriceByCourseId(id, Course_Type);
   }
