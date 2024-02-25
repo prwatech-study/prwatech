@@ -75,4 +75,7 @@ public class CourseDetails {
 
   @Field(name = "Disable")
   private Boolean Disable = Boolean.FALSE;
+
+  @Field(name = "Product_Id")
+  private String Product_Id;
 }
