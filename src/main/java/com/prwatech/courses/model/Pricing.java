@@ -31,4 +31,7 @@ public class Pricing {
 
   @Field(name = "Discounted_Price")
   private Integer Discounted_Price;
+
+  @Field(name = "Product_Id")
+  private String Product_Id;
 }
