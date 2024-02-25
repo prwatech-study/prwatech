@@ -185,7 +185,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   public Pricing getPriceByCourseId(ObjectId courseId, String type) {
     return coursePricingRepositoryTemplate
         .getPricingOfCourseByCourseId(courseId, type)
-        .orElse(new Pricing("", new ObjectId(), null, Constants.DEFAULT_PRICING, Constants.DEFAULT_PRICING));
+        .orElse(new Pricing("", new ObjectId(), null, Constants.DEFAULT_PRICING, Constants.DEFAULT_PRICING, ""));
   }
 
   @Override
