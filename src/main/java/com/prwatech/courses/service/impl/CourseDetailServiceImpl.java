@@ -211,6 +211,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
       courseCardDto.setIsWishListed(Boolean.FALSE);
+      courseCardDto.setProductId(courseDetail.getProduct_Id());
       if(userId!=null){
         Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
         if(wishList.isPresent()){

@@ -27,4 +27,5 @@ public class CourseCardDto {
   private CourseLevelCategory courseLevelCategory;
   private Boolean isWishListed;
   private Boolean isCompleted;
+  private String productId;
 }
