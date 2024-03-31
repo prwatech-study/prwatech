@@ -74,6 +74,8 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
                     courseCardDto.setCourseLevelCategory(CourseLevelCategory.MOST_POPULAR);
                     courseCardDto.setCourseDurationHours(6);
                     courseCardDto.setCourseDurationMinute(30);
+                    courseCardDto.setProductId( courseDetailService.
+                            getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getProduct_Id());
                     if(User_Id!=null){
                         Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(User_Id, new ObjectId(courseDetail.getId()));
                         if(wishList.isPresent()){
