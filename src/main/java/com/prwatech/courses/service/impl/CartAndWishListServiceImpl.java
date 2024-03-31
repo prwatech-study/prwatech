@@ -9,6 +9,7 @@ import com.prwatech.courses.dto.CourseRatingDto;
 import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.Cart;
 import com.prwatech.courses.model.CourseDetails;
+import com.prwatech.courses.model.Pricing;
 import com.prwatech.courses.model.WishList;
 import com.prwatech.courses.repository.CartRepository;
 import com.prwatech.courses.repository.CartTemplate;
@@ -51,14 +52,17 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
 
 
         List<Cart> cartList = cartTemplate.getByUserId(User_Id);
-
         Set<CourseCardDto> courseCardDtoList = new HashSet<>();
         for(Cart cart: cartList){
             List<Cart.Cart_Items> cart_items = cart.getCart_Items();
             for(com.prwatech.courses.model.Cart.Cart_Items cartItem:cart_items){
+
                 CourseDetails courseDetail = courseDetailRepository.findById(cartItem.getCourse_Id().toString())
                         .orElse(null);
                 if(Objects.nonNull(courseDetail)){
+                    Pricing coursePricing = courseDetailService.
+                            getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.fromString(cartItem.getCourse_Type()));
+
                     CourseRatingDto courseRatingDto = courseDetailService.getRatingOfCourse(courseDetail.getId());
                     CourseCardDto courseCardDto = new CourseCardDto();
                     courseCardDto.setCartId(cart.getId());
@@ -67,15 +71,12 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
                     courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
                     courseCardDto.setImgUrl(courseDetail.getCourse_Image());
                     courseCardDto.setCourseRatingDto(courseRatingDto);
-                    courseCardDto.setPrice( courseDetailService.
-                            getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
-                    courseCardDto.setDiscountedPrice( courseDetailService.
-                            getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
-                    courseCardDto.setCourseLevelCategory(CourseLevelCategory.MOST_POPULAR);
+                    courseCardDto.setPrice( coursePricing.getDiscounted_Price());
+                    courseCardDto.setDiscountedPrice( coursePricing.getDiscounted_Price());
+                    courseCardDto.setCourseLevelCategory(CourseLevelCategory.fromString(cartItem.getCourse_Type()));
                     courseCardDto.setCourseDurationHours(6);
                     courseCardDto.setCourseDurationMinute(30);
-                    courseCardDto.setProductId( courseDetailService.
-                            getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getProduct_Id());
+                    courseCardDto.setProductId( coursePricing.getProduct_Id());
                     if(User_Id!=null){
                         Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(User_Id, new ObjectId(courseDetail.getId()));
                         if(wishList.isPresent()){
@@ -102,6 +103,9 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
         for (WishList wishList : wishLists){
             CourseDetails courseDetail = courseDetailRepository.findById(wishList.getCourseId().toString()).orElse(null);
             if(Objects.nonNull(courseDetail)){
+                Pricing coursePricing = courseDetailService.
+                        getPriceByCourseId(new ObjectId(courseDetail.getId()), wishList.getCourseType());
+
                 CourseRatingDto courseRatingDto = courseDetailService.getRatingOfCourse(courseDetail.getId());
                 CourseCardDto courseCardDto = new CourseCardDto();
                 courseCardDto.setWishListId(wishList.getId());
@@ -110,13 +114,12 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
                 courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
                 courseCardDto.setImgUrl(courseDetail.getCourse_Image());
                 courseCardDto.setCourseRatingDto(courseRatingDto);
-                courseCardDto.setPrice( courseDetailService.
-                        getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
-                courseCardDto.setDiscountedPrice( courseDetailService.
-                        getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
+                courseCardDto.setPrice( coursePricing.getDiscounted_Price());
+                courseCardDto.setDiscountedPrice( coursePricing.getDiscounted_Price());
                 courseCardDto.setCourseLevelCategory(CourseLevelCategory.MOST_POPULAR);
                 courseCardDto.setCourseDurationHours(6);
                 courseCardDto.setCourseDurationMinute(30);
+                courseCardDto.setProductId( coursePricing.getProduct_Id());
                 if(User_Id!=null){
                     Optional<WishList> wishList1 = wishListTemplate.getByUserIdAndCourseId(User_Id, new ObjectId(courseDetail.getId()));
                     if(wishList1.isPresent()){

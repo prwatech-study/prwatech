@@ -1,5 +1,6 @@
 package com.prwatech.courses.repository;
 
+import com.prwatech.courses.enums.CourseLevelCategory;
 import com.prwatech.courses.model.Pricing;
 import java.util.Optional;
 import lombok.AllArgsConstructor;
@@ -15,10 +16,10 @@ public class CoursePricingRepositoryTemplate {
 
   private MongoTemplate mongoTemplate;
 
-  public Optional<Pricing> getPricingOfCourseByCourseId(ObjectId Course_Id, String Course_Type) {
+  public Optional<Pricing> getPricingOfCourseByCourseId(ObjectId Course_Id, CourseLevelCategory Course_Type) {
 
     Query query = new Query();
-    query.addCriteria(Criteria.where("Course_Id").is(Course_Id).andOperator(Criteria.where("Course_Type").is(Course_Type)));
+    query.addCriteria(Criteria.where("Course_Id").is(Course_Id).andOperator(Criteria.where("Course_Type").is(Course_Type.getCourseType())));
     return Optional.ofNullable(mongoTemplate.findOne(query, Pricing.class));
   }
 }

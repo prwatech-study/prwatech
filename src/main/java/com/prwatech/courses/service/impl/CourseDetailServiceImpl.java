@@ -87,7 +87,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getMostPopularCourse();
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailList) {
-
+      Pricing cousePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.MOST_POPULAR);
       CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
@@ -96,10 +96,8 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
       courseCardDto.setCourseRatingDto(courseRatingDto);
-      courseCardDto.setPrice(
-          getPriceByCourseId(new ObjectId(courseDetail.getId()),"Webinar").getDiscounted_Price());
-      courseCardDto.setDiscountedPrice(
-              getPriceByCourseId(new ObjectId(courseDetail.getId()),"Webinar").getDiscounted_Price());
+      courseCardDto.setPrice(cousePricing.getDiscounted_Price());
+      courseCardDto.setDiscountedPrice(cousePricing.getDiscounted_Price());
       courseCardDto.setCourseLevelCategory(CourseLevelCategory.MOST_POPULAR);
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
@@ -182,7 +180,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
 
 
   @Override
-  public Pricing getPriceByCourseId(ObjectId courseId, String type) {
+  public Pricing getPriceByCourseId(ObjectId courseId, CourseLevelCategory type) {
     return coursePricingRepositoryTemplate
         .getPricingOfCourseByCourseId(courseId, type)
         .orElse(new Pricing("", new ObjectId(), null, Constants.DEFAULT_PRICING, Constants.DEFAULT_PRICING, ""));
@@ -194,7 +192,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getSelfPlacedCourses();
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailList) {
-
+      Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.SELF_PLACED);
       CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
@@ -203,10 +201,8 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
       courseCardDto.setCourseRatingDto(courseRatingDto);
-      courseCardDto.setPrice(
-          getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getDiscounted_Price());
-      courseCardDto.setDiscountedPrice(
-              getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getDiscounted_Price());
+      courseCardDto.setPrice(coursePricing.getDiscounted_Price());
+      courseCardDto.setDiscountedPrice(coursePricing.getDiscounted_Price());
       courseCardDto.setCourseLevelCategory(CourseLevelCategory.SELF_PLACED);
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
@@ -301,12 +297,12 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setCourseRatingDto(courseRatingDto);
 
       switch (category){
-        case MOST_POPULAR, FREE_COURSES -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Webinar").getDiscounted_Price());
-        case SELF_PLACED, ALL -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getDiscounted_Price());
+        case MOST_POPULAR, FREE_COURSES -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.MOST_POPULAR).getDiscounted_Price());
+        case SELF_PLACED, ALL -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.SELF_PLACED).getDiscounted_Price());
       }
       switch (category){
-        case MOST_POPULAR, FREE_COURSES -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Webinar").getDiscounted_Price());
-        case SELF_PLACED, ALL -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), "Online").getDiscounted_Price());
+        case MOST_POPULAR, FREE_COURSES -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.MOST_POPULAR).getDiscounted_Price());
+        case SELF_PLACED, ALL -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.SELF_PLACED).getDiscounted_Price());
       }
 
       courseCardDto.setCourseDurationHours(6);
@@ -344,11 +340,11 @@ public class CourseDetailServiceImpl implements CourseDetailService {
 
   @Override
   public Pricing getCoursePriceByIdAndCategory(ObjectId id, CourseLevelCategory category) {
-    String Course_Type="";
+    CourseLevelCategory Course_Type = CourseLevelCategory.MOST_POPULAR;
 
     switch (category){
-      case MOST_POPULAR, FREE_COURSES -> Course_Type="Webinar";
-      case SELF_PLACED -> Course_Type="Online";
+      case MOST_POPULAR, FREE_COURSES -> Course_Type = CourseLevelCategory.MOST_POPULAR;
+      case SELF_PLACED -> Course_Type = CourseLevelCategory.SELF_PLACED;
     }
     return getPriceByCourseId(id, Course_Type);
   }
@@ -404,15 +400,14 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     for(MyCourses myCourse: myCourses){
       CourseDetails courseDetail = courseDetailRepository.findById(myCourse.getCourse_Id().toString()).orElse(null);
       if(Objects.nonNull(courseDetail)){
+        Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.fromString(courseDetail.getCourse_Category()));
         CourseCardDto courseCardDto = new CourseCardDto();
         courseCardDto.setCourseId(courseDetail.getId());
         courseCardDto.setTitle(courseDetail.getCourse_Title());
         courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
         courseCardDto.setImgUrl(courseDetail.getCourse_Image());
-        courseCardDto.setPrice(
-                getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
-        courseCardDto.setDiscountedPrice(
-                getPriceByCourseId(new ObjectId(courseDetail.getId()),courseDetail.getCourse_Category()).getDiscounted_Price());
+        courseCardDto.setPrice(coursePricing.getDiscounted_Price());
+        courseCardDto.setDiscountedPrice(coursePricing.getDiscounted_Price());
         courseCardDto.setCourseDurationHours(6);
         courseCardDto.setCourseDurationMinute(30);
         courseCardList.add(courseCardDto);
@@ -434,15 +429,14 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       CourseDetails courseDetail = courseDetailRepository.findById(courseTrack.getCourseId().toString()).orElse(null);
       if (Objects.nonNull(courseDetail)) {
 
+        Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.fromString(courseDetail.getCourse_Category()));
         CourseCardDto courseCardDto = new CourseCardDto();
         courseCardDto.setCourseId(courseDetail.getId());
         courseCardDto.setTitle(courseDetail.getCourse_Title());
         courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
         courseCardDto.setImgUrl(courseDetail.getCourse_Image());
-        courseCardDto.setPrice(
-                getPriceByCourseId(new ObjectId(courseDetail.getId()), courseDetail.getCourse_Category()).getDiscounted_Price());
-        courseCardDto.setDiscountedPrice(
-                getPriceByCourseId(new ObjectId(courseDetail.getId()), courseDetail.getCourse_Category()).getDiscounted_Price());
+        courseCardDto.setPrice(coursePricing.getDiscounted_Price());
+        courseCardDto.setDiscountedPrice(coursePricing.getDiscounted_Price());
         courseCardDto.setCourseDurationHours(6);
         courseCardDto.setCourseDurationMinute(30);
         Optional<WishList> wishList1 = wishListTemplate.getByUserIdAndCourseId(userId, new ObjectId(courseDetail.getId()));
