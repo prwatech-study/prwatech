@@ -51,4 +51,7 @@ public class RazorpayOrder {
     @JsonProperty("created_at")
     private Date createdAt;
 
+    @JsonProperty("applePay")
+    private Boolean applePay;
+
 }

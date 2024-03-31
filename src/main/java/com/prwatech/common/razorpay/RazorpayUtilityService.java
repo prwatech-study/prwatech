@@ -23,7 +23,7 @@ public class RazorpayUtilityService {
     private final AppContext appContext;
     private final static Logger LOGGER= LoggerFactory.getLogger(RazorpayUtilityService.class);
 
-    public RazorpayOrder createOrder(CreateOrderDto createOrderDto){
+    public RazorpayOrder createOrder(CreateOrderDto createOrderDto, Boolean isApplyPay){
         String apiKey =appContext.getRazorpayKey();
         String secretKey =appContext.getRazorpaySecret();
         try
@@ -49,6 +49,7 @@ public class RazorpayUtilityService {
                     .status(order.get("status"))
                     .attempts(order.get("attempts"))
                     .createdAt(order.get("created_at"))
+                    .applePay(isApplyPay)
                     .build();
 
 

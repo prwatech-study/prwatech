@@ -33,6 +33,13 @@ public class UserOrderTemplate {
         return mongoTemplate.findOne(query, UserOrder.class);
     }
 
+    public UserOrder getByCourseId(ObjectId courseId, ObjectId userId){
+        Query query = new Query();
+        query.addCriteria(Criteria.where("course_id").is(courseId))
+                .addCriteria(Criteria.where("user_id").is(userId));
+        return mongoTemplate.findOne(query, UserOrder.class);
+    }
+
     public List<UserOrder> getByUserIdAndCourseIds(ObjectId userId, List<ObjectId> courseIds){
         Query query = new Query();
         query.addCriteria(Criteria.where("user_id").is(userId))

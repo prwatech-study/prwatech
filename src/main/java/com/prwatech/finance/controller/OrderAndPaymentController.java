@@ -4,7 +4,6 @@ import com.prwatech.common.Constants;
 import com.prwatech.common.razorpay.dto.CreateOrderDto;
 import com.prwatech.common.razorpay.dto.RazorpayOrder;
 import com.prwatech.common.razorpay.service.RazorpayService;
-import com.prwatech.finance.model.UserOrder;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
@@ -111,5 +110,14 @@ public class OrderAndPaymentController {
             @PathVariable(value = "paymentId") String paymentId
     ){
         return razorpayService.updateOrderAfterPayment(orderId, userId, paymentId);
+    }
+
+    @PatchMapping(value = "/update/applePay/{userId}/{courseId}/{paymentId}")
+    public RazorpayOrder updateOrderStatusForApplePay(
+            @PathVariable(value = "userId") String userId,
+            @PathVariable(value = "courseId") String courseId,
+            @PathVariable(value = "paymentId") String paymentId
+    ){
+        return razorpayService.updateOrderAfterApplePayPayment(userId, courseId, paymentId);
     }
 }

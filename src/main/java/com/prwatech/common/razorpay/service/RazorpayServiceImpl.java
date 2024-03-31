@@ -29,11 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -75,7 +71,7 @@ public class RazorpayServiceImpl implements RazorpayService{
          createOrderDto.setCurrency("INR");
          createOrderDto.setReceipt(userId);
          createOrderDto.setPartialPayment(Boolean.FALSE);
-         RazorpayOrder razorpayOrder = razorpayUtilityService.createOrder(createOrderDto);
+         RazorpayOrder razorpayOrder = razorpayUtilityService.createOrder(createOrderDto, false);
          if(Objects.isNull(razorpayOrder)){
              LOGGER.error("Something went wrong while creating order :: got null order response! ");
              throw new  UnProcessableEntityException("Unable to create order due to null response in order creation.");
@@ -190,6 +186,79 @@ public class RazorpayServiceImpl implements RazorpayService{
                     .build();
 
             courseTrackRepository.save(courseTrack);
+        }
+
+        return razorpayOrder;
+    }
+
+    @Override
+    public RazorpayOrder updateOrderAfterApplePayPayment(String userId, String courseId, String paymentId) {
+
+        CreateOrderDto createOrderDto = new CreateOrderDto();
+        RazorpayOrder razorpayOrder = new RazorpayOrder();
+        UserOrder userOrder = userOrderTemplate.getByCourseId(new ObjectId(courseId), new ObjectId(userId));
+        String orderId = userOrder.getOrderId();
+        if(Objects.isNull(userOrder)){
+            LOGGER.error("No Apple Pay order exist by given order id : {}", orderId);
+            throw new NotFoundException("No Apple Pay order exist by this order id "+ orderId);
+        }
+
+        //get order here and save both
+        Orders orders = orderTemplate.getOrderByOrderId(orderId);
+        orders.setStatus("DONE");
+
+        LOGGER.info("Getting payment details against payment id : {} ", paymentId);
+
+        userOrder.setIsCompleted(!paymentId.isEmpty());
+        orders.setPaymentId(paymentId);
+        ordersRepository.save(orders);
+        userOrderRepository.save(userOrder);
+
+        Cart cart = cartTemplate.getByUserIdAndCourseId(new ObjectId(userId), userOrder.getCourseId());
+        if(Objects.nonNull(cart)){
+            cartRepository.deleteById(cart.getId());
+        }
+
+        CourseCurriculam courseCurriculam = courseCurriculamTemplate.getAllCurriculamByCourseId(userOrder.getCourseId());
+
+        //if payment successful then courses will be assigned
+        if(!paymentId.isEmpty()){
+            LOGGER.info("The given course assigning to user.");
+            MyCourses myCourses = myCoursesTemplate.findByUserIdAndCourseId(
+                    new ObjectId(userId), new ObjectId(courseId)
+            );
+            if(Objects.isNull(myCourses)){
+                myCourses= MyCourses.builder()
+                        .Course_Id(userOrder.getCourseId())
+                        .User_Id(new ObjectId(userId))
+                        .Course_Type("Online")
+                        .build();
+                myCoursesRepository.save(myCourses);
+            }
+
+            CourseTrack courseTrack = CourseTrack.builder()
+                    .userId(new ObjectId(userId))
+                    .courseId(userOrder.getCourseId())
+                    .currentItem(1)
+                    .isAllCompleted(Boolean.FALSE)
+                    .totalSize((Objects.nonNull(courseCurriculam))?courseCurriculam.getCourse_Curriculam().size():1)
+                    .build();
+
+            courseTrackRepository.save(courseTrack);
+
+            createOrderDto.setCurrency("INR");
+            createOrderDto.setReceipt(userId);
+            createOrderDto.setPartialPayment(Boolean.FALSE);
+            Map<String, String> notes = new HashMap<>();
+            notes.put("paymentMode", "Apple Pay");
+
+            createOrderDto.setNotes(notes);
+            createOrderDto.setAmount(orders.getAmount());
+            razorpayOrder = razorpayUtilityService.createOrder(createOrderDto, true);
+            if(Objects.isNull(razorpayOrder)){
+                LOGGER.error("Something went wrong while creating order :: got null order response! ");
+                throw new  UnProcessableEntityException("Unable to create order due to null response in order creation.");
+            }
         }
 
         return razorpayOrder;

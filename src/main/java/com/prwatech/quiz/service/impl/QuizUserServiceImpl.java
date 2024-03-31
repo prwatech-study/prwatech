@@ -225,7 +225,7 @@ public class QuizUserServiceImpl implements QuizUserService {
         createOrderDto.setPartialPayment(Boolean.FALSE);
         createOrderDto.setCurrency("INR");
         createOrderDto.setNotes(null);
-        RazorpayOrder razorpayOrder = razorpayUtilityService.createOrder(createOrderDto);
+        RazorpayOrder razorpayOrder = razorpayUtilityService.createOrder(createOrderDto, false);
         if(Objects.isNull(razorpayOrder)){
             throw new  UnProcessableEntityException("Unable to create order due to null response in order creation.");
         }

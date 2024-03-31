@@ -19,4 +19,11 @@ public class OrderTemplate {
         query.addCriteria(Criteria.where("order_id").is(orderId));
         return mongoTemplate.findOne(query, Orders.class);
     }
+
+    public Orders getOrderById(String id)
+    {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("id").is(id));
+        return mongoTemplate.findOne(query, Orders.class);
+    }
 }
