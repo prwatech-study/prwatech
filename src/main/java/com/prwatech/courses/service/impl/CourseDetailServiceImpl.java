@@ -54,7 +54,7 @@ import com.prwatech.user.model.User;
 import com.prwatech.user.repository.UserRepository;
 import lombok.AllArgsConstructor;
 import org.bson.types.ObjectId;
-import org.springframework.cache.annotation.Cacheable;
+// import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -83,7 +83,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
 
 
   @Override
-  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
+//  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public List<CourseCardDto> getMostPopularCourses(String userId) {
 
     List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getMostPopularCourse();
@@ -203,7 +203,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
+//  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public List<CourseCardDto> getSelfPlacedCourses(String userId) {
 
     List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getSelfPlacedCourses();
@@ -239,7 +239,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
+//  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public PaginationDto getFreeCourses(String userId, Integer pageNumber, Integer pageSize) {
     Page<CourseDetails> courseDetailsPage = courseDetailsRepositoryTemplate.getFreeCourseByBit(pageNumber, pageSize);
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
@@ -279,7 +279,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
+//  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public PaginationDto getAllCoursesByCategory( String userId,
       CourseLevelCategory category, Integer pageNumber, Integer pageSize) {
 
