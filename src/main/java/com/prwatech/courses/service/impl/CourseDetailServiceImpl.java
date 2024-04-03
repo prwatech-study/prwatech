@@ -400,7 +400,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     for(MyCourses myCourse: myCourses){
       CourseDetails courseDetail = courseDetailRepository.findById(myCourse.getCourse_Id().toString()).orElse(null);
       if(Objects.nonNull(courseDetail)){
-        Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.fromString(courseDetail.getCourse_Category()));
+        Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.fromString(courseDetail.getCourse_Types().get(0)));
         CourseCardDto courseCardDto = new CourseCardDto();
         courseCardDto.setCourseId(courseDetail.getId());
         courseCardDto.setTitle(courseDetail.getCourse_Title());
@@ -429,7 +429,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       CourseDetails courseDetail = courseDetailRepository.findById(courseTrack.getCourseId().toString()).orElse(null);
       if (Objects.nonNull(courseDetail)) {
 
-        Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.fromString(courseDetail.getCourse_Category()));
+        Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.fromString(courseDetail.getCourse_Types().get(0)));
         CourseCardDto courseCardDto = new CourseCardDto();
         courseCardDto.setCourseId(courseDetail.getId());
         courseCardDto.setTitle(courseDetail.getCourse_Title());

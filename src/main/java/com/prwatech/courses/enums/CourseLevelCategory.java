@@ -25,6 +25,16 @@ public enum CourseLevelCategory {
     return null; // Or throw an IllegalArgumentException
   }
 
+  public static CourseLevelCategory fromStringValue(String text) {
+    for (CourseLevelCategory category : CourseLevelCategory.values()) {
+      if (category.getValue().equalsIgnoreCase(text)) {
+        return category;
+      }
+    }
+    return null; // Or throw an IllegalArgumentException
+  }
+
+
   @JsonValue
   public String getValue() {
     return value;
