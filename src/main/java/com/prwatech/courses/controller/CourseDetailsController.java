@@ -117,7 +117,7 @@ public class CourseDetailsController {
   public PaginationDto getHomeListingFreeCourses(
           @RequestParam(value = "userId", required = false) String userId,
           @RequestParam(value = "pageNumber", defaultValue = "0") Integer pageNumber,
-          @RequestParam(value = "pageSize") Integer pageSize
+          @RequestParam(value = "pageSize", defaultValue = "0") Integer pageSize
   ) {
     return courseDetailService.getFreeCourses(userId, pageNumber, pageSize);
   }

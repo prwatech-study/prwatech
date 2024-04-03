@@ -54,6 +54,7 @@ import com.prwatech.user.model.User;
 import com.prwatech.user.repository.UserRepository;
 import lombok.AllArgsConstructor;
 import org.bson.types.ObjectId;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -82,13 +83,14 @@ public class CourseDetailServiceImpl implements CourseDetailService {
 
 
   @Override
+  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public List<CourseCardDto> getMostPopularCourses(String userId) {
 
     List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getMostPopularCourse();
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailList) {
       Pricing cousePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.MOST_POPULAR);
-      CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
+      CourseRatingDto courseRatingDto = getRatingCountOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
       courseCardDto.setCourseId(courseDetail.getId());
@@ -179,6 +181,20 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
 
+  private CourseRatingDto getRatingCountOfCourse(String courseId) {
+    List<CourseReview> courseReviewList =
+            courseReviewRepositoryTemplate.getCourseReviewByCourseId(new ObjectId(courseId));
+    Integer totalRating =
+            courseReviewList.stream()
+                    .map(CourseReview::getReview_Number)
+                    .collect(Collectors.toList())
+                    .stream()
+                    .mapToInt(Integer::intValue)
+                    .sum();
+    return new CourseRatingDto(courseId, totalRating, courseReviewList.size());
+
+  }
+
   @Override
   public Pricing getPriceByCourseId(ObjectId courseId, CourseLevelCategory type) {
     return coursePricingRepositoryTemplate
@@ -187,13 +203,14 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
+  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public List<CourseCardDto> getSelfPlacedCourses(String userId) {
 
     List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getSelfPlacedCourses();
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailList) {
       Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.SELF_PLACED);
-      CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
+      CourseRatingDto courseRatingDto = getRatingCountOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
       courseCardDto.setCourseId(courseDetail.getId());
@@ -222,13 +239,14 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
+  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public PaginationDto getFreeCourses(String userId, Integer pageNumber, Integer pageSize) {
     Page<CourseDetails> courseDetailsPage = courseDetailsRepositoryTemplate.getFreeCourseByBit(pageNumber, pageSize);
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
 
     for (CourseDetails courseDetail : courseDetailsPage.getContent()) {
 
-      CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
+      CourseRatingDto courseRatingDto = getRatingCountOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
       courseCardDto.setCourseId(courseDetail.getId());
@@ -261,6 +279,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
+  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public PaginationDto getAllCoursesByCategory( String userId,
       CourseLevelCategory category, Integer pageNumber, Integer pageSize) {
 
@@ -287,7 +306,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailsPage.getContent()) {
 
-      CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
+      CourseRatingDto courseRatingDto = getRatingCountOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
       courseCardDto.setCourseId(courseDetail.getId());

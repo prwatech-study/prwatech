@@ -14,6 +14,12 @@ import java.util.Map;
 @NoArgsConstructor
 public class CourseRatingDto {
 
+  public CourseRatingDto(String courseId, Integer totalRating, Integer totalRatingCount) {
+    this.courseId = courseId;
+    this.totalRating = totalRating;
+    this.totalRatingCount = totalRatingCount;
+  }
+
   private String courseId;
   private Integer totalRating;
   private Integer totalRatingCount;
