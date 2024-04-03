@@ -400,14 +400,16 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     for(MyCourses myCourse: myCourses){
       CourseDetails courseDetail = courseDetailRepository.findById(myCourse.getCourse_Id().toString()).orElse(null);
       if(Objects.nonNull(courseDetail)){
-        Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.fromString(courseDetail.getCourse_Types().get(0)));
         CourseCardDto courseCardDto = new CourseCardDto();
         courseCardDto.setCourseId(courseDetail.getId());
         courseCardDto.setTitle(courseDetail.getCourse_Title());
         courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
         courseCardDto.setImgUrl(courseDetail.getCourse_Image());
-        courseCardDto.setPrice(coursePricing.getDiscounted_Price());
-        courseCardDto.setDiscountedPrice(coursePricing.getDiscounted_Price());
+        if (courseDetail.getCourse_Types() != null && courseDetail.getCourse_Types().size() > 0) {
+          Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.fromString(courseDetail.getCourse_Types().get(0)));
+          courseCardDto.setPrice(coursePricing.getDiscounted_Price());
+          courseCardDto.setDiscountedPrice(coursePricing.getDiscounted_Price());
+        }
         courseCardDto.setCourseDurationHours(6);
         courseCardDto.setCourseDurationMinute(30);
         courseCardList.add(courseCardDto);
