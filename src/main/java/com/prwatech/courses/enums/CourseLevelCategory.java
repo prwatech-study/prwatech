@@ -18,7 +18,7 @@ public enum CourseLevelCategory {
 
   public static CourseLevelCategory fromString(String text) {
     for (CourseLevelCategory category : CourseLevelCategory.values()) {
-      if (category.getValue().equalsIgnoreCase(text)) {
+      if (category.getCourseType().equalsIgnoreCase(text)) {
         return category;
       }
     }
