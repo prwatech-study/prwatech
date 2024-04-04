@@ -21,18 +21,18 @@ import org.bson.types.ObjectId;
 
 public interface CourseDetailService {
 
-  List<CourseCardDto> getMostPopularCourses(String userId);
+  List<CourseCardDto> getMostPopularCourses(String userId, String platform);
 
   CourseDetailsDto getCourseDescriptionById(String id, String userId);
 
   Pricing getPriceByCourseId(ObjectId courseId, CourseLevelCategory type);
 
-  List<CourseCardDto> getSelfPlacedCourses(String userId);
+  List<CourseCardDto> getSelfPlacedCourses(String userId, String platform);
 
   PaginationDto getFreeCourses(String userId, Integer pageNumber, Integer pageSize);
 
   PaginationDto getAllCoursesByCategory(String userId,
-      CourseLevelCategory category, Integer pageNumber, Integer pageSize);
+      CourseLevelCategory category, Integer pageNumber, Integer pageSize, String platform);
 
   List<ForumFilterListingDto> getCoursesTitleListing();
 

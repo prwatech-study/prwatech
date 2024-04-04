@@ -30,15 +30,23 @@ public class CourseDetailsRepositoryTemplate {
   //Webinar - Online
   //Online - Self Paced
   //Classroom - Class Room
-  public List<CourseDetails> getMostPopularCourse() {
+  public List<CourseDetails> getMostPopularCourse(String platform) {
     Query query = new Query();
-    query.addCriteria(Criteria.where("Course_Types").in("Webinar")).limit(10);
+    query.addCriteria(Criteria.where("Course_Types").in("Webinar"));
+    if("IOS".equalsIgnoreCase(platform)) {
+      query.addCriteria(Criteria.where("Product_Id_Available_Webinar").is(true));
+    }
+    query.limit(10);
     return mongoTemplate.find(query, CourseDetails.class);
   };
 
-  public List<CourseDetails> getSelfPlacedCourses() {
+  public List<CourseDetails> getSelfPlacedCourses(String platform) {
     Query query = new Query();
-    query.addCriteria(Criteria.where("Course_Types").in("Online")).limit(10);
+    query.addCriteria(Criteria.where("Course_Types").in("Online"));
+    if("IOS".equalsIgnoreCase(platform)) {
+      query.addCriteria(Criteria.where("Product_Id_Available_Online").is(true));
+    }
+    query.limit(10);
     return mongoTemplate.find(query, CourseDetails.class);
   }
 
@@ -107,10 +115,13 @@ public class CourseDetailsRepositoryTemplate {
     return new PageImpl<>(courseDetailsList, pageable, count);
   }
 
-  public Page<CourseDetails> getAllCourses(Integer pageNumber, Integer pageSize, String courseCategoryId) {
+  public Page<CourseDetails> getAllCourses(Integer pageNumber, Integer pageSize, String courseCategoryId, String platform) {
     Pageable pageable = PageRequest.of(pageNumber, pageSize);
     Query query = new Query();
     query.addCriteria(Criteria.where("Course_CategoryId").is(new ObjectId(courseCategoryId)).and("Course_Status").is(0));
+    if("IOS".equalsIgnoreCase(platform)) {
+      query.addCriteria(Criteria.where("Product_Id_Available").is(true));
+    }
     Long count = mongoTemplate.count(query, CourseDetails.class);
     query.with(pageable);
     List<CourseDetails> courseDetailsList = mongoTemplate.find(query, CourseDetails.class);

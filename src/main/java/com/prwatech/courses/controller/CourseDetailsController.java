@@ -75,9 +75,10 @@ public class CourseDetailsController {
   @GetMapping("/most-popular-course/listing/")
   @ResponseStatus(HttpStatus.OK)
   public List<CourseCardDto> getHomeListingMostPopularCourses(
-          @RequestParam(value = "userId", required = false) String userId
+          @RequestParam(value = "userId", required = false) String userId,
+          @RequestParam(value = "platform", required = false) String platform
   ) {
-    return courseDetailService.getMostPopularCourses(userId);
+    return courseDetailService.getMostPopularCourses(userId, platform);
   }
 
   @ApiOperation(
@@ -96,9 +97,10 @@ public class CourseDetailsController {
   @GetMapping("/self-placed-course/listing/")
   @ResponseStatus(HttpStatus.OK)
   public List<CourseCardDto> getHomeListingSelfPlacedCourses(
-          @RequestParam(value = "userId", required = false) String userId
+          @RequestParam(value = "userId", required = false) String userId,
+          @RequestParam(value = "platform", required = false) String platform
   ) {
-    return courseDetailService.getSelfPlacedCourses(userId);
+    return courseDetailService.getSelfPlacedCourses(userId, platform);
   }
 
   @ApiOperation(value = "Get free courses on home page", notes = "Get free courses on home page")
@@ -180,8 +182,9 @@ public class CourseDetailsController {
           @RequestParam(value = "userId", required = false) String userId,
       @RequestParam(value = "type") @NotNull CourseLevelCategory courseLevelCategory,
       @RequestParam(value = "pageNumber", defaultValue = "0") Integer pageNumber,
-      @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize) {
-    return courseDetailService.getAllCoursesByCategory(userId, courseLevelCategory, pageNumber, pageSize);
+      @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+      @RequestParam(value = "platform", required = false) String platform) {
+    return courseDetailService.getAllCoursesByCategory(userId, courseLevelCategory, pageNumber, pageSize, platform);
   }
 
   @ApiOperation(

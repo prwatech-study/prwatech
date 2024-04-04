@@ -53,6 +53,7 @@ import com.prwatech.finance.repository.template.UserOrderTemplate;
 import com.prwatech.user.model.User;
 import com.prwatech.user.repository.UserRepository;
 import lombok.AllArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 // import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -84,9 +85,9 @@ public class CourseDetailServiceImpl implements CourseDetailService {
 
   @Override
 //  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
-  public List<CourseCardDto> getMostPopularCourses(String userId) {
+  public List<CourseCardDto> getMostPopularCourses(String userId, String platform) {
 
-    List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getMostPopularCourse();
+    List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getMostPopularCourse(platform);
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailList) {
       Pricing cousePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.MOST_POPULAR);
@@ -104,6 +105,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
       courseCardDto.setIsWishListed(Boolean.FALSE);
+      courseCardDto.setProductId(cousePricing.getProduct_Id());
       if(Objects.nonNull(userId)){
         Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
         if(wishList.isPresent()){
@@ -204,9 +206,9 @@ public class CourseDetailServiceImpl implements CourseDetailService {
 
   @Override
 //  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
-  public List<CourseCardDto> getSelfPlacedCourses(String userId) {
+  public List<CourseCardDto> getSelfPlacedCourses(String userId, String platform) {
 
-    List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getSelfPlacedCourses();
+    List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getSelfPlacedCourses(platform);
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailList) {
       Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.SELF_PLACED);
@@ -281,7 +283,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   @Override
 //  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public PaginationDto getAllCoursesByCategory( String userId,
-      CourseLevelCategory category, Integer pageNumber, Integer pageSize) {
+      CourseLevelCategory category, Integer pageNumber, Integer pageSize, String platform) {
 
     Page<CourseDetails> courseDetailsPage = null;
     switch (category) {
@@ -297,7 +299,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
             courseDetailsRepositoryTemplate.getAllSelfPlacedCourses(pageNumber, pageSize);
         break;
       case ALL:
-        courseDetailsPage = courseDetailsRepositoryTemplate.getAllCourses(pageNumber, pageSize, appContext.getCourseCategoryId());
+        courseDetailsPage = courseDetailsRepositoryTemplate.getAllCourses(pageNumber, pageSize, appContext.getCourseCategoryId(), platform);
         break;
       default:
         throw new UnProcessableEntityException("This category does not exist!");
@@ -315,18 +317,22 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
       courseCardDto.setCourseRatingDto(courseRatingDto);
 
+      Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.MOST_POPULAR);
       switch (category){
-        case MOST_POPULAR, FREE_COURSES -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.MOST_POPULAR).getDiscounted_Price());
-        case SELF_PLACED, ALL -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.SELF_PLACED).getDiscounted_Price());
-      }
-      switch (category){
-        case MOST_POPULAR, FREE_COURSES -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.MOST_POPULAR).getDiscounted_Price());
-        case SELF_PLACED, ALL -> courseCardDto.setPrice(getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.SELF_PLACED).getDiscounted_Price());
+        case MOST_POPULAR, FREE_COURSES:
+          coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.MOST_POPULAR);
+          courseCardDto.setPrice(coursePricing.getDiscounted_Price());
+          break;
+        case SELF_PLACED, ALL:
+          coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.SELF_PLACED);
+          courseCardDto.setPrice(coursePricing.getDiscounted_Price());
+          break;
       }
 
       courseCardDto.setCourseDurationHours(6);
       courseCardDto.setCourseDurationMinute(30);
       courseCardDto.setIsWishListed(Boolean.FALSE);
+      courseCardDto.setProductId(coursePricing.getProduct_Id());
       if(userId!=null){
         Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
         if(wishList.isPresent()){
@@ -335,7 +341,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         }
       }
 
-      courseCardDtoList.add(courseCardDto);
+      Boolean validForInsert = StringUtils.isEmpty(platform) ? true : !StringUtils.isEmpty(coursePricing.getProduct_Id()) && "IOS".equals(platform);
+      if (validForInsert) {
+        courseCardDtoList.add(courseCardDto);
+      }
     }
 
     return Utility.getPaginatedResponse(

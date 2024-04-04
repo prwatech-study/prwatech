@@ -78,4 +78,16 @@ public class CourseDetails {
 
   @Field(name = "Product_Id")
   private String Product_Id;
+
+  @Field(name = "Product_Id_Available")
+  private Boolean Product_Id_Available = Boolean.FALSE;
+
+  @Field(name = "Product_Id_Available_Online")
+  private Boolean Product_Id_Available_Online = Boolean.FALSE;
+
+  @Field(name = "Product_Id_Available_Webinar")
+  private Boolean Product_Id_Available_Webinar = Boolean.FALSE;
+
+  @Field(name = "Product_Id_Available_Classroom")
+  private Boolean Product_Id_Available_Classroom = Boolean.FALSE;
 }
