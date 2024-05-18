@@ -201,11 +201,11 @@ public class RazorpayServiceImpl implements RazorpayService{
         CreateOrderDto createOrderDto = new CreateOrderDto();
         RazorpayOrder razorpayOrder = new RazorpayOrder();
         UserOrder userOrder = userOrderTemplate.getByCourseId(new ObjectId(courseId), new ObjectId(userId));
-        String orderId = userOrder.getOrderId();
         if(Objects.isNull(userOrder)){
-            LOGGER.error("No Apple Pay order exist by given order id : {}", orderId);
-            throw new NotFoundException("No Apple Pay order exist by this order id "+ orderId);
+            LOGGER.error("No Apple Pay order exist by given order id : {}, {}", courseId, userId);
+            throw new NotFoundException("No Apple Pay order exist by this course id - " + courseId + " and user Id - " + userId );
         }
+        String orderId = userOrder.getOrderId();
 
         //get order here and save both
         Orders orders = orderTemplate.getOrderByOrderId(orderId);

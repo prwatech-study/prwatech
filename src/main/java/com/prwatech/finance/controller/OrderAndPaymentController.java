@@ -113,7 +113,7 @@ public class OrderAndPaymentController {
         return razorpayService.updateOrderAfterPayment(orderId, userId, paymentId);
     }
 
-    @PatchMapping(value = "/update/applePay/{userId}/{courseId}/{paymentId}")
+    @PostMapping(value = "/update/applePay")
     public RazorpayOrder updateOrderStatusForApplePay(
             @RequestBody AfterPaymentRequestPayload afterPaymentRequestPayload
     ){
