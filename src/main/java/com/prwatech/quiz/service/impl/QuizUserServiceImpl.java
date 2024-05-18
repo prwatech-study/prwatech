@@ -282,6 +282,7 @@ public class QuizUserServiceImpl implements QuizUserService {
         Orders orders = orderTemplate.getOrderByOrderId(orderId);
         orders.setStatus(razorpayOrder.getStatus());
         orders.setPaymentId(razorpayPayment.getPaymentId());
+        orders.setPaymentFrom("Other");
         ordersRepository.save(orders);
 
         quizUserMapping.setIsOrdered(razorpayPayment.getCaptured());

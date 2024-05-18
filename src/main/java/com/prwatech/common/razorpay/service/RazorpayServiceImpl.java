@@ -153,6 +153,7 @@ public class RazorpayServiceImpl implements RazorpayService{
 
         userOrder.setIsCompleted(razorpayPayment.getCaptured());
         orders.setPaymentId(razorpayPayment.getPaymentId());
+        orders.setPaymentFrom("Other");
         ordersRepository.save(orders);
         userOrderRepository.save(userOrder);
 
@@ -215,6 +216,7 @@ public class RazorpayServiceImpl implements RazorpayService{
 
         userOrder.setIsCompleted(!paymentId.isEmpty());
         orders.setPaymentId(paymentId);
+        orders.setPaymentFrom("Apple Pay");
         ordersRepository.save(orders);
         userOrderRepository.save(userOrder);
 

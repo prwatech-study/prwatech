@@ -72,4 +72,7 @@ public class Orders {
 
     @Field("payment_id")
     private String paymentId;
+
+    @Field("payment_from")
+    private String paymentFrom;
 }
