@@ -4,6 +4,7 @@ import com.prwatech.common.exception.AlreadyPresentException;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
 import com.prwatech.common.razorpay.RazorpayUtilityService;
+import com.prwatech.common.razorpay.dto.AfterPaymentRequestPayload;
 import com.prwatech.common.razorpay.dto.CreateOrderDto;
 import com.prwatech.common.razorpay.dto.RazorpayOrder;
 import com.prwatech.courses.model.Cart;
@@ -192,8 +193,11 @@ public class RazorpayServiceImpl implements RazorpayService{
     }
 
     @Override
-    public RazorpayOrder updateOrderAfterApplePayPayment(String userId, String courseId, String paymentId) {
+    public RazorpayOrder updateOrderAfterApplePayPayment(AfterPaymentRequestPayload afterPaymentRequestPayload) {
 
+        String courseId = afterPaymentRequestPayload.getCourseId();
+        String userId = afterPaymentRequestPayload.getUserId();
+        String paymentId = afterPaymentRequestPayload.getPaymentId();
         CreateOrderDto createOrderDto = new CreateOrderDto();
         RazorpayOrder razorpayOrder = new RazorpayOrder();
         UserOrder userOrder = userOrderTemplate.getByCourseId(new ObjectId(courseId), new ObjectId(userId));

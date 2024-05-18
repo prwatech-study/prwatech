@@ -1,6 +1,7 @@
 package com.prwatech.finance.controller;
 
 import com.prwatech.common.Constants;
+import com.prwatech.common.razorpay.dto.AfterPaymentRequestPayload;
 import com.prwatech.common.razorpay.dto.CreateOrderDto;
 import com.prwatech.common.razorpay.dto.RazorpayOrder;
 import com.prwatech.common.razorpay.service.RazorpayService;
@@ -114,10 +115,8 @@ public class OrderAndPaymentController {
 
     @PatchMapping(value = "/update/applePay/{userId}/{courseId}/{paymentId}")
     public RazorpayOrder updateOrderStatusForApplePay(
-            @PathVariable(value = "userId") String userId,
-            @PathVariable(value = "courseId") String courseId,
-            @PathVariable(value = "paymentId") String paymentId
+            @RequestBody AfterPaymentRequestPayload afterPaymentRequestPayload
     ){
-        return razorpayService.updateOrderAfterApplePayPayment(userId, courseId, paymentId);
+        return razorpayService.updateOrderAfterApplePayPayment(afterPaymentRequestPayload);
     }
 }
