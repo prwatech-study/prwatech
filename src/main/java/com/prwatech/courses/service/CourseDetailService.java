@@ -48,7 +48,7 @@ public interface CourseDetailService {
 
   void updateCurrentItem(ObjectId userId, ObjectId courseId, Integer currentItem);
 
-  Map<String, String>searchByName(String name);
+  List<CourseCardDto> searchByName(String name, String userId, String platform);
 
   CertificateDetailsDto getCertificateDetails(String userId, String courseId);
 

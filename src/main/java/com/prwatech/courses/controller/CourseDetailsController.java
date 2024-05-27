@@ -298,13 +298,15 @@ public class CourseDetailsController {
                   @ApiResponse(code = 422, message = "UnProcessable entity"),
                   @ApiResponse(code = 500, message = "Internal server error"),
           })
-  @GetMapping("/course/search/{name}")
+  @GetMapping("/course/search/{name}/{userId}/{platform}")
   @ResponseStatus(HttpStatus.OK)
-  public  Map<String, String> searchCoursesByName(
-          @PathVariable(value = "name") String name
+  public  List<CourseCardDto> searchCoursesByName(
+          @PathVariable(value = "name") String name,
+          @PathVariable(value = "userId") String userId,
+          @PathVariable(value = "platform") String platform
   )
   {
-     return courseDetailService.searchByName(name);
+     return courseDetailService.searchByName(name, userId, platform);
   }
 
   @ApiOperation(value = "Update the course {Free and Non-Free}", notes = "Update the course {Free and Non-Free}")

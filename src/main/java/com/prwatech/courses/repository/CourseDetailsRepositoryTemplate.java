@@ -86,13 +86,13 @@ public class CourseDetailsRepositoryTemplate {
     return new PageImpl<>(courseDetailsList, pageable, count);
   }
 
-  public List<CourseDetailsProjection> searchByName(String name){
+  public List<CourseDetails> searchByName(String name){
 
     AggregationOperation match = Aggregation.match(Criteria.where("Course_Title").regex(name, "i"));
     AggregationOperation project = Aggregation.project("id", "Course_Title");
     Aggregation aggregation = Aggregation.newAggregation(match, project);
 
-    AggregationResults<CourseDetailsProjection> results = mongoTemplate.aggregate(aggregation, "CourseDetails", CourseDetailsProjection.class);
+    AggregationResults<CourseDetails> results = mongoTemplate.aggregate(aggregation, "CourseDetails", CourseDetails.class);
     return results.getMappedResults();
   }
 

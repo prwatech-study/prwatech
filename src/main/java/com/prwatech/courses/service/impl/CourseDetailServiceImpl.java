@@ -509,13 +509,47 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  public Map<String, String> searchByName(String name) {
+  public List<CourseCardDto> searchByName(String name, String userId, String platform) {
 
+    List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.searchByName(name);
 
-    List<CourseDetailsProjection> courseDetailsList = courseDetailsRepositoryTemplate.searchByName(name);
+    List<CourseCardDto> courseCardDtoList = new ArrayList<>();
+    for (CourseDetails courseDetail : courseDetailList) {
+      Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.MOST_POPULAR);
+      CourseRatingDto courseRatingDto = getRatingCountOfCourse(courseDetail.getId());
+      CourseCardDto courseCardDto = new CourseCardDto();
 
-   return courseDetailsList.stream().collect(Collectors.toMap(CourseDetailsProjection::getId, CourseDetailsProjection::getCourse_Title));
+      courseCardDto.setCourseId(courseDetail.getId());
+      courseCardDto.setTitle(courseDetail.getCourse_Title());
+      courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
+      courseCardDto.setImgUrl(courseDetail.getCourse_Image());
+      courseCardDto.setCourseRatingDto(courseRatingDto);
+      courseCardDto.setPrice(coursePricing.getDiscounted_Price());
+      courseCardDto.setDiscountedPrice(coursePricing.getDiscounted_Price());
+      courseCardDto.setCourseLevelCategory(CourseLevelCategory.MOST_POPULAR);
+      courseCardDto.setCourseDurationHours(6);
+      courseCardDto.setCourseDurationMinute(30);
+      courseCardDto.setIsWishListed(Boolean.FALSE);
+      courseCardDto.setProductId(coursePricing.getProduct_Id());
+      try {
+        if (Objects.nonNull(userId)) {
+          Optional<WishList> wishList = wishListTemplate.getByUserIdAndCourseId(new ObjectId(userId), new ObjectId(courseDetail.getId()));
+          if (wishList.isPresent()) {
+            courseCardDto.setIsWishListed(Boolean.TRUE);
+            courseCardDto.setWishListId(wishList.get().getId());
+          }
+        }
+      } catch (Exception exception) {
+        LOGGER.error("Exception occurred - ");
+      }
 
+      boolean validForInsert = StringUtils.isEmpty(platform) || "ANDROID".equalsIgnoreCase(platform) || !StringUtils.isEmpty(coursePricing.getProduct_Id()) && "IOS".equalsIgnoreCase(platform);
+
+      if(validForInsert) {
+        courseCardDtoList.add(courseCardDto);
+      }
+    }
+    return courseCardDtoList;
   }
 
   @Override
