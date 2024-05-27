@@ -633,4 +633,10 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     courseReviewRepository.save(courseReview);
     return Boolean.TRUE;
   }
+
+  @Override
+  public Map<String, String> searchByName(String name) {
+    List<CourseDetailsProjection> courseDetailsList = courseDetailsRepositoryTemplate.searchByNameAndroid(name);
+    return courseDetailsList.stream().collect(Collectors.toMap(CourseDetailsProjection::getId, CourseDetailsProjection::getCourse_Title));
+  }
 }

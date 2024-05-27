@@ -86,6 +86,16 @@ public class CourseDetailsRepositoryTemplate {
     return new PageImpl<>(courseDetailsList, pageable, count);
   }
 
+  public List<CourseDetailsProjection> searchByNameAndroid(String name){
+
+    AggregationOperation match = Aggregation.match(Criteria.where("Course_Title").regex(name, "i"));
+    AggregationOperation project = Aggregation.project("id", "Course_Title");
+    Aggregation aggregation = Aggregation.newAggregation(match, project);
+
+    AggregationResults<CourseDetailsProjection> results = mongoTemplate.aggregate(aggregation, "CourseDetails", CourseDetailsProjection.class);
+    return results.getMappedResults();
+  }
+
   public List<CourseDetails> searchByName(String name){
 
     AggregationOperation match = Aggregation.match(Criteria.where("Course_Title").regex(name, "i"));
@@ -95,6 +105,7 @@ public class CourseDetailsRepositoryTemplate {
     AggregationResults<CourseDetails> results = mongoTemplate.aggregate(aggregation, "CourseDetails", CourseDetails.class);
     return results.getMappedResults();
   }
+
 
   public List<CourseTypeProjection> getCourseTypeByCourseId(List<String> courseIds){
     AggregationOperation match = Aggregation.match(Criteria.where("id").in(courseIds));

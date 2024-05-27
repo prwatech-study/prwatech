@@ -57,5 +57,7 @@ public interface CourseDetailService {
   CourseTrack enrollAFreeCourse(String userId, String courseId);
 
   Boolean rateACourse(String userId, String courseId, Integer rating);
+  
+  Map<String, String> searchByName(String name);
 
   }

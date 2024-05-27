@@ -309,6 +309,27 @@ public class CourseDetailsController {
      return courseDetailService.searchByName(name, userId, platform);
   }
 
+
+  @ApiOperation(value = "Search courses by name", notes = "Search courses by name")
+  @ApiResponses(
+          value = {
+                  @ApiResponse(code = 200, message = "Success"),
+                  @ApiResponse(code = 400, message = "Not Available"),
+                  @ApiResponse(code = 401, message = "UnAuthorized"),
+                  @ApiResponse(code = 403, message = "Access Forbidden"),
+                  @ApiResponse(code = 404, message = "Not found"),
+                  @ApiResponse(code = 422, message = "UnProcessable entity"),
+                  @ApiResponse(code = 500, message = "Internal server error"),
+          })
+  @GetMapping("/course/search/{name}")
+  @ResponseStatus(HttpStatus.OK)
+  public  Map<String, String> searchCoursesByName(
+          @PathVariable(value = "name") String name
+  )
+  {
+    return courseDetailService.searchByName(name);
+  }
+
   @ApiOperation(value = "Update the course {Free and Non-Free}", notes = "Update the course {Free and Non-Free}")
   @ApiResponses(
           value = {
