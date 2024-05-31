@@ -341,7 +341,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         }
       }
 
-      Boolean validForInsert = StringUtils.isEmpty(platform) ? true : !StringUtils.isEmpty(coursePricing.getProduct_Id()) && "IOS".equals(platform);
+      boolean validForInsert = StringUtils.isEmpty(platform) || "ANDROID".equalsIgnoreCase(platform) || category == CourseLevelCategory.FREE_COURSES || !StringUtils.isEmpty(coursePricing.getProduct_Id()) && "IOS".equals(platform);
       if (validForInsert) {
         courseCardDtoList.add(courseCardDto);
       }
