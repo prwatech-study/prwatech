@@ -1,2 +1,2 @@
 # prwatech
-This is Prwatech backend project that handle Prwatech business requirment.
+This is the Prwatech backend project that handles Prwatech business requirements.
