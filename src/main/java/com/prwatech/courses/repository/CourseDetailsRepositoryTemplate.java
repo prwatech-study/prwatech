@@ -79,7 +79,7 @@ public class CourseDetailsRepositoryTemplate {
   public Page<CourseDetails> getAllFreeCourses(Integer pageNumber, Integer pageSize) {
     Pageable pageable = PageRequest.of(pageNumber, pageSize);
     Query query = new Query();
-    query.addCriteria(Criteria.where("Course_Types").in("Webinar"));
+    query.addCriteria(Criteria.where("isFree").in(Boolean.TRUE));
     Long count = mongoTemplate.count(query, CourseDetails.class);
     query.with(pageable);
     List<CourseDetails> courseDetailsList = mongoTemplate.find(query, CourseDetails.class);
