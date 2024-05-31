@@ -13,5 +13,5 @@ public interface PushNotificationService {
     Boolean createOrUpdateFcmToken(String userId, String token);
 
 
-    void sendPushNotification(PushNotificationRequestDto requestDto);
+    String sendPushNotification(PushNotificationRequestDto requestDto);
 }

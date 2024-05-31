@@ -45,32 +45,54 @@ public class PushNotificationServiceImpl implements PushNotificationService {
     }
 
     @Override
-    public void sendPushNotification(PushNotificationRequestDto requestDto) {
+    public String sendPushNotification(PushNotificationRequestDto requestDto) {
 
         List<String> tokens = userFcmRepository.findAll().stream().map(UserFcmToken::getFcmToken)
                 .collect(Collectors.toList());
 
         if (tokens.size() == 0 || tokens.isEmpty()) {
             LOGGER.error("No token found to send notification!");
-            return;
+            return "No token found to send notification!";
         }
-        Notification notification = Notification.builder()
-                .setBody((requestDto.getMessage().length() > 120) ? requestDto.getMessage().substring(0, 120)
-                        : requestDto.getMessage())
-                .setTitle((requestDto.getTitle().length() > 50) ? requestDto.getTitle().substring(0, 50)
-                        : requestDto.getTitle())
-                .build();
-        MulticastMessage message = MulticastMessage.builder()
-                .addAllTokens(tokens)
-                .setNotification(notification)
-                .build();
-        try {
-            BatchResponse response = FirebaseMessaging.getInstance().sendMulticast(message);
-            LOGGER.info("Successful hits for notification :: {}", response.getSuccessCount());
-            LOGGER.info("Failed hits for notification :: {}", response.getFailureCount());
-        } catch (Exception ex) {
-            LOGGER.error("Unable to sent push notification :: {}", ex.getMessage());
-            throw new UnProcessableEntityException("Unable to sent notifications due to ::" + ex.getMessage());
+
+        // Batch the tokens to handle the 500 tokens limit
+        List<List<String>> batches = batchTokens(tokens, 500);
+
+        int successCount = 0;
+        int failureCount = 0;
+        for (List<String> batch : batches) {
+            Notification notification = Notification.builder()
+                    .setBody((requestDto.getMessage().length() > 120) ? requestDto.getMessage().substring(0, 120)
+                            : requestDto.getMessage())
+                    .setTitle((requestDto.getTitle().length() > 50) ? requestDto.getTitle().substring(0, 50)
+                            : requestDto.getTitle())
+                    .build();
+            MulticastMessage message = MulticastMessage.builder()
+                    .addAllTokens(batch)
+                    .setNotification(notification)
+                    .build();
+            try {
+                BatchResponse response = FirebaseMessaging.getInstance().sendMulticast(message);
+                successCount += response.getSuccessCount();
+                failureCount += response.getFailureCount();
+            } catch (Exception ex) {
+                LOGGER.error("Unable to sent push notification :: {}", ex.getMessage());
+                throw new UnProcessableEntityException("Unable to sent notifications due to ::" + ex.getMessage());
+            }
         }
+        LOGGER.info("Successful hits for notification :: {}", successCount);
+        LOGGER.info("Failed hits for notification :: {}", failureCount);
+
+        return "Successfully sent " + successCount + " messages. Failed to send " + failureCount + " messages.";
+
+    }
+
+    private List<List<String>> batchTokens(List<String> tokens, int batchSize) {
+        List<List<String>> batches = new ArrayList<>();
+        for (int i = 0; i < tokens.size(); i += batchSize) {
+            int end = Math.min(tokens.size(), i + batchSize);
+            batches.add(tokens.subList(i, end));
+        }
+        return batches;
     }
 }

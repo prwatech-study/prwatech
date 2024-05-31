@@ -55,10 +55,10 @@ public class PushNotificationController {
             })
     @ResponseStatus(value = HttpStatus.OK)
     @PutMapping("/send-notifications")
-    public void sendPushNotification(
+    public String sendPushNotification(
             @RequestBody PushNotificationRequestDto requestDto
             ){
-        pushNotificationService.sendPushNotification(requestDto);
+       return pushNotificationService.sendPushNotification(requestDto);
     }
 
 }

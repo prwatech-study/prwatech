@@ -129,10 +129,17 @@ public class CourseDetailsRepositoryTemplate {
   public Page<CourseDetails> getAllCourses(Integer pageNumber, Integer pageSize, String courseCategoryId, String platform) {
     Pageable pageable = PageRequest.of(pageNumber, pageSize);
     Query query = new Query();
-    query.addCriteria(Criteria.where("Course_CategoryId").is(new ObjectId(courseCategoryId)).and("Course_Status").is(0));
+    Criteria criteria = Criteria.where("Disable").is(false);
+
     if("IOS".equalsIgnoreCase(platform)) {
-      query.addCriteria(Criteria.where("Product_Id_Available").is(true));
+      Criteria innerCriteria = new Criteria();
+
+      query.addCriteria(innerCriteria.orOperator(Criteria.where("isFree").is(true),
+                                                 Criteria.where("Product_Id_Available_Webinar").is(true),
+                                                 Criteria.where("Product_Id_Available_Online").is(true)));
     }
+    query.addCriteria(criteria);
+
     Long count = mongoTemplate.count(query, CourseDetails.class);
     query.with(pageable);
     List<CourseDetails> courseDetailsList = mongoTemplate.find(query, CourseDetails.class);
