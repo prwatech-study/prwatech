@@ -55,7 +55,7 @@ public class PushNotificationServiceImpl implements PushNotificationService {
             return;
         }
         Notification notification = Notification.builder()
-                .setBody((requestDto.getMessage().length() > 100) ? requestDto.getMessage().substring(0, 100)
+                .setBody((requestDto.getMessage().length() > 120) ? requestDto.getMessage().substring(0, 120)
                         : requestDto.getMessage())
                 .setTitle((requestDto.getTitle().length() > 50) ? requestDto.getTitle().substring(0, 50)
                         : requestDto.getTitle())
