@@ -25,7 +25,7 @@ public interface CourseDetailService {
 
   CourseDetailsDto getCourseDescriptionById(String id, String userId);
 
-  Pricing getPriceByCourseId(ObjectId courseId, CourseLevelCategory type);
+  Pricing getPriceByCourseId(ObjectId courseId, CourseLevelCategory type, String platform);
 
   List<CourseCardDto> getSelfPlacedCourses(String userId, String platform);
 

@@ -16,10 +16,13 @@ public class CoursePricingRepositoryTemplate {
 
   private MongoTemplate mongoTemplate;
 
-  public Optional<Pricing> getPricingOfCourseByCourseId(ObjectId Course_Id, CourseLevelCategory Course_Type) {
+  public Optional<Pricing> getPricingOfCourseByCourseId(ObjectId Course_Id, CourseLevelCategory Course_Type, String platform) {
 
     Query query = new Query();
     query.addCriteria(Criteria.where("Course_Id").is(Course_Id).andOperator(Criteria.where("Course_Type").is(Course_Type.getCourseType())));
+    if ("IOS".equalsIgnoreCase(platform)) {
+      query.addCriteria(Criteria.where("Product_Id").exists(true));
+    }
     return Optional.ofNullable(mongoTemplate.findOne(query, Pricing.class));
   }
 }

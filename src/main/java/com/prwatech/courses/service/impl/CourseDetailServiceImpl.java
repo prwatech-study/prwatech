@@ -36,16 +36,7 @@ import com.prwatech.courses.service.CourseDetailService;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import com.prwatech.finance.model.UserOrder;
@@ -90,7 +81,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getMostPopularCourse(platform);
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailList) {
-      Pricing cousePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.MOST_POPULAR);
+      Pricing cousePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.MOST_POPULAR, platform);
       CourseRatingDto courseRatingDto = getRatingCountOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
@@ -198,9 +189,9 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  public Pricing getPriceByCourseId(ObjectId courseId, CourseLevelCategory type) {
+  public Pricing getPriceByCourseId(ObjectId courseId, CourseLevelCategory type, String platform) {
     return coursePricingRepositoryTemplate
-        .getPricingOfCourseByCourseId(courseId, type)
+        .getPricingOfCourseByCourseId(courseId, type, platform)
         .orElse(new Pricing("", new ObjectId(), null, Constants.DEFAULT_PRICING, Constants.DEFAULT_PRICING, ""));
   }
 
@@ -211,7 +202,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.getSelfPlacedCourses(platform);
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailList) {
-      Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.SELF_PLACED);
+      Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.SELF_PLACED, platform);
       CourseRatingDto courseRatingDto = getRatingCountOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
@@ -317,14 +308,14 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       courseCardDto.setImgUrl(courseDetail.getCourse_Image());
       courseCardDto.setCourseRatingDto(courseRatingDto);
 
-      Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.MOST_POPULAR);
+      Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.MOST_POPULAR, platform);
       switch (category){
         case MOST_POPULAR, FREE_COURSES:
-          coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.MOST_POPULAR);
+          coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.MOST_POPULAR, platform);
           courseCardDto.setPrice(coursePricing.getDiscounted_Price());
           break;
         case SELF_PLACED, ALL:
-          coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.SELF_PLACED);
+          coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.SELF_PLACED, platform);
           courseCardDto.setPrice(coursePricing.getDiscounted_Price());
           break;
       }
@@ -341,7 +332,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         }
       }
 
-      boolean validForInsert = StringUtils.isEmpty(platform) || "ANDROID".equalsIgnoreCase(platform) || category == CourseLevelCategory.FREE_COURSES || !StringUtils.isEmpty(coursePricing.getProduct_Id()) && "IOS".equals(platform);
+      boolean validForInsert = StringUtils.isEmpty(platform) || courseDetail.getIsFree() != null && courseDetail.getIsFree() || "ANDROID".equalsIgnoreCase(platform) || category == CourseLevelCategory.FREE_COURSES || !StringUtils.isEmpty(coursePricing.getProduct_Id()) && "IOS".equals(platform);
       if (validForInsert) {
         courseCardDtoList.add(courseCardDto);
       }
@@ -374,7 +365,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       case MOST_POPULAR, FREE_COURSES -> Course_Type = CourseLevelCategory.MOST_POPULAR;
       case SELF_PLACED -> Course_Type = CourseLevelCategory.SELF_PLACED;
     }
-    return getPriceByCourseId(id, Course_Type);
+    return getPriceByCourseId(id, Course_Type, null);
   }
 
   @Override
@@ -434,7 +425,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         courseCardDto.setIsImgPresent(Objects.nonNull(courseDetail.getCourse_Image()));
         courseCardDto.setImgUrl(courseDetail.getCourse_Image());
         if (courseDetail.getCourse_Types() != null && courseDetail.getCourse_Types().size() > 0) {
-          Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.fromString(courseDetail.getCourse_Types().get(0)));
+          Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.fromString(courseDetail.getCourse_Types().get(0)), null);
           courseCardDto.setPrice(coursePricing.getDiscounted_Price());
           courseCardDto.setDiscountedPrice(coursePricing.getDiscounted_Price());
         }
@@ -459,7 +450,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       CourseDetails courseDetail = courseDetailRepository.findById(courseTrack.getCourseId().toString()).orElse(null);
       if (Objects.nonNull(courseDetail)) {
 
-        Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.fromString(courseDetail.getCourse_Types().get(0)));
+        Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.fromString(courseDetail.getCourse_Types().get(0)), null);
         CourseCardDto courseCardDto = new CourseCardDto();
         courseCardDto.setCourseId(courseDetail.getId());
         courseCardDto.setTitle(courseDetail.getCourse_Title());
@@ -515,7 +506,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
 
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailList) {
-      Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.MOST_POPULAR);
+      Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.MOST_POPULAR, platform);
       CourseRatingDto courseRatingDto = getRatingCountOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
@@ -543,7 +534,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         LOGGER.error("Exception occurred - ");
       }
 
-      boolean validForInsert = StringUtils.isEmpty(platform) || "ANDROID".equalsIgnoreCase(platform) || !StringUtils.isEmpty(coursePricing.getProduct_Id()) && "IOS".equalsIgnoreCase(platform);
+      boolean validForInsert = StringUtils.isEmpty(platform) || courseDetail.getIsFree() != null && courseDetail.getIsFree() || "ANDROID".equalsIgnoreCase(platform) || !StringUtils.isEmpty(coursePricing.getProduct_Id()) && "IOS".equalsIgnoreCase(platform);
 
       if(validForInsert) {
         courseCardDtoList.add(courseCardDto);

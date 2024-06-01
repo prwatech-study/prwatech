@@ -182,7 +182,7 @@ public class CourseDetailsController {
           @RequestParam(value = "userId", required = false) String userId,
       @RequestParam(value = "type") @NotNull CourseLevelCategory courseLevelCategory,
       @RequestParam(value = "pageNumber", defaultValue = "0") Integer pageNumber,
-      @RequestParam(value = "pageSize", defaultValue = "20") Integer pageSize,
+      @RequestParam(value = "pageSize", defaultValue = "50") Integer pageSize,
       @RequestParam(value = "platform", required = false) String platform) {
     return courseDetailService.getAllCoursesByCategory(userId, courseLevelCategory, pageNumber, pageSize, platform);
   }

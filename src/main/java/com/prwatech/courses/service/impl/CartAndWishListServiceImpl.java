@@ -71,7 +71,7 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
                     courseCardDto.setCourseRatingDto(courseRatingDto);
                     if (cartItem.getCourse_Type() != null) {
                         Pricing coursePricing = courseDetailService.
-                                getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.fromStringValue(cartItem.getCourse_Type()));
+                                getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.fromStringValue(cartItem.getCourse_Type()), null);
 
                         courseCardDto.setPrice(coursePricing.getDiscounted_Price());
                         courseCardDto.setDiscountedPrice(coursePricing.getDiscounted_Price());
@@ -118,7 +118,7 @@ public class CartAndWishListServiceImpl implements CartAndWishListService {
                 courseCardDto.setCourseRatingDto(courseRatingDto);
                 if (wishList.getCourseType() != null) {
                     Pricing coursePricing = courseDetailService.
-                            getPriceByCourseId(new ObjectId(courseDetail.getId()), wishList.getCourseType());
+                            getPriceByCourseId(new ObjectId(courseDetail.getId()), wishList.getCourseType(), null);
                     courseCardDto.setPrice( coursePricing.getDiscounted_Price());
                     courseCardDto.setDiscountedPrice( coursePricing.getDiscounted_Price());
                     courseCardDto.setProductId( coursePricing.getProduct_Id());

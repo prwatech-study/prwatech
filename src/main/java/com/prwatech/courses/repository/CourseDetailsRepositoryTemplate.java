@@ -129,14 +129,13 @@ public class CourseDetailsRepositoryTemplate {
   public Page<CourseDetails> getAllCourses(Integer pageNumber, Integer pageSize, String courseCategoryId, String platform) {
     Pageable pageable = PageRequest.of(pageNumber, pageSize);
     Query query = new Query();
-    Criteria criteria = Criteria.where("Disable").is(false);
+    Criteria criteria = Criteria.where("_id").exists(true);
 
     if("IOS".equalsIgnoreCase(platform)) {
       Criteria innerCriteria = new Criteria();
 
       query.addCriteria(innerCriteria.orOperator(Criteria.where("isFree").is(true),
-                                                 Criteria.where("Product_Id_Available_Webinar").is(true),
-                                                 Criteria.where("Product_Id_Available_Online").is(true)));
+                                                 Criteria.where("Product_Id_Available").is(true)));
     }
     query.addCriteria(criteria);
 
