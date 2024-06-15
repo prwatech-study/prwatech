@@ -7,6 +7,9 @@ import com.prwatech.common.Constants;
 import com.prwatech.common.dto.PaginationDto;
 import java.util.List;
 import java.util.Random;
+
+import com.prwatech.courses.model.Pricing;
+import org.bson.types.ObjectId;
 import org.springframework.data.domain.Pageable;
 
 public class Utility {
@@ -54,5 +57,15 @@ public class Utility {
       sb.append(CHARACTERS.charAt(random.nextInt(CHARACTERS.length())));
     }
     return sb.toString();
+  }
+
+  public static Pricing zeroPricing(String courseId) {
+    Pricing zeroPricing = new Pricing();
+    zeroPricing.setCourse_Id(new ObjectId(courseId));
+    zeroPricing.setCourse_Type("Online");
+    zeroPricing.setActual_Price(0);
+    zeroPricing.setDiscounted_Price(0);
+
+    return zeroPricing;
   }
 }

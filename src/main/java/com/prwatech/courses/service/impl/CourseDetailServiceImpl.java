@@ -34,6 +34,7 @@ import com.prwatech.courses.repository.MyCoursesTemplate;
 import com.prwatech.courses.repository.WishListTemplate;
 import com.prwatech.courses.service.CourseDetailService;
 
+import java.lang.reflect.Array;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -450,7 +451,8 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       CourseDetails courseDetail = courseDetailRepository.findById(courseTrack.getCourseId().toString()).orElse(null);
       if (Objects.nonNull(courseDetail)) {
 
-        Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.fromString(courseDetail.getCourse_Types().get(0)), null);
+        Pricing coursePricing = courseDetail.getIsFree() != null && courseDetail.getIsFree() ? Utility.zeroPricing(courseDetail.getId()) : getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.fromString(courseDetail.getCourse_Types().get(0)), null);
+
         CourseCardDto courseCardDto = new CourseCardDto();
         courseCardDto.setCourseId(courseDetail.getId());
         courseCardDto.setTitle(courseDetail.getCourse_Title());
@@ -629,5 +631,20 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   public Map<String, String> searchByName(String name) {
     List<CourseDetailsProjection> courseDetailsList = courseDetailsRepositoryTemplate.searchByNameAndroid(name);
     return courseDetailsList.stream().collect(Collectors.toMap(CourseDetailsProjection::getId, CourseDetailsProjection::getCourse_Title));
+  }
+
+  @Override
+  public List<String> getClientImages() {
+    return Arrays.asList(
+            "https://drive.google.com/file/d/11gFK3kBtADpVclt1jF3fXsXH5f0WwBlX/view?usp=drive_link",
+            "https://drive.google.com/file/d/1WMrl1iJAvgZanwZjgMz794YVfOK4BcVR/view?usp=drive_link",
+            "https://drive.google.com/file/d/1Aaj3AFJk4XmKd4SFidmr-m-FZs3x40Zb/view?usp=drive_link",
+            "https://drive.google.com/file/d/1HxTP9C-sdPpOORGxkRvqe96tRhQsaZv5/view?usp=drive_link",
+            "https://drive.google.com/file/d/1vp0whvQblX_G1e0-0jvKwpZ4kgj5zg0d/view?usp=drive_link",
+            "https://drive.google.com/file/d/1YT2TmTO9ZRFAPU0r4sX0N4MSx7RzZNGd/view?usp=drive_link",
+            "https://drive.google.com/file/d/1N5XufficgeFqQ1a5bB8T84RYwDpATjLF/view?usp=drive_link",
+            "https://drive.google.com/file/d/1OhLvWPmptevm1jvNrD5PdncPo-RADUil/view?usp=drive_link",
+            "https://drive.google.com/file/d/1Pbp85-QlulMvAsODjte4WflNV4ExE5ka/view?usp=drive_link"
+    );
   }
 }

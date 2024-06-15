@@ -60,4 +60,6 @@ public interface CourseDetailService {
   
   Map<String, String> searchByName(String name);
 
+  List<String> getClientImages();
+
   }
