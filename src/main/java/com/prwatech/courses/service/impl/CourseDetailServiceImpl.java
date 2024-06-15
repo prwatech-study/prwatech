@@ -636,15 +636,15 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   @Override
   public List<String> getClientImages() {
     return Arrays.asList(
-            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/ace%20inotech.png",
-            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/flipkart.png",
-            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/gift%20abeld.png",
-            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/kalyani.png",
-            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/mavenir.png",
-            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/nitt.png",
-            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/roche.png",
-            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/rps.png",
-            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/tech%20mahindra.png"
+            "https://storage.googleapis.com/eduprwa-bucket/client-photos/ace%20inotech.png",
+            "https://storage.googleapis.com/eduprwa-bucket/client-photos/flipkart.png",
+            "https://storage.googleapis.com/eduprwa-bucket/client-photos/gift%20abeld.png",
+            "https://storage.googleapis.com/eduprwa-bucket/client-photos/kalyani.png",
+            "https://storage.googleapis.com/eduprwa-bucket/client-photos/mavenir.png",
+            "https://storage.googleapis.com/eduprwa-bucket/client-photos/nitt.png",
+            "https://storage.googleapis.com/eduprwa-bucket/client-photos/roche.png",
+            "https://storage.googleapis.com/eduprwa-bucket/client-photos/rps.png",
+            "https://storage.googleapis.com/eduprwa-bucket/client-photos/tech%20mahindra.png"
     );
   }
 }
