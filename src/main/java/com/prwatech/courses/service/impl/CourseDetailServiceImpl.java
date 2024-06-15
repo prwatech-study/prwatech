@@ -636,15 +636,15 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   @Override
   public List<String> getClientImages() {
     return Arrays.asList(
-            "https://drive.google.com/file/d/11gFK3kBtADpVclt1jF3fXsXH5f0WwBlX/view?usp=drive_link",
-            "https://drive.google.com/file/d/1WMrl1iJAvgZanwZjgMz794YVfOK4BcVR/view?usp=drive_link",
-            "https://drive.google.com/file/d/1Aaj3AFJk4XmKd4SFidmr-m-FZs3x40Zb/view?usp=drive_link",
-            "https://drive.google.com/file/d/1HxTP9C-sdPpOORGxkRvqe96tRhQsaZv5/view?usp=drive_link",
-            "https://drive.google.com/file/d/1vp0whvQblX_G1e0-0jvKwpZ4kgj5zg0d/view?usp=drive_link",
-            "https://drive.google.com/file/d/1YT2TmTO9ZRFAPU0r4sX0N4MSx7RzZNGd/view?usp=drive_link",
-            "https://drive.google.com/file/d/1N5XufficgeFqQ1a5bB8T84RYwDpATjLF/view?usp=drive_link",
-            "https://drive.google.com/file/d/1OhLvWPmptevm1jvNrD5PdncPo-RADUil/view?usp=drive_link",
-            "https://drive.google.com/file/d/1Pbp85-QlulMvAsODjte4WflNV4ExE5ka/view?usp=drive_link"
+            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/ace%20inotech.png",
+            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/flipkart.png",
+            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/gift%20abeld.png",
+            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/kalyani.png",
+            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/mavenir.png",
+            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/nitt.png",
+            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/roche.png",
+            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/rps.png",
+            "https://storage.cloud.google.com/eduprwa-bucket/client-photos/tech%20mahindra.png"
     );
   }
 }
