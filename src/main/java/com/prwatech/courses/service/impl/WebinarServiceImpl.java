@@ -1,5 +1,6 @@
 package com.prwatech.courses.service.impl;
 
+import com.prwatech.common.Constants;
 import com.prwatech.common.dto.PaginationDto;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.common.exception.UnProcessableEntityException;
@@ -40,6 +41,7 @@ public class WebinarServiceImpl implements WebinarService {
         List<Webinar> webinarList = null;
         if(!webinarPage.isEmpty()){
              webinarList = webinarPage.getContent();
+             webinarList.forEach(webinar -> webinar.setWebinar_Image(Constants.WEBINAR_IMAGE));
         }
 
         return Utility.getPaginatedResponse(

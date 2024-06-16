@@ -1,5 +1,6 @@
 package com.prwatech.courses.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -41,4 +42,7 @@ public class Webinar {
     @CreationTimestamp
     @Field(name = "Created_On")
     private LocalDateTime Created_On;
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private String Webinar_Image;
 }

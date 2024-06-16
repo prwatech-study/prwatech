@@ -119,6 +119,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         .findById(id)
         .orElseThrow(() -> new NotFoundException("No course found by this id :"));
 
+    courseDetail.setClient_Image(Constants.COURSE_CURRICULUM);
     CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
     CourseDetailsDto courseDetailsDto = new CourseDetailsDto(courseDetail, courseRatingDto, false, null, false, null);
     if(userId!=null){

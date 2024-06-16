@@ -59,4 +59,7 @@ public class Constants {
                   "\n" +
                   "Thank you,\n" +
                   "Prwatech";
+
+  public static String COURSE_CURRICULUM = "https://storage.googleapis.com/eduprwa-bucket/client-photos/client_curriculum.jpeg";
+  public static String WEBINAR_IMAGE = "https://storage.googleapis.com/eduprwa-bucket/client-photos/webinar.jpeg";
 }

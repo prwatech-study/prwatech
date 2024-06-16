@@ -2,6 +2,8 @@ package com.prwatech.courses.model;
 
 import java.time.LocalDateTime;
 import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -90,4 +92,7 @@ public class CourseDetails {
 
   @Field(name = "Product_Id_Available_Classroom")
   private Boolean Product_Id_Available_Classroom = Boolean.FALSE;
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  private String Client_Image;
 }
