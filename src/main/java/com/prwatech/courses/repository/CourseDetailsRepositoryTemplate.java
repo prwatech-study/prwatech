@@ -6,6 +6,8 @@ import com.prwatech.courses.model.CourseDetails;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
+
 import lombok.AllArgsConstructor;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Value;
@@ -59,6 +61,7 @@ public class CourseDetailsRepositoryTemplate {
   public Page<CourseDetails> getAllMostPopularCourses(Integer pageNumber, Integer pageSize) {
     Pageable pageable = PageRequest.of(pageNumber, pageSize);
     Query query = new Query();
+    query.addCriteria(Criteria.where("Course_Details").not().size(0));
     query.addCriteria(Criteria.where("Course_Types").in("Webinar"));
     Long count = mongoTemplate.count(query, CourseDetails.class);
     query.with(pageable);
@@ -70,6 +73,7 @@ public class CourseDetailsRepositoryTemplate {
     Pageable pageable = PageRequest.of(pageNumber, pageSize);
     Query query = new Query();
     query.addCriteria(Criteria.where("Course_Types").in("Online"));
+    query.addCriteria(Criteria.where("Course_Details").not().size(0));
     Long count = mongoTemplate.count(query, CourseDetails.class);
     query.with(pageable);
     List<CourseDetails> courseDetailsList = mongoTemplate.find(query, CourseDetails.class);
@@ -79,6 +83,7 @@ public class CourseDetailsRepositoryTemplate {
   public Page<CourseDetails> getAllFreeCourses(Integer pageNumber, Integer pageSize) {
     Pageable pageable = PageRequest.of(pageNumber, pageSize);
     Query query = new Query();
+    query.addCriteria(Criteria.where("Course_Details").not().size(0));
     query.addCriteria(Criteria.where("isFree").in(Boolean.TRUE));
     Long count = mongoTemplate.count(query, CourseDetails.class);
     query.with(pageable);
@@ -88,8 +93,21 @@ public class CourseDetailsRepositoryTemplate {
 
   public List<CourseDetailsProjection> searchByNameAndroid(String name){
 
-    AggregationOperation match = Aggregation.match(Criteria.where("Course_Title").regex(name, "i"));
-    AggregationOperation project = Aggregation.project("id", "Course_Title");
+    // Define the orCriteria
+    Criteria orCriteria = new Criteria();
+    orCriteria.orOperator(
+            Criteria.where("Course_Details").not().size(0),
+            Criteria.where("isFree").is(true)
+    );
+
+    // Combine the criteria
+    Criteria combinedCriteria = new Criteria().andOperator(
+            Criteria.where("Course_Title").regex(Pattern.compile(name, Pattern.CASE_INSENSITIVE)),
+            orCriteria
+    );
+
+    // Use Aggregation for case-insensitive regex search with limited fields projection
+    AggregationOperation match = Aggregation.match(combinedCriteria);    AggregationOperation project = Aggregation.project("id", "Course_Title");
     Aggregation aggregation = Aggregation.newAggregation(match, project);
 
     AggregationResults<CourseDetailsProjection> results = mongoTemplate.aggregate(aggregation, "CourseDetails", CourseDetailsProjection.class);
@@ -97,8 +115,21 @@ public class CourseDetailsRepositoryTemplate {
   }
 
   public List<CourseDetails> searchByName(String name){
+    // Define the orCriteria
+    Criteria orCriteria = new Criteria();
+    orCriteria.orOperator(
+            Criteria.where("Course_Details").not().size(0),
+            Criteria.where("isFree").is(true)
+    );
 
-    AggregationOperation match = Aggregation.match(Criteria.where("Course_Title").regex(name, "i"));
+    // Combine the criteria
+    Criteria combinedCriteria = new Criteria().andOperator(
+            Criteria.where("Course_Title").regex(Pattern.compile(name, Pattern.CASE_INSENSITIVE)),
+            orCriteria
+    );
+
+    // Use Aggregation for case-insensitive regex search with limited fields projection
+    AggregationOperation match = Aggregation.match(combinedCriteria);
     AggregationOperation project = Aggregation.project("id", "Course_Title");
     Aggregation aggregation = Aggregation.newAggregation(match, project);
 
@@ -129,15 +160,12 @@ public class CourseDetailsRepositoryTemplate {
   public Page<CourseDetails> getAllCourses(Integer pageNumber, Integer pageSize, String courseCategoryId, String platform) {
     Pageable pageable = PageRequest.of(pageNumber, pageSize);
     Query query = new Query();
-    Criteria criteria = Criteria.where("_id").exists(true);
-
+    Criteria orCriteria = new Criteria();
+    orCriteria.orOperator(Criteria.where("Course_Details").not().size(0), Criteria.where("isFree").is(true));
     if("IOS".equalsIgnoreCase(platform)) {
-      Criteria innerCriteria = new Criteria();
-
-      query.addCriteria(innerCriteria.orOperator(Criteria.where("isFree").is(true),
-                                                 Criteria.where("Product_Id_Available").is(true)));
+      query.addCriteria(Criteria.where("Product_Id_Available").is(true));
     }
-    query.addCriteria(criteria);
+    query.addCriteria(orCriteria);
 
     Long count = mongoTemplate.count(query, CourseDetails.class);
     query.with(pageable);
