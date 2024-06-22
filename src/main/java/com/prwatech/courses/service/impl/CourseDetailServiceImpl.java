@@ -45,6 +45,7 @@ import com.prwatech.finance.repository.template.UserOrderTemplate;
 import com.prwatech.user.model.User;
 import com.prwatech.user.repository.UserRepository;
 import lombok.AllArgsConstructor;
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.cache.annotation.Cacheable;
@@ -83,7 +84,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailList) {
       Pricing cousePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.MOST_POPULAR, platform);
-      CourseRatingDto courseRatingDto = getRatingCountOfCourse(courseDetail.getId());
+      CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
       courseCardDto.setCourseId(courseDetail.getId());
@@ -112,6 +113,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
+  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public CourseDetailsDto getCourseDescriptionById(String id, String userId) {
 
 
@@ -146,6 +148,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
+  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public CourseRatingDto getRatingOfCourse(String courseId) {
     List<CourseReview> courseReviewList =
         courseReviewRepositoryTemplate.getCourseReviewByCourseId(new ObjectId(courseId));
@@ -160,7 +163,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     List<String> messageList = new ArrayList<>();
 
     for(CourseReview courseReview : courseReviewList){
-        if(Objects.nonNull(courseReview.getReview_Message())){
+        if(!ObjectUtils.isEmpty(courseReview.getReview_Message()) && !"test".equalsIgnoreCase(courseReview.getReview_Message())){
           messageList.add(courseReview.getReview_Message());
         }
       switch (courseReview.getReview_Number()){
@@ -205,7 +208,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailList) {
       Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()), CourseLevelCategory.SELF_PLACED, platform);
-      CourseRatingDto courseRatingDto = getRatingCountOfCourse(courseDetail.getId());
+      CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
       courseCardDto.setCourseId(courseDetail.getId());
@@ -241,7 +244,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
 
     for (CourseDetails courseDetail : courseDetailsPage.getContent()) {
 
-      CourseRatingDto courseRatingDto = getRatingCountOfCourse(courseDetail.getId());
+      CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
       courseCardDto.setCourseId(courseDetail.getId());
@@ -301,7 +304,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailsPage.getContent()) {
 
-      CourseRatingDto courseRatingDto = getRatingCountOfCourse(courseDetail.getId());
+      CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
       courseCardDto.setCourseId(courseDetail.getId());
@@ -339,7 +342,8 @@ public class CourseDetailServiceImpl implements CourseDetailService {
         courseCardDtoList.add(courseCardDto);
       }
     }
-
+    //Sorting on rating basis
+    courseCardDtoList = courseCardDtoList.stream().sorted((p1, p2) -> p2.getCourseRatingDto().getTotalRating() - p1.getCourseRatingDto().getTotalRating()).collect(Collectors.toList());
     return Utility.getPaginatedResponse(
         Collections.singletonList(courseCardDtoList),
         courseDetailsPage.getPageable(),
@@ -503,6 +507,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
+  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public List<CourseCardDto> searchByName(String name, String userId, String platform) {
 
     List<CourseDetails> courseDetailList = courseDetailsRepositoryTemplate.searchByName(name);
@@ -510,7 +515,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
     List<CourseCardDto> courseCardDtoList = new ArrayList<>();
     for (CourseDetails courseDetail : courseDetailList) {
       Pricing coursePricing = getPriceByCourseId(new ObjectId(courseDetail.getId()),CourseLevelCategory.MOST_POPULAR, platform);
-      CourseRatingDto courseRatingDto = getRatingCountOfCourse(courseDetail.getId());
+      CourseRatingDto courseRatingDto = getRatingOfCourse(courseDetail.getId());
       CourseCardDto courseCardDto = new CourseCardDto();
 
       courseCardDto.setCourseId(courseDetail.getId());

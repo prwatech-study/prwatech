@@ -1,5 +1,6 @@
 package com.prwatech.notification.dto;
 
+import com.prwatech.notification.enums.NotificationPage;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -19,4 +20,6 @@ public class PushNotificationRequestDto {
     private String title;
     @NotNull
     private String message;
+    @NotNull
+    private NotificationPage notificationEntryPage;
 }

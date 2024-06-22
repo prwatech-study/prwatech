@@ -16,9 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Component
@@ -70,6 +68,7 @@ public class PushNotificationServiceImpl implements PushNotificationService {
             MulticastMessage message = MulticastMessage.builder()
                     .addAllTokens(batch)
                     .setNotification(notification)
+                    .putData("page", requestDto.getNotificationEntryPage().toString())
                     .build();
             try {
                 BatchResponse response = FirebaseMessaging.getInstance().sendMulticast(message);
