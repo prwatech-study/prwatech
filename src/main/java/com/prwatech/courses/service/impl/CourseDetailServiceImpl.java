@@ -343,9 +343,18 @@ public class CourseDetailServiceImpl implements CourseDetailService {
       }
     }
     //Sorting on rating basis
-    courseCardDtoList = courseCardDtoList.stream().sorted((p1, p2) -> p2.getCourseRatingDto().getTotalRating() - p1.getCourseRatingDto().getTotalRating()).collect(Collectors.toList());
+    List<CourseCardDto> sortedList = courseCardDtoList.stream()
+            .sorted((p1, p2) -> {
+              double avgRating1 = p1.getCourseRatingDto().getTotalRatingCount() == 0 ? 0 :
+                      (double) p1.getCourseRatingDto().getTotalRating() / p1.getCourseRatingDto().getTotalRatingCount();
+              double avgRating2 = p2.getCourseRatingDto().getTotalRatingCount() == 0 ? 0 :
+                      (double) p2.getCourseRatingDto().getTotalRating() / p2.getCourseRatingDto().getTotalRatingCount();
+              return Double.compare(avgRating2, avgRating1); // Compare in descending order
+            })
+            .collect(Collectors.toList());
+
     return Utility.getPaginatedResponse(
-        Collections.singletonList(courseCardDtoList),
+        Collections.singletonList(sortedList),
         courseDetailsPage.getPageable(),
         courseDetailsPage.getTotalPages(),
         courseDetailsPage.hasNext(),
@@ -652,5 +661,13 @@ public class CourseDetailServiceImpl implements CourseDetailService {
             "https://storage.googleapis.com/eduprwa-bucket/client-photos/rps.png",
             "https://storage.googleapis.com/eduprwa-bucket/client-photos/tech%20mahindra.png"
     );
+  }
+
+  private Integer sortingOnAverage(CourseCardDto p1, CourseCardDto p2) {
+    if (p1.getCourseRatingDto().getTotalRatingCount() == 0 || p2.getCourseRatingDto().getTotalRatingCount() == 0) {
+      return 1;
+    }
+    return (p2.getCourseRatingDto().getTotalRating()/p2.getCourseRatingDto().getTotalRatingCount()) - (p1.getCourseRatingDto().getTotalRating()/p1.getCourseRatingDto().getTotalRatingCount());
+
   }
 }
