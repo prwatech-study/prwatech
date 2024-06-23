@@ -48,7 +48,8 @@ public class Constants {
   public static String REFERAL_BIT_2="PRTC";
   public static String NEW_USER_COUPON_ID="64f8c81101adc23e4d5953e1";
 
-  public static Integer DEFAULT_REF_AMOUNT=500;
+  public static Integer DEFAULT_REF_AMOUNT=100;
+  public static Integer DEFAULT_AMOUNT=500;
 
   public static String USER_ACCOUNT_DELETION_REQUEST = "User Account Deletion Request";
   public static String USER_ACCOUNT_DELETION_MESSAGE =
