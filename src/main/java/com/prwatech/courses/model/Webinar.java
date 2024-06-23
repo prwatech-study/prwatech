@@ -45,4 +45,7 @@ public class Webinar {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private String Webinar_Image;
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private String status;
 }

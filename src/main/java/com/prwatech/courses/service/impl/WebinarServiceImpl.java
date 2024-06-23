@@ -19,6 +19,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -41,7 +43,11 @@ public class WebinarServiceImpl implements WebinarService {
         List<Webinar> webinarList = null;
         if(!webinarPage.isEmpty()){
              webinarList = webinarPage.getContent();
-             webinarList.forEach(webinar -> webinar.setWebinar_Image(Constants.WEBINAR_IMAGE));
+             webinarList.forEach(webinar -> {
+                         webinar.setWebinar_Image(Constants.WEBINAR_IMAGE);
+                         webinar.setStatus(webinar.getWebinar_Date_Time().isBefore(LocalDateTime.now()) ? "Past" : "Upcoming");
+                     }
+             );
         }
 
         return Utility.getPaginatedResponse(
