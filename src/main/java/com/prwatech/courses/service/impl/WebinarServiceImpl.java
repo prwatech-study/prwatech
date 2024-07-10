@@ -43,7 +43,7 @@ public class WebinarServiceImpl implements WebinarService {
         List<Webinar> webinarList = null;
         if(!webinarPage.isEmpty()){
              webinarList = webinarPage.getContent();
-             webinarList.forEach(webinar -> {
+             webinarList.stream().filter(p -> p.getWebinar_Date_Time() != null).forEach(webinar -> {
                          webinar.setWebinar_Image(Constants.WEBINAR_IMAGE);
                          webinar.setStatus(webinar.getWebinar_Date_Time().isBefore(LocalDateTime.now()) ? "Past" : "Upcoming");
                      }
