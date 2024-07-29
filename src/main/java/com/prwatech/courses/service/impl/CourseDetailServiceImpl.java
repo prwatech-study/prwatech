@@ -113,10 +113,8 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
+//  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public CourseDetailsDto getCourseDescriptionById(String id, String userId) {
-
-
     CourseDetails courseDetail =  courseDetailRepository
         .findById(id)
         .orElseThrow(() -> new NotFoundException("No course found by this id :"));
@@ -148,7 +146,7 @@ public class CourseDetailServiceImpl implements CourseDetailService {
   }
 
   @Override
-  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
+//  @Cacheable(value = "homepageCache", keyGenerator = "customKeyGenerator")
   public CourseRatingDto getRatingOfCourse(String courseId) {
     List<CourseReview> courseReviewList =
         courseReviewRepositoryTemplate.getCourseReviewByCourseId(new ObjectId(courseId));
