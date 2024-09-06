@@ -68,7 +68,7 @@ public class PushNotificationServiceImpl implements PushNotificationService {
             MulticastMessage message = MulticastMessage.builder()
                     .addAllTokens(batch)
                     .setNotification(notification)
-                    .putData("page", requestDto.getNotificationEntryPage().toString())
+//                    .putData("page", requestDto.getNotificationEntryPage().toString())
                     .build();
             try {
                 BatchResponse response = FirebaseMessaging.getInstance().sendMulticast(message);
