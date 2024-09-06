@@ -20,6 +20,6 @@ public class PushNotificationRequestDto {
     private String title;
     @NotNull
     private String message;
-    @NotNull
-    private NotificationPage notificationEntryPage;
+//    @NotNull
+//    private NotificationPage notificationEntryPage;
 }
