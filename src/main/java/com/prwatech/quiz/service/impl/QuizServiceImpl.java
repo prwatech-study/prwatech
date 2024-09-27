@@ -133,7 +133,7 @@ public class QuizServiceImpl implements QuizService {
                   ()-> new NotFoundException("No quiz content found by this id!"));
 
           Quiz quiz = quizRepository.findById(quizContent.getQuizId().toString()).orElse(null);
-          if(Objects.isNull(quiz) &&  !quiz.getQuizContents().isEmpty()){
+          if(!Objects.isNull(quiz) &&  !quiz.getQuizContents().isEmpty()){
               quizContentRepository.deleteById(id.toString());
               List<QuizContent> quizContents = quiz.getQuizContents();
               quizContents.remove(quizContent);
