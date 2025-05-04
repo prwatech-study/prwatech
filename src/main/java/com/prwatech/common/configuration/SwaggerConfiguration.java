@@ -52,4 +52,16 @@ public class SwaggerConfiguration {
         .paths(PathSelectors.ant("/api/public/**"))
         .build();
   }
+
+  @Bean
+  public Docket skillamaApi() {
+    return new Docket(DocumentationType.SWAGGER_2)
+        .groupName("Skillama APIs")
+        .tags(new Tag("Skillama API", "API for skillamaDB user, course, curriculum"))
+        .enable(appContext.getIsSwaggerEnabled())
+        .select()
+        .apis(RequestHandlerSelectors.basePackage("com.prwatech.skillama"))
+        .paths(PathSelectors.ant("/skillama/**"))
+        .build();
+  }
 }
