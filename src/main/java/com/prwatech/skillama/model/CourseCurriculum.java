@@ -1,5 +1,6 @@
 package com.prwatech.skillama.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -35,6 +36,7 @@ public class CourseCurriculum {
     public static class Submodule {
         private String label;
         private String imagePath;
+        @JsonProperty("isPracticalRequired")
         private boolean isPracticalRequired;
         private String scriptText;
         private Integer order; // Order of the submodule within the module
