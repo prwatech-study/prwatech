@@ -55,9 +55,7 @@ dependencies {
 	implementation group: 'com.google.firebase', name: 'firebase-admin', version: '8.1.0'
 	implementation group: 'com.sparkpost', name: 'sparkpost-lib', version: '0.27'
     implementation 'org.springframework.boot:spring-boot-starter-security'
-
-
-
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 }
 
 tasks.named('test') {

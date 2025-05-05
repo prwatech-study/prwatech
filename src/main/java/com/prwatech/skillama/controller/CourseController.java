@@ -32,11 +32,6 @@ public class CourseController {
         return ResponseEntity.ok(courseService.findAll(page, size, sortBy, desc));
     }
 
-    @GetMapping("/all")
-    public ResponseEntity<List<Course>> getAllCoursesNoPagination() {
-        return ResponseEntity.ok(courseService.findAll());
-    }
-
     @GetMapping("/{id}")
     public ResponseEntity<Course> getById(@PathVariable String id) {
         return courseService.findById(id)

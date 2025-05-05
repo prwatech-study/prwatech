@@ -22,12 +22,12 @@ import lombok.Getter;
 @Service
 public class CourseService {
     private final CourseRepository courseRepository;
-    private final CourseCurriculumRepository curriculumRepo;
+    private final CourseCurriculumRepository curriculumRepository;
     private final MongoTemplate skillamaMongoTemplate;
 
     public CourseService(CourseRepository courseRepository, CourseCurriculumRepository curriculumRepo, @Qualifier("skillamaMongoTemplate") MongoTemplate skillamaMongoTemplate) {
         this.courseRepository = courseRepository;
-        this.curriculumRepo = curriculumRepo;
+        this.curriculumRepository = curriculumRepo;
         this.skillamaMongoTemplate = skillamaMongoTemplate;
     }
 
@@ -78,62 +78,62 @@ public class CourseService {
     public CourseCurriculum addModule(CourseCurriculum module) {
         module.setCreatedAt(LocalDateTime.now());
         module.setUpdatedAt(LocalDateTime.now());
-        return curriculumRepo.save(module);
+        return curriculumRepository.save(module);
     }
 
     public CourseCurriculum updateModule(String moduleId, CourseCurriculum updated) {
-        return curriculumRepo.findById(moduleId).map(existing -> {
+        return curriculumRepository.findById(moduleId).map(existing -> {
             existing.setModuleName(updated.getModuleName());
             existing.setModuleAssetPath(updated.getModuleAssetPath());
             existing.setSubmodules(updated.getSubmodules());
             existing.setUpdatedBy(updated.getUpdatedBy());
             existing.setUpdatedAt(LocalDateTime.now());
-            return curriculumRepo.save(existing);
+            return curriculumRepository.save(existing);
         }).orElse(null);
     }
 
     public void removeModule(String moduleId) {
-        curriculumRepo.deleteById(moduleId);
+        curriculumRepository.deleteById(moduleId);
     }
 
     // When fetching modules for a course, sort by 'order' field
     public List<CourseCurriculum> getCurriculumByCourseIdOrdered(String courseId) {
-        return curriculumRepo.findByCourseIdOrderByOrderAsc(courseId);
+        return curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
     }
 
     // --- SUBMODULE MANAGEMENT ---
     public CourseCurriculum addSubmodule(String moduleId, CourseCurriculum.Submodule submodule) {
-        return curriculumRepo.findById(moduleId).map(module -> {
+        return curriculumRepository.findById(moduleId).map(module -> {
             List<CourseCurriculum.Submodule> list = module.getSubmodules();
             if (list == null) list = new java.util.ArrayList<>();
             list.add(submodule);
             module.setSubmodules(list);
             module.setUpdatedAt(LocalDateTime.now());
-            return curriculumRepo.save(module);
+            return curriculumRepository.save(module);
         }).orElse(null);
     }
 
     public CourseCurriculum updateSubmodule(String moduleId, int submoduleIdx, CourseCurriculum.Submodule updatedSubmodule) {
-        return curriculumRepo.findById(moduleId).map(module -> {
+        return curriculumRepository.findById(moduleId).map(module -> {
             List<CourseCurriculum.Submodule> list = module.getSubmodules();
             if (list != null && submoduleIdx >= 0 && submoduleIdx < list.size()) {
                 list.set(submoduleIdx, updatedSubmodule);
                 module.setSubmodules(list);
                 module.setUpdatedAt(LocalDateTime.now());
-                return curriculumRepo.save(module);
+                return curriculumRepository.save(module);
             }
             return module;
         }).orElse(null);
     }
 
     public CourseCurriculum removeSubmodule(String moduleId, int submoduleIdx) {
-        return curriculumRepo.findById(moduleId).map(module -> {
+        return curriculumRepository.findById(moduleId).map(module -> {
             List<CourseCurriculum.Submodule> list = module.getSubmodules();
             if (list != null && submoduleIdx >= 0 && submoduleIdx < list.size()) {
                 list.remove(submoduleIdx);
                 module.setSubmodules(list);
                 module.setUpdatedAt(LocalDateTime.now());
-                return curriculumRepo.save(module);
+                return curriculumRepository.save(module);
             }
             return module;
         }).orElse(null);

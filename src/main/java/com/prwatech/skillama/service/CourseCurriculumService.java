@@ -32,22 +32,4 @@ public class CourseCurriculumService {
         return curriculumRepository.findById(id);
     }
 
-    public Page<CourseCurriculum> findAll(int page, int size, String sortBy, boolean desc) {
-        Pageable pageable = PageRequest.of(page, size, desc ? Sort.Direction.DESC : Sort.Direction.ASC, sortBy);
-        return curriculumRepository.findAll(pageable);
-    }
-
-    public CourseCurriculum update(String id, CourseCurriculum updated) {
-        return curriculumRepository.findById(id).map(existing -> {
-            existing.setTitle(updated.getTitle());
-            existing.setContent(updated.getContent());
-            existing.setUpdatedBy(updated.getUpdatedBy());
-            existing.setUpdatedAt(LocalDateTime.now());
-            return curriculumRepository.save(existing);
-        }).orElse(null);
-    }
-
-    public void delete(String id) {
-        curriculumRepository.deleteById(id);
-    }
 }

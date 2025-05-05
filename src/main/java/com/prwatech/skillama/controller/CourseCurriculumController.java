@@ -12,55 +12,23 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/skillama/curricula")
+@RequestMapping("/skillama/curriculum")
 @RequiredArgsConstructor
 public class CourseCurriculumController {
     private final CourseCurriculumService curriculumService;
     private final CourseService courseService;
     private final CourseCurriculumRepository curriculumRepo;
 
-    @PostMapping
-    public ResponseEntity<CourseCurriculum> create(@RequestBody CourseCurriculum curriculum) {
-        return ResponseEntity.ok(curriculumService.create(curriculum));
-    }
-
-    @GetMapping
-    public ResponseEntity<Page<CourseCurriculum>> getAllCurricula(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "desc") String order
-    ) {
-        boolean desc = order.equalsIgnoreCase("desc");
-        return ResponseEntity.ok(curriculumService.findAll(page, size, sortBy, desc));
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<CourseCurriculum> getById(@PathVariable String id) {
-        return curriculumService.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<CourseCurriculum> update(@PathVariable String id, @RequestBody CourseCurriculum curriculum) {
-        CourseCurriculum updated = curriculumService.update(id, curriculum);
-        if (updated == null) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(updated);
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable String id) {
-        curriculumService.delete(id);
-        return ResponseEntity.noContent().build();
-    }
-
-    // --- MODULE (CURRICULUM) MANAGEMENT ---
     @PostMapping("/module")
     public ResponseEntity<CourseCurriculum> addModule(@RequestBody CourseCurriculum module) {
         return ResponseEntity.ok(courseService.addModule(module));
+    }
+
+    @GetMapping("/{moduleId}")
+    public ResponseEntity<CourseCurriculum> getById(@PathVariable String moduleId) {
+        return curriculumService.findById(moduleId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/module/{moduleId}")
@@ -96,11 +64,5 @@ public class CourseCurriculumController {
         CourseCurriculum result = courseService.removeSubmodule(moduleId, idx);
         if (result == null) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(result);
-    }
-
-    // Endpoint to get curriculum modules for a course in order
-    @GetMapping("/{courseId}")
-    public ResponseEntity<List<CourseCurriculum>> getCurriculumByCourseIdOrdered(@PathVariable String courseId) {
-        return ResponseEntity.ok(courseService.getCurriculumByCourseIdOrdered(courseId));
     }
 }
