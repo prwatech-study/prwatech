@@ -37,7 +37,7 @@ public class QuizController {
      private final QuizService quizService;
      private final QuizUserService quizUserService;
 
-    @ApiOperation(value = "Add new quiz to database", notes = "Add new quiz to database.")
+    @ApiOperation(value = "Add new quiz to database", notes = "Create / Add NEW QUIZ")
     @ApiResponses(
             value = {
                     @ApiResponse(code = 200, message = "Success"),
@@ -56,7 +56,7 @@ public class QuizController {
         return quizService.addNewQuiz(quizDtoList);
     }
 
-    @ApiOperation(value = "get quiz details by quiz id", notes = "get quiz details by quiz id")
+    @ApiOperation(value = "get quiz details by quiz id", notes = "GET QUIZ details by QUIZ ID")
     @ApiResponses(
             value = {
                     @ApiResponse(code = 200, message = "Success"),
@@ -68,14 +68,14 @@ public class QuizController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(value = HttpStatus.OK)
-    @GetMapping("/quiz/details/{id}")
+    @GetMapping("/quiz/details/{quizId}")
     public QuizGetDto getQuizDetail(
-            @PathVariable("id") String id
+            @PathVariable("quizId") String quizId
     ){
-       return quizService.getQuizDetailsByQuizId(id);
+       return quizService.getQuizDetailsByQuizId(quizId);
     }
 
-    @ApiOperation(value = "Add new quiz content to quiz ", notes = "Add new quiz content to quiz.")
+    @ApiOperation(value = "Add new quiz content to quiz ", notes = "Add new quiz questionairre set / content to quiz.")
     @ApiResponses(
             value = {
                     @ApiResponse(code = 200, message = "Success"),
@@ -87,16 +87,16 @@ public class QuizController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(value = HttpStatus.OK)
-    @PutMapping("/add/quiz/content/{id}")
+    @PostMapping("/add/quiz/content/{quizId}")
     public List<QuizContent> addQuizContent(
-            @PathVariable("id") String id,
+            @PathVariable("quizId") String quizId,
             @RequestBody @NotNull List<QuizContentDto> quizContentDtoList
     ){
-        return quizService.addNewQuizContent(new ObjectId(id), quizContentDtoList);
+        return quizService.addNewQuizContent(new ObjectId(quizId), quizContentDtoList);
     }
 
 
-    @ApiOperation(value = "Get all quiz Added.", notes = "Get all quiz Added.")
+    @ApiOperation(value = "Get all quiz Added.", notes = "Get all QUIZ with Content.")
     @ApiResponses(
             value = {
                     @ApiResponse(code = 200, message = "Success"),
@@ -108,12 +108,12 @@ public class QuizController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(value = HttpStatus.OK)
-    @GetMapping("/quiz/all")
+    @GetMapping("/quiz/allWithContent")
     public List<Quiz> getAllAddedQuiz(){
         return quizService.getAllQuiz();
     }
 
-    @ApiOperation(value = "Get all quiz listing.", notes = "Get all quiz Listing.")
+    @ApiOperation(value = "Get all quiz listing.", notes = "Get all list of quiz")
     @ApiResponses(
             value = {
                     @ApiResponse(code = 200, message = "Success"),
@@ -125,13 +125,13 @@ public class QuizController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(value = HttpStatus.OK)
-    @GetMapping("/get-all-quiz-listing")
+    @GetMapping("/get-all-quiz")
     public List<QuizGetDto> getAllQuizList(){
         return quizService.getAllQuizList();
     }
 
 
-    @ApiOperation(value = "Get all quiz content list.", notes = "Get all quiz content list.")
+    @ApiOperation(value = "Get all quiz content list.", notes = "Get all quiz content list by quiz Id")
     @ApiResponses(
             value = {
                     @ApiResponse(code = 200, message = "Success"),
@@ -143,12 +143,12 @@ public class QuizController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(value = HttpStatus.OK)
-    @GetMapping("/quiz-content/listing-of-quiz/{id}")
+    @GetMapping("/quiz-content/listing-of-quiz/{quizId}")
     public Map<String, List<QuizContentGetDto>> getAllQuizContentListing(
-            @PathVariable("id") String id,
+            @PathVariable("quizId") String quizId,
             @RequestParam(value = "userId", required = false) String userId
     ){
-        return quizUserService.getAllQuizListing(userId, new ObjectId(id));
+        return quizUserService.getAllQuizListing(userId, new ObjectId(quizId));
     }
 
 
@@ -164,9 +164,9 @@ public class QuizController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(value = HttpStatus.OK)
-    @DeleteMapping("/quiz/remove/{id}")
-    public void removeAQuiz(@PathVariable("id") String id){
-        quizService.deleteAQuizById(new ObjectId(id)); ;
+    @DeleteMapping("/quiz/remove/{quizId}")
+    public void removeAQuiz(@PathVariable("quizId") String quizId){
+        quizService.deleteAQuizById(new ObjectId(quizId)); ;
     }
 
     @ApiOperation(value = "Remove a quiz content.", notes = "Remove a quiz content.")
@@ -181,9 +181,9 @@ public class QuizController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(value = HttpStatus.OK)
-    @DeleteMapping("/quiz-content/remove/{id}")
-    public void removeAQuizContent(@PathVariable("id") String id){
-        quizService.deleteAQuizContentByContentId(new ObjectId(id)); ;
+    @DeleteMapping("/quiz-content/remove/{quizContentId}")
+    public void removeAQuizContent(@PathVariable("quizContentId") String quizContentId){
+        quizService.deleteAQuizContentByContentId(new ObjectId(quizContentId)); ;
     }
 
     @ApiOperation(value = "update a quiz to database by id", notes = "update a quiz to database by id")
@@ -200,9 +200,49 @@ public class QuizController {
     @ResponseStatus(value = HttpStatus.OK)
     @PutMapping("/update/quiz/{quizId}")
     public Quiz addNewQuiz(
-            @PathVariable(value = "quizId") String id,
+            @PathVariable(value = "quizId") String quizId,
             @RequestBody @NotNull QuizDto quizDto
     ){
-        return quizService.updateQuiz(id, quizDto);
+        return quizService.updateQuiz(quizId, quizDto);
+    }
+
+    @ApiOperation(value = "Update a single question in quiz content", notes = "Update a single question in quiz content by question index.")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Success"),
+            @ApiResponse(code = 400, message = "Not Available"),
+            @ApiResponse(code = 401, message = "UnAuthorized"),
+            @ApiResponse(code = 403, message = "Access Forbidden"),
+            @ApiResponse(code = 404, message = "Not found"),
+            @ApiResponse(code = 422, message = "UnProcessable entity"),
+            @ApiResponse(code = 500, message = "Internal server error"),
+    })
+    @ResponseStatus(value = HttpStatus.OK)
+    @PutMapping("/quiz-content/update-question/{quizContentId}/{questionIndex}")
+    public QuizContent updateSingleQuestion(
+            @PathVariable("quizContentId") String quizContentId,
+            @PathVariable("questionIndex") int questionIndex,
+            @RequestBody @NotNull com.prwatech.quiz.dto.QuizQuestionDto questionDto
+    ) {
+        return quizService.updateSingleQuestion(quizContentId, questionIndex, questionDto);
+    }
+
+    @ApiOperation(value = "Update all questions in quiz content", notes = "Update all questions in quiz content by quizContentId.")
+    @ApiResponses(value = {
+            @ApiResponse(code = 200, message = "Success"),
+            @ApiResponse(code = 400, message = "Not Available"),
+            @ApiResponse(code = 401, message = "UnAuthorized"),
+            @ApiResponse(code = 403, message = "Access Forbidden"),
+            @ApiResponse(code = 404, message = "Not found"),
+            @ApiResponse(code = 422, message = "UnProcessable entity"),
+            @ApiResponse(code = 500, message = "Internal server error"),
+    })
+    @ResponseStatus(value = HttpStatus.OK)
+    @PutMapping("/quiz-content/update-all-questions/{quizContentId}")
+    public QuizContent updateAllQuestions(
+            @PathVariable("quizContentId") String quizContentId,
+            @RequestBody @NotNull java.util.List<com.prwatech.quiz.dto.QuizQuestionDto> questionDtoList
+    ) {
+        return quizService.updateAllQuestions(quizContentId, questionDtoList);
     }
 }
+

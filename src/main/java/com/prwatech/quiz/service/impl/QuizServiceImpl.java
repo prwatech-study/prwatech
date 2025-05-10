@@ -148,7 +148,6 @@ public class QuizServiceImpl implements QuizService {
     @Override
     public Quiz updateQuiz(String quizId, QuizDto quizDto) {
 
-
             Quiz quiz = quizRepository.findById(quizId).orElseThrow(
                     ()-> new NotFoundException("No quiz found by this id : "+ quizId));
             if(quizDto.getQuizName()!=null){
@@ -172,4 +171,30 @@ public class QuizServiceImpl implements QuizService {
 
         return quizRepository.save(quiz);
     }
+
+
+    @Override
+    public QuizContent updateSingleQuestion(String quizContentId, int questionIndex, com.prwatech.quiz.dto.QuizQuestionDto questionDto) {
+        QuizContent quizContent = quizContentRepository.findById(quizContentId)
+                .orElseThrow(() -> new NotFoundException("No quiz content found by this id!"));
+        List<com.prwatech.quiz.dto.QuizQuestionDto> questions = quizContent.getQuizQuestionList();
+        if (questionIndex < 0 || questionIndex >= questions.size()) {
+            throw new UnProcessableEntityException("Invalid question index");
+        }
+        questions.set(questionIndex, questionDto);
+        quizContent.setQuizQuestionList(questions);
+        quizContent.setTotalMark(questions.size());
+        return quizContentRepository.save(quizContent);
+    }
+
+    @Override
+    public QuizContent updateAllQuestions(String quizContentId, java.util.List<com.prwatech.quiz.dto.QuizQuestionDto> questionDtoList) {
+        QuizContent quizContent = quizContentRepository.findById(quizContentId)
+                .orElseThrow(() -> new NotFoundException("No quiz content found by this id!"));
+        quizContent.setQuizQuestionList(questionDtoList);
+        quizContent.setTotalMark(questionDtoList.size());
+        return quizContentRepository.save(quizContent);
+    }
+
 }
+
