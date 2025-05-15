@@ -16,7 +16,10 @@ public class UserController {
     private final UserService userService;
 
     @PostMapping("/register")
-    public ResponseEntity<User> register(@RequestBody User user) {
+    public ResponseEntity<?> register(@RequestBody User user) {
+        if (userService.findByEmail(user.getEmail()).isPresent()) {
+            return ResponseEntity.status(409).body("Email is already registered");
+        }
         return ResponseEntity.ok(userService.register(user));
     }
 

@@ -108,7 +108,7 @@ public class QuizController {
                     @ApiResponse(code = 500, message = "Internal server error"),
             })
     @ResponseStatus(value = HttpStatus.OK)
-    @GetMapping("/quiz/allWithContent")
+    @GetMapping("/quiz/all")
     public List<Quiz> getAllAddedQuiz(){
         return quizService.getAllQuiz();
     }
