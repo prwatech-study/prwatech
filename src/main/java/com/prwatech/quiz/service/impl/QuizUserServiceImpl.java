@@ -71,7 +71,7 @@ public class QuizUserServiceImpl implements QuizUserService {
             quizContentGetDto.setQuizCategory(quizContent.getQuizCategory());
             quizContentGetDto.setTotalMarks(quizContent.getTotalMark());
             quizContentGetDto.setPassingMarks(quizContent.getPassingMark());
-            quizContentGetDto.setQuizQuestionList(null);
+            quizContentGetDto.setQuizQuestionList(quizContent.getQuizQuestionList());
             quizContentGetDto.setIsPurchased((Objects.nonNull(quizUserMapping) && quizUserMapping.getIsOrdered().equals(Boolean.TRUE) )?Boolean.TRUE:Boolean.FALSE);
             if(quizContent.getQuizCategory().equals(QuizCategory.UNPAID)){
                 quizContentGetDtoListFree.add(quizContentGetDto);

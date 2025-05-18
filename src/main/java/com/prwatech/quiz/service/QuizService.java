@@ -29,4 +29,9 @@ public interface QuizService {
 
     void deleteAQuizContentByContentId(ObjectId id);
     Quiz updateQuiz(String quizId, QuizDto quizDto);
+
+    QuizContent updateSingleQuestion(String quizContentId, int questionIndex, com.prwatech.quiz.dto.QuizQuestionDto questionDto);
+
+    QuizContent updateAllQuestions(String quizContentId, java.util.List<com.prwatech.quiz.dto.QuizQuestionDto> questionDtoList);
+
 }
