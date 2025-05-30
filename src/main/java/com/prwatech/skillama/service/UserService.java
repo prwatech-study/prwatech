@@ -24,6 +24,7 @@ public class UserService {
     }
 
     public User register(User user) {
+        user.setActive(true);
         user.setCreatedAt(LocalDateTime.now());
         return userRepository.save(user);
     }
