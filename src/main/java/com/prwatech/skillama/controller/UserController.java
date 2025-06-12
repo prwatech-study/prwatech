@@ -26,8 +26,14 @@ public class UserController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody User loginRequest) {
         Optional<User> userOpt = userService.findByEmail(loginRequest.getEmail());
-        if (userOpt.isPresent() && userOpt.get().getPassword().equals(loginRequest.getPassword())) {
-            return ResponseEntity.ok(userOpt.get()); // Replace with JWT in production
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            if (!user.isActive()) {
+                return ResponseEntity.status(403).body("Account is not activated. Please contact admin.");
+            }
+            if (user.getPassword().equals(loginRequest.getPassword())) {
+                return ResponseEntity.ok(user); // Replace with JWT in production
+            }
         }
         return ResponseEntity.status(401).body("Invalid credentials");
     }
@@ -54,5 +60,23 @@ public class UserController {
         return userService.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+    
+    @PostMapping("/admin/activate")
+    public ResponseEntity<?> activateUser(@RequestParam String email) {
+        User activatedUser = userService.activateUser(email);
+        if (activatedUser != null) {
+            return ResponseEntity.ok("User activated successfully");
+        }
+        return ResponseEntity.status(404).body("User not found");
+    }
+    
+    @PostMapping("/admin/deactivate")
+    public ResponseEntity<?> deactivateUser(@RequestParam String email) {
+        User deactivatedUser = userService.deactivateUser(email);
+        if (deactivatedUser != null) {
+            return ResponseEntity.ok("User deactivated successfully");
+        }
+        return ResponseEntity.status(404).body("User not found");
     }
 }
