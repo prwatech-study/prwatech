@@ -1,6 +1,5 @@
 package com.prwatech.common.service.impl;
 
-import static com.prwatech.common.Constants.FTSMS_OTP_ROUT;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

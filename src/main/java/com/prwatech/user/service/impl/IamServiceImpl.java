@@ -234,7 +234,7 @@ public class IamServiceImpl implements IamService {
         SmsSendDto smsSendDto =
                 new SmsSendDto(
                         otp.toString(),
-                        Constants.FTSMS_OTP_ROUT,
+                        Constants.FTSMS_DLP_ROUTE,
                         phoneNumber.toString());
 
         Boolean isSmsSent = smsSendService.sendDefaultOtpMessage(smsSendDto);
@@ -279,7 +279,7 @@ public class IamServiceImpl implements IamService {
         SmsSendDto smsSendDto =
                 new SmsSendDto(
                         otp.toString(),
-                        Constants.FTSMS_OTP_ROUT,
+                        Constants.FTSMS_DLP_ROUTE,
                         phoneNumber.toString());
 
         Boolean isSmsSent = smsSendService.sendDefaultOtpMessage(smsSendDto);
@@ -360,7 +360,7 @@ public class IamServiceImpl implements IamService {
         SmsSendDto smsSendDto =
                 new SmsSendDto(
                         otp.toString(),
-                        Constants.FTSMS_OTP_ROUT,
+                        Constants.FTSMS_DLP_ROUTE,
                         phoneNumber.toString());
 
         Boolean isSmsSent = smsSendService.sendDefaultOtpMessage(smsSendDto);
