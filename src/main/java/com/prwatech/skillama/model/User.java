@@ -18,6 +18,7 @@ public class User {
     private String email;
     private String password;
     private boolean active;
+    private String activationKey;
     private GenderEnum gender;
     private LocalDateTime createdAt;
 }
