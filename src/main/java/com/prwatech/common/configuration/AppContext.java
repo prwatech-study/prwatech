@@ -71,4 +71,13 @@ public class AppContext {
   @Value("${it-course.category.id}")
   private String courseCategoryId;
 
+  @Value("${prwatech.fast.to.sms.api.route}")
+  private String route;
+
+  @Value("${prwatech.fast.to.sms.api.message}")
+  private String message;
+
+  @Value("${prwatech.fast.to.sms.api.sender.id}")
+  private String senderId;
+
 }

@@ -53,33 +53,43 @@ public class FastToSmsService {
   }
 
   public SmsSendResponseDto sendOtpMessage(SmsSendDto smsSendDto) throws IOException {
-
-    String apiUrl = "https://www.fast2sms.com/dev/bulkV2";
     try {
-      ObjectMapper objectMapper = new ObjectMapper();
       RestTemplate restTemplate = new RestTemplate();
+
+      String route = smsSendDto.getRoute();
+      String authorization = appContext.getFastToSMSApiKey();
+      String senderId = appContext.getSenderId();
+      String messageTemplateId = appContext.getMessage();
+      String variablesValues = smsSendDto.getVariables_values();
+      String numbers = smsSendDto.getNumbers();
+
+      // Construct the URL
+      String apiUrl = String.format(
+              "https://www.fast2sms.com/dev/bulkV2?route=%s&authorization=%s&sender_id=%s&message=%s&variables_values=%s&numbers=%s",
+              route, authorization, senderId, messageTemplateId, variablesValues, numbers
+      );
 
       HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
-      headers.set("authorization", appContext.getFastToSMSApiKey());
 
-      String requestBody = objectMapper.writeValueAsString(smsSendDto);
+      HttpEntity<String> requestEntity = new HttpEntity<>(headers);
 
-      HttpEntity<String> requestEntity = new HttpEntity<>(requestBody, headers);
-      ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.POST, requestEntity, String.class);
+      ResponseEntity<String> response = restTemplate.exchange(apiUrl, HttpMethod.GET, requestEntity, String.class);
 
-      if (response.getStatusCode().equals(HttpStatus.OK)) {
+      if (response.getStatusCode() == HttpStatus.OK) {
+        ObjectMapper objectMapper = new ObjectMapper();
         SmsSendResponseDto smsSendResponseDto = objectMapper.readValue(response.getBody(), SmsSendResponseDto.class);
-        if(Objects.nonNull(smsSendResponseDto) && smsSendResponseDto.getRequest_id()!=null){
+        if (smsSendResponseDto != null && smsSendResponseDto.getRequest_id() != null) {
           return smsSendResponseDto;
         }
       }
-      LOGGER.error("Unable to send Otp to user! please try again. {}", response.getStatusCode());
 
+      LOGGER.error("Failed to send OTP. Status: {}", response.getStatusCode());
     } catch (Exception e) {
-      LOGGER.error("Something went wring in sms service! {}", e.getMessage());
-      throw new UnProcessableEntityException("Unable to send sms to user ");
+      LOGGER.error("Error in sending SMS: {}", e.getMessage());
+      throw new UnProcessableEntityException("Unable to send SMS to user");
     }
     return null;
   }
+
 }
