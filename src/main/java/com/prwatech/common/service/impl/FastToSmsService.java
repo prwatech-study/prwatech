@@ -61,7 +61,7 @@ public class FastToSmsService {
 
       HttpHeaders headers = new HttpHeaders();
       headers.setContentType(MediaType.APPLICATION_JSON);
-      headers.set("authorization", "EV2XckTJcEWP3hWyO12ZXd5FDV1JsMjyeLwcrRyfPmnQ3YeIUtJ78exnyUGw");
+      headers.set("authorization", appContext.getFastToSMSApiKey());
 
       String requestBody = objectMapper.writeValueAsString(smsSendDto);
 

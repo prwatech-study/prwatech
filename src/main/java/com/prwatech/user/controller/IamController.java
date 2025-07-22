@@ -200,9 +200,9 @@ public class IamController {
   @PutMapping("/send-sms/test")
   public Boolean sendTestSms() throws IOException {
     return smsSendService.sendDefaultOtpMessage(new SmsSendDto(
-          "123345",
-          "otp",
-          "7651977515")
+          "123456",
+          "dlt",
+          "6366111178")
     );
   }
 
