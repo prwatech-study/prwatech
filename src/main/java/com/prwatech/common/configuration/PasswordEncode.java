@@ -14,7 +14,12 @@ public class PasswordEncode {
   }
 
   public Boolean compare(String password, String encodedPassword) {
-    return password.equals(
-        Base64.getDecoder().decode(encodedPassword.getBytes(StandardCharsets.UTF_8)));
+    try {
+      String decodedPassword = new String(
+          Base64.getDecoder().decode(encodedPassword), StandardCharsets.UTF_8);
+      return password.equals(decodedPassword);
+    } catch (Exception e) {
+      return false;
+    }
   }
 }

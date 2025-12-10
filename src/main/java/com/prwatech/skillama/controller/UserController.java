@@ -31,7 +31,8 @@ public class UserController {
             if (!user.isActive()) {
                 return ResponseEntity.status(403).body("Account is not activated. Please contact admin.");
             }
-            if (user.getPassword().equals(loginRequest.getPassword())) {
+            // Password comparison: passwords are stored encoded in DB
+            if (userService.validatePassword(loginRequest.getPassword(), user.getPassword())) {
                 return ResponseEntity.ok(user); // Replace with JWT in production
             }
         }
@@ -78,5 +79,10 @@ public class UserController {
             return ResponseEntity.ok("User deactivated successfully");
         }
         return ResponseEntity.status(404).body("User not found");
+    }
+    
+    @PostMapping("/admin/migrate-passwords")
+    public ResponseEntity<?> migratePasswords() {
+        return ResponseEntity.ok(userService.migrateAllPasswords());
     }
 }

@@ -80,4 +80,7 @@ public class AppContext {
   @Value("${prwatech.fast.to.sms.api.sender.id}")
   private String senderId;
 
+  @Value("${skillama.base.url}")
+  private String skillamaBaseUrl;
+
 }
