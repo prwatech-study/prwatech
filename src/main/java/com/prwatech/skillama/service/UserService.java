@@ -223,4 +223,11 @@ public class UserService {
         // A simple heuristic: check if it contains only Base64 characters
         return str.matches("^[A-Za-z0-9+/=]+$") && str.length() % 4 == 0;
     }
+    
+    /**
+     * Saves a user entity
+     */
+    public User save(User user) {
+        return userRepository.save(user);
+    }
 }

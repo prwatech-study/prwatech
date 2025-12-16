@@ -7,6 +7,6 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
 @Repository
-public interface SkillamaUserRepository extends MongoRepository<User, String> {
+public interface SkillamaUserRepository extends MongoRepository<User, String>, SkillamaUserRepositoryCustom {
     Optional<User> findByEmail(String email);
 }

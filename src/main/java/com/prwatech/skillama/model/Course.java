@@ -17,6 +17,7 @@ public class Course {
     private String id;
     private String name;
     private String description;
+    private String thumbnail; // Course thumbnail image URL (optional)
     private String createdBy;
     private String updatedBy;
     private java.time.LocalDateTime createdAt;

@@ -1,5 +1,8 @@
 package com.prwatech.skillama.controller;
 
+import com.prwatech.authentication.security.JwtUtils;
+import com.prwatech.common.dto.UserDetails;
+import com.prwatech.skillama.dto.LoginResponseDTO;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -7,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.Optional;
 
 @RestController("skillamaUserController")
@@ -14,6 +18,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class UserController {
     private final UserService userService;
+    private final JwtUtils jwtUtils;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody User user) {
@@ -33,7 +38,24 @@ public class UserController {
             }
             // Password comparison: passwords are stored encoded in DB
             if (userService.validatePassword(loginRequest.getPassword(), user.getPassword())) {
-                return ResponseEntity.ok(user); // Replace with JWT in production
+                // Generate JWT token
+                UserDetails userDetails = new UserDetails(user.getEmail());
+                Map<String, String> tokens = jwtUtils.generateToken(userDetails);
+                String accessToken = tokens.get("accessToken");
+                
+                // Build login response with token and role
+                LoginResponseDTO response = LoginResponseDTO.builder()
+                    .id(user.getId())
+                    .name(user.getName())
+                    .email(user.getEmail())
+                    .role(user.getRole() != null ? user.getRole() : User.UserRole.USER)
+                    .active(user.isActive())
+                    .gender(user.getGender())
+                    .createdAt(user.getCreatedAt())
+                    .token(accessToken)
+                    .build();
+                
+                return ResponseEntity.ok(response);
             }
         }
         return ResponseEntity.status(401).body("Invalid credentials");
