@@ -1,5 +1,6 @@
 package com.prwatech.skillama.controller;
 
+import com.prwatech.common.Constants;
 import com.prwatech.skillama.dto.ApiResponse;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.Course;
@@ -9,6 +10,10 @@ import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.UserCourseEnrollmentRepository;
 import com.prwatech.skillama.service.UserCourseService;
 import com.prwatech.skillama.service.UserService;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiResponses;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,7 +29,7 @@ import java.util.Map;
  * Note: In production, add @PreAuthorize("hasRole('ADMIN')") or similar security
  */
 @RestController
-@RequestMapping("/api/admin/courses")
+@RequestMapping("/skillama/api/admin/courses")
 @RequiredArgsConstructor
 public class AdminCourseEnrollmentController {
     
@@ -36,6 +41,23 @@ public class AdminCourseEnrollmentController {
     /**
      * Enroll a specific user to a specific course (Admin)
      */
+    @ApiOperation(value = "Enroll user to course", notes = "Enroll a specific user to a specific course (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 400, message = "Bad request"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "User or course not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PostMapping("/{courseId}/enroll/{userId}")
     public ResponseEntity<ApiResponse<UserCourseEnrollment>> enrollUserToCourse(
             @PathVariable String courseId,
@@ -60,6 +82,23 @@ public class AdminCourseEnrollmentController {
     /**
      * Enroll all users to a specific course (Admin - Migration utility)
      */
+    @ApiOperation(value = "Enroll all users to course", notes = "Enroll all users to a specific course - Migration utility (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 400, message = "Bad request"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "Course not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PostMapping("/{courseId}/enroll-all")
     public ResponseEntity<ApiResponse<Map<String, Object>>> enrollAllUsersToCourse(
             @PathVariable String courseId,
@@ -117,6 +156,23 @@ public class AdminCourseEnrollmentController {
     /**
      * Enroll a specific user to all courses (Admin - Migration utility)
      */
+    @ApiOperation(value = "Enroll user to all courses", notes = "Enroll a specific user to all courses - Migration utility (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 400, message = "Bad request"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "User not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PostMapping("/enroll-all/{userId}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> enrollUserToAllCourses(
             @PathVariable String userId,
@@ -175,6 +231,22 @@ public class AdminCourseEnrollmentController {
      * Enroll all users to all courses (Admin - Migration utility)
      * Use with caution - this will enroll every user to every course
      */
+    @ApiOperation(value = "Enroll all users to all courses", notes = "Enroll all users to all courses - Migration utility. Use with caution! (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 400, message = "Bad request"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PostMapping("/enroll-all-to-all")
     public ResponseEntity<ApiResponse<Map<String, Object>>> enrollAllUsersToAllCourses(
             @RequestParam(required = false) UserCourseEnrollment.EnrollmentType enrollmentType) {
@@ -226,6 +298,22 @@ public class AdminCourseEnrollmentController {
     /**
      * Get enrollment statistics
      */
+    @ApiOperation(value = "Get enrollment statistics", notes = "Get enrollment statistics (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 400, message = "Bad request"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping("/enrollments/stats")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getEnrollmentStats() {
         try {

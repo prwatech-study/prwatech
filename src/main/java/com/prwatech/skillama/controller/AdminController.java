@@ -1,6 +1,7 @@
 package com.prwatech.skillama.controller;
 
 import com.prwatech.authentication.security.JwtUtils;
+import com.prwatech.common.Constants;
 import com.prwatech.skillama.dto.*;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.Course;
@@ -8,6 +9,10 @@ import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.AdminService;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.UserService;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiResponses;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -22,7 +27,7 @@ import java.util.List;
  * Note: Add @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')") in production for security
  */
 @RestController
-@RequestMapping("/api/admin")
+@RequestMapping("/skillama/api/admin")
 @RequiredArgsConstructor
 public class AdminController {
     
@@ -36,6 +41,20 @@ public class AdminController {
     /**
      * Check Admin Access
      */
+    @ApiOperation(value = "Check admin access", notes = "Check if the authenticated user has admin access")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping("/check-access")
     public ResponseEntity<ApiResponse<AdminAccessDTO>> checkAccess(HttpServletRequest request) {
         try {
@@ -53,6 +72,21 @@ public class AdminController {
     /**
      * Get All Users (Admin)
      */
+    @ApiOperation(value = "Get all users", notes = "Get paginated list of users with optional search and filter (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping("/users")
     public ResponseEntity<ApiResponse<Page<UserDTO>>> getUsers(
             @RequestParam(defaultValue = "0") int page,
@@ -74,6 +108,22 @@ public class AdminController {
     /**
      * Create User (Admin)
      */
+    @ApiOperation(value = "Create user", notes = "Create a new user (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 201, message = "User created successfully"),
+            @io.swagger.annotations.ApiResponse(code = 400, message = "Bad request"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PostMapping("/users")
     public ResponseEntity<ApiResponse<UserDTO>> createUser(
             @RequestBody CreateUserRequest request,
@@ -95,6 +145,21 @@ public class AdminController {
     /**
      * Create Admin User (Owner Only)
      */
+    @ApiOperation(value = "Create admin user", notes = "Create a new admin user (Owner only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 201, message = "Admin user created successfully"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Owner access required"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PostMapping("/users/create-admin")
     public ResponseEntity<ApiResponse<UserDTO>> createAdmin(
             @RequestBody CreateUserRequest request,
@@ -116,6 +181,23 @@ public class AdminController {
     /**
      * Update User (Admin)
      */
+    @ApiOperation(value = "Update user", notes = "Update user information (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 400, message = "Bad request"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "User not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PutMapping("/users/{userId}")
     public ResponseEntity<ApiResponse<UserDTO>> updateUser(
             @PathVariable String userId,
@@ -140,6 +222,22 @@ public class AdminController {
     /**
      * Delete User (Admin) - Soft delete
      */
+    @ApiOperation(value = "Delete user", notes = "Soft delete a user (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "User not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @DeleteMapping("/users/{userId}")
     public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable String userId) {
         try {
@@ -164,6 +262,21 @@ public class AdminController {
     /**
      * Get All Courses (Admin) - Wrapper for existing endpoint
      */
+    @ApiOperation(value = "Get all courses", notes = "Get paginated list of all courses (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping("/courses")
     public ResponseEntity<ApiResponse<Page<Course>>> getCourses(
             @RequestParam(defaultValue = "0") int page,
@@ -185,6 +298,21 @@ public class AdminController {
     /**
      * Create Course (Admin) - Wrapper for existing endpoint
      */
+    @ApiOperation(value = "Create course", notes = "Create a new course (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 201, message = "Course created successfully"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PostMapping("/courses")
     public ResponseEntity<ApiResponse<Course>> createCourse(
             @RequestBody Course course,
@@ -203,6 +331,22 @@ public class AdminController {
     /**
      * Update Course (Admin) - Wrapper for existing endpoint
      */
+    @ApiOperation(value = "Update course", notes = "Update course information (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "Course not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PutMapping("/courses/{courseId}")
     public ResponseEntity<ApiResponse<Course>> updateCourse(
             @PathVariable String courseId,
@@ -225,6 +369,21 @@ public class AdminController {
     /**
      * Delete Course (Admin) - Wrapper for existing endpoint
      */
+    @ApiOperation(value = "Delete course", notes = "Delete a course (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @DeleteMapping("/courses/{courseId}")
     public ResponseEntity<ApiResponse<Void>> deleteCourse(
             @PathVariable String courseId,
@@ -244,6 +403,22 @@ public class AdminController {
     /**
      * Assign Courses to User
      */
+    @ApiOperation(value = "Assign courses to user", notes = "Assign multiple courses to a user (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "User or course not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PostMapping("/assignments/assign")
     public ResponseEntity<ApiResponse<AssignmentResponseDTO>> assignCourses(
             @RequestBody AssignCoursesRequest request,
@@ -265,6 +440,22 @@ public class AdminController {
     /**
      * Unassign Course from User
      */
+    @ApiOperation(value = "Unassign course from user", notes = "Unassign a course from a user (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "User or course not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @DeleteMapping("/assignments/unassign")
     public ResponseEntity<ApiResponse<Void>> unassignCourse(
             @RequestBody UnassignCourseRequest request,
@@ -285,6 +476,22 @@ public class AdminController {
     /**
      * Get User Assignments
      */
+    @ApiOperation(value = "Get user assignments", notes = "Get all course assignments for a specific user (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "User not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping("/assignments/user/{userId}")
     public ResponseEntity<ApiResponse<UserAssignmentsDTO>> getUserAssignments(
             @PathVariable String userId,
@@ -305,6 +512,22 @@ public class AdminController {
     /**
      * Get Course Assignments
      */
+    @ApiOperation(value = "Get course assignments", notes = "Get all user assignments for a specific course (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "Course not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping("/assignments/course/{courseId}")
     public ResponseEntity<ApiResponse<CourseAssignmentsDTO>> getCourseAssignments(
             @PathVariable String courseId,
@@ -327,6 +550,21 @@ public class AdminController {
     /**
      * Get Dashboard Statistics
      */
+    @ApiOperation(value = "Get dashboard statistics", notes = "Get dashboard statistics and analytics (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping("/analytics/dashboard")
     public ResponseEntity<ApiResponse<DashboardStatsDTO>> getDashboardStats(
             HttpServletRequest request) {
@@ -343,6 +581,22 @@ public class AdminController {
     /**
      * Get User Progress Report
      */
+    @ApiOperation(value = "Get user progress report", notes = "Get progress report for a specific user (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "User not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping("/analytics/users/{userId}/progress")
     public ResponseEntity<ApiResponse<UserAssignmentsDTO>> getUserProgress(
             @PathVariable String userId,
@@ -364,6 +618,22 @@ public class AdminController {
     /**
      * Get Course Analytics
      */
+    @ApiOperation(value = "Get course analytics", notes = "Get analytics for a specific course (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Success"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "Course not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @GetMapping("/analytics/courses/{courseId}")
     public ResponseEntity<ApiResponse<CourseAnalyticsDTO>> getCourseAnalytics(
             @PathVariable String courseId,

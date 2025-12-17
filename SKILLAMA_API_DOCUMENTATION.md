@@ -24,9 +24,9 @@ Authorization: Bearer <token>
   - **Frontend Handling:** On 401 response, redirect to login page
 
 **Response Format Standards:**
-- **New Endpoints** (`/api/*`): Use wrapped format `{ status: 200, data: {...} }`
+- **New Endpoints** (`/skillama/api/*`): Use wrapped format `{ status: 200, data: {...} }`
 - **Existing Endpoints** (`/skillama/*`): Use direct response format (legacy)
-- **Error Responses** (`/api/*`): Use format `{ status: 400, error: "Bad Request", message: "..." }`
+- **Error Responses** (`/skillama/api/*`): Use format `{ status: 400, error: "Bad Request", message: "..." }`
 
 ---
 
@@ -713,14 +713,14 @@ Authorization: Bearer <token>
 
 These are the newly added endpoints for user dashboard and course progress tracking.
 
-**Base Path:** `/api/users/me`
+**Base Path:** `/skillama/api/users/me`
 
 **Authentication:** Required - All endpoints require JWT Bearer token in Authorization header
 
 ---
 
 ### 1. Get User Courses with Progress
-**Endpoint:** `GET /api/users/me/courses`
+**Endpoint:** `GET /skillama/api/users/me/courses`
 
 **Description:** Returns all courses assigned or purchased by the currently authenticated user, including progress information.
 
@@ -782,7 +782,7 @@ Authorization: Bearer <jwt-token>
 ---
 
 ### 2. Get Course Progress (Detailed)
-**Endpoint:** `GET /api/users/me/courses/{courseId}/progress`
+**Endpoint:** `GET /skillama/api/users/me/courses/{courseId}/progress`
 
 **Description:** Returns detailed progress information for a specific course, including lecture-level details.
 
@@ -849,7 +849,7 @@ Authorization: Bearer <jwt-token>
 ---
 
 ### 3. Update Course Progress
-**Endpoint:** `PUT /api/users/me/courses/{courseId}/progress`
+**Endpoint:** `PUT /skillama/api/users/me/courses/{courseId}/progress`
 
 **Description:** Updates the progress when a user completes a lecture. This should be called when a lecture is marked as complete.
 
@@ -894,7 +894,7 @@ Authorization: Bearer <jwt-token>
 ```
 
 **Response Fields:**
-- Same as GET `/api/users/me/courses/{courseId}/progress` response
+- Same as GET `/skillama/api/users/me/courses/{courseId}/progress` response
 - `message`: Success message
 
 **Error Responses:**
@@ -909,7 +909,7 @@ Authorization: Bearer <jwt-token>
 ---
 
 ### 4. Enroll User to Course
-**Endpoint:** `POST /api/users/me/courses/enroll`
+**Endpoint:** `POST /skillama/api/users/me/courses/enroll`
 
 **Description:** Enrolls the authenticated user to a course. This creates an enrollment record and initializes progress tracking.
 
@@ -958,7 +958,7 @@ Authorization: Bearer <jwt-token>
 ---
 
 ### 5. Unenroll User from Course
-**Endpoint:** `DELETE /api/users/me/courses/{courseId}/enroll`
+**Endpoint:** `DELETE /skillama/api/users/me/courses/{courseId}/enroll`
 
 **Description:** Unenrolls the authenticated user from a course. Sets enrollment status to INACTIVE (does not delete for history).
 
@@ -987,7 +987,7 @@ Authorization: Bearer <jwt-token>
 ---
 
 ### 6. Update User Profile ⭐ NEW
-**Endpoint:** `PUT /api/users/me/profile`
+**Endpoint:** `PUT /skillama/api/users/me/profile`
 
 **Description:** Updates the authenticated user's profile information (name, email, gender).
 
@@ -1042,14 +1042,14 @@ Authorization: Bearer <jwt-token>
 
 These endpoints are for administrators to manage course enrollments, including bulk enrollment operations for migration purposes.
 
-**Base Path:** `/api/admin/courses`
+**Base Path:** `/skillama/api/admin/courses`
 
 **Authentication:** Required - Admin access (add security annotations as needed)
 
 ---
 
 ### 1. Enroll User to Course (Admin)
-**Endpoint:** `POST /api/admin/courses/{courseId}/enroll/{userId}`
+**Endpoint:** `POST /skillama/api/admin/courses/{courseId}/enroll/{userId}`
 
 **Description:** Admin endpoint to enroll a specific user to a specific course.
 
@@ -1080,7 +1080,7 @@ These endpoints are for administrators to manage course enrollments, including b
 ---
 
 ### 2. Enroll All Users to a Course (Admin - Migration Utility)
-**Endpoint:** `POST /api/admin/courses/{courseId}/enroll-all`
+**Endpoint:** `POST /skillama/api/admin/courses/{courseId}/enroll-all`
 
 **Description:** Enrolls all existing users to a specific course. Useful for migrating existing data.
 
@@ -1113,7 +1113,7 @@ These endpoints are for administrators to manage course enrollments, including b
 ---
 
 ### 3. Enroll User to All Courses (Admin - Migration Utility)
-**Endpoint:** `POST /api/admin/courses/enroll-all/{userId}`
+**Endpoint:** `POST /skillama/api/admin/courses/enroll-all/{userId}`
 
 **Description:** Enrolls a specific user to all existing courses. Useful for migrating existing data.
 
@@ -1144,7 +1144,7 @@ These endpoints are for administrators to manage course enrollments, including b
 ---
 
 ### 4. Enroll All Users to All Courses (Admin - Migration Utility)
-**Endpoint:** `POST /api/admin/courses/enroll-all-to-all`
+**Endpoint:** `POST /skillama/api/admin/courses/enroll-all-to-all`
 
 **Description:** Enrolls all users to all courses. Use with caution - this creates enrollments for every user-course combination.
 
@@ -1173,7 +1173,7 @@ These endpoints are for administrators to manage course enrollments, including b
 ---
 
 ### 5. Get Enrollment Statistics (Admin)
-**Endpoint:** `GET /api/admin/courses/enrollments/stats`
+**Endpoint:** `GET /skillama/api/admin/courses/enrollments/stats`
 
 **Description:** Get statistics about course enrollments.
 
@@ -1271,10 +1271,10 @@ Tracks individual lecture completion status.
 5. **Course Thumbnail:** ⭐ **UPDATED** - Course responses now include a `thumbnail` field.
    - This field is optional and may be `null` or empty
    - Frontend should use a default image if thumbnail is not provided
-   - Available in: `GET /api/users/me/courses`, `GET /skillama/courses`, `GET /api/admin/courses`
+   - Available in: `GET /skillama/api/users/me/courses`, `GET /skillama/courses`, `GET /skillama/api/admin/courses`
 
 6. **Enrollment:** ⚠️ **IMPORTANT** - Before a user can track progress or see courses in their dashboard, they must be enrolled in a course. 
-   - Users can enroll themselves using `POST /api/users/me/courses/enroll`
+   - Users can enroll themselves using `POST /skillama/api/users/me/courses/enroll`
    - Admins can enroll users using admin endpoints
    - For existing users/courses, use the migration endpoints to bulk enroll
 
@@ -1297,33 +1297,33 @@ Tracks individual lecture completion status.
 
 ### Problem
 Existing users and courses don't have enrollment records, so:
-- `GET /api/users/me/courses` will return an empty array
+- `GET /skillama/api/users/me/courses` will return an empty array
 - Users won't see any courses in their dashboard
 
 ### Solution
 
 #### Option 1: Bulk Enroll All Users to All Courses (Recommended for Migration)
 ```bash
-POST /api/admin/courses/enroll-all-to-all?enrollmentType=ASSIGNED
+POST /skillama/api/admin/courses/enroll-all-to-all?enrollmentType=ASSIGNED
 ```
 This will enroll every user to every course. Use this when you want all users to have access to all courses.
 
 #### Option 2: Enroll All Users to Specific Course
 ```bash
-POST /api/admin/courses/{courseId}/enroll-all?enrollmentType=ASSIGNED
+POST /skillama/api/admin/courses/{courseId}/enroll-all?enrollmentType=ASSIGNED
 ```
 Use this to enroll all users to a specific course.
 
 #### Option 3: Enroll Specific User to All Courses
 ```bash
-POST /api/admin/courses/enroll-all/{userId}?enrollmentType=ASSIGNED
+POST /skillama/api/admin/courses/enroll-all/{userId}?enrollmentType=ASSIGNED
 ```
 Use this to enroll a specific user to all courses.
 
 #### Option 4: Manual Enrollment (For Selective Access)
 Use the regular enrollment endpoints:
-- User self-enrollment: `POST /api/users/me/courses/enroll`
-- Admin enrollment: `POST /api/admin/courses/{courseId}/enroll/{userId}`
+- User self-enrollment: `POST /skillama/api/users/me/courses/enroll`
+- Admin enrollment: `POST /skillama/api/admin/courses/{courseId}/enroll/{userId}`
 
 ### Migration Steps
 
@@ -1335,13 +1335,13 @@ Use the regular enrollment endpoints:
    - If selective access is needed: Use manual enrollment
 
 3. **Verify enrollment** using:
-   - `GET /api/admin/courses/enrollments/stats` - Check enrollment statistics
-   - `GET /api/users/me/courses` - Verify users can see their courses
+   - `GET /skillama/api/admin/courses/enrollments/stats` - Check enrollment statistics
+   - `GET /skillama/api/users/me/courses` - Verify users can see their courses
 
 4. **Test progress tracking**:
    - Enroll a test user to a course
-   - Update progress using `PUT /api/users/me/courses/{courseId}/progress`
-   - Verify progress appears in `GET /api/users/me/courses`
+   - Update progress using `PUT /skillama/api/users/me/courses/{courseId}/progress`
+   - Verify progress appears in `GET /skillama/api/users/me/courses`
 
 ### Important Notes
 
@@ -1356,7 +1356,7 @@ Use the regular enrollment endpoints:
 
 These endpoints are for administrators (ADMIN and OWNER roles) to manage the Skillama LMS system.
 
-**Base Path:** `/api/admin`
+**Base Path:** `/skillama/api/admin`
 
 **Authentication:** Required - All endpoints require JWT Bearer token with ADMIN or OWNER role
 
@@ -1370,7 +1370,7 @@ These endpoints are for administrators (ADMIN and OWNER roles) to manage the Ski
 ### Authentication & Authorization
 
 #### 1. Check Admin Access
-**Endpoint:** `GET /api/admin/check-access`
+**Endpoint:** `GET /skillama/api/admin/check-access`
 
 **Description:** Verifies if the current user has admin/owner access and returns permissions.
 
@@ -1404,7 +1404,7 @@ These endpoints are for administrators (ADMIN and OWNER roles) to manage the Ski
 ### User Management (Admin)
 
 #### 1. Get All Users (Admin)
-**Endpoint:** `GET /api/admin/users`
+**Endpoint:** `GET /skillama/api/admin/users`
 
 **Description:** Returns all users in the system (paginated) with filtering options.
 
@@ -1419,9 +1419,9 @@ These endpoints are for administrators (ADMIN and OWNER roles) to manage the Ski
 
 **Examples:**
 ```
-GET /api/admin/users?search=john&role=USER&active=true&page=0&size=20
-GET /api/admin/users?search=admin&role=ADMIN
-GET /api/admin/users?active=false
+GET /skillama/api/admin/users?search=john&role=USER&active=true&page=0&size=20
+GET /skillama/api/admin/users?search=admin&role=ADMIN
+GET /skillama/api/admin/users?active=false
 ```
 
 **Response:** `200 OK`
@@ -1454,7 +1454,7 @@ GET /api/admin/users?active=false
 ---
 
 #### 2. Create User (Admin)
-**Endpoint:** `POST /api/admin/users`
+**Endpoint:** `POST /skillama/api/admin/users`
 
 **Description:** Creates a new user. Only ADMIN/OWNER can create users. Only OWNER can create ADMIN/OWNER.
 
@@ -1497,7 +1497,7 @@ GET /api/admin/users?active=false
 ---
 
 #### 3. Create Admin User (Owner Only)
-**Endpoint:** `POST /api/admin/users/create-admin`
+**Endpoint:** `POST /skillama/api/admin/users/create-admin`
 
 **Description:** Creates a new admin user. Only OWNER can access this endpoint.
 
@@ -1537,7 +1537,7 @@ GET /api/admin/users?active=false
 ---
 
 #### 4. Update User (Admin)
-**Endpoint:** `PUT /api/admin/users/{userId}`
+**Endpoint:** `PUT /skillama/api/admin/users/{userId}`
 
 **Description:** Updates user information. Only OWNER can change roles to ADMIN/OWNER.
 
@@ -1581,7 +1581,7 @@ GET /api/admin/users?active=false
 ---
 
 #### 5. Delete User (Admin)
-**Endpoint:** `DELETE /api/admin/users/{userId}`
+**Endpoint:** `DELETE /skillama/api/admin/users/{userId}`
 
 **Description:** Soft deletes a user (sets active to false). Cannot delete OWNER.
 
@@ -1609,7 +1609,7 @@ GET /api/admin/users?active=false
 **Note:** These endpoints wrap existing course management endpoints. The original endpoints at `/skillama/courses` can also be used by admins.
 
 #### 1. Get All Courses (Admin)
-**Endpoint:** `GET /api/admin/courses`
+**Endpoint:** `GET /skillama/api/admin/courses`
 
 **Description:** Returns all courses with pagination. Wraps existing `/skillama/courses` endpoint.
 
@@ -1643,12 +1643,12 @@ GET /api/admin/users?active=false
 }
 ```
 
-**Alternative Endpoint:** `GET /skillama/courses` (same functionality, can be used by admins)
+**Alternative Endpoint:** `GET /skillama/courses` (same functionality, can be used by admins, but uses legacy response format)
 
 ---
 
 #### 2. Create Course (Admin)
-**Endpoint:** `POST /api/admin/courses`
+**Endpoint:** `POST /skillama/api/admin/courses`
 
 **Description:** Creates a new course. Wraps existing `/skillama/courses` endpoint.
 
@@ -1677,12 +1677,12 @@ GET /api/admin/users?active=false
 }
 ```
 
-**Alternative Endpoint:** `POST /skillama/courses` (same functionality, can be used by admins)
+**Alternative Endpoint:** `POST /skillama/courses` (same functionality, can be used by admins, but uses legacy response format)
 
 ---
 
 #### 3. Update Course (Admin)
-**Endpoint:** `PUT /api/admin/courses/{courseId}`
+**Endpoint:** `PUT /skillama/api/admin/courses/{courseId}`
 
 **Description:** Updates course information. Wraps existing `/skillama/courses/{id}` endpoint.
 
@@ -1713,12 +1713,12 @@ GET /api/admin/users?active=false
 }
 ```
 
-**Alternative Endpoint:** `PUT /skillama/courses/{id}` (same functionality, can be used by admins)
+**Alternative Endpoint:** `PUT /skillama/courses/{id}` (same functionality, can be used by admins, but uses legacy response format)
 
 ---
 
 #### 4. Delete Course (Admin)
-**Endpoint:** `DELETE /api/admin/courses/{courseId}`
+**Endpoint:** `DELETE /skillama/api/admin/courses/{courseId}`
 
 **Description:** Deletes a course. Wraps existing `/skillama/courses/{id}` endpoint.
 
@@ -1735,7 +1735,7 @@ GET /api/admin/users?active=false
 }
 ```
 
-**Alternative Endpoint:** `DELETE /skillama/courses/{id}` (same functionality, can be used by admins)
+**Alternative Endpoint:** `DELETE /skillama/courses/{id}` (same functionality, can be used by admins, but uses legacy response format)
 
 ---
 
@@ -1760,7 +1760,7 @@ All these endpoints can be used by admins. See [Course Curriculum APIs](#course-
 ### Course Assignment
 
 #### 1. Assign Courses to User
-**Endpoint:** `POST /api/admin/assignments/assign`
+**Endpoint:** `POST /skillama/api/admin/assignments/assign`
 
 **Description:** Assigns one or more courses to a user. Creates enrollment records and initializes progress tracking.
 
@@ -1815,7 +1815,7 @@ All these endpoints can be used by admins. See [Course Curriculum APIs](#course-
 ---
 
 #### 2. Unassign Course from User
-**Endpoint:** `DELETE /api/admin/assignments/unassign`
+**Endpoint:** `DELETE /skillama/api/admin/assignments/unassign`
 
 **Description:** Unassigns a course from a user. Sets enrollment status to INACTIVE (soft delete).
 
@@ -1842,7 +1842,7 @@ All these endpoints can be used by admins. See [Course Curriculum APIs](#course-
 ---
 
 #### 3. Get User Assignments
-**Endpoint:** `GET /api/admin/assignments/user/{userId}`
+**Endpoint:** `GET /skillama/api/admin/assignments/user/{userId}`
 
 **Description:** Returns all courses assigned to a user with progress information.
 
@@ -1879,7 +1879,7 @@ All these endpoints can be used by admins. See [Course Curriculum APIs](#course-
 ---
 
 #### 4. Get Course Assignments
-**Endpoint:** `GET /api/admin/assignments/course/{courseId}`
+**Endpoint:** `GET /skillama/api/admin/assignments/course/{courseId}`
 
 **Description:** Returns all users assigned to a course with progress information.
 
@@ -1921,7 +1921,7 @@ All these endpoints can be used by admins. See [Course Curriculum APIs](#course-
 ### Analytics & Reports
 
 #### 1. Get Dashboard Statistics
-**Endpoint:** `GET /api/admin/analytics/dashboard`
+**Endpoint:** `GET /skillama/api/admin/analytics/dashboard`
 
 **Description:** Returns statistics for admin dashboard.
 
@@ -1957,9 +1957,9 @@ All these endpoints can be used by admins. See [Course Curriculum APIs](#course-
 ---
 
 #### 2. Get User Progress Report
-**Endpoint:** `GET /api/admin/analytics/users/{userId}/progress`
+**Endpoint:** `GET /skillama/api/admin/analytics/users/{userId}/progress`
 
-**Description:** Returns detailed progress report for a user. Reuses the same data as `GET /api/admin/assignments/user/{userId}`.
+**Description:** Returns detailed progress report for a user. Reuses the same data as `GET /skillama/api/admin/assignments/user/{userId}`.
 
 **Authentication:** Required (ADMIN or OWNER)
 
@@ -1988,7 +1988,7 @@ All these endpoints can be used by admins. See [Course Curriculum APIs](#course-
 ---
 
 #### 3. Get Course Analytics
-**Endpoint:** `GET /api/admin/analytics/courses/{courseId}`
+**Endpoint:** `GET /skillama/api/admin/analytics/courses/{courseId}`
 
 **Description:** Returns analytics for a specific course.
 
@@ -2029,11 +2029,11 @@ All these endpoints can be used by admins. See [Course Curriculum APIs](#course-
 The following existing endpoints can be used by admins without separate admin endpoints:
 
 #### Course Management
-- `GET /skillama/courses` - Get all courses (same as `GET /api/admin/courses`)
-- `POST /skillama/courses` - Create course (same as `POST /api/admin/courses`)
+- `GET /skillama/courses` - Get all courses (same as `GET /skillama/api/admin/courses`)
+- `POST /skillama/courses` - Create course (same as `POST /skillama/api/admin/courses`)
 - `GET /skillama/courses/{id}` - Get course by ID
-- `PUT /skillama/courses/{id}` - Update course (same as `PUT /api/admin/courses/{courseId}`)
-- `DELETE /skillama/courses/{id}` - Delete course (same as `DELETE /api/admin/courses/{courseId}`)
+- `PUT /skillama/courses/{id}` - Update course (same as `PUT /skillama/api/admin/courses/{courseId}`)
+- `DELETE /skillama/courses/{id}` - Delete course (same as `DELETE /skillama/api/admin/courses/{courseId}`)
 - `GET /skillama/courses/{courseId}/curriculum` - Get course curriculum
 
 #### Curriculum Management
@@ -2051,13 +2051,13 @@ The following existing endpoints can be used by admins without separate admin en
 - `POST /skillama/users/admin/activate` - Activate user
 - `POST /skillama/users/admin/deactivate` - Deactivate user
 
-**Note:** The admin endpoints at `/api/admin/*` provide the same functionality with consistent response format (`ApiResponse` wrapper) and additional authentication checks. You can use either set of endpoints.
+**Note:** The admin endpoints at `/skillama/api/admin/*` provide the same functionality with consistent response format (`ApiResponse` wrapper) and additional authentication checks. You can use either set of endpoints.
 
 ---
 
 ## Error Response Format ⭐ NEW
 
-All `/api/*` endpoints use a consistent error response format:
+All `/skillama/api/*` endpoints use a consistent error response format:
 
 ```json
 {
@@ -2080,7 +2080,7 @@ All `/api/*` endpoints use a consistent error response format:
 - `RuntimeException` → 400/403/404/401 (based on message)
 - Generic `Exception` → 500
 
-**Note:** Existing `/skillama/*` endpoints use a different error format (`ResponseMessage`). New `/api/*` endpoints use the `ErrorResponse` format above.
+**Note:** Existing `/skillama/*` endpoints use a different error format (`ResponseMessage`). New `/skillama/api/*` endpoints use the `ErrorResponse` format above.
 
 ---
 
@@ -2144,9 +2144,9 @@ All paginated endpoints support the following parameters:
 **Calculation Method:** Real-time (no caching)
 
 All analytics endpoints calculate data in real-time on each request:
-- `GET /api/admin/analytics/dashboard` - Calculates stats on each request
-- `GET /api/admin/analytics/courses/{courseId}` - Calculates course analytics on each request
-- `GET /api/admin/analytics/users/{userId}/progress` - Fetches progress data on each request
+- `GET /skillama/api/admin/analytics/dashboard` - Calculates stats on each request
+- `GET /skillama/api/admin/analytics/courses/{courseId}` - Calculates course analytics on each request
+- `GET /skillama/api/admin/analytics/users/{userId}/progress` - Fetches progress data on each request
 
 **Performance Note:** For large datasets, consider implementing caching in future for better performance.
 
@@ -2155,9 +2155,9 @@ All analytics endpoints calculate data in real-time on each request:
 ## Bulk Operations Guidelines ⭐ NEW
 
 **Bulk Enrollment Endpoints:**
-- `POST /api/admin/courses/{courseId}/enroll-all` - Enroll all users to a course
-- `POST /api/admin/courses/enroll-all/{userId}` - Enroll user to all courses
-- `POST /api/admin/courses/enroll-all-to-all` - Enroll all users to all courses
+- `POST /skillama/api/admin/courses/{courseId}/enroll-all` - Enroll all users to a course
+- `POST /skillama/api/admin/courses/enroll-all/{userId}` - Enroll user to all courses
+- `POST /skillama/api/admin/courses/enroll-all-to-all` - Enroll all users to all courses
 
 **Usage Guidelines:**
 1. **Safe for Production:** Yes, with proper admin authentication
@@ -2206,9 +2206,9 @@ All endpoints are ready for frontend integration. The new Admin Panel APIs are f
 - ✅ Login endpoint returns JWT token and user role
 - ✅ Course responses include thumbnail field
 - ✅ Assignment responses include course names
-- ✅ **Search and filter implemented** for user management (`GET /api/admin/users?search=...&role=...&active=...`)
-- ✅ **User profile update endpoint** added (`PUT /api/users/me/profile`)
-- ✅ **Error response format standardized** for `/api/*` endpoints
+- ✅ **Search and filter implemented** for user management (`GET /skillama/api/admin/users?search=...&role=...&active=...`)
+- ✅ **User profile update endpoint** added (`PUT /skillama/api/users/me/profile`)
+- ✅ **Error response format standardized** for `/skillama/api/*` endpoints
 - ✅ **Token expiration documented** (37.5 days for access token)
 - ✅ **Delete behaviors documented** (soft delete for users, hard delete for courses)
 - ✅ **Pagination parameters documented**
@@ -2216,12 +2216,12 @@ All endpoints are ready for frontend integration. The new Admin Panel APIs are f
 
 **⚠️ Migration Required:** Before using the progress tracking features, existing users must be enrolled to courses using the enrollment endpoints or migration utilities.
 
-**📝 Note on Endpoint Reusability:** Many existing endpoints at `/skillama/*` can be used by admins. The admin endpoints at `/api/admin/*` provide the same functionality with consistent `ApiResponse` wrapper format. You can use either set based on your preference.
+**📝 Note on Endpoint Reusability:** Many existing endpoints at `/skillama/*` can be used by admins. The admin endpoints at `/skillama/api/admin/*` provide the same functionality with consistent `ApiResponse` wrapper format. You can use either set based on your preference.
 
 **📝 Response Format:**
-- **New Endpoints** (`/api/*`): Use wrapped format `{ status: 200, data: {...} }`
+- **New Endpoints** (`/skillama/api/*`): Use wrapped format `{ status: 200, data: {...} }`
 - **Existing Endpoints** (`/skillama/*`): Use direct response format (legacy)
-- **Error Responses** (`/api/*`): Use format `{ status: 400, error: "Bad Request", message: "..." }`
+- **Error Responses** (`/skillama/api/*`): Use format `{ status: 400, error: "Bad Request", message: "..." }`
 
 ---
 
