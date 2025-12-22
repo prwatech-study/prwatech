@@ -6,6 +6,7 @@ import com.prwatech.skillama.dto.*;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.script.GuestCourseMigrationScript;
 import com.prwatech.skillama.service.AdminService;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.UserService;
@@ -35,6 +36,7 @@ public class AdminController {
     private final UserService userService;
     private final CourseService courseService;
     private final JwtUtils jwtUtils;
+    private final GuestCourseMigrationScript guestCourseMigrationScript;
     
     // ========== Authentication & Authorization ==========
     
@@ -395,6 +397,72 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ApiResponse<>(401, null));
+        }
+    }
+    
+    // ========== Guest Course Management ==========
+    
+    /**
+     * Setup Guest Course (Public - No Auth Required)
+     * Automatically sets up a guest course if one doesn't exist
+     * This endpoint is public to allow first-time setup without authentication
+     */
+    @ApiOperation(value = "Setup guest course", notes = "Automatically configure a guest course for non-logged-in users. Public endpoint for first-time setup.")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Guest course setup completed"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @PostMapping("/courses/setup-guest-course")
+    public ResponseEntity<ApiResponse<String>> setupGuestCourse() {
+        try {
+            guestCourseMigrationScript.setupGuestCourse();
+            return ResponseEntity.ok(new ApiResponse<>(200, "Guest course setup completed successfully"));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(500, "Error setting up guest course: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Set Course as Guest Course (Admin)
+     * Sets a specific course as the guest course
+     */
+    @ApiOperation(value = "Set course as guest course", notes = "Set a specific course as the guest course for non-logged-in users (Admin only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "Course set as guest course successfully"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Admin access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "Course not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
+    @PutMapping("/courses/{courseId}/set-guest")
+    public ResponseEntity<ApiResponse<Course>> setCourseAsGuest(
+            @PathVariable String courseId,
+            HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request); // Verify authentication
+            boolean success = guestCourseMigrationScript.setCourseAsGuestCourse(courseId);
+            if (!success) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(404, null));
+            }
+            Course guestCourse = courseService.findById(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
+            return ResponseEntity.ok(new ApiResponse<>(200, guestCourse));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(404, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(500, null));
         }
     }
     

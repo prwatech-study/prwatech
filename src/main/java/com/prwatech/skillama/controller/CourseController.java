@@ -1,10 +1,12 @@
 package com.prwatech.skillama.controller;
 
+import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.service.CourseService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,8 +42,52 @@ public class CourseController {
     }
 
     @GetMapping("/{courseId}/curriculum")
-    public ResponseEntity<List<CourseCurriculum>> getCourseCurriculum(@PathVariable String courseId) {
-        return ResponseEntity.ok(courseService.getCurriculumByCourseIdOrdered(courseId));
+    public ResponseEntity<List<CourseCurriculum>> getCourseCurriculum(
+            @PathVariable String courseId,
+            @RequestParam(value = "guest", required = false, defaultValue = "false") boolean guestAccess) {
+        return ResponseEntity.ok(courseService.getCurriculumByCourseIdOrdered(courseId, guestAccess));
+    }
+
+    /**
+     * Get guest/default course for non-logged-in users
+     * This endpoint is public and does not require authentication
+     * @throws NotFoundException if no guest course is configured
+     */
+    @GetMapping("/guest")
+    public ResponseEntity<Course> getGuestCourse() {
+        Course guestCourse = courseService.getGuestCourseOrThrow();
+        return ResponseEntity.ok(guestCourse);
+    }
+
+    /**
+     * Get guest course curriculum (first module only for non-logged-in users)
+     * This endpoint is public and does not require authentication
+     * @throws NotFoundException if guest course not found or curriculum is empty
+     */
+    @GetMapping("/guest/curriculum")
+    public ResponseEntity<List<CourseCurriculum>> getGuestCourseCurriculum() {
+        List<CourseCurriculum> curriculum = courseService.getGuestCourseCurriculum();
+        return ResponseEntity.ok(curriculum);
+    }
+
+    /**
+     * Get all public courses accessible to non-logged-in users
+     * This endpoint is public and does not require authentication
+     */
+    @GetMapping("/public")
+    public ResponseEntity<List<Course>> getPublicCourses() {
+        return ResponseEntity.ok(courseService.findPublicCourses());
+    }
+
+    /**
+     * Get first public course (default for guest access)
+     * This endpoint is public and does not require authentication
+     */
+    @GetMapping("/public/first")
+    public ResponseEntity<Course> getFirstPublicCourse() {
+        return courseService.findFirstPublicCourse()
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
     @PutMapping("/{id}")

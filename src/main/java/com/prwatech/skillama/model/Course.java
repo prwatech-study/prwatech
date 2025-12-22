@@ -22,5 +22,9 @@ public class Course {
     private String updatedBy;
     private java.time.LocalDateTime createdAt;
     private java.time.LocalDateTime updatedAt;
+    @Builder.Default
+    private Boolean isGuestCourse = Boolean.FALSE; // Default guest course flag
+    @Builder.Default
+    private Boolean isPublic = Boolean.FALSE; // Public course flag for guest access
     // Removed curriculum field; curriculum is stored in CourseCurriculum collection
 }

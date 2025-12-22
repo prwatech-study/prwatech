@@ -1,5 +1,6 @@
 package com.prwatech.skillama.service;
 
+import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
@@ -53,7 +54,14 @@ public class CourseService {
         return courseRepository.findById(id).map(existing -> {
             existing.setName(updated.getName());
             existing.setDescription(updated.getDescription());
+            existing.setThumbnail(updated.getThumbnail());
             existing.setUpdatedBy(updated.getUpdatedBy());
+            if (updated.getIsGuestCourse() != null) {
+                existing.setIsGuestCourse(updated.getIsGuestCourse());
+            }
+            if (updated.getIsPublic() != null) {
+                existing.setIsPublic(updated.getIsPublic());
+            }
             existing.setUpdatedAt(LocalDateTime.now());
             return courseRepository.save(existing);
         }).orElse(null);
@@ -99,6 +107,75 @@ public class CourseService {
     // When fetching modules for a course, sort by 'order' field
     public List<CourseCurriculum> getCurriculumByCourseIdOrdered(String courseId) {
         return curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
+    }
+
+    // Get curriculum for a course, optionally limited to first module only (for guest users)
+    public List<CourseCurriculum> getCurriculumByCourseIdOrdered(String courseId, boolean guestAccess) {
+        List<CourseCurriculum> curriculum = curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
+        if (guestAccess && curriculum != null && !curriculum.isEmpty()) {
+            // Return only the first module for guest users
+            return java.util.Arrays.asList(curriculum.get(0));
+        }
+        return curriculum;
+    }
+
+    // --- GUEST COURSE MANAGEMENT ---
+    /**
+     * Finds the guest course. First tries to find a course marked as isGuestCourse,
+     * then falls back to the first public course if no guest course is found.
+     * @return Optional containing the guest course, or empty if none found
+     */
+    public Optional<Course> findGuestCourse() {
+        Optional<Course> guestCourse = courseRepository.findByIsGuestCourseTrue();
+        if (guestCourse.isPresent()) {
+            return guestCourse;
+        }
+        // Fallback to first public course
+        return courseRepository.findFirstByIsPublicTrue();
+    }
+
+    /**
+     * Gets the guest course or throws exception if not found
+     * @return Course - the guest course
+     * @throws NotFoundException if no guest course is found
+     */
+    public Course getGuestCourseOrThrow() {
+        return findGuestCourse()
+                .orElseThrow(() -> new NotFoundException(
+                        "No guest course found. Please configure a default guest course with isGuestCourse=true or isPublic=true."));
+    }
+
+    /**
+     * Gets guest course curriculum (first module only) with validation
+     * @return List of CourseCurriculum - contains at least one module
+     * @throws NotFoundException if guest course not found or curriculum is empty
+     */
+    public List<CourseCurriculum> getGuestCourseCurriculum() {
+        Course guestCourse = getGuestCourseOrThrow();
+        List<CourseCurriculum> curriculum = getCurriculumByCourseIdOrdered(guestCourse.getId(), true);
+        
+        if (curriculum == null || curriculum.isEmpty()) {
+            throw new NotFoundException(
+                    "Guest course curriculum is empty. Please add at least one module to the guest course.");
+        }
+        
+        return curriculum;
+    }
+
+    /**
+     * Gets all public courses
+     * @return List of public courses
+     */
+    public List<Course> findPublicCourses() {
+        return courseRepository.findByIsPublicTrue();
+    }
+
+    /**
+     * Gets the first public course (default for guest access)
+     * @return Optional containing the first public course, or empty if none found
+     */
+    public Optional<Course> findFirstPublicCourse() {
+        return courseRepository.findFirstByIsPublicTrue();
     }
 
     // --- SUBMODULE MANAGEMENT ---
