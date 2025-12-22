@@ -274,13 +274,19 @@ if (response.ok) {
 ]
 ```
 
-**Note:** Returns only the first module for guest users.
+**Note:** Returns **full curriculum** (all modules) for guest users. However, only the **first lecture** (first submodule of first module) is unlocked. All other lectures are locked, creating a "teaser" effect that encourages users to sign up.
 
 **Error Responses:**
 - `404 Not Found`: Guest course not found or curriculum is empty
 
 **Use Case:**
-Get curriculum for guest course (first module only). Use this to display available lectures for non-logged-in users.
+Get full curriculum for guest course. All modules and lectures are visible, but access control (which lectures are unlocked) is determined by the `/skillama/user-profile/access-control` endpoint. Use this to show the complete course structure to guest users while maintaining the locked state for all lectures except the first one.
+
+**Important:**
+- Guest users see the **complete course structure** (all modules and lectures)
+- Only the **first lecture** is accessible/unlocked
+- All other lectures show as locked with appropriate lock reasons
+- Use the `/skillama/user-profile/access-control` endpoint to get detailed access information for each lecture
 
 **Code Example:**
 ```javascript
@@ -288,11 +294,13 @@ const response = await fetch('/skillama/courses/guest/curriculum');
 
 if (response.ok) {
   const curriculum = await response.json();
-  // curriculum contains only first module
-  console.log('First module:', curriculum[0]);
-  curriculum[0].submodules.forEach(submodule => {
-    console.log('Lecture:', submodule.label);
+  // curriculum contains ALL modules (full course structure)
+  console.log('Total modules:', curriculum.length);
+  curriculum.forEach(module => {
+    console.log('Module:', module.moduleName);
+    console.log('Lectures:', module.submodules.length);
   });
+  // Check access-control endpoint to see which lectures are unlocked
 } else if (response.status === 404) {
   console.error('Guest curriculum not found');
 }
@@ -440,6 +448,16 @@ if (response.ok) {
 **Use Case:**
 **PRIMARY ENDPOINT** - Call this on LMS page load. Backend determines what to display.
 
+**Guest User Behavior:**
+- **All modules and lectures are visible** (full course structure)
+- **Only the first lecture** (first submodule of first module) is unlocked (`isAccessible: true`, `isLocked: false`)
+- **All other lectures are locked** (`isAccessible: false`, `isLocked: true`) with appropriate lock reasons
+- This creates a "teaser" effect showing the complete course content while encouraging sign-up
+
+**Logged-in User Behavior:**
+- Progressive unlocking: Lectures unlock one after another as previous lectures are completed
+- Modules unlock after previous module is completed
+
 **Code Example:**
 ```javascript
 const response = await fetch('/skillama/user-profile/access-control?courseId=course-id', {
@@ -451,7 +469,27 @@ const response = await fetch('/skillama/user-profile/access-control?courseId=cou
 
 if (response.ok) {
   const accessControl = await response.json();
-  // Display based on backend response - no frontend logic needed
+  
+  // Display all modules and lectures
+  accessControl.modules.forEach(module => {
+    console.log(`Module: ${module.moduleName} - ${module.isLocked ? 'LOCKED' : 'ACCESSIBLE'}`);
+    
+    module.lectures.forEach(lecture => {
+      if (lecture.isLocked) {
+        console.log(`  Lecture: ${lecture.lectureLabel} - LOCKED (${lecture.lockReason})`);
+      } else {
+        console.log(`  Lecture: ${lecture.lectureLabel} - UNLOCKED`);
+      }
+    });
+  });
+  
+  // For guest users: Show login prompt for locked content
+  if (accessControl.isGuest) {
+    const lockedCount = accessControl.progress.lockedLectures;
+    if (lockedCount > 0) {
+      console.log(`Sign up to unlock ${lockedCount} more lectures!`);
+    }
+  }
 }
 ```
 
