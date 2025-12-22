@@ -83,8 +83,13 @@ public class UserProfileController {
         String sessionId = getSessionIdFromRequest(request);
         String userId = getUserIdFromRequest(request);
         
+        // Log for debugging
+        org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(UserProfileController.class);
+        logger.debug("Access control request: userId={}, sessionId={}, courseId={}", userId, sessionId, courseId);
+        
         // If neither sessionId nor userId exists, create a new guest session
         if (sessionId == null && userId == null) {
+            logger.debug("No session or user ID found, creating guest session");
             Map<String, Object> initResult = userProfileService.initializeGuestSession(
                     InitGuestSessionRequestDTO.builder().build());
             sessionId = (String) initResult.get("sessionId");

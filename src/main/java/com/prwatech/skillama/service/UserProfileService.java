@@ -150,8 +150,9 @@ public class UserProfileService {
             userProfileRepository.save(profile);
         }
         
+        // Validate course exists
         Course course = courseRepository.findById(targetCourseId)
-                .orElseThrow(() -> new NotFoundException("Course not found"));
+                .orElseThrow(() -> new NotFoundException("Course not found with ID: " + targetCourseId));
         
         List<CourseCurriculum> curriculum = courseService.getCurriculumByCourseIdOrdered(targetCourseId);
         

@@ -1,5 +1,6 @@
 package com.prwatech.skillama.exception;
 
+import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.dto.ErrorResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,17 @@ public class SkillamaExceptionHandler {
         ErrorResponse error = new ErrorResponse(
             HttpStatus.NOT_FOUND.value(),
             "Not Found",
+            ex.getMessage()
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+    
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNotFoundException(NotFoundException ex) {
+        LOGGER.error("Not found: {}", ex.getMessage());
+        ErrorResponse error = new ErrorResponse(
+            HttpStatus.NOT_FOUND.value(),
+            "NOT_FOUND",
             ex.getMessage()
         );
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
