@@ -72,14 +72,30 @@ public class UserProfileController {
     /**
      * Get complete access control information
      * Works for both logged-in and guest users
+     * Automatically creates guest session if neither sessionId nor userId is present
      */
     @GetMapping("/access-control")
     public ResponseEntity<AccessControlResponseDTO> getAccessControl(
             @RequestParam(required = false) String courseId,
-            HttpServletRequest request) {
+            HttpServletRequest request,
+            HttpServletResponse response) {
         
         String sessionId = getSessionIdFromRequest(request);
         String userId = getUserIdFromRequest(request);
+        
+        // If neither sessionId nor userId exists, create a new guest session
+        if (sessionId == null && userId == null) {
+            Map<String, Object> initResult = userProfileService.initializeGuestSession(
+                    InitGuestSessionRequestDTO.builder().build());
+            sessionId = (String) initResult.get("sessionId");
+            
+            // Set session cookie
+            Cookie cookie = new Cookie(SESSION_COOKIE_NAME, sessionId);
+            cookie.setHttpOnly(true);
+            cookie.setPath("/");
+            cookie.setMaxAge(7 * 24 * 60 * 60); // 7 days
+            response.addCookie(cookie);
+        }
         
         AccessControlResponseDTO accessControl = userProfileService.getAccessControl(sessionId, userId, courseId);
         return ResponseEntity.ok(accessControl);
