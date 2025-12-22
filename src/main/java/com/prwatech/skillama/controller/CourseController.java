@@ -45,6 +45,8 @@ public class CourseController {
     public ResponseEntity<List<CourseCurriculum>> getCourseCurriculum(
             @PathVariable String courseId,
             @RequestParam(value = "guest", required = false, defaultValue = "false") boolean guestAccess) {
+        // Returns full curriculum for all users (including guests)
+        // Access control (which lectures are unlocked) is handled by UserProfileService
         return ResponseEntity.ok(courseService.getCurriculumByCourseIdOrdered(courseId, guestAccess));
     }
 
@@ -60,8 +62,10 @@ public class CourseController {
     }
 
     /**
-     * Get guest course curriculum (first module only for non-logged-in users)
+     * Get guest course curriculum (full curriculum - all modules visible but only first lecture unlocked)
      * This endpoint is public and does not require authentication
+     * Note: Guest users see the full course structure but only the first lecture is accessible.
+     * This creates a "teaser" effect to encourage users to sign up.
      * @throws NotFoundException if guest course not found or curriculum is empty
      */
     @GetMapping("/guest/curriculum")

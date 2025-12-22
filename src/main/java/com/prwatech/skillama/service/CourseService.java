@@ -109,14 +109,11 @@ public class CourseService {
         return curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
     }
 
-    // Get curriculum for a course, optionally limited to first module only (for guest users)
+    // Get curriculum for a course (returns full curriculum for all users including guests)
+    // Note: Guest users see full curriculum but only first lecture is unlocked (handled by UserProfileService)
     public List<CourseCurriculum> getCurriculumByCourseIdOrdered(String courseId, boolean guestAccess) {
-        List<CourseCurriculum> curriculum = curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
-        if (guestAccess && curriculum != null && !curriculum.isEmpty()) {
-            // Return only the first module for guest users
-            return java.util.Arrays.asList(curriculum.get(0));
-        }
-        return curriculum;
+        // Return full curriculum for all users - access control is handled by UserProfileService
+        return curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
     }
 
     // --- GUEST COURSE MANAGEMENT ---
@@ -146,8 +143,8 @@ public class CourseService {
     }
 
     /**
-     * Gets guest course curriculum (first module only) with validation
-     * @return List of CourseCurriculum - contains at least one module
+     * Gets guest course curriculum (full curriculum - all modules visible but only first lecture unlocked)
+     * @return List of CourseCurriculum - contains all modules
      * @throws NotFoundException if guest course not found or curriculum is empty
      */
     public List<CourseCurriculum> getGuestCourseCurriculum() {

@@ -190,19 +190,31 @@ public class UserProfileService {
     
     private ModuleAccessDTO buildModuleAccessDTO(UserProfile profile, CourseCurriculum module, int moduleIndex, 
                                                   String courseId, List<CourseCurriculum> allModules) {
-        // Rule 1: For non-logged-in users, only first module is accessible
-        boolean isModuleAccessible = !profile.getIsGuest() || moduleIndex == 0;
-        boolean isModuleLocked = !isModuleAccessible;
+        // For guest users: Show all modules but lock all except first module (first module's first lecture is unlocked)
+        // For logged-in users: Progressive unlocking based on completion
+        boolean isModuleAccessible;
+        boolean isModuleLocked;
         String lockReason = null;
         
-        if (isModuleLocked) {
-            if (profile.getIsGuest()) {
+        if (profile.getIsGuest()) {
+            // Guest users: First module is accessible (but only first lecture is unlocked), rest are locked
+            isModuleAccessible = moduleIndex == 0;
+            isModuleLocked = moduleIndex > 0;
+            if (isModuleLocked) {
                 lockReason = "Login required to access additional modules";
-            } else if (moduleIndex > 0) {
+            }
+        } else {
+            // Logged-in users: Progressive unlocking
+            if (moduleIndex == 0) {
+                isModuleAccessible = true;
+                isModuleLocked = false;
+            } else {
                 // Check if previous module is completed
                 CourseCurriculum previousModule = allModules.get(moduleIndex - 1);
                 boolean previousModuleCompleted = isModuleCompleted(profile, previousModule, courseId);
-                if (!previousModuleCompleted) {
+                isModuleAccessible = previousModuleCompleted;
+                isModuleLocked = !previousModuleCompleted;
+                if (isModuleLocked) {
                     lockReason = "Previous module must be completed";
                 }
             }
@@ -235,28 +247,48 @@ public class UserProfileService {
                                                    String courseId, List<CourseCurriculum> allModules) {
         String lectureLabel = submodule.getLabel();
         
-        // Rule 1: First lecture in first module is always accessible
-        boolean isAccessible = (moduleIndex == 0 && lectureIndex == 0);
-        boolean isLocked = !isAccessible;
+        boolean isAccessible;
+        boolean isLocked;
         String lockReason = null;
         
-        if (!isAccessible) {
-            // Rule 2: For non-logged-in users, only first module
-            if (profile.getIsGuest() && moduleIndex > 0) {
-                isLocked = true;
-                lockReason = "Login required to access additional modules";
+        if (profile.getIsGuest()) {
+            // Guest users: Only first lecture (first submodule of first module) is unlocked
+            // All other lectures are locked to create "teaser" effect
+            if (moduleIndex == 0 && lectureIndex == 0) {
+                isAccessible = true;
+                isLocked = false;
             } else {
-                // Rule 3: Progressive unlocking - previous lecture must be completed
+                isAccessible = false;
+                isLocked = true;
+                if (moduleIndex == 0) {
+                    lockReason = "Complete previous lectures to unlock this content";
+                } else {
+                    lockReason = "Login required to access additional modules";
+                }
+            }
+        } else {
+            // Logged-in users: Progressive unlocking
+            // Rule 1: First lecture in first module is always accessible
+            if (moduleIndex == 0 && lectureIndex == 0) {
+                isAccessible = true;
+                isLocked = false;
+            } else {
+                // Rule 2: Progressive unlocking - previous lecture must be completed
                 CourseCurriculum.Submodule previousSubmodule = getPreviousSubmodule(module, lectureIndex, allModules, moduleIndex);
                 if (previousSubmodule != null) {
                     boolean previousCompleted = isLectureCompleted(profile, previousSubmodule.getLabel(), courseId);
-                    if (!previousCompleted) {
-                        isLocked = true;
-                        lockReason = "Previous lecture '" + previousSubmodule.getLabel() + "' must be completed first";
-                    } else {
+                    if (previousCompleted) {
                         isAccessible = true;
                         isLocked = false;
+                    } else {
+                        isAccessible = false;
+                        isLocked = true;
+                        lockReason = "Previous lecture '" + previousSubmodule.getLabel() + "' must be completed first";
                     }
+                } else {
+                    isAccessible = false;
+                    isLocked = true;
+                    lockReason = "Previous lecture must be completed first";
                 }
             }
         }
