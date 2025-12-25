@@ -152,6 +152,41 @@ public class AdminService {
         return convertToUserDTO(user);
     }
     
+    /**
+     * Update user role by email. Only OWNER can promote users to ADMIN/OWNER.
+     * 
+     * @param email The email of the user to update
+     * @param newRole The new role (ADMIN, OWNER, or USER)
+     * @param updatedBy The ID of the user making the update
+     * @return Updated user DTO
+     */
+    @Transactional
+    public UserDTO updateUserRoleByEmail(String email, User.UserRole newRole, String updatedBy) {
+        User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+        
+        User updater = userRepository.findById(updatedBy)
+            .orElseThrow(() -> new ResourceNotFoundException("Updater not found"));
+        
+        // Only OWNER can change roles to ADMIN/OWNER
+        if ((newRole == User.UserRole.ADMIN || newRole == User.UserRole.OWNER)
+            && updater.getRole() != User.UserRole.OWNER) {
+            throw new RuntimeException("Only OWNER can change role to ADMIN or OWNER");
+        }
+        
+        // Cannot change OWNER role
+        if (user.getRole() == User.UserRole.OWNER && newRole != User.UserRole.OWNER) {
+            throw new RuntimeException("Cannot change OWNER role");
+        }
+        
+        user.setRole(newRole);
+        user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedBy(updatedBy);
+        
+        user = userRepository.save(user);
+        return convertToUserDTO(user);
+    }
+    
     @Transactional
     public void deleteUser(String userId) {
         User user = userRepository.findById(userId)
