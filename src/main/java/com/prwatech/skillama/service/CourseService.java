@@ -212,6 +212,44 @@ public class CourseService {
             return module;
         }).orElse(null);
     }
+    
+    /**
+     * Finds a submodule by moduleId and index.
+     * @param moduleId The module ID
+     * @param submoduleIdx The submodule index
+     * @return Optional containing the submodule if found
+     */
+    public Optional<CourseCurriculum.Submodule> findSubmodule(String moduleId, int submoduleIdx) {
+        return curriculumRepository.findById(moduleId).map(module -> {
+            List<CourseCurriculum.Submodule> list = module.getSubmodules();
+            if (list != null && submoduleIdx >= 0 && submoduleIdx < list.size()) {
+                return Optional.of(list.get(submoduleIdx));
+            }
+            return Optional.<CourseCurriculum.Submodule>empty();
+        }).orElse(Optional.empty());
+    }
+    
+    /**
+     * Updates a submodule's image path.
+     * @param moduleId The module ID
+     * @param submoduleIdx The submodule index
+     * @param imagePath The new image path (can be null to remove image)
+     * @return The updated module, or null if not found
+     */
+    public CourseCurriculum updateSubmoduleImagePath(String moduleId, int submoduleIdx, String imagePath) {
+        return curriculumRepository.findById(moduleId).map(module -> {
+            List<CourseCurriculum.Submodule> list = module.getSubmodules();
+            if (list != null && submoduleIdx >= 0 && submoduleIdx < list.size()) {
+                CourseCurriculum.Submodule submodule = list.get(submoduleIdx);
+                submodule.setImagePath(imagePath);
+                list.set(submoduleIdx, submodule);
+                module.setSubmodules(list);
+                module.setUpdatedAt(LocalDateTime.now());
+                return curriculumRepository.save(module);
+            }
+            return module;
+        }).orElse(null);
+    }
 
     @Getter
     @AllArgsConstructor
