@@ -139,6 +139,44 @@ public class FileStorageServiceImpl implements FileStorageService {
     }
     
     @Override
+    public String uploadImageToS3(MultipartFile file, String s3Prefix) throws IOException {
+        validateImageFile(file);
+        
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        String randomId = UUID.randomUUID().toString().substring(0, 8);
+        String originalFilename = file.getOriginalFilename();
+        String extension = ".png";
+        
+        if (originalFilename != null && originalFilename.contains(".")) {
+            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+        } else {
+            String contentType = file.getContentType();
+            if (contentType != null) {
+                if (contentType.contains("jpeg") || contentType.contains("jpg")) extension = ".jpg";
+                else if (contentType.contains("png")) extension = ".png";
+                else if (contentType.contains("gif")) extension = ".gif";
+                else if (contentType.contains("webp")) extension = ".webp";
+            }
+        }
+        
+        String s3Key = (s3Prefix != null && !s3Prefix.isEmpty() ? s3Prefix + "/" : "")
+            + timestamp + "-" + randomId + extension;
+        
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(s3Key)
+                .contentType(file.getContentType() != null ? file.getContentType() : "image/png")
+                .build();
+            
+            s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+            return s3BaseUrl + "/" + s3Key;
+        } catch (S3Exception e) {
+            throw new IOException("Failed to upload file to S3: " + e.getMessage(), e);
+        }
+    }
+    
+    @Override
     public boolean deleteFile(String filePath) throws IOException {
         if (filePath == null || filePath.isEmpty()) {
             return false;

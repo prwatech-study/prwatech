@@ -36,6 +36,18 @@ public interface FileStorageService {
     String uploadImageForSubmodule(MultipartFile file, String courseId, Integer moduleOrder, Integer lessonOrder, Integer slideNumber) throws IOException;
     
     /**
+     * Uploads an image file to S3 under the given prefix (e.g. "curriculum/images").
+     * Used for generic curriculum image upload when module/submodule context is not yet known.
+     *
+     * @param file The image file to upload
+     * @param s3Prefix S3 key prefix (e.g. "curriculum/images")
+     * @return The full S3 URL of the uploaded file
+     * @throws IOException if upload fails
+     * @throws IllegalArgumentException if file validation fails
+     */
+    String uploadImageToS3(MultipartFile file, String s3Prefix) throws IOException;
+    
+    /**
      * Deletes a file by its URL/path.
      * 
      * @param filePath The URL/path of the file to delete

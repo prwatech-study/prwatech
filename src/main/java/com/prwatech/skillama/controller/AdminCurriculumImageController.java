@@ -39,7 +39,7 @@ import java.util.Optional;
  * - DELETE /api/admin/curriculum/submodules/{moduleId}/{idx}/image - Delete submodule image
  */
 @RestController
-@RequestMapping("/api/admin/curriculum/submodules")
+@RequestMapping("/skillama/api/admin/curriculum/submodules")
 @RequiredArgsConstructor
 public class AdminCurriculumImageController {
     
@@ -185,9 +185,9 @@ public class AdminCurriculumImageController {
             // Verify admin access
             verifyAdminAccess(request);
             
-            // For generic image upload, use the simple upload method
-            // Note: This endpoint doesn't have module/submodule context, so it uses generic path
-            String imagePath = fileStorageService.uploadImage(file, IMAGE_SUBDIRECTORY);
+            // Generic curriculum image: upload to AWS S3 (curriculum/images prefix)
+            // Same bucket as submodule images; UI can use this URL when saving submodule imagePath
+            String imagePath = fileStorageService.uploadImageToS3(file, IMAGE_SUBDIRECTORY);
             
             // Build response
             ImageUploadResponseDTO response = ImageUploadResponseDTO.builder()
