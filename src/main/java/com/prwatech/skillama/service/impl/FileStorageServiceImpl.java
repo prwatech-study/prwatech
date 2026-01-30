@@ -93,35 +93,28 @@ public class FileStorageServiceImpl implements FileStorageService {
     public String uploadImageForSubmodule(MultipartFile file, String courseId, Integer moduleOrder, Integer lessonOrder, Integer slideNumber) throws IOException {
         validateImageFile(file);
         
-        // Format numbers as 2-digit strings (e.g., 3 -> "03", 28 -> "28")
+        // S3 path structure (must match): bucket/courses/{courseId}/modules/{MM}/lessons/{LL}/slides/{SS}.{ext}
+        // Example: presentation-image-courses/courses/6817bbe4cb6b8135daecc428/modules/03/lessons/01/slides/01.png
         String moduleOrderStr = String.format("%02d", moduleOrder != null ? moduleOrder : 1);
         String lessonOrderStr = String.format("%02d", lessonOrder != null ? lessonOrder : 1);
         String slideNumberStr = String.format("%02d", slideNumber != null ? slideNumber : 1);
         
-        // Determine file extension from content type or original filename
-        String extension = ".png"; // Default to PNG
         String contentType = file.getContentType();
         String originalFilename = file.getOriginalFilename();
+        String extension = ".png";
         if (originalFilename != null && originalFilename.contains(".")) {
-            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
         } else if (contentType != null) {
-            // Determine extension from content type
-            if (contentType.contains("jpeg") || contentType.contains("jpg")) {
-                extension = ".jpg";
-            } else if (contentType.contains("png")) {
-                extension = ".png";
-            } else if (contentType.contains("gif")) {
-                extension = ".gif";
-            } else if (contentType.contains("webp")) {
-                extension = ".webp";
-            }
+            if (contentType.contains("jpeg") || contentType.contains("jpg")) extension = ".jpg";
+            else if (contentType.contains("png")) extension = ".png";
+            else if (contentType.contains("gif")) extension = ".gif";
+            else if (contentType.contains("webp")) extension = ".webp";
         }
         
-        // Build S3-style path: courses/{courseId}/modules/{moduleOrder}/lessons/{lessonOrder}/slides/{slideNumber}.{ext}
+        // Key: courses/{courseId}/modules/03/lessons/01/slides/01.png
         String s3Key = String.format("courses/%s/modules/%s/lessons/%s/slides/%s%s",
             courseId, moduleOrderStr, lessonOrderStr, slideNumberStr, extension);
         
-        // Upload to S3 using IAM role credentials (EC2 instance profile)
         try {
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucketName)
@@ -129,9 +122,18 @@ public class FileStorageServiceImpl implements FileStorageService {
                 .contentType(contentType != null ? contentType : "image/png")
                 .build();
             
-            s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+            // Use bytes when size unknown (-1) so S3 always receives valid content length
+            long size = file.getSize();
+            RequestBody body;
+            if (size >= 0) {
+                body = RequestBody.fromInputStream(file.getInputStream(), size);
+            } else {
+                byte[] bytes = file.getBytes();
+                body = RequestBody.fromBytes(bytes);
+                size = bytes.length;
+            }
+            s3Client.putObject(putObjectRequest, body);
             
-            // Return S3 URL
             return s3BaseUrl + "/" + s3Key;
         } catch (S3Exception e) {
             throw new IOException("Failed to upload file to S3: " + e.getMessage(), e);
