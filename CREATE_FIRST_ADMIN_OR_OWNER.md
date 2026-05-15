@@ -142,12 +142,12 @@ db.users.insertOne({
 
 1. **Find your MongoDB connection string:**
    - Check `application.properties`: `skillama.mongodb.uri`
-   - Or connect to: `mongodb://prwatech:PrwaT3ch@13.126.60.121:27017/skillamaDB?authSource=admin`
+   - Or connect to: `mongodb://prwatech:PrwaT3ch@3.6.142.208:27017/skillamaDB?authSource=admin`
 
 2. **Connect using MongoDB Compass or MongoDB Shell:**
    ```bash
    # Using MongoDB Shell
-   mongosh "mongodb://prwatech:PrwaT3ch@13.126.60.121:27017/skillamaDB?authSource=admin"
+   mongosh "mongodb://prwatech:PrwaT3ch@3.6.142.208:27017/skillamaDB?authSource=admin"
    ```
 
 3. **Find a user (or create one via registration):**
