@@ -56,8 +56,6 @@ dependencies {
 	implementation group: 'com.sparkpost', name: 'sparkpost-lib', version: '0.27'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
-    // AWS S3 — v1 (S3StorageService) + v2 (FileStorageServiceImpl)
-    implementation 'com.amazonaws:aws-java-sdk-s3:1.12.670'
     implementation platform('software.amazon.awssdk:bom:2.20.0')
     implementation 'software.amazon.awssdk:s3'
 }
