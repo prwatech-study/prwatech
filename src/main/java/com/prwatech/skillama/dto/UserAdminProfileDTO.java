@@ -2,29 +2,30 @@ package com.prwatech.skillama.dto;
 
 import com.prwatech.skillama.model.User;
 import lombok.AllArgsConstructor;
-import lombok.Getter;
+import lombok.Builder;
+import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
-@Getter
-@Setter
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserDTO {
-    private String id;
+public class UserAdminProfileDTO {
+    private String userId;
     private String name;
     private String email;
     private String phone;
-    private User.UserRole role;
     private User.PlanTier planTier;
-    private Boolean active;
-    private String gender;
     private LocalDateTime createdAt;
     private LocalDateTime lastLoginAt;
-    private String createdBy;
-    private LocalDateTime updatedAt;
-    private String updatedBy;
+    private Integer queryCreditsUsed;
+    private Integer queryCreditsLimit;
+    private List<String> enabledModules;
+    private String referralCode;
+    private String referredBy;
+    private int completedLecturesCount;
+    private int totalQuestionsAsked;
 }
-

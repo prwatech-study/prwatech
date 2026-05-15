@@ -1,5 +1,6 @@
 package com.prwatech.skillama.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -9,6 +10,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class FeatureAccessDTO {
     private ChatFeatureDTO chat;
     private CodeExecutionFeatureDTO codeExecution;
@@ -19,6 +21,7 @@ public class FeatureAccessDTO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ChatFeatureDTO {
+        private Boolean enabled;
         private Boolean accessible;
         private Integer questionsRemaining;
         private Boolean limitReached;
@@ -29,8 +32,9 @@ public class FeatureAccessDTO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class CodeExecutionFeatureDTO {
+        private Boolean enabled;
         private Boolean accessible;
-        private String reason;           // "Login required" if locked
+        private String reason;
     }
     
     @Data
@@ -38,6 +42,7 @@ public class FeatureAccessDTO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class DebugFeatureDTO {
+        private Boolean enabled;
         private Boolean accessible;
         private String reason;
     }

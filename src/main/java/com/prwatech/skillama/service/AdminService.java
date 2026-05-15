@@ -6,11 +6,15 @@ import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserCourseEnrollment;
+import com.prwatech.skillama.model.QueryActivityLog;
 import com.prwatech.skillama.model.UserCourseProgress;
+import com.prwatech.skillama.model.UserProfile;
 import com.prwatech.skillama.repository.CourseRepository;
+import com.prwatech.skillama.repository.QueryActivityLogRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserCourseEnrollmentRepository;
 import com.prwatech.skillama.repository.UserCourseProgressRepository;
+import com.prwatech.skillama.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -33,6 +37,8 @@ public class AdminService {
     private final CourseRepository courseRepository;
     private final UserCourseEnrollmentRepository enrollmentRepository;
     private final UserCourseProgressRepository progressRepository;
+    private final UserProfileRepository userProfileRepository;
+    private final QueryActivityLogRepository queryActivityLogRepository;
     private final PasswordEncode passwordEncode;
     
     public AdminAccessDTO checkAdminAccess(String userId) {
@@ -56,12 +62,21 @@ public class AdminService {
             .build();
     }
     
-    public Page<UserDTO> getUsers(int page, int size, String search, User.UserRole role, Boolean active) {
+    public Page<UserDTO> getUsers(
+            int page,
+            int size,
+            String search,
+            User.UserRole role,
+            Boolean active,
+            String phone,
+            User.PlanTier planTier,
+            LocalDateTime fromDate,
+            LocalDateTime toDate) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        
-        // Use custom repository method for search and filtering
-        Page<User> users = userRepository.findUsersWithFilters(search, role, active, pageable);
-        
+
+        Page<User> users = userRepository.findUsersWithFilters(
+                search, role, active, phone, planTier, fromDate, toDate, pageable);
+
         return users.map(this::convertToUserDTO);
     }
     
@@ -388,6 +403,69 @@ public class AdminService {
         return analytics;
     }
     
+    public UserAdminProfileDTO getUserAdminProfile(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        UserProfile profile = userProfileRepository.findByUserId(userId).orElse(null);
+        int completedCount = profile != null && profile.getCompletedLectures() != null
+                ? profile.getCompletedLectures().size() : 0;
+        int questionsAsked = profile != null && profile.getTotalQuestionsAsked() != null
+                ? profile.getTotalQuestionsAsked() : 0;
+
+        return UserAdminProfileDTO.builder()
+                .userId(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .planTier(user.getPlanTier())
+                .createdAt(user.getCreatedAt())
+                .lastLoginAt(user.getLastLoginAt())
+                .queryCreditsUsed(user.getQueryCreditsUsed())
+                .queryCreditsLimit(user.getQueryCreditsLimit())
+                .enabledModules(user.getEnabledModules())
+                .referralCode(user.getReferralCode())
+                .referredBy(user.getReferredBy())
+                .completedLecturesCount(completedCount)
+                .totalQuestionsAsked(questionsAsked)
+                .build();
+    }
+
+    public UserActivityDTO getUserActivity(String userId, int page, int size) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<QueryActivityLog> queryPage = queryActivityLogRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+
+        UserProfile profile = userProfileRepository.findByUserId(userId).orElse(null);
+        List<UserActivityDTO.LectureActivityItemDTO> lectures = new ArrayList<>();
+        if (profile != null && profile.getCompletedLectures() != null) {
+            lectures = profile.getCompletedLectures().stream()
+                    .map(cl -> UserActivityDTO.LectureActivityItemDTO.builder()
+                            .lectureLabel(cl.getLectureLabel())
+                            .courseId(cl.getCourseId())
+                            .completedAt(cl.getCompletedAt())
+                            .build())
+                    .collect(Collectors.toList());
+        }
+
+        List<UserActivityDTO.QueryActivityItemDTO> queryLog = queryPage.getContent().stream()
+                .map(q -> UserActivityDTO.QueryActivityItemDTO.builder()
+                        .queryType(q.getQueryType())
+                        .courseId(q.getCourseId())
+                        .createdAt(q.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
+
+        return UserActivityDTO.builder()
+                .userId(userId)
+                .lastLoginAt(user.getLastLoginAt())
+                .queryLog(queryLog)
+                .lectureCompletions(lectures)
+                .build();
+    }
+
     private void initializeCourseProgress(String userId, String courseId) {
         if (progressRepository.findByUserIdAndCourseId(userId, courseId).isEmpty()) {
             UserCourseProgress progress = new UserCourseProgress();
@@ -409,10 +487,13 @@ public class AdminService {
         dto.setId(user.getId());
         dto.setName(user.getName());
         dto.setEmail(user.getEmail());
+        dto.setPhone(user.getPhone());
+        dto.setPlanTier(user.getPlanTier());
         dto.setRole(user.getRole() != null ? user.getRole() : User.UserRole.USER);
         dto.setActive(user.isActive());
         dto.setGender(user.getGender() != null ? user.getGender().name() : null);
         dto.setCreatedAt(user.getCreatedAt());
+        dto.setLastLoginAt(user.getLastLoginAt());
         dto.setCreatedBy(user.getCreatedBy());
         dto.setUpdatedAt(user.getUpdatedAt());
         dto.setUpdatedBy(user.getUpdatedBy());

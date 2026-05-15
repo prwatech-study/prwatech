@@ -3,6 +3,7 @@ package com.prwatech.skillama.controller;
 import com.prwatech.authentication.security.JwtUtils;
 import com.prwatech.skillama.dto.*;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.UserProfileService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class UserProfileController {
     
     private final UserProfileService userProfileService;
     private final UserService userService;
+    private final FreemiumService freemiumService;
     private final JwtUtils jwtUtils;
     
     private static final String SESSION_COOKIE_NAME = "skillama_session_id";
@@ -171,6 +173,44 @@ public class UserProfileController {
         return ResponseEntity.ok(result);
     }
     
+    // ========== Freemium ==========
+
+    @GetMapping("/freemium")
+    public ResponseEntity<FreemiumStatusDTO> getFreemiumStatus(HttpServletRequest request) {
+        String userId = extractUserIdFromRequest(request);
+        return ResponseEntity.ok(freemiumService.getStatus(userId));
+    }
+
+    @PostMapping("/freemium/consume-query")
+    public ResponseEntity<?> consumeQuery(
+            @RequestBody(required = false) ConsumeQueryRequestDTO body,
+            HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            return ResponseEntity.ok(freemiumService.consumeQuery(userId, body));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(429).body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/referral/apply")
+    public ResponseEntity<?> applyReferral(
+            @RequestBody ReferralApplyRequestDTO body,
+            HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            return ResponseEntity.ok(freemiumService.applyReferral(userId, body.getCode()));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/referral/code")
+    public ResponseEntity<Map<String, String>> getReferralCode(HttpServletRequest request) {
+        String userId = extractUserIdFromRequest(request);
+        return ResponseEntity.ok(Map.of("code", freemiumService.getReferralCode(userId)));
+    }
+
     // ========== Helper Methods ==========
     
     private String getSessionIdFromRequest(HttpServletRequest request) {

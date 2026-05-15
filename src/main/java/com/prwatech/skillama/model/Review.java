@@ -12,8 +12,25 @@ public class Review {
     @Id
     private String id;
     private String userId;
+    private String courseId;
     private int rating;
+    private String comment;
     private String review;
     private String profession;
+    private ReviewScope scope;
+    private String userName;
+    private String userEmail;
+    private ReviewStatus status = ReviewStatus.OPEN;
+    private String teamReply;
+    private LocalDateTime repliedAt;
+    private String repliedBy;
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    public enum ReviewScope {
+        COURSE, OVERALL
+    }
+
+    public enum ReviewStatus {
+        OPEN, REPLIED, CLOSED
+    }
 }

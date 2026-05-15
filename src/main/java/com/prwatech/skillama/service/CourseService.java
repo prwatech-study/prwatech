@@ -14,8 +14,10 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -109,11 +111,73 @@ public class CourseService {
         return curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
     }
 
-    // Get curriculum for a course (returns full curriculum for all users including guests)
-    // Note: Guest users see full curriculum but only first lecture is unlocked (handled by UserProfileService)
+    // Get curriculum for a course (learner/guest view filters disabled submodules)
     public List<CourseCurriculum> getCurriculumByCourseIdOrdered(String courseId, boolean guestAccess) {
-        // Return full curriculum for all users - access control is handled by UserProfileService
-        return curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
+        return getCurriculumByCourseIdOrdered(courseId, guestAccess, false);
+    }
+
+    public List<CourseCurriculum> getCurriculumByCourseIdOrdered(String courseId, boolean guestAccess, boolean forAdmin) {
+        List<CourseCurriculum> curriculum = curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
+        if (forAdmin) {
+            return curriculum;
+        }
+        return filterCurriculumForLearner(curriculum);
+    }
+
+    public static boolean isSubmoduleEnabled(CourseCurriculum.Submodule submodule) {
+        return submodule == null || submodule.getEnabled() == null || Boolean.TRUE.equals(submodule.getEnabled());
+    }
+
+    public static int countEnabledLectures(List<CourseCurriculum> curriculum) {
+        if (curriculum == null) {
+            return 0;
+        }
+        return curriculum.stream()
+                .mapToInt(m -> m.getSubmodules() == null ? 0
+                        : (int) m.getSubmodules().stream().filter(CourseService::isSubmoduleEnabled).count())
+                .sum();
+    }
+
+    private static CourseCurriculum.Submodule copySubmoduleForLearner(CourseCurriculum.Submodule submodule) {
+        CourseCurriculum.Submodule copy = new CourseCurriculum.Submodule();
+        copy.setLabel(submodule.getLabel());
+        copy.setImagePath(submodule.getImagePath());
+        copy.setPracticalRequired(submodule.isPracticalRequired());
+        copy.setOrder(submodule.getOrder());
+        // Learners receive content via generated lectures; omit scriptText from API responses.
+        copy.setScriptText(null);
+        copy.setEnabled(submodule.getEnabled());
+        return copy;
+    }
+
+    private List<CourseCurriculum> filterCurriculumForLearner(List<CourseCurriculum> modules) {
+        if (modules == null) {
+            return List.of();
+        }
+        return modules.stream()
+                .map(module -> {
+                    List<CourseCurriculum.Submodule> enabledSubmodules = module.getSubmodules() == null
+                            ? List.of()
+                            : module.getSubmodules().stream()
+                                    .filter(CourseService::isSubmoduleEnabled)
+                                    .map(CourseService::copySubmoduleForLearner)
+                                    .collect(Collectors.toList());
+                    if (enabledSubmodules.isEmpty()) {
+                        return null;
+                    }
+                    CourseCurriculum copy = new CourseCurriculum();
+                    copy.setId(module.getId());
+                    copy.setCourseId(module.getCourseId());
+                    copy.setModuleName(module.getModuleName());
+                    copy.setModuleAssetPath(module.getModuleAssetPath());
+                    copy.setSubmodules(new ArrayList<>(enabledSubmodules));
+                    copy.setTitle(module.getTitle());
+                    copy.setContent(module.getContent());
+                    copy.setOrder(module.getOrder());
+                    return copy;
+                })
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     // --- GUEST COURSE MANAGEMENT ---
@@ -149,13 +213,13 @@ public class CourseService {
      */
     public List<CourseCurriculum> getGuestCourseCurriculum() {
         Course guestCourse = getGuestCourseOrThrow();
-        List<CourseCurriculum> curriculum = getCurriculumByCourseIdOrdered(guestCourse.getId(), true);
-        
+        List<CourseCurriculum> curriculum = getCurriculumByCourseIdOrdered(guestCourse.getId(), true, false);
+
         if (curriculum == null || curriculum.isEmpty()) {
             throw new NotFoundException(
                     "Guest course curriculum is empty. Please add at least one module to the guest course.");
         }
-        
+
         return curriculum;
     }
 
@@ -178,6 +242,9 @@ public class CourseService {
     // --- SUBMODULE MANAGEMENT ---
     public CourseCurriculum addSubmodule(String moduleId, CourseCurriculum.Submodule submodule) {
         return curriculumRepository.findById(moduleId).map(module -> {
+            if (submodule.getEnabled() == null) {
+                submodule.setEnabled(true);
+            }
             List<CourseCurriculum.Submodule> list = module.getSubmodules();
             if (list == null) list = new java.util.ArrayList<>();
             list.add(submodule);

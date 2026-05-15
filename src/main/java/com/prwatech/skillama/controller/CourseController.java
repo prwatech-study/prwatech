@@ -1,15 +1,19 @@
 package com.prwatech.skillama.controller;
 
+import com.prwatech.authentication.security.JwtUtils;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
+import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.CourseService;
+import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 
 @RestController
@@ -17,6 +21,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CourseController {
     private final CourseService courseService;
+    private final JwtUtils jwtUtils;
+    private final UserService userService;
 
     @PostMapping
     public ResponseEntity<Course> create(@RequestBody Course course) {
@@ -44,10 +50,11 @@ public class CourseController {
     @GetMapping("/{courseId}/curriculum")
     public ResponseEntity<List<CourseCurriculum>> getCourseCurriculum(
             @PathVariable String courseId,
-            @RequestParam(value = "guest", required = false, defaultValue = "false") boolean guestAccess) {
-        // Returns full curriculum for all users (including guests)
-        // Access control (which lectures are unlocked) is handled by UserProfileService
-        return ResponseEntity.ok(courseService.getCurriculumByCourseIdOrdered(courseId, guestAccess));
+            @RequestParam(value = "guest", required = false, defaultValue = "false") boolean guestAccess,
+            @RequestParam(value = "forAdmin", required = false, defaultValue = "false") boolean forAdmin,
+            HttpServletRequest request) {
+        boolean adminView = forAdmin && isAdminUser(request);
+        return ResponseEntity.ok(courseService.getCurriculumByCourseIdOrdered(courseId, guestAccess, adminView));
     }
 
     /**
@@ -107,5 +114,20 @@ public class CourseController {
     public ResponseEntity<Void> delete(@PathVariable String id) {
         courseService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private boolean isAdminUser(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return false;
+        }
+        try {
+            String email = jwtUtils.extractUsername(authHeader.substring(7));
+            return userService.findByEmail(email)
+                    .map(user -> user.getRole() == User.UserRole.ADMIN || user.getRole() == User.UserRole.OWNER)
+                    .orElse(false);
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

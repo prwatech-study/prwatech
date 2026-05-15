@@ -7,9 +7,17 @@ import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.script.GuestCourseMigrationScript;
+import com.prwatech.skillama.model.Review;
+import com.prwatech.skillama.model.SalesLead;
 import com.prwatech.skillama.service.AdminService;
 import com.prwatech.skillama.service.CourseService;
+import com.prwatech.skillama.service.FreemiumService;
+import com.prwatech.skillama.service.PlatformDemoVideoService;
+import com.prwatech.skillama.service.ReviewService;
+import com.prwatech.skillama.service.SalesLeadService;
 import com.prwatech.skillama.service.UserService;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
@@ -37,6 +45,10 @@ public class AdminController {
     private final CourseService courseService;
     private final JwtUtils jwtUtils;
     private final GuestCourseMigrationScript guestCourseMigrationScript;
+    private final FreemiumService freemiumService;
+    private final SalesLeadService salesLeadService;
+    private final ReviewService reviewService;
+    private final PlatformDemoVideoService platformDemoVideoService;
     
     // ========== Authentication & Authorization ==========
     
@@ -96,10 +108,16 @@ public class AdminController {
             @RequestParam(required = false) String search,
             @RequestParam(required = false) User.UserRole role,
             @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) String phone,
+            @RequestParam(required = false) User.PlanTier planTier,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request); // Verify authentication
-            Page<UserDTO> users = adminService.getUsers(page, size, search, role, active);
+            extractUserIdFromRequest(request);
+            java.time.LocalDateTime from = fromDate != null ? java.time.LocalDate.parse(fromDate).atStartOfDay() : null;
+            java.time.LocalDateTime to = toDate != null ? java.time.LocalDate.parse(toDate).atTime(23, 59, 59) : null;
+            Page<UserDTO> users = adminService.getUsers(page, size, search, role, active, phone, planTier, from, to);
             return ResponseEntity.ok(new ApiResponse<>(200, users));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -665,6 +683,226 @@ public class AdminController {
                     dataType = Constants.AUTH_DATA_TYPE,
                     paramType = Constants.AUTH_PARAM_TYPE)
     })
+    /**
+     * Update user plan tier (demo / testing): FREEMIUM, PAID, or ENTERPRISE.
+     */
+    @PutMapping("/users/{userId}/plan")
+    public ResponseEntity<ApiResponse<FreemiumStatusDTO>> updateUserPlan(
+            @PathVariable String userId,
+            @RequestBody UpdateUserPlanRequestDTO request,
+            HttpServletRequest httpRequest) {
+        try {
+            extractUserIdFromRequest(httpRequest);
+            if (request.getPlanTier() == null) {
+                return ResponseEntity.badRequest()
+                        .body(new ApiResponse<>(400, null));
+            }
+            FreemiumStatusDTO status = freemiumService.updateUserPlan(userId, request.getPlanTier());
+            return ResponseEntity.ok(new ApiResponse<>(200, status));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * Shortcut: move user to paid (premium) plan for demos.
+     */
+    @PostMapping("/users/{userId}/plan/premium")
+    public ResponseEntity<ApiResponse<FreemiumStatusDTO>> upgradeUserToPremium(
+            @PathVariable String userId,
+            HttpServletRequest httpRequest) {
+        try {
+            extractUserIdFromRequest(httpRequest);
+            FreemiumStatusDTO status = freemiumService.updateUserPlan(userId, User.PlanTier.PAID);
+            return ResponseEntity.ok(new ApiResponse<>(200, status));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * Platform onboarding demo video (admin).
+     */
+    @GetMapping("/platform/demo-video")
+    public ResponseEntity<ApiResponse<DemoVideoDTO>> getDemoVideoConfig(HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            return ResponseEntity.ok(new ApiResponse<>(200, platformDemoVideoService.getPublicConfig()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PostMapping(value = "/platform/demo-video", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<DemoVideoDTO>> uploadDemoVideo(
+            @RequestParam("video") MultipartFile video,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String description,
+            HttpServletRequest request) {
+        try {
+            String adminUserId = extractUserIdFromRequest(request);
+            DemoVideoDTO dto = platformDemoVideoService.upload(video, title, description, adminUserId);
+            return ResponseEntity.ok(new ApiResponse<>(200, dto));
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * Point demo video at an existing AWS / CDN URL (same idea as pasting imagePath on curriculum).
+     */
+    @PutMapping("/platform/demo-video/url")
+    public ResponseEntity<ApiResponse<DemoVideoDTO>> setDemoVideoUrl(
+            @RequestBody DemoVideoUrlRequestDTO body,
+            HttpServletRequest request) {
+        try {
+            String adminUserId = extractUserIdFromRequest(request);
+            DemoVideoDTO dto = platformDemoVideoService.saveFromUrl(
+                    body.getVideoUrl(), body.getTitle(), body.getDescription(), adminUserId);
+            return ResponseEntity.ok(new ApiResponse<>(200, dto));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PutMapping("/platform/demo-video/metadata")
+    public ResponseEntity<ApiResponse<DemoVideoDTO>> updateDemoVideoMetadata(
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String description,
+            HttpServletRequest request) {
+        try {
+            String adminUserId = extractUserIdFromRequest(request);
+            return ResponseEntity.ok(new ApiResponse<>(
+                    200, platformDemoVideoService.updateMetadata(title, description, adminUserId)));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @DeleteMapping("/platform/demo-video")
+    public ResponseEntity<ApiResponse<Void>> deleteDemoVideo(HttpServletRequest request) {
+        try {
+            String adminUserId = extractUserIdFromRequest(request);
+            platformDemoVideoService.remove(adminUserId);
+            return ResponseEntity.ok(new ApiResponse<>(200, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * List user feedback / reviews for admin triage.
+     */
+    @GetMapping("/reviews")
+    public ResponseEntity<ApiResponse<Page<Review>>> listReviews(
+            @RequestParam(required = false) String courseId,
+            @RequestParam(required = false) Review.ReviewStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            Page<Review> reviews = reviewService.getReviewsForAdmin(courseId, status, page, size);
+            return ResponseEntity.ok(new ApiResponse<>(200, reviews));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * Reply to user feedback; emails the user and stores team reply on the review.
+     */
+    @PutMapping("/reviews/{reviewId}/reply")
+    public ResponseEntity<ApiResponse<Review>> replyToReview(
+            @PathVariable String reviewId,
+            @RequestBody AdminReviewReplyRequestDTO body,
+            HttpServletRequest request) {
+        try {
+            String adminUserId = extractUserIdFromRequest(request);
+            Review updated = reviewService.adminReply(reviewId, body, adminUserId);
+            return ResponseEntity.ok(new ApiResponse<>(200, updated));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * List sales-interest leads (marketing opt-in only).
+     */
+    @GetMapping("/leads/sales-interest")
+    public ResponseEntity<ApiResponse<Page<SalesLead>>> listSalesLeads(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            return ResponseEntity.ok(new ApiResponse<>(200, salesLeadService.listLeads(page, size)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @GetMapping("/users/{userId}/profile")
+    public ResponseEntity<ApiResponse<UserAdminProfileDTO>> getUserAdminProfile(
+            @PathVariable String userId,
+            HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            return ResponseEntity.ok(new ApiResponse<>(200, adminService.getUserAdminProfile(userId)));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @GetMapping("/users/{userId}/activity")
+    public ResponseEntity<ApiResponse<UserActivityDTO>> getUserActivity(
+            @PathVariable String userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            return ResponseEntity.ok(new ApiResponse<>(200, adminService.getUserActivity(userId, page, size)));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @GetMapping("/users/{userId}/progress")
+    public ResponseEntity<ApiResponse<UserAssignmentsDTO>> getUserProgressByPath(
+            @PathVariable String userId,
+            HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            UserAssignmentsDTO assignments = adminService.getUserAssignments(userId);
+            return ResponseEntity.ok(new ApiResponse<>(200, assignments));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
     @GetMapping("/analytics/users/{userId}/progress")
     public ResponseEntity<ApiResponse<UserAssignmentsDTO>> getUserProgress(
             @PathVariable String userId,

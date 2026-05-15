@@ -230,4 +230,10 @@ public class UserService {
     public User save(User user) {
         return userRepository.save(user);
     }
+
+    public void recordLogin(User user) {
+        user.setLastLoginAt(LocalDateTime.now());
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+    }
 }

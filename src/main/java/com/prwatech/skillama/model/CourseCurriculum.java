@@ -40,5 +40,6 @@ public class CourseCurriculum {
         private boolean isPracticalRequired;
         private String scriptText;
         private Integer order; // Order of the submodule within the module
+        private Boolean enabled;
     }
 }

@@ -4,9 +4,11 @@ import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.dto.*;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
+import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserProfile;
 import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
+import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -28,6 +30,8 @@ public class UserProfileService {
     private final CourseRepository courseRepository;
     private final CourseCurriculumRepository curriculumRepository;
     private final CourseService courseService;
+    private final FreemiumService freemiumService;
+    private final SkillamaUserRepository userRepository;
     private final MongoTemplate skillamaMongoTemplate;
     
     // ========== Session Management ==========
@@ -66,7 +70,7 @@ public class UserProfileService {
         response.put("sessionExpiresAt", expiresAt);
         
         // Build initial feature access
-        FeatureAccessDTO features = buildFeatureAccess(profile);
+        FeatureAccessDTO features = buildFeatureAccess(profile, null);
         Map<String, Object> profileData = new HashMap<>();
         profileData.put("isGuest", true);
         profileData.put("accessibleCourses", List.of(guestCourse.getId()));
@@ -155,26 +159,32 @@ public class UserProfileService {
         Course course = courseRepository.findById(finalCourseId)
                 .orElseThrow(() -> new NotFoundException("Course not found with ID: " + finalCourseId));
         
-        List<CourseCurriculum> curriculum = courseService.getCurriculumByCourseIdOrdered(targetCourseId);
+        List<CourseCurriculum> curriculum = courseService.getCurriculumByCourseIdOrdered(targetCourseId, false, false);
         
         // Build module access
         List<ModuleAccessDTO> modules = buildModuleAccess(profile, curriculum, targetCourseId);
         
-        // Build feature access
-        FeatureAccessDTO features = buildFeatureAccess(profile);
-        
-        // Build progress summary
-        ProgressSummaryDTO progress = buildProgressSummary(profile, curriculum);
-        
+        User user = profile.getUserId() != null
+                ? userRepository.findById(profile.getUserId()).orElse(null)
+                : null;
+
+        FeatureAccessDTO features = buildFeatureAccess(profile, user);
+        ProgressSummaryDTO progress = buildProgressSummary(profile, curriculum, targetCourseId);
+        QueryCreditsDTO queryCredits = user != null && !freemiumService.isLegacyUser(user)
+                ? freemiumService.getQueryCredits(user)
+                : null;
+
         return AccessControlResponseDTO.builder()
                 .userId(profile.getUserId())
                 .sessionId(profile.getSessionId())
                 .isGuest(profile.getIsGuest())
                 .courseId(targetCourseId)
                 .courseName(course.getName())
+                .planTier(user != null && user.getPlanTier() != null ? user.getPlanTier() : null)
                 .modules(modules)
                 .features(features)
                 .progress(progress)
+                .queryCredits(queryCredits)
                 .build();
     }
     
@@ -376,59 +386,133 @@ public class UserProfileService {
         return null;
     }
     
-    private FeatureAccessDTO buildFeatureAccess(UserProfile profile) {
-        // Chat access
-        FeatureAccessDTO.ChatFeatureDTO chatFeature = buildChatFeatureAccess(profile);
-        
-        // Code execution access
-        FeatureAccessDTO.CodeExecutionFeatureDTO codeExecutionFeature = FeatureAccessDTO.CodeExecutionFeatureDTO.builder()
-                .accessible(!profile.getIsGuest())
-                .reason(profile.getIsGuest() ? "Login required to access Code Execution" : null)
-                .build();
-        
-        // Debug access
-        FeatureAccessDTO.DebugFeatureDTO debugFeature = FeatureAccessDTO.DebugFeatureDTO.builder()
-                .accessible(!profile.getIsGuest())
-                .reason(profile.getIsGuest() ? "Login required to access Debug" : null)
-                .build();
-        
+    private FeatureAccessDTO buildFeatureAccess(UserProfile profile, User user) {
+        FeatureAccessDTO.ChatFeatureDTO chatFeature = buildChatFeatureAccess(profile, user);
+        FeatureAccessDTO.CodeExecutionFeatureDTO codeExecutionFeature = buildCodeExecutionAccess(profile, user);
+        FeatureAccessDTO.DebugFeatureDTO debugFeature = buildDebugAccess(profile, user);
+
         return FeatureAccessDTO.builder()
                 .chat(chatFeature)
                 .codeExecution(codeExecutionFeature)
                 .debug(debugFeature)
                 .build();
     }
-    
-    private FeatureAccessDTO.ChatFeatureDTO buildChatFeatureAccess(UserProfile profile) {
+
+    private FeatureAccessDTO.CodeExecutionFeatureDTO buildCodeExecutionAccess(UserProfile profile, User user) {
+        if (profile.getIsGuest()) {
+            return FeatureAccessDTO.CodeExecutionFeatureDTO.builder()
+                    .enabled(false)
+                    .accessible(false)
+                    .reason("Login required to access Code Execution")
+                    .build();
+        }
+        if (user == null) {
+            return FeatureAccessDTO.CodeExecutionFeatureDTO.builder()
+                    .enabled(false)
+                    .accessible(false)
+                    .reason("LOGIN_REQUIRED")
+                    .build();
+        }
+        if (freemiumService.isUnlimited(user) || freemiumService.hasModule(user, "Code Execution")) {
+            return FeatureAccessDTO.CodeExecutionFeatureDTO.builder()
+                    .enabled(true)
+                    .accessible(true)
+                    .build();
+        }
+        return FeatureAccessDTO.CodeExecutionFeatureDTO.builder()
+                .enabled(false)
+                .accessible(false)
+                .reason("FREEMIUM_UPGRADE")
+                .build();
+    }
+
+    private FeatureAccessDTO.DebugFeatureDTO buildDebugAccess(UserProfile profile, User user) {
+        if (profile.getIsGuest()) {
+            return FeatureAccessDTO.DebugFeatureDTO.builder()
+                    .enabled(false)
+                    .accessible(false)
+                    .reason("Login required to access Debug")
+                    .build();
+        }
+        if (user == null) {
+            return FeatureAccessDTO.DebugFeatureDTO.builder()
+                    .enabled(false)
+                    .accessible(false)
+                    .reason("LOGIN_REQUIRED")
+                    .build();
+        }
+        if (freemiumService.isUnlimited(user) || freemiumService.hasModule(user, "Debug")) {
+            return FeatureAccessDTO.DebugFeatureDTO.builder()
+                    .enabled(true)
+                    .accessible(true)
+                    .build();
+        }
+        return FeatureAccessDTO.DebugFeatureDTO.builder()
+                .enabled(false)
+                .accessible(false)
+                .reason("FREEMIUM_UPGRADE")
+                .build();
+    }
+
+    private FeatureAccessDTO.ChatFeatureDTO buildChatFeatureAccess(UserProfile profile, User user) {
         if (profile.getIsGuest()) {
             int questionsRemaining = Math.max(0, MAX_GUEST_QUESTIONS - profile.getTotalQuestionsAsked());
             boolean limitReached = questionsRemaining <= 0;
-            
+
             return FeatureAccessDTO.ChatFeatureDTO.builder()
+                    .enabled(!limitReached)
                     .accessible(!limitReached)
                     .questionsRemaining(questionsRemaining)
                     .limitReached(limitReached)
                     .build();
         }
-        
-        // Logged-in users have unlimited chat
+
+        if (user == null) {
+            return FeatureAccessDTO.ChatFeatureDTO.builder()
+                    .enabled(false)
+                    .accessible(false)
+                    .limitReached(true)
+                    .questionsRemaining(0)
+                    .build();
+        }
+
+        if (freemiumService.isUnlimited(user)) {
+            return FeatureAccessDTO.ChatFeatureDTO.builder()
+                    .enabled(true)
+                    .accessible(true)
+                    .questionsRemaining(null)
+                    .limitReached(false)
+                    .build();
+        }
+
+        int remaining = freemiumService.remainingQueries(user);
+        boolean limitReached = remaining <= 0;
         return FeatureAccessDTO.ChatFeatureDTO.builder()
-                .accessible(true)
-                .questionsRemaining(null)
-                .limitReached(false)
+                .enabled(!limitReached && freemiumService.hasModule(user, "Ai-Tutor"))
+                .accessible(!limitReached && freemiumService.hasModule(user, "Ai-Tutor"))
+                .questionsRemaining(remaining)
+                .limitReached(limitReached)
                 .build();
     }
     
-    private ProgressSummaryDTO buildProgressSummary(UserProfile profile, List<CourseCurriculum> curriculum) {
-        int totalLectures = curriculum.stream()
-                .mapToInt(m -> m.getSubmodules() != null ? m.getSubmodules().size() : 0)
-                .sum();
-        
-        int completedLectures = profile.getCompletedLectures().size();
-        int inProgressLectures = profile.getInProgressLectures().size();
-        int lockedLectures = totalLectures - completedLectures - inProgressLectures;
-        int completionPercentage = totalLectures > 0 ? (completedLectures * 100 / totalLectures) : 0;
-        
+    /**
+     * Progress counts are scoped to {@code courseId} so switching courses does not leak completion %.
+     */
+    private ProgressSummaryDTO buildProgressSummary(
+            UserProfile profile, List<CourseCurriculum> curriculum, String courseId) {
+        int totalLectures = CourseService.countEnabledLectures(curriculum);
+
+        int completedLectures = (int) profile.getCompletedLectures().stream()
+                .filter(cl -> courseId != null && courseId.equals(cl.getCourseId()))
+                .count();
+        int inProgressLectures = (int) profile.getInProgressLectures().stream()
+                .filter(il -> courseId != null && courseId.equals(il.getCourseId()))
+                .count();
+        int lockedLectures = Math.max(0, totalLectures - completedLectures - inProgressLectures);
+        int completionPercentage = totalLectures > 0
+                ? Math.min(100, (completedLectures * 100) / totalLectures)
+                : 0;
+
         return ProgressSummaryDTO.builder()
                 .totalLectures(totalLectures)
                 .completedLectures(completedLectures)
@@ -532,23 +616,34 @@ public class UserProfileService {
     }
     
     private List<String> unlockNextLectures(UserProfile profile, String completedLectureLabel, String courseId) {
-        // Get curriculum to find next lecture
         List<CourseCurriculum> curriculum = courseService.getCurriculumByCourseIdOrdered(courseId);
         
         List<String> unlocked = new ArrayList<>();
         
         for (CourseCurriculum module : curriculum) {
-            if (module.getSubmodules() != null) {
-                for (int i = 0; i < module.getSubmodules().size(); i++) {
-                    CourseCurriculum.Submodule submodule = module.getSubmodules().get(i);
-                    if (submodule.getLabel().equals(completedLectureLabel) && i + 1 < module.getSubmodules().size()) {
-                        // Unlock next lecture in same module
-                        String nextLabel = module.getSubmodules().get(i + 1).getLabel();
+            if (module.getSubmodules() == null) {
+                continue;
+            }
+            List<CourseCurriculum.Submodule> submodules = module.getSubmodules();
+            for (int i = 0; i < submodules.size(); i++) {
+                CourseCurriculum.Submodule submodule = submodules.get(i);
+                if (!CourseService.isSubmoduleEnabled(submodule)) {
+                    continue;
+                }
+                if (!submodule.getLabel().equals(completedLectureLabel)) {
+                    continue;
+                }
+                for (int j = i + 1; j < submodules.size(); j++) {
+                    CourseCurriculum.Submodule next = submodules.get(j);
+                    if (CourseService.isSubmoduleEnabled(next)) {
+                        String nextLabel = next.getLabel();
                         if (!profile.getUnlockedLectures().contains(nextLabel)) {
                             unlocked.add(nextLabel);
                         }
+                        break;
                     }
                 }
+                break;
             }
         }
         
@@ -590,7 +685,10 @@ public class UserProfileService {
         userProfileRepository.save(profile);
         
         // Build chat status
-        FeatureAccessDTO.ChatFeatureDTO chatStatus = buildChatFeatureAccess(profile);
+        User chatUser = profile.getUserId() != null
+                ? userRepository.findById(profile.getUserId()).orElse(null)
+                : null;
+        FeatureAccessDTO.ChatFeatureDTO chatStatus = buildChatFeatureAccess(profile, chatUser);
         
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");

@@ -241,9 +241,7 @@ public class UserCourseServiceImpl implements UserCourseService {
     }
     
     private int calculateTotalLectures(List<CourseCurriculum> curriculum) {
-        return curriculum.stream()
-            .mapToInt(module -> module.getSubmodules() != null ? module.getSubmodules().size() : 0)
-            .sum();
+        return CourseService.countEnabledLectures(curriculum);
     }
     
     private String determineStatus(int progress) {

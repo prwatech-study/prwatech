@@ -5,6 +5,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Getter
 @Setter
@@ -21,16 +23,33 @@ public class User {
     private boolean active;
     private String activationKey;
     private GenderEnum gender;
-    
+
     @Indexed
     private UserRole role; // USER, ADMIN, OWNER (defaults to USER)
-    
+
+    private PlanTier planTier;
+    private String phone;
+    private Boolean emailVerified;
+    @Indexed(unique = true, sparse = true)
+    private String referralCode;
+    private String referredBy;
+    @Builder.Default
+    private Integer queryCreditsUsed = 0;
+    private Integer queryCreditsLimit;
+    @Builder.Default
+    private List<String> enabledModules = new ArrayList<>();
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private String createdBy; // User ID who created this user
-    private String updatedBy; // User ID who last updated this user
-    
+    private LocalDateTime lastLoginAt;
+    private String createdBy;
+    private String updatedBy;
+
     public enum UserRole {
         USER, ADMIN, OWNER
+    }
+
+    public enum PlanTier {
+        FREEMIUM, PAID, ENTERPRISE
     }
 }

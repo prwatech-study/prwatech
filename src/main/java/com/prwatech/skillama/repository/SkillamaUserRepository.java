@@ -8,5 +8,6 @@ import java.util.Optional;
 
 @Repository
 public interface SkillamaUserRepository extends MongoRepository<User, String>, SkillamaUserRepositoryCustom {
+    java.util.Optional<User> findByReferralCode(String referralCode);
     Optional<User> findByEmail(String email);
 }
