@@ -31,6 +31,9 @@ public class WevMvcConfiguration implements WebMvcConfigurer {
     if (!registry.hasMappingForPattern("/**")) {
       registry.addResourceHandler("/**").addResourceLocations(CLASSPATH_RESOURCE_LOCATIONS);
     }
+    // Add handler for uploaded files
+    registry.addResourceHandler("/files/**")
+        .addResourceLocations("file:uploads/");
   }
 
   @Override

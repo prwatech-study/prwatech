@@ -240,6 +240,50 @@ public class AdminController {
     }
     
     /**
+     * Promote User to Admin by Email (Owner Only)
+     */
+    @ApiOperation(value = "Promote user to admin by email", notes = "Promote a normal user to ADMIN role using their email address (Owner only)")
+    @ApiResponses(value = {
+            @io.swagger.annotations.ApiResponse(code = 200, message = "User promoted successfully"),
+            @io.swagger.annotations.ApiResponse(code = 400, message = "Bad request"),
+            @io.swagger.annotations.ApiResponse(code = 401, message = "Unauthorized"),
+            @io.swagger.annotations.ApiResponse(code = 403, message = "Forbidden - Owner access required"),
+            @io.swagger.annotations.ApiResponse(code = 404, message = "User not found"),
+            @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
+    })
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
+    @PutMapping("/users/promote-to-admin")
+    public ResponseEntity<ApiResponse<UserDTO>> promoteUserToAdminByEmail(
+            @RequestParam("email") String email,
+            HttpServletRequest httpRequest) {
+        try {
+            String updatedBy = extractUserIdFromRequest(httpRequest);
+            UserDTO user = adminService.updateUserRoleByEmail(email, User.UserRole.ADMIN, updatedBy);
+            return ResponseEntity.ok(new ApiResponse<>(200, user));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(404, null));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("Only OWNER") || e.getMessage().contains("Owner access")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponse<>(401, null));
+        }
+    }
+    
+    /**
      * Delete User (Admin) - Soft delete
      */
     @ApiOperation(value = "Delete user", notes = "Soft delete a user (Admin only)")

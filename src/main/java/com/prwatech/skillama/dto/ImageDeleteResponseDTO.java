@@ -11,14 +11,9 @@ import lombok.Setter;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ImageUploadResponseDTO {
-    private String imagePath;
-    private String imageUrl;
-    private String fileName;
-    private Long fileSize;
-    private String contentType;
-    /** Legacy composite id: {@code moduleId:submoduleIndex} */
-    private String submoduleId;
+public class ImageDeleteResponseDTO {
     private String moduleId;
     private Integer submoduleIndex;
+    private String imagePath; // Will be null after deletion
 }
+

@@ -41,6 +41,8 @@ public class CurriculumMediaService {
         curriculumRepository.save(module);
 
         ImageUploadResponseDTO dto = toDto(result);
+        dto.setModuleId(moduleId);
+        dto.setSubmoduleIndex(submoduleIndex);
         dto.setSubmoduleId(moduleId + ":" + submoduleIndex);
         return dto;
     }
