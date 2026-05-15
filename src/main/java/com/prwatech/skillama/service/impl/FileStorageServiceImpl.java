@@ -31,6 +31,11 @@ public class FileStorageServiceImpl implements FileStorageService {
     );
     
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+    private static final long MAX_VIDEO_FILE_SIZE = 500L * 1024 * 1024; // 500MB
+
+    private static final List<String> ALLOWED_VIDEO_CONTENT_TYPES = Arrays.asList(
+        "video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"
+    );
     
     @Value("${file.upload.directory:uploads}")
     private String uploadDirectory;
@@ -226,6 +231,65 @@ public class FileStorageServiceImpl implements FileStorageService {
         return false;
     }
     
+    @Override
+    public String uploadVideoToS3(MultipartFile file, String s3Prefix) throws IOException {
+        validateVideoFile(file);
+
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        String randomId = UUID.randomUUID().toString().substring(0, 8);
+        String originalFilename = file.getOriginalFilename();
+        String extension = ".mp4";
+
+        if (originalFilename != null && originalFilename.contains(".")) {
+            extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
+        } else {
+            String contentType = file.getContentType();
+            if (contentType != null) {
+                if (contentType.contains("webm")) extension = ".webm";
+                else if (contentType.contains("quicktime")) extension = ".mov";
+                else if (contentType.contains("msvideo") || contentType.contains("avi")) extension = ".avi";
+            }
+        }
+
+        String prefix = (s3Prefix != null && !s3Prefix.isEmpty()) ? s3Prefix.replaceAll("/$", "") + "/" : "";
+        String s3Key = prefix + timestamp + "-" + randomId + extension;
+
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(s3Key)
+                .contentType(file.getContentType() != null ? file.getContentType() : "video/mp4")
+                .build();
+
+            long size = file.getSize();
+            RequestBody body;
+            if (size >= 0) {
+                body = RequestBody.fromInputStream(file.getInputStream(), size);
+            } else {
+                byte[] bytes = file.getBytes();
+                body = RequestBody.fromBytes(bytes);
+            }
+            s3Client.putObject(putObjectRequest, body);
+            return s3BaseUrl + "/" + s3Key;
+        } catch (S3Exception e) {
+            throw new IOException("Failed to upload video to S3: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void validateVideoFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Video file is required");
+        }
+        if (file.getSize() > MAX_VIDEO_FILE_SIZE) {
+            throw new IllegalArgumentException("File size exceeds maximum allowed size of 500MB");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_VIDEO_CONTENT_TYPES.contains(contentType.toLowerCase())) {
+            throw new IllegalArgumentException("Unsupported video type. Use MP4, WebM, MOV, or AVI.");
+        }
+    }
+
     @Override
     public void validateImageFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {

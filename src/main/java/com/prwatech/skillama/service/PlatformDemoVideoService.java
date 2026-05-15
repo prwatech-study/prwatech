@@ -4,6 +4,7 @@ import com.prwatech.skillama.dto.DemoVideoDTO;
 import com.prwatech.skillama.model.PlatformDemoVideo;
 import com.prwatech.skillama.repository.PlatformDemoVideoRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -15,8 +16,13 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class PlatformDemoVideoService {
 
+    private static final String DEMO_VIDEO_S3_PREFIX = "demo-video";
+
     private final PlatformDemoVideoRepository repository;
-    private final S3StorageService s3StorageService;
+    private final FileStorageService fileStorageService;
+
+    @Value("${file.upload.s3.demo-video-prefix:demo-video}")
+    private String demoVideoPrefix;
 
     public DemoVideoDTO getPublicConfig() {
         return repository.findById(PlatformDemoVideo.SINGLETON_ID)
@@ -24,29 +30,25 @@ public class PlatformDemoVideoService {
                 .orElse(DemoVideoDTO.builder().available(false).build());
     }
 
-    /** Upload file to S3 (same service as curriculum images). */
     public DemoVideoDTO upload(MultipartFile video, String title, String description, String adminUserId)
             throws IOException {
-        S3StorageService.UploadResult result = s3StorageService.uploadDemoVideo(video);
+        String prefix = StringUtils.hasText(demoVideoPrefix) ? demoVideoPrefix : DEMO_VIDEO_S3_PREFIX;
+        String videoUrl = fileStorageService.uploadVideoToS3(video, prefix);
         return saveConfig(
-                result.getUrl(),
-                result.getKey(),
-                result.getContentType(),
-                result.getFileSizeBytes(),
-                result.getOriginalFileName(),
+                videoUrl,
+                video.getContentType(),
+                video.getSize(),
+                video.getOriginalFilename(),
                 title,
                 description,
                 adminUserId);
     }
 
-    /** Use an existing AWS / HTTPS URL (e.g. already uploaded to your bucket). */
     public DemoVideoDTO saveFromUrl(String videoUrl, String title, String description, String adminUserId) {
         if (!StringUtils.hasText(videoUrl) || !videoUrl.trim().startsWith("http")) {
             throw new IllegalArgumentException("A valid http(s) video URL is required");
         }
-        String trimmedUrl = videoUrl.trim();
-        String s3Key = s3StorageService.extractKeyFromUrl(trimmedUrl);
-        return saveConfig(trimmedUrl, s3Key, null, null, null, title, description, adminUserId);
+        return saveConfig(videoUrl.trim(), null, null, null, title, description, adminUserId);
     }
 
     public DemoVideoDTO updateMetadata(String title, String description, String adminUserId) {
@@ -65,8 +67,12 @@ public class PlatformDemoVideoService {
 
     public void remove(String adminUserId) {
         repository.findById(PlatformDemoVideo.SINGLETON_ID).ifPresent(config -> {
-            if (StringUtils.hasText(config.getS3Key())) {
-                s3StorageService.deleteObject(config.getS3Key());
+            if (StringUtils.hasText(config.getVideoUrl())) {
+                try {
+                    fileStorageService.deleteFile(config.getVideoUrl());
+                } catch (IOException e) {
+                    // Best-effort delete from S3; still remove DB record
+                }
             }
             repository.delete(config);
         });
@@ -74,7 +80,6 @@ public class PlatformDemoVideoService {
 
     private DemoVideoDTO saveConfig(
             String videoUrl,
-            String s3Key,
             String contentType,
             Long fileSizeBytes,
             String originalFileName,
@@ -82,9 +87,13 @@ public class PlatformDemoVideoService {
             String description,
             String adminUserId) {
         repository.findById(PlatformDemoVideo.SINGLETON_ID).ifPresent(existing -> {
-            if (StringUtils.hasText(existing.getS3Key())
-                    && (s3Key == null || !existing.getS3Key().equals(s3Key))) {
-                s3StorageService.deleteObject(existing.getS3Key());
+            if (StringUtils.hasText(existing.getVideoUrl())
+                    && !existing.getVideoUrl().equals(videoUrl)) {
+                try {
+                    fileStorageService.deleteFile(existing.getVideoUrl());
+                } catch (IOException ignored) {
+                    // continue
+                }
             }
         });
 
@@ -95,7 +104,7 @@ public class PlatformDemoVideoService {
         config.setTitle(StringUtils.hasText(title) ? title.trim() : "How to use Skillama");
         config.setDescription(description != null ? description.trim() : null);
         config.setVideoUrl(videoUrl);
-        config.setS3Key(s3Key);
+        config.setS3Key(null);
         config.setContentType(contentType);
         config.setFileSizeBytes(fileSizeBytes);
         config.setOriginalFileName(originalFileName);

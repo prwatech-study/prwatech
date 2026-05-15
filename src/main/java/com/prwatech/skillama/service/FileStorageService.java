@@ -63,5 +63,12 @@ public interface FileStorageService {
      * @throws IllegalArgumentException if validation fails
      */
     void validateImageFile(MultipartFile file);
+
+    /**
+     * Uploads a video file to S3 under the given prefix (e.g. "demo-video").
+     */
+    String uploadVideoToS3(MultipartFile file, String s3Prefix) throws IOException;
+
+    void validateVideoFile(MultipartFile file);
 }
 
