@@ -110,35 +110,75 @@ public class ReviewService {
 
     public Page<Review> getReviewsForAdmin(String courseId, Review.ReviewStatus status, int page, int size) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<Review> reviewsPage;
         boolean hasCourse = courseId != null && !courseId.isBlank();
         if (hasCourse && status != null) {
-            return reviewRepository.findByCourseIdAndStatus(courseId, status, pageable);
+            reviewsPage = reviewRepository.findByCourseIdAndStatus(courseId, status, pageable);
+        } else if (hasCourse) {
+            reviewsPage = reviewRepository.findByCourseId(courseId, pageable);
+        } else if (status != null) {
+            reviewsPage = reviewRepository.findByStatus(status, pageable);
+        } else {
+            reviewsPage = reviewRepository.findAll(pageable);
         }
-        if (hasCourse) {
-            return reviewRepository.findByCourseId(courseId, pageable);
-        }
-        if (status != null) {
-            return reviewRepository.findByStatus(status, pageable);
-        }
-        return reviewRepository.findAll(pageable);
+        return reviewsPage.map(this::enrichReviewUserFields);
     }
 
     public Review adminReply(String reviewId, AdminReviewReplyRequestDTO request, String adminUserId) {
-        if (request == null || !StringUtils.hasText(request.getTeamReply())) {
-            throw new IllegalArgumentException("teamReply is required");
+        if (request == null) {
+            throw new IllegalArgumentException("Request body is required");
         }
 
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review not found: " + reviewId));
 
-        review.setTeamReply(request.getTeamReply().trim());
-        review.setStatus(request.getStatus() != null ? request.getStatus() : Review.ReviewStatus.REPLIED);
+        boolean closing = request.getStatus() == Review.ReviewStatus.CLOSED;
+        boolean hasReply = StringUtils.hasText(request.getTeamReply());
+
+        if (!closing && !hasReply) {
+            throw new IllegalArgumentException("teamReply is required unless closing the feedback");
+        }
+
+        if (hasReply) {
+            review.setTeamReply(request.getTeamReply().trim());
+        }
+        if (request.getStatus() != null) {
+            review.setStatus(request.getStatus());
+        } else if (hasReply) {
+            review.setStatus(Review.ReviewStatus.REPLIED);
+        }
+
         review.setRepliedAt(LocalDateTime.now());
         review.setRepliedBy(adminUserId);
 
         Review saved = reviewRepository.save(review);
-        sendUserReplyNotificationEmail(saved);
-        return saved;
+        if (hasReply) {
+            sendUserReplyNotificationEmail(saved);
+        }
+        return enrichReviewUserFields(saved);
+    }
+
+    /**
+     * Backfill display fields for legacy reviews created before userName/userEmail were stored.
+     */
+    private Review enrichReviewUserFields(Review review) {
+        if (review == null) {
+            return null;
+        }
+        if (StringUtils.hasText(review.getUserName()) && StringUtils.hasText(review.getUserEmail())) {
+            return review;
+        }
+        if (StringUtils.hasText(review.getUserId())) {
+            userService.findById(review.getUserId()).ifPresent(user -> {
+                if (!StringUtils.hasText(review.getUserName()) && StringUtils.hasText(user.getName())) {
+                    review.setUserName(user.getName());
+                }
+                if (!StringUtils.hasText(review.getUserEmail()) && StringUtils.hasText(user.getEmail())) {
+                    review.setUserEmail(user.getEmail());
+                }
+            });
+        }
+        return review;
     }
 
     private void sendTeamNotificationEmail(Review review, User user) {
