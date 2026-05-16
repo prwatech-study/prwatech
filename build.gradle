@@ -9,6 +9,10 @@ group = 'com'
 version = '0.0.1-SNAPSHOT'
 sourceCompatibility = '17'
 
+springBoot {
+	mainClass = 'com.prwatech.PrwatechApplication'
+}
+
 configurations {
 	compileOnly {
 		extendsFrom annotationProcessor
