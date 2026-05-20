@@ -10,49 +10,19 @@ import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserCourseEnrollmentRepository;
 import com.prwatech.skillama.repository.UserCourseProgressRepository;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class UserCourseAccessService {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(UserCourseAccessService.class);
-
     private final CourseRepository courseRepository;
     private final UserCourseEnrollmentRepository enrollmentRepository;
     private final UserCourseProgressRepository progressRepository;
     private final SkillamaUserRepository userRepository;
-
-    public Optional<Course> findDefaultFreemiumCourse() {
-        return courseRepository.findByIsDefaultFreemiumCourseTrue();
-    }
-
-    @Transactional
-    public boolean setDefaultFreemiumCourse(String courseId) {
-        return courseRepository.findById(courseId)
-                .map(course -> {
-                    courseRepository.findByIsDefaultFreemiumCourseTrue()
-                            .ifPresent(existing -> {
-                                if (!existing.getId().equals(courseId)) {
-                                    existing.setIsDefaultFreemiumCourse(false);
-                                    existing.setUpdatedAt(LocalDateTime.now());
-                                    courseRepository.save(existing);
-                                }
-                            });
-                    course.setIsDefaultFreemiumCourse(true);
-                    course.setUpdatedAt(LocalDateTime.now());
-                    courseRepository.save(course);
-                    LOGGER.info("Set course '{}' as default freemium course", course.getName());
-                    return true;
-                })
-                .orElse(false);
-    }
 
     public boolean isAdminOrOwner(String userId) {
         return userRepository.findById(userId)
@@ -104,18 +74,31 @@ public class UserCourseAccessService {
         return enrollment;
     }
 
+    /**
+     * Applies the learner's one-time freemium course choice at signup.
+     * If already chosen on the account, the existing choice is kept.
+     */
     @Transactional
-    public Optional<UserCourseEnrollment> enrollDefaultFreemiumCourse(String userId) {
-        return findDefaultFreemiumCourse()
-                .map(course -> enrollIfAbsent(
-                        userId,
-                        course.getId(),
-                        UserCourseEnrollment.EnrollmentType.DEFAULT_FREEMIUM));
-    }
-
-    @Transactional
-    public void ensureDefaultFreemiumEnrollment(String userId) {
-        enrollDefaultFreemiumCourse(userId);
+    public void applyUserChosenFreemiumCourse(User user, String requestedCourseId) {
+        if (user.getChosenFreemiumCourseId() != null && !user.getChosenFreemiumCourseId().isBlank()) {
+            enrollIfAbsent(
+                    user.getId(),
+                    user.getChosenFreemiumCourseId(),
+                    UserCourseEnrollment.EnrollmentType.USER_SELECTED_FREEMIUM);
+            return;
+        }
+        if (requestedCourseId == null || requestedCourseId.isBlank()) {
+            return;
+        }
+        Course course = courseRepository.findById(requestedCourseId.trim())
+                .orElseThrow(() -> new IllegalArgumentException("Please select a valid course"));
+        user.setChosenFreemiumCourseId(course.getId());
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
+        enrollIfAbsent(
+                user.getId(),
+                course.getId(),
+                UserCourseEnrollment.EnrollmentType.USER_SELECTED_FREEMIUM);
     }
 
     @Transactional

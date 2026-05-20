@@ -35,8 +35,8 @@ public class UserAdminProfileDTO {
     private int totalQuestionsAsked;
     private int reviewCount;
     private int issueReportCount;
-    private String defaultFreemiumCourseId;
-    private String defaultFreemiumCourseName;
+    private String chosenFreemiumCourseId;
+    private String chosenFreemiumCourseName;
 
     @Builder.Default
     private List<LoginHistoryItemDTO> recentLogins = new ArrayList<>();

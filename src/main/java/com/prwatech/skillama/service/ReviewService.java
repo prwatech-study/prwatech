@@ -9,6 +9,7 @@ import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.exception.UserNotFoundException;
 import com.prwatech.skillama.model.Review;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.ReviewRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -27,6 +28,7 @@ import java.util.List;
 public class ReviewService {
     private static final Logger LOGGER = LoggerFactory.getLogger(ReviewService.class);
     private final ReviewRepository reviewRepository;
+    private final CourseRepository courseRepository;
     private final UserService userService;
     private final EmailServiceImpl emailService;
 
@@ -39,6 +41,7 @@ public class ReviewService {
         review.setUserName(user.getName());
         review.setUserEmail(user.getEmail());
         review.setCourseId(request.getCourseId());
+        resolveCourseName(request.getCourseId()).ifPresent(review::setCourseName);
         review.setRating(request.getRating());
         review.setComment(request.getComment());
         review.setReview(request.getComment());
@@ -116,7 +119,7 @@ public class ReviewService {
         } else {
             reviewsPage = reviewRepository.findAll(pageable);
         }
-        return reviewsPage.map(this::enrichReviewUserFields);
+        return reviewsPage.map(this::enrichReviewForDisplay);
     }
 
     public Review adminReply(String reviewId, AdminReviewReplyRequestDTO request, String adminUserId) {
@@ -150,18 +153,33 @@ public class ReviewService {
         if (hasReply) {
             sendUserReplyNotificationEmail(saved);
         }
-        return enrichReviewUserFields(saved);
+        return enrichReviewForDisplay(saved);
+    }
+
+    private Review enrichReviewForDisplay(Review review) {
+        if (review == null) {
+            return null;
+        }
+        enrichReviewUserFields(review);
+        if (!StringUtils.hasText(review.getCourseName()) && StringUtils.hasText(review.getCourseId())) {
+            resolveCourseName(review.getCourseId()).ifPresent(review::setCourseName);
+        }
+        return review;
+    }
+
+    private java.util.Optional<String> resolveCourseName(String courseId) {
+        if (!StringUtils.hasText(courseId)) {
+            return java.util.Optional.empty();
+        }
+        return courseRepository.findById(courseId).map(c -> c.getName());
     }
 
     /**
      * Backfill display fields for legacy reviews created before userName/userEmail were stored.
      */
-    private Review enrichReviewUserFields(Review review) {
-        if (review == null) {
-            return null;
-        }
+    private void enrichReviewUserFields(Review review) {
         if (StringUtils.hasText(review.getUserName()) && StringUtils.hasText(review.getUserEmail())) {
-            return review;
+            return;
         }
         if (StringUtils.hasText(review.getUserId())) {
             userService.findById(review.getUserId()).ifPresent(user -> {
@@ -173,7 +191,6 @@ public class ReviewService {
                 }
             });
         }
-        return review;
     }
 
     private void sendTeamNotificationEmail(Review review, User user) {

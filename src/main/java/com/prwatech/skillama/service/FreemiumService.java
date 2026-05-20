@@ -2,12 +2,15 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.common.configuration.PasswordEncode;
 import com.prwatech.skillama.dto.ConsumeQueryRequestDTO;
+import com.prwatech.skillama.dto.FreemiumCourseOptionDTO;
 import com.prwatech.skillama.dto.FreemiumRegisterRequestDTO;
 import com.prwatech.skillama.dto.FreemiumStatusDTO;
 import com.prwatech.skillama.dto.QueryCreditsDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
+import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.QueryActivityLog;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.QueryActivityLogRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,24 +20,38 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class FreemiumService {
 
-    public static final int FREEMIUM_QUERY_LIMIT = 20;
-    public static final int REFERRAL_QUERY_BONUS = 10;
-    public static final List<String> FREEMIUM_MODULES = Arrays.asList("Ai-Tutor", "Code Execution");
+    public static final int FREEMIUM_QUERY_LIMIT = 50;
+    public static final int REFERRAL_QUERY_BONUS = 20;
+    public static final List<String> FREEMIUM_MODULES = Arrays.asList("Ai-Tutor", "Code Execution", "Debug");
     public static final List<String> FREEMIUM_REFERRAL_MODULES = Arrays.asList("Ai-Tutor", "Code Execution", "Debug");
     public static final List<String> PREMIUM_MODULES = Arrays.asList(
             "Ai-Tutor", "Code Execution", "Debug", "Courses", "Curriculum");
 
     private final SkillamaUserRepository userRepository;
+    private final CourseRepository courseRepository;
     private final QueryActivityLogRepository queryActivityLogRepository;
     private final PasswordEncode passwordEncode;
     private final UserCourseAccessService userCourseAccessService;
+
+    public List<FreemiumCourseOptionDTO> listSignupCourseOptions() {
+        return courseRepository.findAll().stream()
+                .sorted(Comparator.comparing(Course::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
+                .map(c -> FreemiumCourseOptionDTO.builder()
+                        .id(c.getId())
+                        .name(c.getName())
+                        .build())
+                .collect(Collectors.toList());
+    }
 
     public FreemiumStatusDTO getStatus(String userId) {
         User user = requireUser(userId);
@@ -106,13 +123,16 @@ public class FreemiumService {
     @Transactional
     public User registerFreemiumUser(FreemiumRegisterRequestDTO request) {
         validatePhone(request.getPhone());
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new IllegalStateException("Email is already registered");
+        String email = request.getEmail().trim();
+        Optional<User> existing = userRepository.findByEmail(email);
+        validateFreemiumCourseSelection(request, existing);
+        if (existing.isPresent()) {
+            return completeFreemiumRegistrationForExisting(existing.get(), request);
         }
 
         User user = new User();
         user.setName(request.getName());
-        user.setEmail(request.getEmail());
+        user.setEmail(email);
         user.setPhone(normalizePhone(request.getPhone()));
         user.setEmailVerified(true);
         user.setActive(true);
@@ -129,19 +149,82 @@ public class FreemiumService {
             user.setPassword(passwordEncode.getEncryptedPassword(request.getPassword()));
         }
 
-        if (request.getReferralCode() != null && !request.getReferralCode().isBlank()) {
-            userRepository.findByReferralCode(normalizeReferralCode(request.getReferralCode()))
-                    .ifPresent(referrer -> {
-                        if (!referrer.getEmail().equalsIgnoreCase(request.getEmail())) {
-                            user.setReferredBy(referrer.getReferralCode());
-                            applyReferralBenefits(user);
-                        }
-                    });
-        }
+        applyReferralOnSignup(user, request);
 
         User saved = userRepository.save(user);
-        userCourseAccessService.enrollDefaultFreemiumCourse(saved.getId());
+        userCourseAccessService.applyUserChosenFreemiumCourse(saved, request.getFreemiumCourseId());
         return saved;
+    }
+
+    /**
+     * OTP-verified freemium signup for an email that already has an account.
+     * Legacy or inactive users are upgraded; active freemium users are signed in.
+     */
+    private User completeFreemiumRegistrationForExisting(User user, FreemiumRegisterRequestDTO request) {
+        if (user.getPlanTier() == User.PlanTier.PAID || user.getPlanTier() == User.PlanTier.ENTERPRISE) {
+            throw new IllegalStateException(
+                    "This email has a premium account. Use the login page or contact support.");
+        }
+
+        if (user.getPlanTier() == null) {
+            applyFreemiumPlan(user, request.getPhone());
+        } else if (user.getPlanTier() == User.PlanTier.FREEMIUM) {
+            user.setPhone(normalizePhone(request.getPhone()));
+            initializeFreemiumDefaults(user);
+        }
+
+        if (request.getName() != null && !request.getName().isBlank()) {
+            user.setName(request.getName().trim());
+        }
+        user.setEmailVerified(true);
+        user.setActive(true);
+
+        if (request.getPassword() != null && !request.getPassword().isEmpty()) {
+            user.setPassword(passwordEncode.getEncryptedPassword(request.getPassword()));
+        }
+
+        applyReferralOnSignup(user, request);
+
+        user.setUpdatedAt(LocalDateTime.now());
+        User saved = userRepository.save(user);
+        userCourseAccessService.applyUserChosenFreemiumCourse(saved, request.getFreemiumCourseId());
+        return saved;
+    }
+
+    private void validateFreemiumCourseSelection(FreemiumRegisterRequestDTO request, Optional<User> existing) {
+        if (existing.isPresent()
+                && existing.get().getChosenFreemiumCourseId() != null
+                && !existing.get().getChosenFreemiumCourseId().isBlank()) {
+            return;
+        }
+        List<FreemiumCourseOptionDTO> options = listSignupCourseOptions();
+        if (options.isEmpty()) {
+            return;
+        }
+        if (request.getFreemiumCourseId() == null || request.getFreemiumCourseId().isBlank()) {
+            throw new IllegalArgumentException("Please choose a course to start with");
+        }
+        boolean valid = options.stream()
+                .anyMatch(o -> o.getId().equals(request.getFreemiumCourseId().trim()));
+        if (!valid) {
+            throw new IllegalArgumentException("Please select a valid course");
+        }
+    }
+
+    private void applyReferralOnSignup(User user, FreemiumRegisterRequestDTO request) {
+        if (request.getReferralCode() == null || request.getReferralCode().isBlank()) {
+            return;
+        }
+        if (user.getReferredBy() != null && !user.getReferredBy().isBlank()) {
+            return;
+        }
+        userRepository.findByReferralCode(normalizeReferralCode(request.getReferralCode()))
+                .ifPresent(referrer -> {
+                    if (!referrer.getEmail().equalsIgnoreCase(user.getEmail())) {
+                        user.setReferredBy(referrer.getReferralCode());
+                        applyReferralBenefits(user);
+                    }
+                });
     }
 
     public void validateEligibleForFreemiumMigration(User user) {
@@ -161,7 +244,6 @@ public class FreemiumService {
         applyFreemiumPlan(user, phone);
         user.setUpdatedAt(LocalDateTime.now());
         userRepository.save(user);
-        userCourseAccessService.enrollDefaultFreemiumCourse(user.getId());
         return toStatusDto(user);
     }
 

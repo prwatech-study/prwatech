@@ -35,7 +35,6 @@ public class UserService {
     
     private final SkillamaUserRepository userRepository;
     private final UserLoginEventRepository userLoginEventRepository;
-    private final UserCourseAccessService userCourseAccessService;
     private final EmailServiceImpl emailService;
     private final AppContext appContext;
     private final PasswordEncode passwordEncode;
@@ -236,9 +235,5 @@ public class UserService {
                 .userId(user.getId())
                 .loggedInAt(now)
                 .build());
-
-        if (user.getRole() == null || user.getRole() == User.UserRole.USER) {
-            userCourseAccessService.ensureDefaultFreemiumEnrollment(user.getId());
-        }
     }
 }

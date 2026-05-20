@@ -29,6 +29,8 @@ public class User {
 
     private PlanTier planTier;
     private String phone;
+    /** Freemium course picked at signup; immutable once set. */
+    private String chosenFreemiumCourseId;
     private Boolean emailVerified;
     @Indexed(unique = true, sparse = true)
     private String referralCode;

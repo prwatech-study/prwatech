@@ -16,7 +16,6 @@ import com.prwatech.skillama.service.PlatformDemoVideoService;
 import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.ReviewService;
 import com.prwatech.skillama.service.SalesLeadService;
-import com.prwatech.skillama.service.UserCourseAccessService;
 import com.prwatech.skillama.service.UserService;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,6 +31,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Admin Controller for Skillama Admin Panel
@@ -52,7 +52,6 @@ public class AdminController {
     private final ReviewService reviewService;
     private final PlatformDemoVideoService platformDemoVideoService;
     private final ReferralShareService referralShareService;
-    private final UserCourseAccessService userCourseAccessService;
 
     // ========== Authentication & Authorization ==========
     
@@ -149,7 +148,7 @@ public class AdminController {
                     paramType = Constants.AUTH_PARAM_TYPE)
     })
     @PostMapping("/users")
-    public ResponseEntity<ApiResponse<UserDTO>> createUser(
+    public ResponseEntity<?> createUser(
             @RequestBody CreateUserRequest request,
             HttpServletRequest httpRequest) {
         try {
@@ -157,9 +156,15 @@ public class AdminController {
             UserDTO user = adminService.createUser(request, createdBy);
             return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new ApiResponse<>(201, user));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("status", "error", "message", e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ApiResponse<>(400, null));
+                .body(Map.of("status", "error", "message", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ApiResponse<>(401, null));
@@ -532,51 +537,6 @@ public class AdminController {
         }
     }
 
-    @PutMapping("/courses/{courseId}/set-default-freemium")
-    public ResponseEntity<ApiResponse<Course>> setDefaultFreemiumCourse(
-            @PathVariable String courseId,
-            HttpServletRequest request) {
-        try {
-            extractUserIdFromRequest(request);
-            if (!userCourseAccessService.setDefaultFreemiumCourse(courseId)) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
-            }
-            Course course = courseService.findById(courseId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
-            return ResponseEntity.ok(new ApiResponse<>(200, course));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
-        }
-    }
-
-    @GetMapping("/courses/default-freemium")
-    public ResponseEntity<ApiResponse<Course>> getDefaultFreemiumCourse(HttpServletRequest request) {
-        try {
-            extractUserIdFromRequest(request);
-            return userCourseAccessService.findDefaultFreemiumCourse()
-                    .map(c -> ResponseEntity.ok(new ApiResponse<>(200, c)))
-                    .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null)));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
-        }
-    }
-
-    @PostMapping("/users/backfill-default-freemium-enrollments")
-    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> backfillDefaultFreemiumEnrollments(
-            HttpServletRequest request) {
-        try {
-            extractUserIdFromRequest(request);
-            int enrolled = adminService.backfillDefaultFreemiumEnrollments();
-            return ResponseEntity.ok(new ApiResponse<>(200,
-                    java.util.Map.of("usersEnrolled", enrolled)));
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponse<>(404, java.util.Map.of("message", e.getMessage())));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
-        }
-    }
-    
     // ========== Course Assignment ==========
     
     /**

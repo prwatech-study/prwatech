@@ -13,6 +13,7 @@ public class Review {
     private String id;
     private String userId;
     private String courseId;
+    private String courseName;
     private int rating;
     private String comment;
     private String review;

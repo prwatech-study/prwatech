@@ -1,7 +1,6 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.common.exception.ForbiddenException;
-import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserCourseEnrollment;
 import com.prwatech.skillama.repository.CourseRepository;
@@ -51,18 +50,5 @@ class UserCourseAccessServiceTest {
         when(enrollmentRepository.findByUserIdAndCourseId("u1", "c1")).thenReturn(Optional.of(enrollment));
 
         assertDoesNotThrow(() -> userCourseAccessService.assertCanAccessCourse("u1", "c1"));
-    }
-
-    @Test
-    void setDefaultFreemiumCourse_clearsPreviousFlag() {
-        Course existing = Course.builder().id("old").isDefaultFreemiumCourse(true).build();
-        Course next = Course.builder().id("new").build();
-        when(courseRepository.findById("new")).thenReturn(Optional.of(next));
-        when(courseRepository.findByIsDefaultFreemiumCourseTrue()).thenReturn(Optional.of(existing));
-        when(courseRepository.save(org.mockito.ArgumentMatchers.any(Course.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        boolean ok = userCourseAccessService.setDefaultFreemiumCourse("new");
-        org.junit.jupiter.api.Assertions.assertTrue(ok);
-        org.mockito.Mockito.verify(courseRepository, org.mockito.Mockito.times(2)).save(org.mockito.ArgumentMatchers.any(Course.class));
     }
 }

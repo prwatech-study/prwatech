@@ -10,7 +10,6 @@ import java.util.Optional;
 @Repository
 public interface CourseRepository extends MongoRepository<Course, String> {
     Optional<Course> findByIsGuestCourseTrue();
-    Optional<Course> findByIsDefaultFreemiumCourseTrue();
     List<Course> findByIsPublicTrue();
     Optional<Course> findFirstByIsPublicTrue();
 }

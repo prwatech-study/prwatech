@@ -28,7 +28,9 @@ public class UserController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody User user) {
         if (userService.findByEmail(user.getEmail()).isPresent()) {
-            return ResponseEntity.status(409).body("Email is already registered");
+            return ResponseEntity.status(409).body(Map.of(
+                    "status", "error",
+                    "message", "Email is already registered"));
         }
         return ResponseEntity.ok(userService.register(user));
     }
@@ -84,6 +86,11 @@ public class UserController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         }
+    }
+
+    @GetMapping("/register/freemium/courses")
+    public ResponseEntity<?> listFreemiumSignupCourses() {
+        return ResponseEntity.ok(freemiumService.listSignupCourseOptions());
     }
 
     @PostMapping("/register/freemium")

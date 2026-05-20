@@ -102,8 +102,8 @@ public class AdminService {
         }
         
         // Check if email exists
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new RuntimeException("Email already exists");
+        if (userRepository.findByEmail(request.getEmail().trim()).isPresent()) {
+            throw new IllegalStateException("Email is already registered");
         }
         
         User user = new User();
@@ -119,9 +119,6 @@ public class AdminService {
         user.setUpdatedBy(createdBy);
         
         user = userRepository.save(user);
-        if (user.getRole() == null || user.getRole() == User.UserRole.USER) {
-            userCourseAccessService.enrollDefaultFreemiumCourse(user.getId());
-        }
         return convertToUserDTO(user);
     }
     
@@ -560,12 +557,12 @@ public class AdminService {
                 .map(this::toReviewSummary)
                 .collect(Collectors.toList());
 
-        String defaultCourseId = null;
-        String defaultCourseName = null;
-        var defaultCourse = userCourseAccessService.findDefaultFreemiumCourse();
-        if (defaultCourse.isPresent()) {
-            defaultCourseId = defaultCourse.get().getId();
-            defaultCourseName = defaultCourse.get().getName();
+        String chosenCourseId = user.getChosenFreemiumCourseId();
+        String chosenCourseName = null;
+        if (chosenCourseId != null && !chosenCourseId.isBlank()) {
+            chosenCourseName = courseRepository.findById(chosenCourseId)
+                    .map(Course::getName)
+                    .orElse(null);
         }
 
         return UserAdminProfileDTO.builder()
@@ -588,33 +585,12 @@ public class AdminService {
                 .totalQuestionsAsked(questionsAsked)
                 .reviewCount((int) reviewRepository.findByUserId(userId, PageRequest.of(0, 1)).getTotalElements())
                 .issueReportCount((int) issueReportRepository.countByReporterUserId(userId))
-                .defaultFreemiumCourseId(defaultCourseId)
-                .defaultFreemiumCourseName(defaultCourseName)
+                .chosenFreemiumCourseId(chosenCourseId)
+                .chosenFreemiumCourseName(chosenCourseName)
                 .recentLogins(recentLogins)
                 .courseEnrollments(courseEnrollments)
                 .recentReviews(recentReviews)
                 .build();
-    }
-
-    @Transactional
-    public int backfillDefaultFreemiumEnrollments() {
-        Course defaultCourse = userCourseAccessService.findDefaultFreemiumCourse()
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "No default freemium course configured. Set one in admin course settings."));
-        int count = 0;
-        for (User user : userRepository.findAll()) {
-            if (user.getRole() == User.UserRole.ADMIN || user.getRole() == User.UserRole.OWNER) {
-                continue;
-            }
-            if (!enrollmentRepository.existsByUserIdAndCourseId(user.getId(), defaultCourse.getId())) {
-                userCourseAccessService.enrollIfAbsent(
-                        user.getId(),
-                        defaultCourse.getId(),
-                        UserCourseEnrollment.EnrollmentType.DEFAULT_FREEMIUM);
-                count++;
-            }
-        }
-        return count;
     }
 
     private UserAdminProfileDTO.ReviewSummaryDTO toReviewSummary(Review review) {
