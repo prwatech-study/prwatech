@@ -637,12 +637,17 @@ public class AdminController {
     })
     @DeleteMapping("/assignments/unassign")
     public ResponseEntity<ApiResponse<Void>> unassignCourse(
-            @RequestBody UnassignCourseRequest request,
+            @RequestBody(required = false) UnassignCourseRequest request,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) String courseId,
             HttpServletRequest httpRequest) {
+        UnassignCourseRequest body = resolveUnassignRequest(request, userId, courseId);
         try {
             extractUserIdFromRequest(httpRequest); // Verify authentication
-            adminService.unassignCourse(request.getUserId(), request.getCourseId());
+            adminService.unassignCourse(body.getUserId(), body.getCourseId());
             return ResponseEntity.ok(new ApiResponse<>(200, null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiResponse<>(404, null));
@@ -650,6 +655,17 @@ public class AdminController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ApiResponse<>(401, null));
         }
+    }
+
+    private static UnassignCourseRequest resolveUnassignRequest(
+            UnassignCourseRequest request, String userId, String courseId) {
+        if (request != null && request.getUserId() != null && request.getCourseId() != null) {
+            return request;
+        }
+        if (userId != null && courseId != null) {
+            return new UnassignCourseRequest(userId, courseId);
+        }
+        throw new IllegalArgumentException("userId and courseId are required");
     }
     
     /**

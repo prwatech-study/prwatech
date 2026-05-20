@@ -382,13 +382,8 @@ public class AdminService {
         
         long totalEnrollments = enrollmentRepository.count();
         
-        // Calculate average progress
         List<UserCourseProgress> allProgress = progressRepository.findAll();
-        double averageProgress = allProgress.isEmpty() ? 0.0 :
-            allProgress.stream()
-                .mapToInt(p -> p.getProgress() != null ? p.getProgress() : 0)
-                .average()
-                .orElse(0.0);
+        double averageProgress = normalizeAverageProgressPercent(allProgress);
         
         // Recent users (last 7 days) - simplified
         int recentUsers = (int) userRepository.findAll().stream()
@@ -411,8 +406,62 @@ public class AdminService {
         stats.setAverageProgress(averageProgress);
         stats.setRecentUsers(recentUsers);
         stats.setRecentCourses(recentCourses);
-        
+        stats.setTopCourses(buildTopCourseStats());
+        stats.setRecentLogins(buildRecentLoginStats(15));
+
         return stats;
+    }
+
+    /** Average stored progress (0-100). No scaling; values under 1% stay as-is (e.g. 0.05). */
+    private double normalizeAverageProgressPercent(List<UserCourseProgress> allProgress) {
+        if (allProgress.isEmpty()) {
+            return 0.0;
+        }
+        double avg = allProgress.stream()
+                .mapToInt(p -> p.getProgress() != null ? p.getProgress() : 0)
+                .average()
+                .orElse(0.0);
+        return Math.round(avg * 100.0) / 100.0;
+    }
+
+    private List<DashboardStatsDTO.TopCourseStatDTO> buildTopCourseStats() {
+        return courseRepository.findAll().stream()
+                .map(course -> {
+                    List<UserCourseProgress> progressList = progressRepository.findAll().stream()
+                            .filter(p -> course.getId().equals(p.getCourseId()))
+                            .collect(Collectors.toList());
+                    long enrollments = enrollmentRepository.findAll().stream()
+                            .filter(e -> course.getId().equals(e.getCourseId())
+                                    && e.getStatus() == UserCourseEnrollment.EnrollmentStatus.ACTIVE)
+                            .count();
+                    double avg = normalizeAverageProgressPercent(progressList);
+                    return DashboardStatsDTO.TopCourseStatDTO.builder()
+                            .courseId(course.getId())
+                            .courseName(course.getName())
+                            .enrollmentCount(enrollments)
+                            .averageProgress(avg)
+                            .build();
+                })
+                .sorted((a, b) -> Long.compare(b.getEnrollmentCount(), a.getEnrollmentCount()))
+                .limit(8)
+                .collect(Collectors.toList());
+    }
+
+    private List<DashboardStatsDTO.RecentLoginStatDTO> buildRecentLoginStats(int limit) {
+        return userLoginEventRepository.findAll().stream()
+                .filter(e -> e.getLoggedInAt() != null)
+                .sorted((a, b) -> b.getLoggedInAt().compareTo(a.getLoggedInAt()))
+                .limit(limit)
+                .map(event -> {
+                    User user = userRepository.findById(event.getUserId()).orElse(null);
+                    return DashboardStatsDTO.RecentLoginStatDTO.builder()
+                            .userId(event.getUserId())
+                            .userName(user != null ? user.getName() : "Unknown")
+                            .userEmail(user != null ? user.getEmail() : "")
+                            .loggedInAt(event.getLoggedInAt())
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
     
     public CourseAnalyticsDTO getCourseAnalytics(String courseId) {
@@ -652,15 +701,7 @@ public class AdminService {
             dto.setActiveCourseCount((int) activeCourses);
 
             List<UserCourseProgress> progressList = progressRepository.findByUserId(user.getId());
-            if (!progressList.isEmpty()) {
-                int avg = (int) Math.round(progressList.stream()
-                        .mapToInt(p -> p.getProgress() != null ? p.getProgress() : 0)
-                        .average()
-                        .orElse(0.0));
-                dto.setAverageProgress(avg);
-            } else {
-                dto.setAverageProgress(0);
-            }
+            dto.setAverageProgress(normalizeAverageProgressPercent(progressList));
         }
 
         return dto;

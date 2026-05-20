@@ -25,7 +25,8 @@ public class UserDTO {
     private LocalDateTime lastLoginAt;
     private Integer loginCount;
     private Integer activeCourseCount;
-    private Integer averageProgress;
+    /** Mean course progress 0–100 (may be below 1 when most learners have not started). */
+    private Double averageProgress;
     private String createdBy;
     private LocalDateTime updatedAt;
     private String updatedBy;
