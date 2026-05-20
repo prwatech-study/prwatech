@@ -42,6 +42,8 @@ public class User {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime lastLoginAt;
+    @Builder.Default
+    private Integer loginCount = 0;
     private String createdBy;
     private String updatedBy;
 

@@ -9,11 +9,15 @@ import com.prwatech.skillama.model.UserCourseEnrollment;
 import com.prwatech.skillama.model.QueryActivityLog;
 import com.prwatech.skillama.model.UserCourseProgress;
 import com.prwatech.skillama.model.UserProfile;
+import com.prwatech.skillama.model.Review;
 import com.prwatech.skillama.repository.CourseRepository;
+import com.prwatech.skillama.repository.IssueReportRepository;
 import com.prwatech.skillama.repository.QueryActivityLogRepository;
+import com.prwatech.skillama.repository.ReviewRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserCourseEnrollmentRepository;
 import com.prwatech.skillama.repository.UserCourseProgressRepository;
+import com.prwatech.skillama.repository.UserLoginEventRepository;
 import com.prwatech.skillama.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -39,6 +43,11 @@ public class AdminService {
     private final UserCourseProgressRepository progressRepository;
     private final UserProfileRepository userProfileRepository;
     private final QueryActivityLogRepository queryActivityLogRepository;
+    private final UserLoginEventRepository userLoginEventRepository;
+    private final ReviewRepository reviewRepository;
+    private final IssueReportRepository issueReportRepository;
+    private final UserCourseAccessService userCourseAccessService;
+    private final CourseAssignmentNotificationService courseAssignmentNotificationService;
     private final PasswordEncode passwordEncode;
     
     public AdminAccessDTO checkAdminAccess(String userId) {
@@ -110,6 +119,9 @@ public class AdminService {
         user.setUpdatedBy(createdBy);
         
         user = userRepository.save(user);
+        if (user.getRole() == null || user.getRole() == User.UserRole.USER) {
+            userCourseAccessService.enrollDefaultFreemiumCourse(user.getId());
+        }
         return convertToUserDTO(user);
     }
     
@@ -248,6 +260,13 @@ public class AdminService {
         for (UserCourseEnrollment enrollment : enrollments) {
             initializeCourseProgress(enrollment.getUserId(), enrollment.getCourseId());
         }
+
+        if (!enrollments.isEmpty()) {
+            List<String> assignedIds = enrollments.stream()
+                    .map(UserCourseEnrollment::getCourseId)
+                    .collect(Collectors.toList());
+            courseAssignmentNotificationService.notifyCoursesAssigned(user, assignedIds);
+        }
         
         return AssignmentResponseDTO.builder()
             .userId(userId)
@@ -267,12 +286,15 @@ public class AdminService {
     
     @Transactional
     public void unassignCourse(String userId, String courseId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         UserCourseEnrollment enrollment = enrollmentRepository
             .findByUserIdAndCourseId(userId, courseId)
             .orElseThrow(() -> new ResourceNotFoundException("Enrollment not found"));
         
         enrollment.setStatus(UserCourseEnrollment.EnrollmentStatus.INACTIVE);
         enrollmentRepository.save(enrollment);
+        courseAssignmentNotificationService.notifyCourseUnassigned(user, courseId);
     }
     
     public UserAssignmentsDTO getUserAssignments(String userId) {
@@ -448,14 +470,66 @@ public class AdminService {
         int questionsAsked = profile != null && profile.getTotalQuestionsAsked() != null
                 ? profile.getTotalQuestionsAsked() : 0;
 
+        int loginCount = user.getLoginCount() != null ? user.getLoginCount() : 0;
+        long eventLoginCount = userLoginEventRepository.countByUserId(userId);
+        if (eventLoginCount > loginCount) {
+            loginCount = (int) eventLoginCount;
+        }
+
+        List<UserAdminProfileDTO.LoginHistoryItemDTO> recentLogins = userLoginEventRepository
+                .findByUserIdOrderByLoggedInAtDesc(userId, PageRequest.of(0, 15))
+                .stream()
+                .map(e -> UserAdminProfileDTO.LoginHistoryItemDTO.builder()
+                        .loggedInAt(e.getLoggedInAt())
+                        .build())
+                .collect(Collectors.toList());
+
+        List<UserCourseEnrollment> enrollments = enrollmentRepository.findByUserIdAndStatus(
+                userId, UserCourseEnrollment.EnrollmentStatus.ACTIVE);
+        List<UserAdminProfileDTO.CourseEnrollmentProfileDTO> courseEnrollments = enrollments.stream()
+                .map(enrollment -> {
+                    Course course = courseRepository.findById(enrollment.getCourseId()).orElse(null);
+                    UserCourseProgress progress = progressRepository
+                            .findByUserIdAndCourseId(userId, enrollment.getCourseId())
+                            .orElse(null);
+                    return UserAdminProfileDTO.CourseEnrollmentProfileDTO.builder()
+                            .courseId(enrollment.getCourseId())
+                            .courseName(course != null ? course.getName() : "Unknown")
+                            .enrollmentType(enrollment.getEnrollmentType())
+                            .enrolledAt(enrollment.getEnrolledAt())
+                            .progress(progress != null ? progress.getProgress() : 0)
+                            .lastAccessed(progress != null ? progress.getLastAccessed() : null)
+                            .status(enrollment.getStatus())
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        List<UserAdminProfileDTO.ReviewSummaryDTO> recentReviews = reviewRepository
+                .findByUserId(userId, PageRequest.of(0, 10))
+                .getContent()
+                .stream()
+                .map(this::toReviewSummary)
+                .collect(Collectors.toList());
+
+        String defaultCourseId = null;
+        String defaultCourseName = null;
+        var defaultCourse = userCourseAccessService.findDefaultFreemiumCourse();
+        if (defaultCourse.isPresent()) {
+            defaultCourseId = defaultCourse.get().getId();
+            defaultCourseName = defaultCourse.get().getName();
+        }
+
         return UserAdminProfileDTO.builder()
                 .userId(user.getId())
                 .name(user.getName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
                 .planTier(user.getPlanTier())
+                .role(user.getRole())
+                .active(user.isActive())
                 .createdAt(user.getCreatedAt())
                 .lastLoginAt(user.getLastLoginAt())
+                .loginCount(loginCount)
                 .queryCreditsUsed(user.getQueryCreditsUsed())
                 .queryCreditsLimit(user.getQueryCreditsLimit())
                 .enabledModules(user.getEnabledModules())
@@ -463,6 +537,44 @@ public class AdminService {
                 .referredBy(user.getReferredBy())
                 .completedLecturesCount(completedCount)
                 .totalQuestionsAsked(questionsAsked)
+                .reviewCount((int) reviewRepository.findByUserId(userId, PageRequest.of(0, 1)).getTotalElements())
+                .issueReportCount((int) issueReportRepository.countByReporterUserId(userId))
+                .defaultFreemiumCourseId(defaultCourseId)
+                .defaultFreemiumCourseName(defaultCourseName)
+                .recentLogins(recentLogins)
+                .courseEnrollments(courseEnrollments)
+                .recentReviews(recentReviews)
+                .build();
+    }
+
+    @Transactional
+    public int backfillDefaultFreemiumEnrollments() {
+        Course defaultCourse = userCourseAccessService.findDefaultFreemiumCourse()
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No default freemium course configured. Set one in admin course settings."));
+        int count = 0;
+        for (User user : userRepository.findAll()) {
+            if (user.getRole() == User.UserRole.ADMIN || user.getRole() == User.UserRole.OWNER) {
+                continue;
+            }
+            if (!enrollmentRepository.existsByUserIdAndCourseId(user.getId(), defaultCourse.getId())) {
+                userCourseAccessService.enrollIfAbsent(
+                        user.getId(),
+                        defaultCourse.getId(),
+                        UserCourseEnrollment.EnrollmentType.DEFAULT_FREEMIUM);
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private UserAdminProfileDTO.ReviewSummaryDTO toReviewSummary(Review review) {
+        return UserAdminProfileDTO.ReviewSummaryDTO.builder()
+                .id(review.getId())
+                .courseId(review.getCourseId())
+                .rating(review.getRating())
+                .comment(review.getComment())
+                .createdAt(review.getCreatedAt())
                 .build();
     }
 
@@ -529,9 +641,28 @@ public class AdminService {
         dto.setGender(user.getGender() != null ? user.getGender().name() : null);
         dto.setCreatedAt(user.getCreatedAt());
         dto.setLastLoginAt(user.getLastLoginAt());
+        dto.setLoginCount(user.getLoginCount() != null ? user.getLoginCount() : 0);
         dto.setCreatedBy(user.getCreatedBy());
         dto.setUpdatedAt(user.getUpdatedAt());
         dto.setUpdatedBy(user.getUpdatedBy());
+
+        if (user.getId() != null) {
+            long activeCourses = enrollmentRepository.countByUserIdAndStatus(
+                    user.getId(), UserCourseEnrollment.EnrollmentStatus.ACTIVE);
+            dto.setActiveCourseCount((int) activeCourses);
+
+            List<UserCourseProgress> progressList = progressRepository.findByUserId(user.getId());
+            if (!progressList.isEmpty()) {
+                int avg = (int) Math.round(progressList.stream()
+                        .mapToInt(p -> p.getProgress() != null ? p.getProgress() : 0)
+                        .average()
+                        .orElse(0.0));
+                dto.setAverageProgress(avg);
+            } else {
+                dto.setAverageProgress(0);
+            }
+        }
+
         return dto;
     }
     

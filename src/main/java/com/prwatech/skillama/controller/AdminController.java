@@ -13,8 +13,10 @@ import com.prwatech.skillama.service.AdminService;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.PlatformDemoVideoService;
+import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.ReviewService;
 import com.prwatech.skillama.service.SalesLeadService;
+import com.prwatech.skillama.service.UserCourseAccessService;
 import com.prwatech.skillama.service.UserService;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
@@ -49,7 +51,9 @@ public class AdminController {
     private final SalesLeadService salesLeadService;
     private final ReviewService reviewService;
     private final PlatformDemoVideoService platformDemoVideoService;
-    
+    private final ReferralShareService referralShareService;
+    private final UserCourseAccessService userCourseAccessService;
+
     // ========== Authentication & Authorization ==========
     
     /**
@@ -527,6 +531,51 @@ public class AdminController {
                 .body(new ApiResponse<>(500, null));
         }
     }
+
+    @PutMapping("/courses/{courseId}/set-default-freemium")
+    public ResponseEntity<ApiResponse<Course>> setDefaultFreemiumCourse(
+            @PathVariable String courseId,
+            HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            if (!userCourseAccessService.setDefaultFreemiumCourse(courseId)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+            }
+            Course course = courseService.findById(courseId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
+            return ResponseEntity.ok(new ApiResponse<>(200, course));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @GetMapping("/courses/default-freemium")
+    public ResponseEntity<ApiResponse<Course>> getDefaultFreemiumCourse(HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            return userCourseAccessService.findDefaultFreemiumCourse()
+                    .map(c -> ResponseEntity.ok(new ApiResponse<>(200, c)))
+                    .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PostMapping("/users/backfill-default-freemium-enrollments")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> backfillDefaultFreemiumEnrollments(
+            HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            int enrolled = adminService.backfillDefaultFreemiumEnrollments();
+            return ResponseEntity.ok(new ApiResponse<>(200,
+                    java.util.Map.of("usersEnrolled", enrolled)));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(404, java.util.Map.of("message", e.getMessage())));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
     
     // ========== Course Assignment ==========
     
@@ -801,7 +850,8 @@ public class AdminController {
     }
 
     /**
-     * Point demo video at an existing AWS / CDN URL (same idea as pasting imagePath on curriculum).
+     * Point demo video at an external URL: direct HTTPS video file (.mp4 etc.), YouTube / youtu.be / Shorts,
+     * other embeddable HTTPS player URLs, or raw {@code <iframe ... src="https://...">} HTML.
      */
     @PutMapping("/platform/demo-video/url")
     public ResponseEntity<ApiResponse<DemoVideoDTO>> setDemoVideoUrl(
@@ -841,6 +891,31 @@ public class AdminController {
             String adminUserId = extractUserIdFromRequest(request);
             platformDemoVideoService.remove(adminUserId);
             return ResponseEntity.ok(new ApiResponse<>(200, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @GetMapping("/platform/referral-share")
+    public ResponseEntity<ApiResponse<ReferralShareConfigDTO>> getReferralShareAdminConfig(HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            return ResponseEntity.ok(new ApiResponse<>(200, referralShareService.getPublicConfig()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PutMapping("/platform/referral-share")
+    public ResponseEntity<ApiResponse<ReferralShareConfigDTO>> updateReferralShareConfig(
+            @RequestBody UpdateReferralShareConfigDTO body,
+            HttpServletRequest request) {
+        try {
+            String adminUserId = extractUserIdFromRequest(request);
+            return ResponseEntity.ok(
+                    new ApiResponse<>(200, referralShareService.updateConfig(body, adminUserId)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }

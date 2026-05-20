@@ -31,6 +31,7 @@ public class UserCourseServiceImpl implements UserCourseService {
     private final UserLectureProgressRepository lectureProgressRepository;
     private final CourseRepository courseRepository;
     private final CourseCurriculumRepository curriculumRepository;
+    private final UserCourseAccessService userCourseAccessService;
     
     @Override
     public List<UserCourseDTO> getUserCoursesWithProgress(String userId) {
@@ -83,6 +84,8 @@ public class UserCourseServiceImpl implements UserCourseService {
     
     @Override
     public CourseProgressDTO getCourseProgress(String userId, String courseId) {
+        userCourseAccessService.assertCanAccessCourse(userId, courseId);
+        userCourseAccessService.touchLastAccessed(userId, courseId);
         // Verify course exists
         Course course = courseRepository.findById(courseId)
             .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
@@ -139,6 +142,7 @@ public class UserCourseServiceImpl implements UserCourseService {
     @Transactional
     public CourseProgressDTO updateProgress(String userId, String courseId, String lectureId, 
                                            boolean completed, Integer timeSpent) {
+        userCourseAccessService.assertCanAccessCourse(userId, courseId);
         // Verify course exists
         Course course = courseRepository.findById(courseId)
             .orElseThrow(() -> new ResourceNotFoundException("Course not found"));

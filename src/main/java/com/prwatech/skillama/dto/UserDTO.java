@@ -23,6 +23,9 @@ public class UserDTO {
     private String gender;
     private LocalDateTime createdAt;
     private LocalDateTime lastLoginAt;
+    private Integer loginCount;
+    private Integer activeCourseCount;
+    private Integer averageProgress;
     private String createdBy;
     private LocalDateTime updatedAt;
     private String updatedBy;

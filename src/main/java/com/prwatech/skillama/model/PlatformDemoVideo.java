@@ -19,6 +19,10 @@ public class PlatformDemoVideo {
     private String title;
     private String description;
     private String videoUrl;
+    /**
+     * How clients should play {@link #videoUrl}: {@code direct} (file / &lt;video&gt;), {@code youtube}, or {@code embed} (iframe src).
+     */
+    private String playbackType;
     private String s3Key;
     private String contentType;
     private Long fileSizeBytes;

@@ -2,6 +2,7 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.service.impl.EmailServiceImpl;
+import com.prwatech.skillama.SkillamaNotificationEmails;
 import com.prwatech.skillama.dto.AdminReviewReplyRequestDTO;
 import com.prwatech.skillama.dto.CreateReviewRequestDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
@@ -19,18 +20,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class ReviewService {
     private static final Logger LOGGER = LoggerFactory.getLogger(ReviewService.class);
-    private static final List<String> TEAM_NOTIFICATION_EMAILS = Arrays.asList(
-            "hello@skillama.co.in",
-            "jitendrachandwani4@gmail.com"
-    );
-
     private final ReviewRepository reviewRepository;
     private final UserService userService;
     private final EmailServiceImpl emailService;
@@ -196,7 +191,7 @@ public class ReviewService {
                     + "Feedback:\n" + review.getComment() + "\n\n"
                     + "Reply from the admin panel to respond to the user.";
 
-            for (String teamEmail : TEAM_NOTIFICATION_EMAILS) {
+            for (String teamEmail : SkillamaNotificationEmails.TEAM_INBOXES) {
                 emailService.sendEmail(new EmailSendDto(teamEmail, subject, message));
             }
             LOGGER.info("Feedback notification emails sent for review {}", review.getId());

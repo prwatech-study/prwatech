@@ -5,6 +5,7 @@ import com.prwatech.skillama.service.FileStorageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -183,6 +184,18 @@ public class FileStorageServiceImpl implements FileStorageService {
         }
     }
     
+    @Override
+    public boolean isManagedStorageUrl(String url) {
+        if (!StringUtils.hasText(url)) {
+            return false;
+        }
+        String u = url.trim();
+        if (u.startsWith(s3BaseUrl)) {
+            return true;
+        }
+        return u.startsWith(baseUrl);
+    }
+
     @Override
     public boolean deleteFile(String filePath) throws IOException {
         if (filePath == null || filePath.isEmpty()) {

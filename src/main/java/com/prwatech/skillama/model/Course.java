@@ -26,5 +26,8 @@ public class Course {
     private Boolean isGuestCourse = Boolean.FALSE; // Default guest course flag
     @Builder.Default
     private Boolean isPublic = Boolean.FALSE; // Public course flag for guest access
+    /** Auto-assigned to every new freemium user; only one course should have this flag. */
+    @Builder.Default
+    private Boolean isDefaultFreemiumCourse = Boolean.FALSE;
     // Removed curriculum field; curriculum is stored in CourseCurriculum collection
 }

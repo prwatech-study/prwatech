@@ -12,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -86,6 +87,11 @@ public class CourseService {
 
     // --- MODULE (CURRICULUM) MANAGEMENT ---
     public CourseCurriculum addModule(CourseCurriculum module) {
+        if (module.getSubmodules() != null) {
+            for (CourseCurriculum.Submodule s : module.getSubmodules()) {
+                validatePracticalSubmoduleScript(s);
+            }
+        }
         module.setCreatedAt(LocalDateTime.now());
         module.setUpdatedAt(LocalDateTime.now());
         return curriculumRepository.save(module);
@@ -93,6 +99,11 @@ public class CourseService {
 
     public CourseCurriculum updateModule(String moduleId, CourseCurriculum updated) {
         return curriculumRepository.findById(moduleId).map(existing -> {
+            if (updated.getSubmodules() != null) {
+                for (CourseCurriculum.Submodule s : updated.getSubmodules()) {
+                    validatePracticalSubmoduleScript(s);
+                }
+            }
             existing.setModuleName(updated.getModuleName());
             existing.setModuleAssetPath(updated.getModuleAssetPath());
             existing.setSubmodules(updated.getSubmodules());
@@ -108,7 +119,9 @@ public class CourseService {
 
     // When fetching modules for a course, sort by 'order' field
     public List<CourseCurriculum> getCurriculumByCourseIdOrdered(String courseId) {
-        return curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
+        List<CourseCurriculum> curriculum = curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
+        applyPracticalScriptIntegrityWarnings(curriculum);
+        return curriculum;
     }
 
     // Get curriculum for a course (learner/guest view filters disabled submodules)
@@ -119,9 +132,22 @@ public class CourseService {
     public List<CourseCurriculum> getCurriculumByCourseIdOrdered(String courseId, boolean guestAccess, boolean forAdmin) {
         List<CourseCurriculum> curriculum = curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
         if (forAdmin) {
+            applyPracticalScriptIntegrityWarnings(curriculum);
             return curriculum;
         }
-        return filterCurriculumForLearner(curriculum);
+        List<CourseCurriculum> learner = filterCurriculumForLearner(curriculum);
+        applyPracticalScriptIntegrityWarnings(learner);
+        return learner;
+    }
+
+    public static void validatePracticalSubmoduleScript(CourseCurriculum.Submodule submodule) {
+        if (submodule == null) {
+            return;
+        }
+        if (submodule.isPracticalRequired() && !StringUtils.hasText(submodule.getScriptText())) {
+            throw new IllegalArgumentException(
+                    "Practical topics must include non-empty scriptText (required for narration / text-to-audio).");
+        }
     }
 
     public static boolean isSubmoduleEnabled(CourseCurriculum.Submodule submodule) {
@@ -144,10 +170,44 @@ public class CourseService {
         copy.setImagePath(submodule.getImagePath());
         copy.setPracticalRequired(submodule.isPracticalRequired());
         copy.setOrder(submodule.getOrder());
-        // Learners receive content via generated lectures; omit scriptText from API responses.
-        copy.setScriptText(null);
+        // Narration / TTS (e.g. text_to_audio) needs the script; learners must receive the same text admins store.
+        copy.setScriptText(submodule.getScriptText());
         copy.setEnabled(submodule.getEnabled());
         return copy;
+    }
+
+    /**
+     * Annotates submodules in-place with {@link CourseCurriculum.Submodule#setContentIntegrityIssueCode} when a
+     * practical topic is missing scriptText (API-only; {@code @Transient} in Mongo).
+     */
+    public static void applyPracticalScriptIntegrityWarnings(List<CourseCurriculum> modules) {
+        if (modules == null) {
+            return;
+        }
+        for (CourseCurriculum module : modules) {
+            if (module.getSubmodules() == null) {
+                continue;
+            }
+            for (CourseCurriculum.Submodule s : module.getSubmodules()) {
+                applyPracticalScriptIssueMetadata(s);
+            }
+        }
+    }
+
+    private static void applyPracticalScriptIssueMetadata(CourseCurriculum.Submodule s) {
+        if (s == null) {
+            return;
+        }
+        if (s.isPracticalRequired() && !StringUtils.hasText(s.getScriptText())) {
+            s.setContentIntegrityIssueCode("PRACTICAL_SCRIPT_MISSING");
+            s.setContentIntegrityIssueMessage(
+                    "This practical session is missing required narration text (scriptText). "
+                            + "Audio cannot be generated until an administrator adds the script for this topic. "
+                            + "Please use “Report an issue” so our team can fix it — your feedback helps everyone.");
+        } else {
+            s.setContentIntegrityIssueCode(null);
+            s.setContentIntegrityIssueMessage(null);
+        }
     }
 
     private List<CourseCurriculum> filterCurriculumForLearner(List<CourseCurriculum> modules) {
@@ -242,6 +302,7 @@ public class CourseService {
     // --- SUBMODULE MANAGEMENT ---
     public CourseCurriculum addSubmodule(String moduleId, CourseCurriculum.Submodule submodule) {
         return curriculumRepository.findById(moduleId).map(module -> {
+            validatePracticalSubmoduleScript(submodule);
             if (submodule.getEnabled() == null) {
                 submodule.setEnabled(true);
             }
@@ -256,6 +317,7 @@ public class CourseService {
 
     public CourseCurriculum updateSubmodule(String moduleId, int submoduleIdx, CourseCurriculum.Submodule updatedSubmodule) {
         return curriculumRepository.findById(moduleId).map(module -> {
+            validatePracticalSubmoduleScript(updatedSubmodule);
             List<CourseCurriculum.Submodule> list = module.getSubmodules();
             if (list != null && submoduleIdx >= 0 && submoduleIdx < list.size()) {
                 list.set(submoduleIdx, updatedSubmodule);

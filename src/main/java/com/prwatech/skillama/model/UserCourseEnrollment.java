@@ -28,7 +28,7 @@ public class UserCourseEnrollment {
     private EnrollmentStatus status; // ACTIVE, INACTIVE, COMPLETED
     
     public enum EnrollmentType {
-        ASSIGNED, PURCHASED
+        ASSIGNED, PURCHASED, DEFAULT_FREEMIUM
     }
     
     public enum EnrollmentStatus {

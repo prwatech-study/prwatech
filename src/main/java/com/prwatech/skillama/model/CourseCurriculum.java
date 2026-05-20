@@ -3,6 +3,7 @@ package com.prwatech.skillama.model;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
@@ -41,5 +42,12 @@ public class CourseCurriculum {
         private String scriptText;
         private Integer order; // Order of the submodule within the module
         private Boolean enabled;
+
+        /** API-only: set when practical topic is missing scriptText (not stored in Mongo). */
+        @Transient
+        private String contentIntegrityIssueCode;
+        /** API-only: learner-facing explanation (not stored in Mongo). */
+        @Transient
+        private String contentIntegrityIssueMessage;
     }
 }

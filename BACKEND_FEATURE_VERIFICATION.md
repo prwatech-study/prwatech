@@ -55,7 +55,7 @@ Last verified against codebase: **2026-05-15**.
 | Submodule `enabled` flag | Admin curriculum CRUD | ✅ |
 | Admin sees disabled topics | `GET /courses/{id}/curriculum?forAdmin=true` | ✅ |
 | Learners hide disabled | `CourseService` filters when `forAdmin=false` | ✅ |
-| Learners do not receive `scriptText` | `copySubmoduleForLearner` nulls field | 🔧 Deploy |
+| Learners receive `scriptText` for narration/TTS | `copySubmoduleForLearner` copies field | ✅ |
 
 ---
 
@@ -103,7 +103,7 @@ Last verified against codebase: **2026-05-15**.
 ## Files changed (this session)
 
 - `UserProfileService.java` — course-scoped `buildProgressSummary`
-- `CourseService.java` — learner `scriptText` stripped (prior)
+- `CourseService.java` — learner `scriptText` included for TTS (prior: stripped)
 - `ReviewRepository/Service/Controller` — `scope` query param (prior)
 - `SalesLeadService.java` — `listLeads`
 - `AdminController.java` — `GET /api/admin/leads/sales-interest`

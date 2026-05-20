@@ -4,6 +4,7 @@ import com.prwatech.authentication.security.JwtUtils;
 import com.prwatech.skillama.dto.*;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.FreemiumService;
+import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.UserProfileService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class UserProfileController {
     private final UserProfileService userProfileService;
     private final UserService userService;
     private final FreemiumService freemiumService;
+    private final ReferralShareService referralShareService;
     private final JwtUtils jwtUtils;
     
     private static final String SESSION_COOKIE_NAME = "skillama_session_id";
@@ -209,6 +211,26 @@ public class UserProfileController {
     public ResponseEntity<Map<String, String>> getReferralCode(HttpServletRequest request) {
         String userId = extractUserIdFromRequest(request);
         return ResponseEntity.ok(Map.of("code", freemiumService.getReferralCode(userId)));
+    }
+
+    /** Referral code, signup link, and formatted share message for WhatsApp / email / social. */
+    @GetMapping("/referral/share")
+    public ResponseEntity<Map<String, Object>> getReferralSharePayload(HttpServletRequest request) {
+        String userId = extractUserIdFromRequest(request);
+        return ResponseEntity.ok(referralShareService.getSharePayload(userId));
+    }
+
+    @PostMapping("/referral/share/track")
+    public ResponseEntity<Map<String, String>> trackReferralShare(
+            @RequestBody ReferralShareTrackRequestDTO body,
+            HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            referralShareService.trackShare(userId, body.getChannel());
+            return ResponseEntity.ok(Map.of("status", "success"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
     }
 
     // ========== Helper Methods ==========

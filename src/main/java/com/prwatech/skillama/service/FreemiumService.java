@@ -34,6 +34,7 @@ public class FreemiumService {
     private final SkillamaUserRepository userRepository;
     private final QueryActivityLogRepository queryActivityLogRepository;
     private final PasswordEncode passwordEncode;
+    private final UserCourseAccessService userCourseAccessService;
 
     public FreemiumStatusDTO getStatus(String userId) {
         User user = requireUser(userId);
@@ -138,7 +139,9 @@ public class FreemiumService {
                     });
         }
 
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        userCourseAccessService.enrollDefaultFreemiumCourse(saved.getId());
+        return saved;
     }
 
     public void validateEligibleForFreemiumMigration(User user) {
@@ -158,6 +161,7 @@ public class FreemiumService {
         applyFreemiumPlan(user, phone);
         user.setUpdatedAt(LocalDateTime.now());
         userRepository.save(user);
+        userCourseAccessService.enrollDefaultFreemiumCourse(user.getId());
         return toStatusDto(user);
     }
 

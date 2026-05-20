@@ -4,8 +4,11 @@ import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.configuration.PasswordEncode;
 import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.service.impl.EmailServiceImpl;
+import com.prwatech.skillama.SkillamaNotificationEmails;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.model.UserLoginEvent;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
+import com.prwatech.skillama.repository.UserLoginEventRepository;
 import lombok.AllArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +34,8 @@ public class UserService {
     private static final Logger LOGGER = LoggerFactory.getLogger(UserService.class);
     
     private final SkillamaUserRepository userRepository;
+    private final UserLoginEventRepository userLoginEventRepository;
+    private final UserCourseAccessService userCourseAccessService;
     private final EmailServiceImpl emailService;
     private final AppContext appContext;
     private final PasswordEncode passwordEncode;
@@ -67,22 +72,10 @@ public class UserService {
                     + activationUrl;
             
             String subject = "New User Registration - Activation Required";
-            
-            // Send email to hello@skillama.co.in
-            EmailSendDto email1 = new EmailSendDto(
-                    "hello@skillama.co.in",
-                    subject,
-                    emailMessage
-            );
-            emailService.sendEmail(email1);
-            
-            // Send email to jitendrachandwani4@gmail.com
-            EmailSendDto email2 = new EmailSendDto(
-                    "jitendrachandwani4@gmail.com",
-                    subject,
-                    emailMessage
-            );
-            emailService.sendEmail(email2);
+
+            for (String teamEmail : SkillamaNotificationEmails.TEAM_INBOXES) {
+                emailService.sendEmail(new EmailSendDto(teamEmail, subject, emailMessage));
+            }
             
             LOGGER.info("Registration notification emails sent for user: {}", user.getEmail());
         } catch (Exception e) {
@@ -232,8 +225,20 @@ public class UserService {
     }
 
     public void recordLogin(User user) {
-        user.setLastLoginAt(LocalDateTime.now());
-        user.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        user.setLastLoginAt(now);
+        int count = user.getLoginCount() != null ? user.getLoginCount() : 0;
+        user.setLoginCount(count + 1);
+        user.setUpdatedAt(now);
         userRepository.save(user);
+
+        userLoginEventRepository.save(UserLoginEvent.builder()
+                .userId(user.getId())
+                .loggedInAt(now)
+                .build());
+
+        if (user.getRole() == null || user.getRole() == User.UserRole.USER) {
+            userCourseAccessService.ensureDefaultFreemiumEnrollment(user.getId());
+        }
     }
 }

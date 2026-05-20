@@ -1,11 +1,13 @@
 package com.prwatech.skillama.controller;
 
 import com.prwatech.authentication.security.JwtUtils;
+import com.prwatech.common.exception.ForbiddenException;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.CourseService;
+import com.prwatech.skillama.service.UserCourseAccessService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -23,6 +25,7 @@ public class CourseController {
     private final CourseService courseService;
     private final JwtUtils jwtUtils;
     private final UserService userService;
+    private final UserCourseAccessService userCourseAccessService;
 
     @PostMapping
     public ResponseEntity<Course> create(@RequestBody Course course) {
@@ -41,9 +44,14 @@ public class CourseController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Course> getById(@PathVariable String id) {
+    public ResponseEntity<Course> getById(
+            @PathVariable String id,
+            HttpServletRequest request) {
         return courseService.findById(id)
-                .map(ResponseEntity::ok)
+                .map(course -> {
+                    enforceLearnerCourseAccess(request, id);
+                    return ResponseEntity.ok(course);
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -54,6 +62,13 @@ public class CourseController {
             @RequestParam(value = "forAdmin", required = false, defaultValue = "false") boolean forAdmin,
             HttpServletRequest request) {
         boolean adminView = forAdmin && isAdminUser(request);
+        if (!guestAccess && !adminView) {
+            enforceLearnerCourseAccess(request, courseId);
+            String userId = extractUserId(request);
+            if (userId != null) {
+                userCourseAccessService.touchLastAccessed(userId, courseId);
+            }
+        }
         return ResponseEntity.ok(courseService.getCurriculumByCourseIdOrdered(courseId, guestAccess, adminView));
     }
 
@@ -114,6 +129,32 @@ public class CourseController {
     public ResponseEntity<Void> delete(@PathVariable String id) {
         courseService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private void enforceLearnerCourseAccess(HttpServletRequest request, String courseId) {
+        String userId = extractUserId(request);
+        if (userId == null) {
+            return;
+        }
+        if (userCourseAccessService.isAdminOrOwner(userId)) {
+            return;
+        }
+        if (!userCourseAccessService.hasActiveEnrollment(userId, courseId)) {
+            throw new ForbiddenException("You do not have access to this course.");
+        }
+    }
+
+    private String extractUserId(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        try {
+            String email = jwtUtils.extractUsername(authHeader.substring(7));
+            return userService.findByEmail(email).map(User::getId).orElse(null);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private boolean isAdminUser(HttpServletRequest request) {

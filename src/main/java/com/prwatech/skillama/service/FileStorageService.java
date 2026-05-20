@@ -48,6 +48,11 @@ public interface FileStorageService {
     String uploadImageToS3(MultipartFile file, String s3Prefix) throws IOException;
     
     /**
+     * @return true if this URL points at an object in our configured S3 bucket (safe to pass to {@link #deleteFile}).
+     */
+    boolean isManagedStorageUrl(String url);
+
+    /**
      * Deletes a file by its URL/path.
      * 
      * @param filePath The URL/path of the file to delete
