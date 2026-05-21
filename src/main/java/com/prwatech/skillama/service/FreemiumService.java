@@ -2,10 +2,15 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.common.configuration.PasswordEncode;
 import com.prwatech.skillama.dto.ConsumeQueryRequestDTO;
+import com.prwatech.skillama.dto.CreditAdjustRequestDTO;
+import com.prwatech.skillama.dto.CreditAdjustmentLogDTO;
 import com.prwatech.skillama.dto.FreemiumCourseOptionDTO;
 import com.prwatech.skillama.dto.FreemiumRegisterRequestDTO;
 import com.prwatech.skillama.dto.FreemiumStatusDTO;
 import com.prwatech.skillama.dto.QueryCreditsDTO;
+import com.prwatech.skillama.model.CreditAdjustmentLog;
+import com.prwatech.skillama.repository.CreditAdjustmentLogRepository;
+import com.prwatech.skillama.exception.QueryCreditLimitException;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.QueryActivityLog;
@@ -30,8 +35,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FreemiumService {
 
-    public static final int FREEMIUM_QUERY_LIMIT = 50;
-    public static final int REFERRAL_QUERY_BONUS = 20;
+    /** Aligned with skillama-lms src/config/freemium.js and BACKEND_REQUIREMENTS_FREEMIUM.md */
+    public static final int FREEMIUM_QUERY_LIMIT = 20;
+    public static final int REFERRAL_QUERY_BONUS = 10;
     public static final List<String> FREEMIUM_MODULES = Arrays.asList("Ai-Tutor", "Code Execution", "Debug");
     public static final List<String> FREEMIUM_REFERRAL_MODULES = Arrays.asList("Ai-Tutor", "Code Execution", "Debug");
     public static final List<String> PREMIUM_MODULES = Arrays.asList(
@@ -42,6 +48,7 @@ public class FreemiumService {
     private final QueryActivityLogRepository queryActivityLogRepository;
     private final PasswordEncode passwordEncode;
     private final UserCourseAccessService userCourseAccessService;
+    private final CreditAdjustmentLogRepository creditAdjustmentLogRepository;
 
     public List<FreemiumCourseOptionDTO> listSignupCourseOptions() {
         return courseRepository.findAll().stream()
@@ -74,7 +81,7 @@ public class FreemiumService {
             int limit = effectiveLimit(user);
             int used = user.getQueryCreditsUsed() != null ? user.getQueryCreditsUsed() : 0;
             if (used >= limit) {
-                throw new IllegalStateException("Query credit limit reached");
+                throw new QueryCreditLimitException("Query credit limit reached", used, limit);
             }
             user.setQueryCreditsUsed(used + 1);
             user.setUpdatedAt(LocalDateTime.now());
@@ -269,6 +276,69 @@ public class FreemiumService {
         return toStatusDto(user);
     }
 
+    /**
+     * Admin adjustment: positive delta grants extra queries (lowers used, min 0).
+     * Optional newLimit sets absolute freemium cap.
+     */
+    @Transactional
+    public CreditAdjustmentLogDTO adjustQueryCredits(String userId, CreditAdjustRequestDTO request, String adminId) {
+        if (request == null || request.getReason() == null || request.getReason().isBlank()) {
+            throw new IllegalArgumentException("reason is required");
+        }
+        User user = requireUser(userId);
+        User admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new ResourceNotFoundException("Admin not found"));
+        if (isUnlimited(user)) {
+            throw new IllegalStateException("User has unlimited credits (PAID/legacy)");
+        }
+
+        int usedBefore = user.getQueryCreditsUsed() != null ? user.getQueryCreditsUsed() : 0;
+        Integer limitBefore = user.getQueryCreditsLimit();
+        int delta = request.getDelta() != null ? request.getDelta() : 0;
+
+        if (request.getNewLimit() != null) {
+            user.setQueryCreditsLimit(Math.max(0, request.getNewLimit()));
+        } else if (delta != 0) {
+            int usedAfter = Math.max(0, usedBefore - delta);
+            user.setQueryCreditsUsed(usedAfter);
+        }
+
+        user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedBy(adminId);
+        userRepository.save(user);
+
+        int usedAfter = user.getQueryCreditsUsed() != null ? user.getQueryCreditsUsed() : 0;
+        CreditAdjustmentLog log = CreditAdjustmentLog.builder()
+                .userId(userId)
+                .userEmail(user.getEmail())
+                .adminId(adminId)
+                .adminEmail(admin.getEmail())
+                .delta(delta)
+                .balanceBeforeUsed(usedBefore)
+                .balanceAfterUsed(usedAfter)
+                .limitBefore(limitBefore)
+                .limitAfter(user.getQueryCreditsLimit())
+                .reason(request.getReason().trim())
+                .createdAt(LocalDateTime.now())
+                .build();
+        log = creditAdjustmentLogRepository.save(log);
+
+        return CreditAdjustmentLogDTO.builder()
+                .id(log.getId())
+                .userId(log.getUserId())
+                .userEmail(log.getUserEmail())
+                .adminId(log.getAdminId())
+                .adminEmail(log.getAdminEmail())
+                .delta(log.getDelta())
+                .balanceBeforeUsed(log.getBalanceBeforeUsed())
+                .balanceAfterUsed(log.getBalanceAfterUsed())
+                .limitBefore(log.getLimitBefore())
+                .limitAfter(log.getLimitAfter())
+                .reason(log.getReason())
+                .createdAt(log.getCreatedAt())
+                .build();
+    }
+
     private void applyFreemiumPlan(User user, String phone) {
         if (phone != null && !phone.isBlank()) {
             user.setPhone(normalizePhone(phone));
@@ -322,6 +392,34 @@ public class FreemiumService {
      */
     public boolean isLegacyUser(User user) {
         return user != null && user.getPlanTier() == null;
+    }
+
+    /**
+     * OWNER maintenance: align stored limits that used old defaults (50/70) to 20/30.
+     */
+    @Transactional
+    public int normalizeFreemiumCreditLimits() {
+        int updated = 0;
+        for (User user : userRepository.findAll()) {
+            if (user.getPlanTier() != User.PlanTier.FREEMIUM) {
+                continue;
+            }
+            int target = hasReferralBonus(user)
+                    ? FREEMIUM_QUERY_LIMIT + REFERRAL_QUERY_BONUS
+                    : FREEMIUM_QUERY_LIMIT;
+            Integer limit = user.getQueryCreditsLimit();
+            if (limit != null && limit > target) {
+                user.setQueryCreditsLimit(target);
+                int used = user.getQueryCreditsUsed() != null ? user.getQueryCreditsUsed() : 0;
+                if (used > target) {
+                    user.setQueryCreditsUsed(target);
+                }
+                user.setUpdatedAt(LocalDateTime.now());
+                userRepository.save(user);
+                updated++;
+            }
+        }
+        return updated;
     }
 
     public boolean isUnlimited(User user) {

@@ -9,6 +9,7 @@ import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.script.GuestCourseMigrationScript;
 import com.prwatech.skillama.model.Review;
 import com.prwatech.skillama.model.SalesLead;
+import com.prwatech.skillama.service.AdminAuditService;
 import com.prwatech.skillama.service.AdminService;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.FreemiumService;
@@ -16,6 +17,7 @@ import com.prwatech.skillama.service.PlatformDemoVideoService;
 import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.ReviewService;
 import com.prwatech.skillama.service.SalesLeadService;
+import com.prwatech.skillama.service.UpgradeRequestService;
 import com.prwatech.skillama.service.UserService;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
@@ -52,6 +54,8 @@ public class AdminController {
     private final ReviewService reviewService;
     private final PlatformDemoVideoService platformDemoVideoService;
     private final ReferralShareService referralShareService;
+    private final AdminAuditService adminAuditService;
+    private final UpgradeRequestService upgradeRequestService;
 
     // ========== Authentication & Authorization ==========
     
@@ -312,16 +316,46 @@ public class AdminController {
                     paramType = Constants.AUTH_PARAM_TYPE)
     })
     @DeleteMapping("/users/{userId}")
-    public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable String userId) {
+    public ResponseEntity<ApiResponse<Void>> deleteUser(
+            @PathVariable String userId,
+            @RequestParam(defaultValue = "false") boolean hard,
+            @RequestParam(required = false) String reason,
+            HttpServletRequest httpRequest) {
         try {
-            adminService.deleteUser(userId);
+            String deletedBy = extractUserIdFromRequest(httpRequest);
+            adminService.deleteUser(userId, deletedBy, hard, reason);
             return ResponseEntity.ok(new ApiResponse<>(200, null));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiResponse<>(404, null));
         } catch (RuntimeException e) {
+            if (e.getMessage() != null && (e.getMessage().contains("OWNER") || e.getMessage().contains("ADMIN"))) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ApiResponse<>(403, null));
+            }
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PutMapping("/users/{userId}/password")
+    public ResponseEntity<ApiResponse<Void>> resetAdminPassword(
+            @PathVariable String userId,
+            @RequestBody ResetAdminPasswordRequestDTO body,
+            HttpServletRequest httpRequest) {
+        try {
+            String ownerId = extractUserIdFromRequest(httpRequest);
+            adminService.resetAdminPassword(ownerId, userId, body.getNewPassword());
+            return ResponseEntity.ok(new ApiResponse<>(200, null));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }
     }
     
@@ -391,8 +425,10 @@ public class AdminController {
             @RequestBody Course course,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request); // Verify authentication
+            String adminId = extractUserIdFromRequest(request);
             Course created = courseService.create(course);
+            adminAuditService.log(adminId, AdminAuditService.COURSE_CREATE, "COURSE", created.getId(),
+                    "Created course " + created.getName(), null);
             return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new ApiResponse<>(201, created));
         } catch (Exception e) {
@@ -426,12 +462,14 @@ public class AdminController {
             @RequestBody Course course,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request); // Verify authentication
+            String adminId = extractUserIdFromRequest(request);
             Course updated = courseService.update(courseId, course);
             if (updated == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ApiResponse<>(404, null));
             }
+            adminAuditService.log(adminId, AdminAuditService.COURSE_UPDATE, "COURSE", courseId,
+                    "Updated course " + updated.getName(), null);
             return ResponseEntity.ok(new ApiResponse<>(200, updated));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -462,8 +500,10 @@ public class AdminController {
             @PathVariable String courseId,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request); // Verify authentication
+            String adminId = extractUserIdFromRequest(request);
             courseService.delete(courseId);
+            adminAuditService.log(adminId, AdminAuditService.COURSE_DELETE, "COURSE", courseId,
+                    "Deleted course " + courseId, null);
             return ResponseEntity.ok(new ApiResponse<>(200, null));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -563,9 +603,9 @@ public class AdminController {
             @RequestBody AssignCoursesRequest request,
             HttpServletRequest httpRequest) {
         try {
-            extractUserIdFromRequest(httpRequest); // Verify authentication
+            String assignedBy = extractUserIdFromRequest(httpRequest);
             AssignmentResponseDTO response = adminService.assignCourses(
-                request.getUserId(), request.getCourseIds());
+                request.getUserId(), request.getCourseIds(), assignedBy);
             return ResponseEntity.ok(new ApiResponse<>(200, response));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -603,8 +643,8 @@ public class AdminController {
             HttpServletRequest httpRequest) {
         UnassignCourseRequest body = resolveUnassignRequest(request, userId, courseId);
         try {
-            extractUserIdFromRequest(httpRequest); // Verify authentication
-            adminService.unassignCourse(body.getUserId(), body.getCourseId());
+            String unassignedBy = extractUserIdFromRequest(httpRequest);
+            adminService.unassignCourse(body.getUserId(), body.getCourseId(), unassignedBy);
             return ResponseEntity.ok(new ApiResponse<>(200, null));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
@@ -761,12 +801,15 @@ public class AdminController {
             @RequestBody UpdateUserPlanRequestDTO request,
             HttpServletRequest httpRequest) {
         try {
-            extractUserIdFromRequest(httpRequest);
+            String adminId = extractUserIdFromRequest(httpRequest);
             if (request.getPlanTier() == null) {
                 return ResponseEntity.badRequest()
                         .body(new ApiResponse<>(400, null));
             }
             FreemiumStatusDTO status = freemiumService.updateUserPlan(userId, request.getPlanTier());
+            adminAuditService.log(adminId, AdminAuditService.PLAN_UPDATE, "USER", userId,
+                    "Plan set to " + request.getPlanTier() + " for user " + userId,
+                    request.getReason());
             return ResponseEntity.ok(new ApiResponse<>(200, status));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
@@ -785,11 +828,102 @@ public class AdminController {
             @PathVariable String userId,
             HttpServletRequest httpRequest) {
         try {
-            extractUserIdFromRequest(httpRequest);
+            String adminId = extractUserIdFromRequest(httpRequest);
             FreemiumStatusDTO status = freemiumService.updateUserPlan(userId, User.PlanTier.PAID);
+            adminAuditService.log(adminId, AdminAuditService.PLAN_UPDATE, "USER", userId,
+                    "Removed freemium — upgraded to PAID", null);
             return ResponseEntity.ok(new ApiResponse<>(200, status));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PostMapping("/users/{userId}/credits/adjust")
+    public ResponseEntity<ApiResponse<CreditAdjustmentLogDTO>> adjustUserCredits(
+            @PathVariable String userId,
+            @RequestBody CreditAdjustRequestDTO body,
+            HttpServletRequest httpRequest) {
+        try {
+            String adminId = extractUserIdFromRequest(httpRequest);
+            adminService.requireAdminOrOwner(adminId);
+            CreditAdjustmentLogDTO log = freemiumService.adjustQueryCredits(userId, body, adminId);
+            adminAuditService.log(adminId, AdminAuditService.CREDIT_ADJUST, "USER", userId,
+                    "Credit adjust delta=" + body.getDelta() + " reason=" + body.getReason(), null);
+            return ResponseEntity.ok(new ApiResponse<>(200, log));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @GetMapping("/upgrade-requests")
+    public ResponseEntity<ApiResponse<Page<UpgradeRequestDTO>>> listUpgradeRequests(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) com.prwatech.skillama.model.UpgradeRequest.RequestStatus status,
+            @RequestParam(required = false) String search,
+            HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            return ResponseEntity.ok(new ApiResponse<>(200,
+                    upgradeRequestService.list(page, size, status, search)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PatchMapping("/upgrade-requests/{requestId}")
+    public ResponseEntity<ApiResponse<UpgradeRequestDTO>> updateUpgradeRequest(
+            @PathVariable String requestId,
+            @RequestBody UpdateUpgradeRequestDTO body,
+            HttpServletRequest request) {
+        try {
+            String adminId = extractUserIdFromRequest(request);
+            return ResponseEntity.ok(new ApiResponse<>(200,
+                    upgradeRequestService.update(requestId, body, adminId)));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * OWNER: fix freemium users still on legacy 50-query cap to product default 20 (+10 referral).
+     */
+    @PostMapping("/maintenance/normalize-freemium-limits")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> normalizeFreemiumLimits(
+            HttpServletRequest request) {
+        try {
+            String adminId = extractUserIdFromRequest(request);
+            adminService.requireOwner(adminId);
+            int count = freemiumService.normalizeFreemiumCreditLimits();
+            adminAuditService.log(adminId, AdminAuditService.PLAN_UPDATE, "SYSTEM", "freemium-limits",
+                    "Normalized freemium query limits for " + count + " users", null);
+            return ResponseEntity.ok(new ApiResponse<>(200, Map.of("usersUpdated", count)));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @GetMapping("/audit-logs")
+    public ResponseEntity<ApiResponse<Page<AdminAuditLogDTO>>> listAuditLogs(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) String actorId,
+            HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            return ResponseEntity.ok(new ApiResponse<>(200,
+                    adminAuditService.list(page, size, action, actorId)));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }

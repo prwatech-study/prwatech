@@ -7,4 +7,6 @@ import lombok.Data;
 public class UpdateUserPlanRequestDTO {
     /** FREEMIUM, PAID, or ENTERPRISE */
     private User.PlanTier planTier;
+    /** Why plan was changed (admin audit) */
+    private String reason;
 }

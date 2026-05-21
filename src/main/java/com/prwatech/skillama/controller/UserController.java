@@ -7,6 +7,7 @@ import com.prwatech.skillama.model.EmailOtp;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.OtpService;
+import com.prwatech.skillama.service.PasswordResetService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -24,6 +25,7 @@ public class UserController {
     private final JwtUtils jwtUtils;
     private final OtpService otpService;
     private final FreemiumService freemiumService;
+    private final PasswordResetService passwordResetService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody User user) {
@@ -196,9 +198,28 @@ public class UserController {
     }
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<?> forgotPassword(@RequestBody User user) {
-        // Dummy implementation
-        return ResponseEntity.ok("Password reset link sent to email (dummy)");
+    public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> body) {
+        try {
+            String email = body != null ? body.get("email") : null;
+            passwordResetService.sendForgotPasswordOtp(email);
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "If this email is registered, a reset code has been sent"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequestDTO request) {
+        try {
+            passwordResetService.resetPassword(request);
+            return ResponseEntity.ok(Map.of("status", "success", "message", "Password updated"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (com.prwatech.skillama.exception.ResourceNotFoundException e) {
+            return ResponseEntity.status(404).body(Map.of("status", "error", "message", e.getMessage()));
+        }
     }
 
     @GetMapping

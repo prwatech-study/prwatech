@@ -17,6 +17,8 @@ import com.prwatech.skillama.repository.ReviewRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserCourseEnrollmentRepository;
 import com.prwatech.skillama.repository.UserCourseProgressRepository;
+import com.prwatech.skillama.repository.DeletedSkillamaUserRepository;
+import com.prwatech.skillama.model.DeletedSkillamaUser;
 import com.prwatech.skillama.repository.UserLoginEventRepository;
 import com.prwatech.skillama.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +51,25 @@ public class AdminService {
     private final UserCourseAccessService userCourseAccessService;
     private final CourseAssignmentNotificationService courseAssignmentNotificationService;
     private final PasswordEncode passwordEncode;
+    private final AdminAuditService adminAuditService;
+    private final DeletedSkillamaUserRepository deletedSkillamaUserRepository;
+
+    public User requireAdminOrOwner(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (user.getRole() != User.UserRole.ADMIN && user.getRole() != User.UserRole.OWNER) {
+            throw new RuntimeException("Admin access required");
+        }
+        return user;
+    }
+
+    public User requireOwner(String userId) {
+        User user = requireAdminOrOwner(userId);
+        if (user.getRole() != User.UserRole.OWNER) {
+            throw new RuntimeException("Owner access required");
+        }
+        return user;
+    }
     
     public AdminAccessDTO checkAdminAccess(String userId) {
         User user = userRepository.findById(userId)
@@ -119,6 +140,8 @@ public class AdminService {
         user.setUpdatedBy(createdBy);
         
         user = userRepository.save(user);
+        adminAuditService.log(createdBy, AdminAuditService.USER_CREATE, "USER", user.getId(),
+                "Created user " + user.getEmail(), null);
         return convertToUserDTO(user);
     }
     
@@ -173,6 +196,8 @@ public class AdminService {
         user.setUpdatedBy(updatedBy);
         
         user = userRepository.save(user);
+        adminAuditService.log(updatedBy, AdminAuditService.USER_UPDATE, "USER", user.getId(),
+                "Updated user " + user.getEmail(), null);
         return convertToUserDTO(user);
     }
     
@@ -212,23 +237,80 @@ public class AdminService {
     }
     
     @Transactional
-    public void deleteUser(String userId) {
+    public void deleteUser(String userId, String deletedBy, boolean hardDelete, String reason) {
+        User deleter = requireAdminOrOwner(deletedBy);
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         
-        // Cannot delete OWNER
         if (user.getRole() == User.UserRole.OWNER) {
             throw new RuntimeException("Cannot delete OWNER user");
         }
+        if (user.getRole() == User.UserRole.ADMIN && deleter.getRole() != User.UserRole.OWNER) {
+            throw new RuntimeException("Only OWNER can delete ADMIN users");
+        }
+        if (deleter.getId().equals(userId)) {
+            throw new RuntimeException("Cannot delete your own account");
+        }
+
+        if (hardDelete) {
+            if (deleter.getRole() != User.UserRole.OWNER) {
+                throw new RuntimeException("Only OWNER can permanently delete users");
+            }
+            if (reason == null || reason.isBlank()) {
+                throw new IllegalArgumentException("reason is required for permanent delete");
+            }
+            archiveAndHardDeleteUser(user, deleter, reason.trim());
+            adminAuditService.log(deletedBy, AdminAuditService.USER_HARD_DELETE, "USER", userId,
+                    "Permanently deleted user " + user.getEmail() + ": " + reason, null);
+            return;
+        }
         
-        // Soft delete - set active to false
         user.setActive(false);
         user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedBy(deletedBy);
         userRepository.save(user);
+        adminAuditService.log(deletedBy, AdminAuditService.USER_DELETE, "USER", userId,
+                "Deactivated user " + user.getEmail(), null);
+    }
+
+    private void archiveAndHardDeleteUser(User user, User deleter, String reason) {
+        DeletedSkillamaUser archive = DeletedSkillamaUser.builder()
+                .originalUserId(user.getId())
+                .email(user.getEmail())
+                .name(user.getName())
+                .role(user.getRole())
+                .planTier(user.getPlanTier())
+                .deletedByAdminId(deleter.getId())
+                .deletedByAdminEmail(deleter.getEmail())
+                .reason(reason)
+                .deletedAt(LocalDateTime.now())
+                .build();
+        deletedSkillamaUserRepository.save(archive);
+        userRepository.delete(user);
+    }
+
+    @Transactional
+    public void resetAdminPassword(String ownerId, String targetUserId, String newPassword) {
+        User owner = requireOwner(ownerId);
+        if (newPassword == null || newPassword.length() < 6) {
+            throw new IllegalArgumentException("Password must be at least 6 characters");
+        }
+        User target = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (target.getRole() != User.UserRole.ADMIN) {
+            throw new RuntimeException("Password reset is only allowed for ADMIN accounts");
+        }
+        target.setPassword(passwordEncode.getEncryptedPassword(newPassword));
+        target.setUpdatedAt(LocalDateTime.now());
+        target.setUpdatedBy(ownerId);
+        userRepository.save(target);
+        adminAuditService.log(ownerId, AdminAuditService.ADMIN_PASSWORD_RESET, "USER", targetUserId,
+                "OWNER reset password for admin " + target.getEmail(), null);
     }
     
     @Transactional
-    public AssignmentResponseDTO assignCourses(String userId, List<String> courseIds) {
+    public AssignmentResponseDTO assignCourses(String userId, List<String> courseIds, String assignedBy) {
+        requireAdminOrOwner(assignedBy);
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         
@@ -263,8 +345,11 @@ public class AdminService {
                     .map(UserCourseEnrollment::getCourseId)
                     .collect(Collectors.toList());
             courseAssignmentNotificationService.notifyCoursesAssigned(user, assignedIds);
+            adminAuditService.log(assignedBy, AdminAuditService.ASSIGN_COURSE, "USER", userId,
+                    "Assigned " + assignedIds.size() + " course(s) to " + user.getEmail(),
+                    String.join(",", assignedIds));
         }
-        
+
         return AssignmentResponseDTO.builder()
             .userId(userId)
             .assignedCourses(enrollments.size())
@@ -282,7 +367,8 @@ public class AdminService {
     }
     
     @Transactional
-    public void unassignCourse(String userId, String courseId) {
+    public void unassignCourse(String userId, String courseId, String unassignedBy) {
+        requireAdminOrOwner(unassignedBy);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         UserCourseEnrollment enrollment = enrollmentRepository
@@ -292,6 +378,8 @@ public class AdminService {
         enrollment.setStatus(UserCourseEnrollment.EnrollmentStatus.INACTIVE);
         enrollmentRepository.save(enrollment);
         courseAssignmentNotificationService.notifyCourseUnassigned(user, courseId);
+        adminAuditService.log(unassignedBy, AdminAuditService.UNASSIGN_COURSE, "USER", userId,
+                "Unassigned course " + courseId + " from " + user.getEmail(), courseId);
     }
     
     public UserAssignmentsDTO getUserAssignments(String userId) {

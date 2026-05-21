@@ -5,6 +5,7 @@ import com.prwatech.skillama.dto.*;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.ReferralShareService;
+import com.prwatech.skillama.service.UpgradeRequestService;
 import com.prwatech.skillama.service.UserProfileService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class UserProfileController {
     private final UserService userService;
     private final FreemiumService freemiumService;
     private final ReferralShareService referralShareService;
+    private final UpgradeRequestService upgradeRequestService;
     private final JwtUtils jwtUtils;
     
     private static final String SESSION_COOKIE_NAME = "skillama_session_id";
@@ -190,8 +192,26 @@ public class UserProfileController {
         try {
             String userId = extractUserIdFromRequest(request);
             return ResponseEntity.ok(freemiumService.consumeQuery(userId, body));
+        } catch (com.prwatech.skillama.exception.QueryCreditLimitException e) {
+            return ResponseEntity.status(429).body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage(),
+                    "queryCreditsUsed", e.getQueryCreditsUsed(),
+                    "queryCreditsLimit", e.getQueryCreditsLimit()));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(429).body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/upgrade-interest")
+    public ResponseEntity<?> recordUpgradeInterest(
+            @RequestBody UpgradeInterestRequestDTO body,
+            HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            return ResponseEntity.ok(upgradeRequestService.recordInterest(userId, body));
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body(Map.of("status", "error", "message", "Unauthorized"));
         }
     }
 

@@ -12,24 +12,24 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Document(collection = "email_otps")
-public class EmailOtp {
+@Document(collection = "admin_audit_logs")
+public class AdminAuditLog {
     @Id
     private String id;
 
     @Indexed
-    private String email;
-
-    private String otpHash;
-    private OtpPurpose purpose;
-    private String verificationToken;
+    private String actorId;
+    private String actorEmail;
+    private String actorRole;
 
     @Indexed
-    private LocalDateTime expiresAt;
+    private String action;
 
+    private String entityType;
+    private String entityId;
+    private String summary;
+    private String detailsJson;
+
+    @Indexed
     private LocalDateTime createdAt;
-
-    public enum OtpPurpose {
-        SIGNUP, LOGIN, MIGRATE_FREEMIUM, PASSWORD_RESET
-    }
 }
