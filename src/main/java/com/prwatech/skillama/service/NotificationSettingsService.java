@@ -33,10 +33,9 @@ public class NotificationSettingsService {
     private final EmailServiceImpl emailService;
 
     public NotificationSettingsDTO getAdminSettings() {
-        PlatformNotificationSettings settings = loadPersisted();
-        if (settings == null) {
-            settings = new PlatformNotificationSettings();
-        }
+        PlatformNotificationSettings persisted = loadPersisted();
+        final PlatformNotificationSettings settings =
+                persisted != null ? persisted : new PlatformNotificationSettings();
         List<NotificationTypeSettingDTO> types = Arrays.stream(NotificationEventType.values())
                 .map(type -> toTypeDto(type, settings))
                 .collect(Collectors.toList());
