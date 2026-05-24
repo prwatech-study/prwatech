@@ -21,6 +21,7 @@ import com.prwatech.skillama.repository.DeletedSkillamaUserRepository;
 import com.prwatech.skillama.model.DeletedSkillamaUser;
 import com.prwatech.skillama.repository.UserLoginEventRepository;
 import com.prwatech.skillama.repository.UserProfileRepository;
+import com.prwatech.skillama.util.IndiaTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -30,7 +31,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import com.prwatech.skillama.util.IndiaTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -70,6 +70,21 @@ public class AdminService {
             throw new RuntimeException("Owner access required");
         }
         return user;
+    }
+
+    /** Course assignment is for learners only (USER role), not ADMIN/OWNER. */
+    private static void assertCourseAssignableLearner(User user) {
+        if (user.getRole() == User.UserRole.ADMIN || user.getRole() == User.UserRole.OWNER) {
+            throw new IllegalArgumentException(
+                    "Course assignment applies to learners only. Admin and owner accounts cannot be assigned courses.");
+        }
+    }
+
+    private static boolean isCourseAssignableLearner(User user) {
+        if (user == null) {
+            return false;
+        }
+        return user.getRole() != User.UserRole.ADMIN && user.getRole() != User.UserRole.OWNER;
     }
     
     public AdminAccessDTO checkAdminAccess(String userId) {
@@ -167,12 +182,19 @@ public class AdminService {
         User updater = userRepository.findById(updatedBy)
             .orElseThrow(() -> new ResourceNotFoundException("Updater not found"));
         
-        // Only OWNER can change roles to ADMIN/OWNER
-        if ((request.getRole() == User.UserRole.ADMIN || request.getRole() == User.UserRole.OWNER)
-            && updater.getRole() != User.UserRole.OWNER) {
-            throw new RuntimeException("Only OWNER can change role to ADMIN or OWNER");
+        // Only OWNER can grant ADMIN/OWNER or remove ADMIN role
+        if (request.getRole() != null) {
+            if ((request.getRole() == User.UserRole.ADMIN || request.getRole() == User.UserRole.OWNER)
+                    && updater.getRole() != User.UserRole.OWNER) {
+                throw new RuntimeException("Only OWNER can change role to ADMIN or OWNER");
+            }
+            if (user.getRole() == User.UserRole.ADMIN
+                    && request.getRole() == User.UserRole.USER
+                    && updater.getRole() != User.UserRole.OWNER) {
+                throw new RuntimeException("Only OWNER can remove admin role");
+            }
         }
-        
+
         // Cannot change OWNER role
         if (user.getRole() == User.UserRole.OWNER && request.getRole() != User.UserRole.OWNER) {
             throw new RuntimeException("Cannot change OWNER role");
@@ -234,12 +256,44 @@ public class AdminService {
             throw new RuntimeException("Cannot change OWNER role");
         }
         
+        if (newRole == User.UserRole.USER
+                && user.getRole() == User.UserRole.ADMIN
+                && updater.getRole() != User.UserRole.OWNER) {
+            throw new RuntimeException("Only OWNER can remove admin role");
+        }
+
         user.setRole(newRole);
         user.setUpdatedAt(IndiaTime.now());
         user.setUpdatedBy(updatedBy);
         
         user = userRepository.save(user);
+        adminAuditService.log(updatedBy, AdminAuditService.USER_UPDATE, "USER", user.getId(),
+                "Changed role to " + newRole + " for " + user.getEmail(), null);
         return convertToUserDTO(user);
+    }
+
+    @Transactional
+    public UserDTO promoteUserToAdmin(String userId, String updatedBy) {
+        requireOwner(updatedBy);
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setRole(User.UserRole.ADMIN);
+        return updateUser(userId, request, updatedBy);
+    }
+
+    @Transactional
+    public UserDTO demoteAdminToUser(String userId, String updatedBy) {
+        requireOwner(updatedBy);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (user.getRole() == User.UserRole.OWNER) {
+            throw new RuntimeException("Cannot change OWNER role");
+        }
+        if (user.getRole() != User.UserRole.ADMIN) {
+            throw new IllegalArgumentException("User is not an admin");
+        }
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setRole(User.UserRole.USER);
+        return updateUser(userId, request, updatedBy);
     }
     
     @Transactional
@@ -362,6 +416,7 @@ public class AdminService {
         requireAdminOrOwner(assignedBy);
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        assertCourseAssignableLearner(user);
         
         List<UserCourseEnrollment> enrollments = new ArrayList<>();
         LocalDateTime now = IndiaTime.now();
@@ -495,20 +550,24 @@ public class AdminService {
             .map(enrollment -> {
                 User user = userRepository.findById(enrollment.getUserId())
                     .orElse(null);
-                
+                if (!isCourseAssignableLearner(user)) {
+                    return null;
+                }
+
                 UserCourseProgress progress = progressRepository
                     .findByUserIdAndCourseId(enrollment.getUserId(), courseId)
                     .orElse(null);
                 
                 CourseAssignmentsDTO.UserAssignmentDTO dto = new CourseAssignmentsDTO.UserAssignmentDTO();
                 dto.setUserId(enrollment.getUserId());
-                dto.setUserName(user != null ? user.getName() : "Unknown");
-                dto.setUserEmail(user != null ? user.getEmail() : "Unknown");
+                dto.setUserName(user.getName());
+                dto.setUserEmail(user.getEmail());
                 dto.setEnrolledAt(enrollment.getEnrolledAt());
                 dto.setProgress(progress != null ? progress.getProgress() : 0);
                 
                 return dto;
             })
+            .filter(java.util.Objects::nonNull)
             .collect(Collectors.toList());
         
         CourseAssignmentsDTO result = new CourseAssignmentsDTO();
