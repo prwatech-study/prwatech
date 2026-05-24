@@ -14,6 +14,7 @@ import com.prwatech.skillama.service.AdminService;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.PlatformDemoVideoService;
+import com.prwatech.skillama.service.NotificationSettingsService;
 import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.ReviewService;
 import com.prwatech.skillama.service.SalesLeadService;
@@ -54,6 +55,7 @@ public class AdminController {
     private final ReviewService reviewService;
     private final PlatformDemoVideoService platformDemoVideoService;
     private final ReferralShareService referralShareService;
+    private final NotificationSettingsService notificationSettingsService;
     private final AdminAuditService adminAuditService;
     private final UpgradeRequestService upgradeRequestService;
 
@@ -1104,6 +1106,32 @@ public class AdminController {
             String adminUserId = extractUserIdFromRequest(request);
             return ResponseEntity.ok(
                     new ApiResponse<>(200, referralShareService.updateConfig(body, adminUserId)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @GetMapping("/platform/notification-settings")
+    public ResponseEntity<ApiResponse<NotificationSettingsDTO>> getNotificationSettings(HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            return ResponseEntity.ok(
+                    new ApiResponse<>(200, notificationSettingsService.getAdminSettings()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PutMapping("/platform/notification-settings")
+    public ResponseEntity<ApiResponse<NotificationSettingsDTO>> updateNotificationSettings(
+            @RequestBody UpdateNotificationSettingsDTO body,
+            HttpServletRequest request) {
+        try {
+            String adminUserId = extractUserIdFromRequest(request);
+            return ResponseEntity.ok(
+                    new ApiResponse<>(200, notificationSettingsService.updateSettings(body, adminUserId)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
         } catch (Exception e) {

@@ -4,8 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.service.impl.EmailServiceImpl;
-import com.prwatech.skillama.SkillamaNotificationEmails;
 import com.prwatech.skillama.dto.IssueReportResponseDTO;
+import com.prwatech.skillama.notification.NotificationEventType;
 import com.prwatech.skillama.dto.ReportIssueRequestDTO;
 import com.prwatech.skillama.model.IssueReport;
 import com.prwatech.skillama.repository.IssueReportRepository;
@@ -32,6 +32,7 @@ public class IssueReportService {
     private final IssueReportRepository issueReportRepository;
     private final EmailServiceImpl emailService;
     private final ObjectMapper objectMapper;
+    private final NotificationSettingsService notificationSettingsService;
 
     public IssueReportResponseDTO submit(ReportIssueRequestDTO request, HttpServletRequest httpRequest) {
         if (request == null || !StringUtils.hasText(request.getUserDescription())) {
@@ -149,9 +150,8 @@ public class IssueReportService {
                     + "\n\n----- raw client JSON -----\n\n"
                     + (report.getRawClientPayloadJson() != null ? report.getRawClientPayloadJson() : "");
 
-            for (String teamEmail : SkillamaNotificationEmails.TEAM_INBOXES) {
-                emailService.sendEmail(new EmailSendDto(teamEmail, subject, message));
-            }
+            notificationSettingsService.sendTeamNotification(
+                    NotificationEventType.ISSUE_REPORT, subject, message);
             LOGGER.info("Issue report notification sent for {}", report.getId());
         } catch (Exception e) {
             LOGGER.error("Failed to send issue report email for {}", report.getId(), e);

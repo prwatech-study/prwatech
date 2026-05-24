@@ -1,9 +1,7 @@
 package com.prwatech.skillama.service;
 
-import com.prwatech.common.dto.EmailSendDto;
-import com.prwatech.common.service.impl.EmailServiceImpl;
-import com.prwatech.skillama.SkillamaNotificationEmails;
 import com.prwatech.skillama.model.Course;
+import com.prwatech.skillama.notification.NotificationEventType;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.CourseRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,8 +17,8 @@ public class CourseAssignmentNotificationService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CourseAssignmentNotificationService.class);
 
-    private final EmailServiceImpl emailService;
     private final CourseRepository courseRepository;
+    private final NotificationSettingsService notificationSettingsService;
 
     public void notifyCoursesAssigned(User user, List<String> courseIds) {
         if (courseIds == null || courseIds.isEmpty()) {
@@ -39,7 +37,14 @@ public class CourseAssignmentNotificationService {
                 + "User: " + safeName(user) + " (" + user.getEmail() + ")\n"
                 + "Assigned courses:\n" + courseList;
 
-        sendToStudentAndTeam(user.getEmail(), studentSubject, studentBody, teamSubject, teamBody);
+        sendToStudentAndTeam(
+                user.getEmail(),
+                studentSubject,
+                studentBody,
+                NotificationEventType.COURSE_ASSIGNED_LEARNER,
+                teamSubject,
+                teamBody,
+                NotificationEventType.COURSE_ASSIGNED_TEAM);
     }
 
     public void notifyCourseUnassigned(User user, String courseId) {
@@ -59,22 +64,28 @@ public class CourseAssignmentNotificationService {
                 + "User: " + safeName(user) + " (" + user.getEmail() + ")\n"
                 + "Course: " + courseName + " (" + courseId + ")";
 
-        sendToStudentAndTeam(user.getEmail(), studentSubject, studentBody, teamSubject, teamBody);
+        sendToStudentAndTeam(
+                user.getEmail(),
+                studentSubject,
+                studentBody,
+                NotificationEventType.COURSE_UNASSIGNED_LEARNER,
+                teamSubject,
+                teamBody,
+                NotificationEventType.COURSE_UNASSIGNED_TEAM);
     }
 
     private void sendToStudentAndTeam(
             String studentEmail,
             String studentSubject,
             String studentBody,
+            NotificationEventType learnerType,
             String teamSubject,
-            String teamBody) {
+            String teamBody,
+            NotificationEventType teamType) {
         try {
-            if (studentEmail != null && !studentEmail.isBlank()) {
-                emailService.sendEmail(new EmailSendDto(studentEmail, studentSubject, studentBody));
-            }
-            for (String teamEmail : SkillamaNotificationEmails.TEAM_INBOXES) {
-                emailService.sendEmail(new EmailSendDto(teamEmail, teamSubject, teamBody));
-            }
+            notificationSettingsService.sendLearnerNotification(
+                    learnerType, studentEmail, studentSubject, studentBody);
+            notificationSettingsService.sendTeamNotification(teamType, teamSubject, teamBody);
         } catch (Exception e) {
             LOGGER.error("Failed to send course assignment notification", e);
         }

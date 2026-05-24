@@ -2,8 +2,8 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.service.impl.EmailServiceImpl;
-import com.prwatech.skillama.SkillamaNotificationEmails;
 import com.prwatech.skillama.dto.AdminReviewReplyRequestDTO;
+import com.prwatech.skillama.notification.NotificationEventType;
 import com.prwatech.skillama.dto.CreateReviewRequestDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.exception.UserNotFoundException;
@@ -31,6 +31,7 @@ public class ReviewService {
     private final CourseRepository courseRepository;
     private final UserService userService;
     private final EmailServiceImpl emailService;
+    private final NotificationSettingsService notificationSettingsService;
 
     public Review saveReview(String userId, CreateReviewRequestDTO request) {
         User user = userService.findById(userId)
@@ -208,9 +209,8 @@ public class ReviewService {
                     + "Feedback:\n" + review.getComment() + "\n\n"
                     + "Reply from the admin panel to respond to the user.";
 
-            for (String teamEmail : SkillamaNotificationEmails.TEAM_INBOXES) {
-                emailService.sendEmail(new EmailSendDto(teamEmail, subject, message));
-            }
+            notificationSettingsService.sendTeamNotification(
+                    NotificationEventType.FEEDBACK_NEW, subject, message);
             LOGGER.info("Feedback notification emails sent for review {}", review.getId());
         } catch (Exception e) {
             LOGGER.error("Failed to send feedback notification for review {}", review.getId(), e);
@@ -236,7 +236,11 @@ public class ReviewService {
                     + "(Feedback panel on your profile or in the learning area).\n\n"
                     + "Thank you,\nSkillama Team";
 
-            emailService.sendEmail(new EmailSendDto(review.getUserEmail(), subject, message));
+            notificationSettingsService.sendLearnerNotification(
+                    NotificationEventType.FEEDBACK_REPLY,
+                    review.getUserEmail(),
+                    subject,
+                    message);
             LOGGER.info("Reply notification email sent to {} for review {}", review.getUserEmail(), review.getId());
         } catch (Exception e) {
             LOGGER.error("Failed to send reply notification for review {}", review.getId(), e);

@@ -4,8 +4,8 @@ import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.configuration.PasswordEncode;
 import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.service.impl.EmailServiceImpl;
-import com.prwatech.skillama.SkillamaNotificationEmails;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.notification.NotificationEventType;
 import com.prwatech.skillama.model.UserLoginEvent;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserLoginEventRepository;
@@ -38,6 +38,7 @@ public class UserService {
     private final EmailServiceImpl emailService;
     private final AppContext appContext;
     private final PasswordEncode passwordEncode;
+    private final NotificationSettingsService notificationSettingsService;
 
     public User register(User user) {
         // Encode password before storing in database
@@ -72,10 +73,8 @@ public class UserService {
             
             String subject = "New User Registration - Activation Required";
 
-            for (String teamEmail : SkillamaNotificationEmails.TEAM_INBOXES) {
-                emailService.sendEmail(new EmailSendDto(teamEmail, subject, emailMessage));
-            }
-            
+            notificationSettingsService.sendTeamNotification(
+                    NotificationEventType.USER_REGISTRATION, subject, emailMessage);
             LOGGER.info("Registration notification emails sent for user: {}", user.getEmail());
         } catch (Exception e) {
             LOGGER.error("Failed to send registration notification email for user: {}", user.getEmail(), e);

@@ -2,8 +2,8 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.service.impl.EmailServiceImpl;
-import com.prwatech.skillama.SkillamaNotificationEmails;
 import com.prwatech.skillama.dto.UpgradeInterestRequestDTO;
+import com.prwatech.skillama.notification.NotificationEventType;
 import com.prwatech.skillama.dto.UpgradeRequestDTO;
 import com.prwatech.skillama.dto.UpdateUpgradeRequestDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
@@ -33,6 +33,7 @@ public class UpgradeRequestService {
     private final SkillamaUserRepository userRepository;
     private final EmailServiceImpl emailService;
     private final SkillamaPlatformConfigService platformConfigService;
+    private final NotificationSettingsService notificationSettingsService;
 
     @Transactional
     public UpgradeRequestDTO recordInterest(String userId, UpgradeInterestRequestDTO request) {
@@ -79,9 +80,8 @@ public class UpgradeRequestService {
                 + "Request ID: " + entry.getId() + "\n"
                 + "Contact: " + platformConfigService.getUpgradeContactEmail() + "\n";
         try {
-            for (String inbox : SkillamaNotificationEmails.TEAM_INBOXES) {
-                emailService.sendEmail(new EmailSendDto(inbox, subject, body));
-            }
+            notificationSettingsService.sendTeamNotification(
+                    NotificationEventType.UPGRADE_REQUEST, subject, body);
         } catch (Exception e) {
             LOGGER.warn("Could not email sales team for upgrade request {}: {}", entry.getId(), e.getMessage());
         }
