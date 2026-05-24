@@ -9,6 +9,7 @@ import com.prwatech.skillama.notification.NotificationEventType;
 import com.prwatech.skillama.model.UserLoginEvent;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserLoginEventRepository;
+import com.prwatech.skillama.util.IndiaTime;
 import lombok.AllArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +22,6 @@ import org.springframework.stereotype.Service;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import com.prwatech.skillama.util.IndiaTime;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -49,6 +49,9 @@ public class UserService {
         }
         user.setActive(false);
         user.setActivationKey(generateActivationKey());
+        if (user.getRole() == null) {
+            user.setRole(User.UserRole.USER);
+        }
         user.setCreatedAt(IndiaTime.now());
         User savedUser = userRepository.save(user);
         

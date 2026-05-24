@@ -53,6 +53,11 @@ public class User {
         USER, ADMIN, OWNER
     }
 
+    /** Null/missing role in Mongo is treated as learner (USER). */
+    public UserRole getEffectiveRole() {
+        return role != null ? role : UserRole.USER;
+    }
+
     public enum PlanTier {
         FREEMIUM, PAID, ENTERPRISE
     }

@@ -45,7 +45,15 @@ public class SkillamaUserRepositoryImpl implements SkillamaUserRepositoryCustom 
         }
 
         if (role != null) {
-            query.addCriteria(Criteria.where("role").is(role));
+            // Legacy accounts may have no role field; treat missing/null as USER (learner).
+            if (role == User.UserRole.USER) {
+                query.addCriteria(new Criteria().orOperator(
+                        Criteria.where("role").is(User.UserRole.USER),
+                        Criteria.where("role").is(null),
+                        Criteria.where("role").exists(false)));
+            } else {
+                query.addCriteria(Criteria.where("role").is(role));
+            }
         }
 
         if (active != null) {
