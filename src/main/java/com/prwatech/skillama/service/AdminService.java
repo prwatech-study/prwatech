@@ -372,8 +372,18 @@ public class AdminService {
                 throw new IllegalStateException("Cannot assign archived course: " + courseId);
             }
             
-            // Check if already enrolled
-            if (!enrollmentRepository.existsByUserIdAndCourseId(userId, courseId)) {
+            java.util.Optional<UserCourseEnrollment> existingEnrollment =
+                    enrollmentRepository.findByUserIdAndCourseId(userId, courseId);
+            if (existingEnrollment.isPresent()) {
+                UserCourseEnrollment existing = existingEnrollment.get();
+                if (existing.getStatus() == UserCourseEnrollment.EnrollmentStatus.ACTIVE) {
+                    continue;
+                }
+                existing.setStatus(UserCourseEnrollment.EnrollmentStatus.ACTIVE);
+                existing.setEnrollmentType(UserCourseEnrollment.EnrollmentType.ASSIGNED);
+                existing.setEnrolledAt(now);
+                enrollments.add(existing);
+            } else {
                 UserCourseEnrollment enrollment = new UserCourseEnrollment();
                 enrollment.setUserId(userId);
                 enrollment.setCourseId(courseId);
@@ -383,8 +393,10 @@ public class AdminService {
                 enrollments.add(enrollment);
             }
         }
-        
-        enrollmentRepository.saveAll(enrollments);
+
+        if (!enrollments.isEmpty()) {
+            enrollmentRepository.saveAll(enrollments);
+        }
         
         // Initialize progress for new enrollments
         for (UserCourseEnrollment enrollment : enrollments) {
