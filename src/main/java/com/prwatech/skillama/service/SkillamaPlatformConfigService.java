@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class SkillamaPlatformConfigService {
 
-    @Value("${skillama.upgrade.contact-email:eduprwa@gmail.com}")
+    @Value("${skillama.upgrade.contact-email:hello@skillama.co.in}")
     private String upgradeContactEmail;
 
     @Value("${skillama.upgrade.contact-message:Paid and enterprise access is provisioned by the internal Skillama team. Email us with the account you use to sign in.}")

@@ -5,6 +5,8 @@ import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import com.prwatech.skillama.repository.CourseRepository;
+import com.prwatech.skillama.repository.UserCourseEnrollmentRepository;
+import com.prwatech.skillama.repository.UserCourseProgressRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -12,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -27,11 +30,20 @@ import lombok.Getter;
 public class CourseService {
     private final CourseRepository courseRepository;
     private final CourseCurriculumRepository curriculumRepository;
+    private final UserCourseEnrollmentRepository enrollmentRepository;
+    private final UserCourseProgressRepository progressRepository;
     private final MongoTemplate skillamaMongoTemplate;
 
-    public CourseService(CourseRepository courseRepository, CourseCurriculumRepository curriculumRepo, @Qualifier("skillamaMongoTemplate") MongoTemplate skillamaMongoTemplate) {
+    public CourseService(
+            CourseRepository courseRepository,
+            CourseCurriculumRepository curriculumRepo,
+            UserCourseEnrollmentRepository enrollmentRepository,
+            UserCourseProgressRepository progressRepository,
+            @Qualifier("skillamaMongoTemplate") MongoTemplate skillamaMongoTemplate) {
         this.courseRepository = courseRepository;
         this.curriculumRepository = curriculumRepo;
+        this.enrollmentRepository = enrollmentRepository;
+        this.progressRepository = progressRepository;
         this.skillamaMongoTemplate = skillamaMongoTemplate;
     }
 
@@ -70,7 +82,25 @@ public class CourseService {
         }).orElse(null);
     }
 
+    @Transactional
     public void delete(String id) {
+        if (!courseRepository.existsById(id)) {
+            throw new NotFoundException("Course not found");
+        }
+        List<CourseCurriculum> modules = curriculumRepository.findByCourseIdOrderByOrderAsc(id);
+        if (!modules.isEmpty()) {
+            curriculumRepository.deleteAll(modules);
+        }
+        List<com.prwatech.skillama.model.UserCourseEnrollment> enrollments =
+                enrollmentRepository.findByCourseId(id);
+        if (!enrollments.isEmpty()) {
+            enrollmentRepository.deleteAll(enrollments);
+        }
+        List<com.prwatech.skillama.model.UserCourseProgress> progressRows =
+                progressRepository.findByCourseId(id);
+        if (!progressRows.isEmpty()) {
+            progressRepository.deleteAll(progressRows);
+        }
         courseRepository.deleteById(id);
     }
 

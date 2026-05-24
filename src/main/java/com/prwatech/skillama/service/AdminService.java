@@ -189,7 +189,12 @@ public class AdminService {
             user.setEmail(request.getEmail());
         }
         if (request.getRole() != null) user.setRole(request.getRole());
-        if (request.getActive() != null) user.setActive(request.getActive());
+        if (request.getActive() != null) {
+            if (!request.getActive()) {
+                assertCanChangeUserActiveStatus(updater, user);
+            }
+            user.setActive(request.getActive());
+        }
         if (request.getGender() != null) user.setGender(request.getGender());
         
         user.setUpdatedAt(LocalDateTime.now());
@@ -287,6 +292,49 @@ public class AdminService {
                 .build();
         deletedSkillamaUserRepository.save(archive);
         userRepository.delete(user);
+    }
+
+    @Transactional
+    public User activateUserByAdmin(String email, String actorId) {
+        User actor = requireAdminOrOwner(actorId);
+        User target = userRepository.findByEmail(email.trim())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        assertCanChangeUserActiveStatus(actor, target);
+        target.setActive(true);
+        target.setActivationKey(null);
+        target.setUpdatedAt(LocalDateTime.now());
+        target.setUpdatedBy(actorId);
+        target = userRepository.save(target);
+        adminAuditService.log(actorId, AdminAuditService.USER_UPDATE, "USER", target.getId(),
+                "Activated user " + target.getEmail(), null);
+        return target;
+    }
+
+    @Transactional
+    public User deactivateUserByAdmin(String email, String actorId) {
+        User actor = requireAdminOrOwner(actorId);
+        User target = userRepository.findByEmail(email.trim())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        assertCanChangeUserActiveStatus(actor, target);
+        target.setActive(false);
+        target.setUpdatedAt(LocalDateTime.now());
+        target.setUpdatedBy(actorId);
+        target = userRepository.save(target);
+        adminAuditService.log(actorId, AdminAuditService.USER_UPDATE, "USER", target.getId(),
+                "Deactivated user " + target.getEmail(), null);
+        return target;
+    }
+
+    private void assertCanChangeUserActiveStatus(User actor, User target) {
+        if (target.getRole() == User.UserRole.OWNER) {
+            throw new RuntimeException("Cannot change status of OWNER user");
+        }
+        if (target.getRole() == User.UserRole.ADMIN && actor.getRole() != User.UserRole.OWNER) {
+            throw new RuntimeException("Only OWNER can change status of ADMIN users");
+        }
+        if (actor.getId().equals(target.getId())) {
+            throw new RuntimeException("Cannot change status of your own account");
+        }
     }
 
     @Transactional

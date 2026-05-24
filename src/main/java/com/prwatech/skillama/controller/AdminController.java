@@ -505,9 +505,19 @@ public class AdminController {
             adminAuditService.log(adminId, AdminAuditService.COURSE_DELETE, "COURSE", courseId,
                     "Deleted course " + courseId, null);
             return ResponseEntity.ok(new ApiResponse<>(200, null));
+        } catch (com.prwatech.common.exception.NotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(404, null));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Authorization")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiResponse<>(401, null));
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(400, null));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(new ApiResponse<>(401, null));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(500, null));
         }
     }
     
@@ -894,7 +904,7 @@ public class AdminController {
     }
 
     /**
-     * OWNER: fix freemium users still on legacy 50-query cap to product default 20 (+10 referral).
+     * OWNER: align freemium users to product default 50 queries (70 with referral) and all core modules.
      */
     @PostMapping("/maintenance/normalize-freemium-limits")
     public ResponseEntity<ApiResponse<Map<String, Object>>> normalizeFreemiumLimits(

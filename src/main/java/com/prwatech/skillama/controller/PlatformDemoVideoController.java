@@ -1,7 +1,9 @@
 package com.prwatech.skillama.controller;
 
 import com.prwatech.skillama.dto.DemoVideoDTO;
+import com.prwatech.skillama.dto.FreemiumOfferingDTO;
 import com.prwatech.skillama.dto.UpgradeContactDTO;
+import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.PlatformDemoVideoService;
 import com.prwatech.skillama.service.SkillamaPlatformConfigService;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ public class PlatformDemoVideoController {
 
     private final PlatformDemoVideoService platformDemoVideoService;
     private final SkillamaPlatformConfigService platformConfigService;
+    private final FreemiumService freemiumService;
 
     @GetMapping("/demo-video")
     public ResponseEntity<DemoVideoDTO> getDemoVideo() {
@@ -30,5 +33,11 @@ public class PlatformDemoVideoController {
     @GetMapping("/upgrade-contact")
     public ResponseEntity<UpgradeContactDTO> getUpgradeContact() {
         return ResponseEntity.ok(platformConfigService.getUpgradeContact());
+    }
+
+    /** Public freemium limits & modules — same source as LMS enforcement. */
+    @GetMapping("/freemium-offering")
+    public ResponseEntity<FreemiumOfferingDTO> getFreemiumOffering() {
+        return ResponseEntity.ok(freemiumService.getPublicOffering());
     }
 }

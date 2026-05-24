@@ -5,6 +5,9 @@ import com.prwatech.common.dto.UserDetails;
 import com.prwatech.skillama.dto.*;
 import com.prwatech.skillama.model.EmailOtp;
 import com.prwatech.skillama.model.User;
+import com.prwatech.common.Constants;
+import com.prwatech.skillama.exception.ResourceNotFoundException;
+import com.prwatech.skillama.service.AdminService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.OtpService;
 import com.prwatech.skillama.service.PasswordResetService;
@@ -14,6 +17,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.Map;
 import java.util.Optional;
 
@@ -22,6 +26,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class UserController {
     private final UserService userService;
+    private final AdminService adminService;
     private final JwtUtils jwtUtils;
     private final OtpService otpService;
     private final FreemiumService freemiumService;
@@ -241,21 +246,55 @@ public class UserController {
     }
     
     @PostMapping("/admin/activate")
-    public ResponseEntity<?> activateUser(@RequestParam String email) {
-        User activatedUser = userService.activateUser(email);
-        if (activatedUser != null) {
+    public ResponseEntity<?> activateUser(
+            @RequestParam String email,
+            HttpServletRequest request) {
+        try {
+            String actorId = extractUserIdFromRequest(request);
+            adminService.activateUserByAdmin(email, actorId);
             return ResponseEntity.ok("User activated successfully");
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(404).body("User not found");
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("access required")) {
+                return ResponseEntity.status(401).body(e.getMessage());
+            }
+            return ResponseEntity.status(403).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body("Unauthorized");
         }
-        return ResponseEntity.status(404).body("User not found");
     }
     
     @PostMapping("/admin/deactivate")
-    public ResponseEntity<?> deactivateUser(@RequestParam String email) {
-        User deactivatedUser = userService.deactivateUser(email);
-        if (deactivatedUser != null) {
+    public ResponseEntity<?> deactivateUser(
+            @RequestParam String email,
+            HttpServletRequest request) {
+        try {
+            String actorId = extractUserIdFromRequest(request);
+            adminService.deactivateUserByAdmin(email, actorId);
             return ResponseEntity.ok("User deactivated successfully");
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(404).body("User not found");
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("access required")) {
+                return ResponseEntity.status(401).body(e.getMessage());
+            }
+            return ResponseEntity.status(403).body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body("Unauthorized");
         }
-        return ResponseEntity.status(404).body("User not found");
+    }
+
+    private String extractUserIdFromRequest(HttpServletRequest request) {
+        final String requestTokenHeader = request.getHeader(Constants.AUTH);
+        if (requestTokenHeader == null || !requestTokenHeader.startsWith("Bearer ")) {
+            throw new RuntimeException("Authorization header missing or invalid");
+        }
+        String jwtToken = requestTokenHeader.substring(7);
+        String email = jwtUtils.extractUsername(jwtToken);
+        User user = userService.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return user.getId();
     }
     
     @PostMapping("/admin/migrate-passwords")

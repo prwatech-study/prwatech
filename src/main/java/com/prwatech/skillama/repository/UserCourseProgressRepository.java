@@ -11,5 +11,6 @@ import java.util.Optional;
 public interface UserCourseProgressRepository extends MongoRepository<UserCourseProgress, String> {
     Optional<UserCourseProgress> findByUserIdAndCourseId(String userId, String courseId);
     List<UserCourseProgress> findByUserId(String userId);
+    List<UserCourseProgress> findByCourseId(String courseId);
 }
 

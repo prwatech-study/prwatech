@@ -5,6 +5,7 @@ import com.prwatech.skillama.dto.ConsumeQueryRequestDTO;
 import com.prwatech.skillama.dto.CreditAdjustRequestDTO;
 import com.prwatech.skillama.dto.CreditAdjustmentLogDTO;
 import com.prwatech.skillama.dto.FreemiumCourseOptionDTO;
+import com.prwatech.skillama.dto.FreemiumOfferingDTO;
 import com.prwatech.skillama.dto.FreemiumRegisterRequestDTO;
 import com.prwatech.skillama.dto.FreemiumStatusDTO;
 import com.prwatech.skillama.dto.QueryCreditsDTO;
@@ -26,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,10 +38,16 @@ import java.util.stream.Collectors;
 public class FreemiumService {
 
     /** Aligned with skillama-lms src/config/freemium.js and BACKEND_REQUIREMENTS_FREEMIUM.md */
-    public static final int FREEMIUM_QUERY_LIMIT = 20;
-    public static final int REFERRAL_QUERY_BONUS = 10;
-    public static final List<String> FREEMIUM_MODULES = Arrays.asList("Ai-Tutor", "Code Execution", "Debug");
-    public static final List<String> FREEMIUM_REFERRAL_MODULES = Arrays.asList("Ai-Tutor", "Code Execution", "Debug");
+    public static final int FREEMIUM_QUERY_LIMIT = 50;
+    public static final int REFERRAL_QUERY_BONUS = 20;
+    public static final String REFERRAL_BONUS_MODULE = "Debug";
+    /** All freemium users get these modules from signup (referral adds query credits only). */
+    public static final List<String> FREEMIUM_BASE_MODULES = Arrays.asList(
+            "Ai-Tutor", "Code Execution", REFERRAL_BONUS_MODULE);
+    public static final List<String> FREEMIUM_REFERRAL_MODULES = FREEMIUM_BASE_MODULES;
+    /** @deprecated use {@link #FREEMIUM_BASE_MODULES} or {@link #FREEMIUM_REFERRAL_MODULES} */
+    @Deprecated
+    public static final List<String> FREEMIUM_MODULES = FREEMIUM_REFERRAL_MODULES;
     public static final List<String> PREMIUM_MODULES = Arrays.asList(
             "Ai-Tutor", "Code Execution", "Debug", "Courses", "Curriculum");
 
@@ -49,6 +57,19 @@ public class FreemiumService {
     private final PasswordEncode passwordEncode;
     private final UserCourseAccessService userCourseAccessService;
     private final CreditAdjustmentLogRepository creditAdjustmentLogRepository;
+
+    /** Public read — home page banner, signup copy (no auth). */
+    public FreemiumOfferingDTO getPublicOffering() {
+        return FreemiumOfferingDTO.builder()
+                .baseModules(new ArrayList<>(FREEMIUM_BASE_MODULES))
+                .modulesWithReferral(new ArrayList<>(FREEMIUM_REFERRAL_MODULES))
+                .referralBonusModule(REFERRAL_BONUS_MODULE)
+                .queryLimit(FREEMIUM_QUERY_LIMIT)
+                .referralQueryBonus(REFERRAL_QUERY_BONUS)
+                .queryLimitWithReferral(FREEMIUM_QUERY_LIMIT + REFERRAL_QUERY_BONUS)
+                .courseSelectionAtSignup(true)
+                .build();
+    }
 
     public List<FreemiumCourseOptionDTO> listSignupCourseOptions() {
         return courseRepository.findAll().stream()
@@ -147,7 +168,7 @@ public class FreemiumService {
         user.setPlanTier(User.PlanTier.FREEMIUM);
         user.setQueryCreditsUsed(0);
         user.setQueryCreditsLimit(FREEMIUM_QUERY_LIMIT);
-        user.setEnabledModules(new ArrayList<>(FREEMIUM_MODULES));
+        user.setEnabledModules(new ArrayList<>(FREEMIUM_BASE_MODULES));
         user.setReferralCode(generateReferralCode());
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
@@ -353,7 +374,7 @@ public class FreemiumService {
             applyReferralBenefits(user);
         } else {
             user.setQueryCreditsLimit(FREEMIUM_QUERY_LIMIT);
-            user.setEnabledModules(new ArrayList<>(FREEMIUM_MODULES));
+            user.setEnabledModules(new ArrayList<>(FREEMIUM_BASE_MODULES));
         }
         if (user.getReferralCode() == null) {
             user.setReferralCode(generateReferralCode());
@@ -380,7 +401,8 @@ public class FreemiumService {
             user.setQueryCreditsUsed(0);
         }
         if (user.getEnabledModules() == null || user.getEnabledModules().isEmpty()) {
-            user.setEnabledModules(new ArrayList<>(hasReferralBonus(user) ? FREEMIUM_REFERRAL_MODULES : FREEMIUM_MODULES));
+            user.setEnabledModules(new ArrayList<>(
+                    hasReferralBonus(user) ? FREEMIUM_REFERRAL_MODULES : FREEMIUM_BASE_MODULES));
         }
         if (user.getReferralCode() == null) {
             user.setReferralCode(generateReferralCode());
@@ -395,7 +417,7 @@ public class FreemiumService {
     }
 
     /**
-     * OWNER maintenance: align stored limits that used old defaults (50/70) to 20/30.
+     * OWNER maintenance: align FREEMIUM users to product defaults (50 queries, 70 with referral, all 3 modules).
      */
     @Transactional
     public int normalizeFreemiumCreditLimits() {
@@ -404,16 +426,26 @@ public class FreemiumService {
             if (user.getPlanTier() != User.PlanTier.FREEMIUM) {
                 continue;
             }
+            boolean changed = false;
             int target = hasReferralBonus(user)
                     ? FREEMIUM_QUERY_LIMIT + REFERRAL_QUERY_BONUS
                     : FREEMIUM_QUERY_LIMIT;
             Integer limit = user.getQueryCreditsLimit();
-            if (limit != null && limit > target) {
+            if (limit == null || limit != target) {
                 user.setQueryCreditsLimit(target);
                 int used = user.getQueryCreditsUsed() != null ? user.getQueryCreditsUsed() : 0;
                 if (used > target) {
                     user.setQueryCreditsUsed(target);
                 }
+                changed = true;
+            }
+            List<String> expectedModules = new ArrayList<>(FREEMIUM_BASE_MODULES);
+            if (user.getEnabledModules() == null
+                    || !new HashSet<>(expectedModules).equals(new HashSet<>(user.getEnabledModules()))) {
+                user.setEnabledModules(expectedModules);
+                changed = true;
+            }
+            if (changed) {
                 user.setUpdatedAt(LocalDateTime.now());
                 userRepository.save(user);
                 updated++;
