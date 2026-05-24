@@ -27,6 +27,7 @@ public class OtpService {
     private final EmailOtpRepository emailOtpRepository;
     private final EmailServiceImpl emailService;
     private final PasswordEncode passwordEncode;
+    private final UserService userService;
 
     @Transactional
     public void sendOtp(String email, EmailOtp.OtpPurpose purpose) {
@@ -35,6 +36,10 @@ public class OtpService {
         }
         if (purpose == null) {
             purpose = EmailOtp.OtpPurpose.SIGNUP;
+        }
+
+        if (purpose == EmailOtp.OtpPurpose.SIGNUP) {
+            assertEmailAvailableForSignup(email.trim());
         }
 
         String otp = generateOtp();
@@ -114,6 +119,12 @@ public class OtpService {
         }
         if (record.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("Verification token has expired");
+        }
+    }
+
+    private void assertEmailAvailableForSignup(String email) {
+        if (userService.findByEmail(email).isPresent()) {
+            throw new IllegalStateException("Email is already in use. Please sign in.");
         }
     }
 

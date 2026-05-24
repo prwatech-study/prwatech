@@ -80,6 +80,8 @@ public class UserController {
             EmailOtp.OtpPurpose purpose = request.getPurpose() != null ? request.getPurpose() : EmailOtp.OtpPurpose.SIGNUP;
             otpService.sendOtp(request.getEmail(), purpose);
             return ResponseEntity.ok(Map.of("status", "success", "message", "OTP sent to email"));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(409).body(Map.of("status", "error", "message", e.getMessage()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         }
