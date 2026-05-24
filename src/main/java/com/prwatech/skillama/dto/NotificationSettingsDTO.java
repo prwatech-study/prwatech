@@ -9,7 +9,6 @@ import java.util.List;
 @Data
 @Builder
 public class NotificationSettingsDTO {
-    private List<String> teamRecipientEmails;
     private List<NotificationTypeSettingDTO> notificationTypes;
     private LocalDateTime updatedAt;
 }

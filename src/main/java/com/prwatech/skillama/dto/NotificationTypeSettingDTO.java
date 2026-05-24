@@ -13,6 +13,8 @@ public class NotificationTypeSettingDTO {
     private String description;
     /** TEAM or LEARNER */
     private String audience;
+    private String category;
+    private String categoryLabel;
     private boolean enabled;
     /** Human-readable recipient summary for the admin UI. */
     private String recipientSummary;

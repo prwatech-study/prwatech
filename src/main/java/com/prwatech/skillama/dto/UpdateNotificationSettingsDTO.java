@@ -7,7 +7,8 @@ import java.util.Map;
 
 @Data
 public class UpdateNotificationSettingsDTO {
-    private List<String> teamRecipientEmails;
     /** Key = notification type id, value = enabled */
     private Map<String, Boolean> typeEnabled;
+    /** Key = notification type id, value = recipient emails for that type only */
+    private Map<String, List<String>> typeRecipientEmails;
 }

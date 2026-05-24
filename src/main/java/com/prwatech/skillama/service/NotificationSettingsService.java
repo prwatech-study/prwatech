@@ -2,7 +2,6 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.service.impl.EmailServiceImpl;
-import com.prwatech.skillama.SkillamaNotificationEmails;
 import com.prwatech.skillama.dto.NotificationSettingsDTO;
 import com.prwatech.skillama.dto.NotificationTypeSettingDTO;
 import com.prwatech.skillama.dto.UpdateNotificationSettingsDTO;
@@ -34,13 +33,14 @@ public class NotificationSettingsService {
     private final EmailServiceImpl emailService;
 
     public NotificationSettingsDTO getAdminSettings() {
-        PlatformNotificationSettings settings = loadOrDefault();
-        List<String> teamEmails = normalizeTeamEmails(settings.getTeamRecipientEmails());
+        PlatformNotificationSettings settings = loadPersisted();
+        if (settings == null) {
+            settings = new PlatformNotificationSettings();
+        }
         List<NotificationTypeSettingDTO> types = Arrays.stream(NotificationEventType.values())
-                .map(type -> toTypeDto(type, settings, teamEmails))
+                .map(type -> toTypeDto(type, settings))
                 .collect(Collectors.toList());
         return NotificationSettingsDTO.builder()
-                .teamRecipientEmails(teamEmails)
                 .notificationTypes(types)
                 .updatedAt(settings.getUpdatedAt())
                 .build();
@@ -50,14 +50,25 @@ public class NotificationSettingsService {
         if (body == null) {
             throw new IllegalArgumentException("Request body is required");
         }
-        List<String> teamEmails = normalizeTeamEmails(body.getTeamRecipientEmails());
-        if (teamEmails.isEmpty()) {
-            throw new IllegalArgumentException("At least one team recipient email is required");
+
+        PlatformNotificationSettings settings = loadPersisted();
+        if (settings == null) {
+            settings = new PlatformNotificationSettings();
+            settings.setId(PlatformNotificationSettings.SINGLETON_ID);
         }
 
-        PlatformNotificationSettings settings = loadOrDefault();
-        settings.setId(PlatformNotificationSettings.SINGLETON_ID);
-        settings.setTeamRecipientEmails(teamEmails);
+        if (body.getTypeRecipientEmails() != null) {
+            Map<String, List<String>> merged = settings.getTypeRecipientEmails() != null
+                    ? new LinkedHashMap<>(settings.getTypeRecipientEmails())
+                    : new LinkedHashMap<>();
+            body.getTypeRecipientEmails().forEach((key, emails) -> {
+                if (isValidTypeId(key)) {
+                    merged.put(key, new ArrayList<>(normalizeEmails(emails)));
+                }
+            });
+            settings.setTypeRecipientEmails(merged);
+        }
+
         if (body.getTypeEnabled() != null) {
             Map<String, Boolean> merged = settings.getTypeEnabled() != null
                     ? new LinkedHashMap<>(settings.getTypeEnabled())
@@ -69,6 +80,7 @@ public class NotificationSettingsService {
             });
             settings.setTypeEnabled(merged);
         }
+
         settings.setUpdatedAt(LocalDateTime.now());
         settings.setUpdatedBy(adminUserId);
         settingsRepository.save(settings);
@@ -76,16 +88,20 @@ public class NotificationSettingsService {
     }
 
     public boolean isEnabled(NotificationEventType type) {
-        PlatformNotificationSettings settings = loadOrDefault();
-        if (settings.getTypeEnabled() == null) {
+        PlatformNotificationSettings settings = loadPersisted();
+        if (settings == null || settings.getTypeEnabled() == null) {
             return true;
         }
         Boolean flag = settings.getTypeEnabled().get(type.name());
         return flag == null || flag;
     }
 
-    public List<String> getTeamRecipientEmails() {
-        return normalizeTeamEmails(loadOrDefault().getTeamRecipientEmails());
+    public List<String> getRecipientEmailsForType(NotificationEventType type) {
+        PlatformNotificationSettings settings = loadPersisted();
+        if (settings == null) {
+            return List.of();
+        }
+        return resolveRecipientsForType(type, settings);
     }
 
     public void sendTeamNotification(NotificationEventType type, String subject, String body) {
@@ -96,7 +112,14 @@ public class NotificationSettingsService {
             LOGGER.debug("Skipping disabled team notification: {}", type);
             return;
         }
-        for (String email : getTeamRecipientEmails()) {
+        List<String> recipients = getRecipientEmailsForType(type);
+        if (recipients.isEmpty()) {
+            LOGGER.warn(
+                    "Skipping team notification {} — no recipient emails configured for this notification type",
+                    type);
+            return;
+        }
+        for (String email : recipients) {
             try {
                 emailService.sendEmail(new EmailSendDto(email, subject, body));
             } catch (Exception e) {
@@ -125,36 +148,35 @@ public class NotificationSettingsService {
         }
     }
 
-    private PlatformNotificationSettings loadOrDefault() {
-        return settingsRepository.findById(PlatformNotificationSettings.SINGLETON_ID)
-                .orElseGet(this::defaultSettings);
+    private PlatformNotificationSettings loadPersisted() {
+        return settingsRepository.findById(PlatformNotificationSettings.SINGLETON_ID).orElse(null);
     }
 
-    private PlatformNotificationSettings defaultSettings() {
-        PlatformNotificationSettings settings = new PlatformNotificationSettings();
-        settings.setId(PlatformNotificationSettings.SINGLETON_ID);
-        settings.setTeamRecipientEmails(new ArrayList<>(SkillamaNotificationEmails.DEFAULT_TEAM_INBOXES));
-        settings.setTypeEnabled(new LinkedHashMap<>());
-        return settings;
+    private List<String> resolveRecipientsForType(
+            NotificationEventType type, PlatformNotificationSettings settings) {
+        if (settings.getTypeRecipientEmails() == null) {
+            return List.of();
+        }
+        return normalizeEmails(settings.getTypeRecipientEmails().get(type.name()));
     }
 
-    private NotificationTypeSettingDTO toTypeDto(
-            NotificationEventType type,
-            PlatformNotificationSettings settings,
-            List<String> teamEmails) {
+    private NotificationTypeSettingDTO toTypeDto(NotificationEventType type, PlatformNotificationSettings settings) {
         boolean enabled = isEnabled(type, settings);
         boolean isTeam = type.getAudience() == NotificationEventType.NotificationAudience.TEAM;
+        List<String> emails = isTeam ? resolveRecipientsForType(type, settings) : List.of();
         String recipientSummary = isTeam
-                ? formatTeamSummary(teamEmails)
+                ? formatEmailSummary(emails)
                 : "Learner's registered account email (per event)";
         return NotificationTypeSettingDTO.builder()
                 .id(type.name())
                 .label(type.getLabel())
                 .description(type.getDescription())
                 .audience(type.getAudience().name())
+                .category(type.getCategory().name())
+                .categoryLabel(type.getCategory().getLabel())
                 .enabled(enabled)
                 .recipientSummary(recipientSummary)
-                .recipientEmails(isTeam ? teamEmails : List.of())
+                .recipientEmails(emails)
                 .build();
     }
 
@@ -166,15 +188,14 @@ public class NotificationSettingsService {
         return flag == null || flag;
     }
 
-    private static String formatTeamSummary(List<String> emails) {
+    private static String formatEmailSummary(List<String> emails) {
         if (emails.isEmpty()) {
-            return "No team emails configured";
+            return "No emails configured for this notification";
         }
-        return emails.size() + " team inbox" + (emails.size() == 1 ? "" : "es") + ": "
-                + String.join(", ", emails);
+        return String.join(", ", emails);
     }
 
-    private static List<String> normalizeTeamEmails(List<String> raw) {
+    private static List<String> normalizeEmails(List<String> raw) {
         if (raw == null) {
             return List.of();
         }

@@ -18,8 +18,14 @@ public class PlatformNotificationSettings {
     @Id
     private String id = SINGLETON_ID;
 
-    /** Team inboxes for all TEAM-audience notifications. */
+    /**
+     * @deprecated Legacy global list; migrated into {@link #typeRecipientEmails} on read.
+     */
+    @Deprecated
     private List<String> teamRecipientEmails;
+
+    /** Per notification type; key = {@link com.prwatech.skillama.notification.NotificationEventType#name()}. */
+    private Map<String, List<String>> typeRecipientEmails = new HashMap<>();
 
     /** Per-event on/off; key = {@link com.prwatech.skillama.notification.NotificationEventType#name()}. */
     private Map<String, Boolean> typeEnabled = new HashMap<>();
