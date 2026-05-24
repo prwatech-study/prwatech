@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -80,7 +81,7 @@ public class NotificationSettingsService {
             settings.setTypeEnabled(merged);
         }
 
-        settings.setUpdatedAt(LocalDateTime.now());
+        settings.setUpdatedAt(IndiaTime.now());
         settings.setUpdatedBy(adminUserId);
         settingsRepository.save(settings);
         return getAdminSettings();

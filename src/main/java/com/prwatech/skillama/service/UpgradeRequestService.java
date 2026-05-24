@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 
 @Service
 @RequiredArgsConstructor
@@ -59,8 +60,8 @@ public class UpgradeRequestService {
                         : user.getQueryCreditsLimit())
                 .message(request != null ? request.getMessage() : null)
                 .status(UpgradeRequest.RequestStatus.NEW)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
+                .createdAt(IndiaTime.now())
+                .updatedAt(IndiaTime.now())
                 .build();
 
         entry = upgradeRequestRepository.save(entry);
@@ -107,14 +108,14 @@ public class UpgradeRequestService {
         if (body.getStatus() != null) {
             entry.setStatus(body.getStatus());
             if (body.getStatus() == UpgradeRequest.RequestStatus.CONTACTED) {
-                entry.setContactedAt(LocalDateTime.now());
+                entry.setContactedAt(IndiaTime.now());
                 entry.setContactedByAdminId(adminId);
             }
         }
         if (body.getNotes() != null) {
             entry.setNotes(body.getNotes());
         }
-        entry.setUpdatedAt(LocalDateTime.now());
+        entry.setUpdatedAt(IndiaTime.now());
         return toDto(upgradeRequestRepository.save(entry));
     }
 

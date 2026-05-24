@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 
 @Service
 @RequiredArgsConstructor
@@ -53,7 +54,7 @@ public class PasswordResetService {
         }
 
         user.setPassword(passwordEncode.getEncryptedPassword(request.getNewPassword()));
-        user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedAt(IndiaTime.now());
         userRepository.save(user);
     }
 }

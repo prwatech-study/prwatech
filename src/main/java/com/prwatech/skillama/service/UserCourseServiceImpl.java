@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -182,15 +183,15 @@ public class UserCourseServiceImpl implements UserCourseService {
         lectureProgress.setLectureName(lectureName);
         lectureProgress.setCompleted(completed);
         if (completed && lectureProgress.getCompletedAt() == null) {
-            lectureProgress.setCompletedAt(LocalDateTime.now());
+            lectureProgress.setCompletedAt(IndiaTime.now());
         }
         if (timeSpent != null) {
             lectureProgress.setTimeSpent(timeSpent);
         }
         if (lectureProgress.getCreatedAt() == null) {
-            lectureProgress.setCreatedAt(LocalDateTime.now());
+            lectureProgress.setCreatedAt(IndiaTime.now());
         }
-        lectureProgress.setUpdatedAt(LocalDateTime.now());
+        lectureProgress.setUpdatedAt(IndiaTime.now());
         lectureProgressRepository.save(lectureProgress);
         
         // 2. Recalculate and update UserCourseProgress
@@ -209,9 +210,9 @@ public class UserCourseServiceImpl implements UserCourseService {
         progress.setProgress(0);
         progress.setTotalLectures(0);
         progress.setCompletedLectures(0);
-        progress.setLastAccessed(LocalDateTime.now());
-        progress.setCreatedAt(LocalDateTime.now());
-        progress.setUpdatedAt(LocalDateTime.now());
+        progress.setLastAccessed(IndiaTime.now());
+        progress.setCreatedAt(IndiaTime.now());
+        progress.setUpdatedAt(IndiaTime.now());
         return progressRepository.save(progress);
     }
     
@@ -239,12 +240,12 @@ public class UserCourseServiceImpl implements UserCourseService {
         courseProgress.setProgress(progress);
         courseProgress.setTotalLectures(totalLectures);
         courseProgress.setCompletedLectures((int) completedLectures);
-        courseProgress.setLastAccessed(LocalDateTime.now());
+        courseProgress.setLastAccessed(IndiaTime.now());
         
         if (courseProgress.getCreatedAt() == null) {
-            courseProgress.setCreatedAt(LocalDateTime.now());
+            courseProgress.setCreatedAt(IndiaTime.now());
         }
-        courseProgress.setUpdatedAt(LocalDateTime.now());
+        courseProgress.setUpdatedAt(IndiaTime.now());
         
         progressRepository.save(courseProgress);
     }
@@ -276,7 +277,7 @@ public class UserCourseServiceImpl implements UserCourseService {
             
             if (existing.getStatus() == UserCourseEnrollment.EnrollmentStatus.INACTIVE) {
                 existing.setStatus(UserCourseEnrollment.EnrollmentStatus.ACTIVE);
-                existing.setEnrolledAt(LocalDateTime.now());
+                existing.setEnrolledAt(IndiaTime.now());
                 return enrollmentRepository.save(existing);
             }
             // Already enrolled and active, return existing
@@ -288,7 +289,7 @@ public class UserCourseServiceImpl implements UserCourseService {
             .userId(userId)
             .courseId(courseId)
             .enrollmentType(enrollmentType != null ? enrollmentType : UserCourseEnrollment.EnrollmentType.ASSIGNED)
-            .enrolledAt(LocalDateTime.now())
+            .enrolledAt(IndiaTime.now())
             .status(UserCourseEnrollment.EnrollmentStatus.ACTIVE)
             .build();
         

@@ -10,6 +10,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 
 @Service
 @RequiredArgsConstructor
@@ -31,7 +32,7 @@ public class SalesLeadService {
                 .phone(request.getPhone())
                 .message(request.getMessage())
                 .consentContact(true)
-                .createdAt(LocalDateTime.now())
+                .createdAt(IndiaTime.now())
                 .build();
         return salesLeadRepository.save(lead);
     }

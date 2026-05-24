@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -134,8 +135,8 @@ public class AdminService {
         user.setRole(request.getRole() != null ? request.getRole() : User.UserRole.USER);
         user.setActive(request.getActive() != null ? request.getActive() : true);
         user.setGender(request.getGender());
-        user.setCreatedAt(LocalDateTime.now());
-        user.setUpdatedAt(LocalDateTime.now());
+        user.setCreatedAt(IndiaTime.now());
+        user.setUpdatedAt(IndiaTime.now());
         user.setCreatedBy(createdBy);
         user.setUpdatedBy(createdBy);
         
@@ -197,7 +198,7 @@ public class AdminService {
         }
         if (request.getGender() != null) user.setGender(request.getGender());
         
-        user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedAt(IndiaTime.now());
         user.setUpdatedBy(updatedBy);
         
         user = userRepository.save(user);
@@ -234,7 +235,7 @@ public class AdminService {
         }
         
         user.setRole(newRole);
-        user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedAt(IndiaTime.now());
         user.setUpdatedBy(updatedBy);
         
         user = userRepository.save(user);
@@ -271,7 +272,7 @@ public class AdminService {
         }
         
         user.setActive(false);
-        user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedAt(IndiaTime.now());
         user.setUpdatedBy(deletedBy);
         userRepository.save(user);
         adminAuditService.log(deletedBy, AdminAuditService.USER_DELETE, "USER", userId,
@@ -288,7 +289,7 @@ public class AdminService {
                 .deletedByAdminId(deleter.getId())
                 .deletedByAdminEmail(deleter.getEmail())
                 .reason(reason)
-                .deletedAt(LocalDateTime.now())
+                .deletedAt(IndiaTime.now())
                 .build();
         deletedSkillamaUserRepository.save(archive);
         userRepository.delete(user);
@@ -302,7 +303,7 @@ public class AdminService {
         assertCanChangeUserActiveStatus(actor, target);
         target.setActive(true);
         target.setActivationKey(null);
-        target.setUpdatedAt(LocalDateTime.now());
+        target.setUpdatedAt(IndiaTime.now());
         target.setUpdatedBy(actorId);
         target = userRepository.save(target);
         adminAuditService.log(actorId, AdminAuditService.USER_UPDATE, "USER", target.getId(),
@@ -317,7 +318,7 @@ public class AdminService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         assertCanChangeUserActiveStatus(actor, target);
         target.setActive(false);
-        target.setUpdatedAt(LocalDateTime.now());
+        target.setUpdatedAt(IndiaTime.now());
         target.setUpdatedBy(actorId);
         target = userRepository.save(target);
         adminAuditService.log(actorId, AdminAuditService.USER_UPDATE, "USER", target.getId(),
@@ -349,7 +350,7 @@ public class AdminService {
             throw new RuntimeException("Password reset is only allowed for ADMIN accounts");
         }
         target.setPassword(passwordEncode.getEncryptedPassword(newPassword));
-        target.setUpdatedAt(LocalDateTime.now());
+        target.setUpdatedAt(IndiaTime.now());
         target.setUpdatedBy(ownerId);
         userRepository.save(target);
         adminAuditService.log(ownerId, AdminAuditService.ADMIN_PASSWORD_RESET, "USER", targetUserId,
@@ -363,7 +364,7 @@ public class AdminService {
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         
         List<UserCourseEnrollment> enrollments = new ArrayList<>();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = IndiaTime.now();
         
         for (String courseId : courseIds) {
             Course course = courseRepository.findById(courseId)
@@ -536,13 +537,13 @@ public class AdminService {
         // Recent users (last 7 days) - simplified
         int recentUsers = (int) userRepository.findAll().stream()
             .filter(u -> u.getCreatedAt() != null 
-                && u.getCreatedAt().isAfter(LocalDateTime.now().minusDays(7)))
+                && u.getCreatedAt().isAfter(IndiaTime.now().minusDays(7)))
             .count();
         
         // Recent courses (last 7 days) - simplified
         int recentCourses = (int) courseRepository.findAll().stream()
             .filter(c -> c.getCreatedAt() != null 
-                && c.getCreatedAt().isAfter(LocalDateTime.now().minusDays(7)))
+                && c.getCreatedAt().isAfter(IndiaTime.now().minusDays(7)))
             .count();
         
         DashboardStatsDTO stats = new DashboardStatsDTO();
@@ -797,10 +798,10 @@ public class AdminService {
             progress.setProgress(0);
             progress.setTotalLectures(0);
             progress.setCompletedLectures(0);
-            progress.setEnrolledAt(LocalDateTime.now());
-            progress.setLastAccessed(LocalDateTime.now());
-            progress.setCreatedAt(LocalDateTime.now());
-            progress.setUpdatedAt(LocalDateTime.now());
+            progress.setEnrolledAt(IndiaTime.now());
+            progress.setLastAccessed(IndiaTime.now());
+            progress.setCreatedAt(IndiaTime.now());
+            progress.setUpdatedAt(IndiaTime.now());
             progressRepository.save(progress);
         }
     }

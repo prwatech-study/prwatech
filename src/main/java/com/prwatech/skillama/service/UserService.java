@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -48,7 +49,7 @@ public class UserService {
         }
         user.setActive(false);
         user.setActivationKey(generateActivationKey());
-        user.setCreatedAt(LocalDateTime.now());
+        user.setCreatedAt(IndiaTime.now());
         User savedUser = userRepository.save(user);
         
         // Send notification emails to admins
@@ -223,7 +224,7 @@ public class UserService {
     }
 
     public void recordLogin(User user) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = IndiaTime.now();
         user.setLastLoginAt(now);
         int count = user.getLoginCount() != null ? user.getLoginCount() : 0;
         user.setLoginCount(count + 1);

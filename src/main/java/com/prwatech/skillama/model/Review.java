@@ -5,6 +5,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 
 @Data
 @Document(collection = "reviews")
@@ -25,7 +26,7 @@ public class Review {
     private String teamReply;
     private LocalDateTime repliedAt;
     private String repliedBy;
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt = IndiaTime.now();
 
     public enum ReviewScope {
         COURSE, OVERALL

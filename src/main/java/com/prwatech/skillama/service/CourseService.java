@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -57,7 +58,7 @@ public class CourseService {
     }
 
     public Course create(Course course) {
-        course.setCreatedAt(LocalDateTime.now());
+        course.setCreatedAt(IndiaTime.now());
         return courseRepository.save(course);
     }
 
@@ -119,7 +120,7 @@ public class CourseService {
             if (updated.getIsPublic() != null) {
                 existing.setIsPublic(updated.getIsPublic());
             }
-            existing.setUpdatedAt(LocalDateTime.now());
+            existing.setUpdatedAt(IndiaTime.now());
             return courseRepository.save(existing);
         }).orElse(null);
     }
@@ -132,11 +133,11 @@ public class CourseService {
         if (!isActive(course)) {
             return course;
         }
-        course.setDeletedAt(LocalDateTime.now());
+        course.setDeletedAt(IndiaTime.now());
         course.setDeletedBy(deletedByUserId);
         course.setRestoredAt(null);
         course.setRestoredBy(null);
-        course.setUpdatedAt(LocalDateTime.now());
+        course.setUpdatedAt(IndiaTime.now());
         course.setUpdatedBy(deletedByUserId);
         return courseRepository.save(course);
     }
@@ -150,9 +151,9 @@ public class CourseService {
         }
         course.setDeletedAt(null);
         course.setDeletedBy(null);
-        course.setRestoredAt(LocalDateTime.now());
+        course.setRestoredAt(IndiaTime.now());
         course.setRestoredBy(restoredByUserId);
-        course.setUpdatedAt(LocalDateTime.now());
+        course.setUpdatedAt(IndiaTime.now());
         course.setUpdatedBy(restoredByUserId);
         return courseRepository.save(course);
     }
@@ -182,8 +183,8 @@ public class CourseService {
                 validatePracticalSubmoduleScript(s);
             }
         }
-        module.setCreatedAt(LocalDateTime.now());
-        module.setUpdatedAt(LocalDateTime.now());
+        module.setCreatedAt(IndiaTime.now());
+        module.setUpdatedAt(IndiaTime.now());
         return curriculumRepository.save(module);
     }
 
@@ -198,7 +199,7 @@ public class CourseService {
             existing.setModuleAssetPath(updated.getModuleAssetPath());
             existing.setSubmodules(updated.getSubmodules());
             existing.setUpdatedBy(updated.getUpdatedBy());
-            existing.setUpdatedAt(LocalDateTime.now());
+            existing.setUpdatedAt(IndiaTime.now());
             return curriculumRepository.save(existing);
         }).orElse(null);
     }
@@ -403,7 +404,7 @@ public class CourseService {
             if (list == null) list = new java.util.ArrayList<>();
             list.add(submodule);
             module.setSubmodules(list);
-            module.setUpdatedAt(LocalDateTime.now());
+            module.setUpdatedAt(IndiaTime.now());
             return curriculumRepository.save(module);
         }).orElse(null);
     }
@@ -415,7 +416,7 @@ public class CourseService {
             if (list != null && submoduleIdx >= 0 && submoduleIdx < list.size()) {
                 list.set(submoduleIdx, updatedSubmodule);
                 module.setSubmodules(list);
-                module.setUpdatedAt(LocalDateTime.now());
+                module.setUpdatedAt(IndiaTime.now());
                 return curriculumRepository.save(module);
             }
             return module;
@@ -428,7 +429,7 @@ public class CourseService {
             if (list != null && submoduleIdx >= 0 && submoduleIdx < list.size()) {
                 list.remove(submoduleIdx);
                 module.setSubmodules(list);
-                module.setUpdatedAt(LocalDateTime.now());
+                module.setUpdatedAt(IndiaTime.now());
                 return curriculumRepository.save(module);
             }
             return module;
@@ -466,7 +467,7 @@ public class CourseService {
                 submodule.setImagePath(imagePath);
                 list.set(submoduleIdx, submodule);
                 module.setSubmodules(list);
-                module.setUpdatedAt(LocalDateTime.now());
+                module.setUpdatedAt(IndiaTime.now());
                 return curriculumRepository.save(module);
             }
             return module;

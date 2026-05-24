@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
@@ -58,7 +59,7 @@ public class FileStorageServiceImpl implements FileStorageService {
         validateImageFile(file);
         
         // Create directory structure
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        String timestamp = IndiaTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         String randomId = UUID.randomUUID().toString().substring(0, 8);
         String originalFilename = file.getOriginalFilename();
         String extension = "";
@@ -150,7 +151,7 @@ public class FileStorageServiceImpl implements FileStorageService {
     public String uploadImageToS3(MultipartFile file, String s3Prefix) throws IOException {
         validateImageFile(file);
         
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        String timestamp = IndiaTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         String randomId = UUID.randomUUID().toString().substring(0, 8);
         String originalFilename = file.getOriginalFilename();
         String extension = ".png";
@@ -248,7 +249,7 @@ public class FileStorageServiceImpl implements FileStorageService {
     public String uploadVideoToS3(MultipartFile file, String s3Prefix) throws IOException {
         validateVideoFile(file);
 
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        String timestamp = IndiaTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         String randomId = UUID.randomUUID().toString().substring(0, 8);
         String originalFilename = file.getOriginalFilename();
         String extension = ".mp4";

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.Locale;
 import java.util.Map;
 
@@ -51,7 +52,7 @@ public class ReferralShareService {
         config.setId(PlatformReferralShare.SINGLETON_ID);
         config.setTitle(StringUtils.hasText(body.getTitle()) ? body.getTitle().trim() : DEFAULT_TITLE);
         config.setShareMessage(body.getShareMessage().trim());
-        config.setUpdatedAt(LocalDateTime.now());
+        config.setUpdatedAt(IndiaTime.now());
         config.setUpdatedBy(adminUserId);
         return toDto(configRepository.save(config));
     }
@@ -78,7 +79,7 @@ public class ReferralShareService {
         event.setUserId(userId);
         event.setReferralCode(code);
         event.setChannel(channel.trim().toUpperCase(Locale.ROOT));
-        event.setCreatedAt(LocalDateTime.now());
+        event.setCreatedAt(IndiaTime.now());
         shareEventRepository.save(event);
     }
 

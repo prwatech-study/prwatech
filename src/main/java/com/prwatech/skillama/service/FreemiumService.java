@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -106,7 +107,7 @@ public class FreemiumService {
                 throw new QueryCreditLimitException("Query credit limit reached", used, limit);
             }
             user.setQueryCreditsUsed(used + 1);
-            user.setUpdatedAt(LocalDateTime.now());
+            user.setUpdatedAt(IndiaTime.now());
             user = userRepository.save(user);
         }
 
@@ -114,7 +115,7 @@ public class FreemiumService {
                 .userId(userId)
                 .queryType(request != null && request.getQueryType() != null ? request.getQueryType() : "CHAT")
                 .courseId(request != null ? request.getCourseId() : null)
-                .createdAt(LocalDateTime.now())
+                .createdAt(IndiaTime.now())
                 .build());
 
         return toStatusDto(user);
@@ -134,7 +135,7 @@ public class FreemiumService {
 
         user.setReferredBy(referrer.getReferralCode());
         applyReferralBenefits(user);
-        user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedAt(IndiaTime.now());
         userRepository.save(user);
         return toStatusDto(user);
     }
@@ -143,7 +144,7 @@ public class FreemiumService {
         User user = requireUser(userId);
         if (user.getReferralCode() == null) {
             user.setReferralCode(generateReferralCode());
-            user.setUpdatedAt(LocalDateTime.now());
+            user.setUpdatedAt(IndiaTime.now());
             userRepository.save(user);
         }
         return user.getReferralCode();
@@ -171,8 +172,8 @@ public class FreemiumService {
         user.setQueryCreditsLimit(FREEMIUM_QUERY_LIMIT);
         user.setEnabledModules(new ArrayList<>(FREEMIUM_BASE_MODULES));
         user.setReferralCode(generateReferralCode());
-        user.setCreatedAt(LocalDateTime.now());
-        user.setUpdatedAt(LocalDateTime.now());
+        user.setCreatedAt(IndiaTime.now());
+        user.setUpdatedAt(IndiaTime.now());
 
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
             user.setPassword(passwordEncode.getEncryptedPassword(request.getPassword()));
@@ -214,7 +215,7 @@ public class FreemiumService {
 
         applyReferralOnSignup(user, request);
 
-        user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedAt(IndiaTime.now());
         User saved = userRepository.save(user);
         userCourseAccessService.applyUserChosenFreemiumCourse(saved, request.getFreemiumCourseId());
         return saved;
@@ -271,7 +272,7 @@ public class FreemiumService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
         validateEligibleForFreemiumMigration(user);
         applyFreemiumPlan(user, phone);
-        user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedAt(IndiaTime.now());
         userRepository.save(user);
         return toStatusDto(user);
     }
@@ -293,7 +294,7 @@ public class FreemiumService {
             default:
                 throw new IllegalArgumentException("Unsupported plan tier: " + planTier);
         }
-        user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedAt(IndiaTime.now());
         userRepository.save(user);
         return toStatusDto(user);
     }
@@ -325,7 +326,7 @@ public class FreemiumService {
             user.setQueryCreditsUsed(usedAfter);
         }
 
-        user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedAt(IndiaTime.now());
         user.setUpdatedBy(adminId);
         userRepository.save(user);
 
@@ -341,7 +342,7 @@ public class FreemiumService {
                 .limitBefore(limitBefore)
                 .limitAfter(user.getQueryCreditsLimit())
                 .reason(request.getReason().trim())
-                .createdAt(LocalDateTime.now())
+                .createdAt(IndiaTime.now())
                 .build();
         log = creditAdjustmentLogRepository.save(log);
 
@@ -447,7 +448,7 @@ public class FreemiumService {
                 changed = true;
             }
             if (changed) {
-                user.setUpdatedAt(LocalDateTime.now());
+                user.setUpdatedAt(IndiaTime.now());
                 userRepository.save(user);
                 updated++;
             }

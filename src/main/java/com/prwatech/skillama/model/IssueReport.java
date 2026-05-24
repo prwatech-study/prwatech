@@ -5,6 +5,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 
 /**
  * User-submitted technical / content issue (separate from star-rating {@code Review}).
@@ -15,7 +16,7 @@ public class IssueReport {
 
     @Id
     private String id;
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime createdAt = IndiaTime.now();
 
     private String issueCategory;
     private String userDescription;

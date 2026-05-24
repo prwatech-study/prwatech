@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.UUID;
 
 @Service
@@ -49,8 +50,8 @@ public class OtpService {
                 .email(email.trim().toLowerCase())
                 .otpHash(otpHash)
                 .purpose(purpose)
-                .expiresAt(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
-                .createdAt(LocalDateTime.now())
+                .expiresAt(IndiaTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
+                .createdAt(IndiaTime.now())
                 .build();
         emailOtpRepository.save(record);
 
@@ -88,7 +89,7 @@ public class OtpService {
                     .orElseThrow(() -> new IllegalArgumentException("No OTP found for this email"));
         }
 
-        if (record.getExpiresAt().isBefore(LocalDateTime.now())) {
+        if (record.getExpiresAt().isBefore(IndiaTime.now())) {
             throw new IllegalArgumentException("OTP has expired");
         }
         if (!passwordEncode.compare(otp, record.getOtpHash())) {
@@ -97,7 +98,7 @@ public class OtpService {
 
         String verificationToken = UUID.randomUUID().toString();
         record.setVerificationToken(verificationToken);
-        record.setExpiresAt(LocalDateTime.now().plusMinutes(VERIFICATION_TOKEN_EXPIRY_MINUTES));
+        record.setExpiresAt(IndiaTime.now().plusMinutes(VERIFICATION_TOKEN_EXPIRY_MINUTES));
         emailOtpRepository.save(record);
 
         return OtpVerifyResponseDTO.builder().verificationToken(verificationToken).build();
@@ -117,7 +118,7 @@ public class OtpService {
         if (expectedPurpose != null && record.getPurpose() != expectedPurpose) {
             throw new IllegalArgumentException("Verification token purpose mismatch");
         }
-        if (record.getExpiresAt().isBefore(LocalDateTime.now())) {
+        if (record.getExpiresAt().isBefore(IndiaTime.now())) {
             throw new IllegalArgumentException("Verification token has expired");
         }
     }

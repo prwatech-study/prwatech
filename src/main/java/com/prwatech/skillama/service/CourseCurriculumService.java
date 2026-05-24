@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.Optional;
 
 @Service
@@ -24,7 +25,7 @@ public class CourseCurriculumService {
     }
 
     public CourseCurriculum create(CourseCurriculum curriculum) {
-        curriculum.setCreatedAt(LocalDateTime.now());
+        curriculum.setCreatedAt(IndiaTime.now());
         return curriculumRepository.save(curriculum);
     }
 

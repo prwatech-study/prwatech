@@ -16,6 +16,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -41,7 +42,7 @@ public class UserProfileService {
      */
     public Map<String, Object> initializeGuestSession(InitGuestSessionRequestDTO request) {
         String sessionId = "guest-session-" + UUID.randomUUID().toString();
-        LocalDateTime expiresAt = LocalDateTime.now().plusDays(GUEST_SESSION_EXPIRY_DAYS);
+        LocalDateTime expiresAt = IndiaTime.now().plusDays(GUEST_SESSION_EXPIRY_DAYS);
         
         // Get guest course
         Course guestCourse = courseService.getGuestCourseOrThrow();
@@ -56,9 +57,9 @@ public class UserProfileService {
                 .inProgressLectures(new ArrayList<>())
                 .chatInteractions(new ArrayList<>())
                 .totalQuestionsAsked(0)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .lastActivityAt(LocalDateTime.now())
+                .createdAt(IndiaTime.now())
+                .updatedAt(IndiaTime.now())
+                .lastActivityAt(IndiaTime.now())
                 .sessionExpiresAt(expiresAt)
                 .build();
         
@@ -95,7 +96,7 @@ public class UserProfileService {
                     .orElseGet(() -> {
                         // Create new guest session
                         Course guestCourse = courseService.getGuestCourseOrThrow();
-                        LocalDateTime expiresAt = LocalDateTime.now().plusDays(GUEST_SESSION_EXPIRY_DAYS);
+                        LocalDateTime expiresAt = IndiaTime.now().plusDays(GUEST_SESSION_EXPIRY_DAYS);
                         
                         return UserProfile.builder()
                                 .sessionId(sessionId)
@@ -107,9 +108,9 @@ public class UserProfileService {
                                 .inProgressLectures(new ArrayList<>())
                                 .chatInteractions(new ArrayList<>())
                                 .totalQuestionsAsked(0)
-                                .createdAt(LocalDateTime.now())
-                                .updatedAt(LocalDateTime.now())
-                                .lastActivityAt(LocalDateTime.now())
+                                .createdAt(IndiaTime.now())
+                                .updatedAt(IndiaTime.now())
+                                .lastActivityAt(IndiaTime.now())
                                 .sessionExpiresAt(expiresAt)
                                 .build();
                     });
@@ -131,9 +132,9 @@ public class UserProfileService {
                 .inProgressLectures(new ArrayList<>())
                 .chatInteractions(new ArrayList<>())
                 .totalQuestionsAsked(0)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .lastActivityAt(LocalDateTime.now())
+                .createdAt(IndiaTime.now())
+                .updatedAt(IndiaTime.now())
+                .lastActivityAt(IndiaTime.now())
                 .build();
     }
     
@@ -381,7 +382,7 @@ public class UserProfileService {
     
     private LocalDateTime getLectureUnlockedAt(UserProfile profile, String lectureLabel) {
         if (profile.getUnlockedLectures().contains(lectureLabel)) {
-            return LocalDateTime.now(); // Simplified - could track actual unlock time
+            return IndiaTime.now(); // Simplified - could track actual unlock time
         }
         return null;
     }
@@ -546,7 +547,7 @@ public class UserProfileService {
                     .lectureLabel(lectureLabel)
                     .courseId(courseId)
                     .moduleName(request.getModuleName())
-                    .completedAt(request.getCompletedAt() != null ? request.getCompletedAt() : LocalDateTime.now())
+                    .completedAt(request.getCompletedAt() != null ? request.getCompletedAt() : IndiaTime.now())
                     .timeSpent(request.getTimeSpent())
                     .completionPercentage(request.getCompletionPercentage() != null ? request.getCompletionPercentage() : 100)
                     .build();
@@ -558,8 +559,8 @@ public class UserProfileService {
             profile.getUnlockedLectures().addAll(unlocked);
         }
         
-        profile.setLastActivityAt(LocalDateTime.now());
-        profile.setUpdatedAt(LocalDateTime.now());
+        profile.setLastActivityAt(IndiaTime.now());
+        profile.setUpdatedAt(IndiaTime.now());
         userProfileRepository.save(profile);
         
         Map<String, Object> response = new HashMap<>();
@@ -590,13 +591,13 @@ public class UserProfileService {
             UserProfile.InProgressLecture inProgress = existing.get();
             inProgress.setProgressPercentage(request.getProgressPercentage());
             inProgress.setTimeSpent(inProgress.getTimeSpent() + request.getTimeSpent());
-            inProgress.setLastAccessedAt(request.getLastAccessedAt() != null ? request.getLastAccessedAt() : LocalDateTime.now());
+            inProgress.setLastAccessedAt(request.getLastAccessedAt() != null ? request.getLastAccessedAt() : IndiaTime.now());
         } else {
             UserProfile.InProgressLecture inProgress = UserProfile.InProgressLecture.builder()
                     .lectureLabel(lectureLabel)
                     .courseId(courseId)
-                    .startedAt(LocalDateTime.now())
-                    .lastAccessedAt(request.getLastAccessedAt() != null ? request.getLastAccessedAt() : LocalDateTime.now())
+                    .startedAt(IndiaTime.now())
+                    .lastAccessedAt(request.getLastAccessedAt() != null ? request.getLastAccessedAt() : IndiaTime.now())
                     .progressPercentage(request.getProgressPercentage())
                     .timeSpent(request.getTimeSpent())
                     .build();
@@ -604,8 +605,8 @@ public class UserProfileService {
             profile.getInProgressLectures().add(inProgress);
         }
         
-        profile.setLastActivityAt(LocalDateTime.now());
-        profile.setUpdatedAt(LocalDateTime.now());
+        profile.setLastActivityAt(IndiaTime.now());
+        profile.setUpdatedAt(IndiaTime.now());
         userProfileRepository.save(profile);
         
         Map<String, Object> response = new HashMap<>();
@@ -672,7 +673,7 @@ public class UserProfileService {
                 .question(request.getQuestion())
                 .answer(request.getAnswer())
                 .audioUrl(request.getAnswerAudioUrl())
-                .timestamp(request.getTimestamp() != null ? request.getTimestamp() : LocalDateTime.now())
+                .timestamp(request.getTimestamp() != null ? request.getTimestamp() : IndiaTime.now())
                 .lectureContext(request.getLectureContext())
                 .courseId(request.getCourseId())
                 .questionType(request.getQuestionType() != null ? request.getQuestionType() : "text")
@@ -680,8 +681,8 @@ public class UserProfileService {
         
         profile.getChatInteractions().add(interaction);
         profile.setTotalQuestionsAsked(profile.getTotalQuestionsAsked() + 1);
-        profile.setLastActivityAt(LocalDateTime.now());
-        profile.setUpdatedAt(LocalDateTime.now());
+        profile.setLastActivityAt(IndiaTime.now());
+        profile.setUpdatedAt(IndiaTime.now());
         userProfileRepository.save(profile);
         
         // Build chat status
@@ -738,8 +739,8 @@ public class UserProfileService {
             userProfile.setCurrentCourseId(guestProfile.getCurrentCourseId());
         }
         
-        userProfile.setLastActivityAt(LocalDateTime.now());
-        userProfile.setUpdatedAt(LocalDateTime.now());
+        userProfile.setLastActivityAt(IndiaTime.now());
+        userProfile.setUpdatedAt(IndiaTime.now());
         userProfileRepository.save(userProfile);
         
         // Delete guest session

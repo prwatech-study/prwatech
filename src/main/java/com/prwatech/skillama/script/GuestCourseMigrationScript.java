@@ -9,6 +9,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.List;
 
 /**
@@ -86,8 +87,8 @@ public class GuestCourseMigrationScript implements CommandLineRunner {
                     .description("Introduction to Python programming for non-logged-in users. This is a demo course to showcase the LMS platform.")
                     .isGuestCourse(true)
                     .isPublic(true)
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
+                    .createdAt(IndiaTime.now())
+                    .updatedAt(IndiaTime.now())
                     .createdBy("system")
                     .updatedBy("system")
                     .build();
@@ -123,7 +124,7 @@ public class GuestCourseMigrationScript implements CommandLineRunner {
                         // Set new guest course
                         course.setIsGuestCourse(true);
                         course.setIsPublic(true); // Also make it public
-                        course.setUpdatedAt(LocalDateTime.now());
+                        course.setUpdatedAt(IndiaTime.now());
                         courseRepository.save(course);
                         LOGGER.info("Set course '{}' (ID: {}) as guest course.", 
                                 course.getName(), course.getId());

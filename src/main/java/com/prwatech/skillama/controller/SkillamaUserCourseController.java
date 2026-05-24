@@ -259,7 +259,7 @@ public class SkillamaUserCourseController {
                 user.setGender(requestBody.getGender());
             }
             
-            user.setUpdatedAt(java.time.LocalDateTime.now());
+            user.setUpdatedAt(java.time.IndiaTime.now());
             user = userService.save(user);
             
             // Convert to DTO

@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.net.URI;
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -89,7 +90,7 @@ public class PlatformDemoVideoService {
         if (description != null) {
             config.setDescription(description.trim());
         }
-        config.setUpdatedAt(LocalDateTime.now());
+        config.setUpdatedAt(IndiaTime.now());
         config.setUpdatedBy(adminUserId);
         return toDto(repository.save(config));
     }
@@ -141,7 +142,7 @@ public class PlatformDemoVideoService {
         config.setFileSizeBytes(fileSizeBytes);
         config.setOriginalFileName(originalFileName);
         config.setEnabled(true);
-        config.setUpdatedAt(LocalDateTime.now());
+        config.setUpdatedAt(IndiaTime.now());
         config.setUpdatedBy(adminUserId);
 
         return toDto(repository.save(config));

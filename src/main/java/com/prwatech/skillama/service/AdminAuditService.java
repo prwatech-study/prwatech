@@ -13,6 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 
 @Service
 @RequiredArgsConstructor
@@ -55,7 +56,7 @@ public class AdminAuditService {
                 .entityId(entityId)
                 .summary(summary)
                 .detailsJson(detailsJson)
-                .createdAt(LocalDateTime.now())
+                .createdAt(IndiaTime.now())
                 .build();
         auditLogRepository.save(entry);
     }

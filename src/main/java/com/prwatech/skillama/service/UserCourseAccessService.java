@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 
 @Service
 @RequiredArgsConstructor
@@ -65,14 +66,14 @@ public class UserCourseAccessService {
                     .map(existing -> {
                         if (existing.getStatus() != UserCourseEnrollment.EnrollmentStatus.ACTIVE) {
                             existing.setStatus(UserCourseEnrollment.EnrollmentStatus.ACTIVE);
-                            existing.setEnrolledAt(LocalDateTime.now());
+                            existing.setEnrolledAt(IndiaTime.now());
                             enrollmentRepository.save(existing);
                         }
                         return existing;
                     })
                     .orElseThrow();
         }
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = IndiaTime.now();
         UserCourseEnrollment enrollment = new UserCourseEnrollment();
         enrollment.setUserId(userId);
         enrollment.setCourseId(courseId);
@@ -103,7 +104,7 @@ public class UserCourseAccessService {
         Course course = courseRepository.findById(requestedCourseId.trim())
                 .orElseThrow(() -> new IllegalArgumentException("Please select a valid course"));
         user.setChosenFreemiumCourseId(course.getId());
-        user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedAt(IndiaTime.now());
         userRepository.save(user);
         enrollIfAbsent(
                 user.getId(),
@@ -114,8 +115,8 @@ public class UserCourseAccessService {
     @Transactional
     public void touchLastAccessed(String userId, String courseId) {
         progressRepository.findByUserIdAndCourseId(userId, courseId).ifPresent(progress -> {
-            progress.setLastAccessed(LocalDateTime.now());
-            progress.setUpdatedAt(LocalDateTime.now());
+            progress.setLastAccessed(IndiaTime.now());
+            progress.setUpdatedAt(IndiaTime.now());
             progressRepository.save(progress);
         });
     }
@@ -128,10 +129,10 @@ public class UserCourseAccessService {
             progress.setProgress(0);
             progress.setTotalLectures(0);
             progress.setCompletedLectures(0);
-            progress.setEnrolledAt(LocalDateTime.now());
-            progress.setLastAccessed(LocalDateTime.now());
-            progress.setCreatedAt(LocalDateTime.now());
-            progress.setUpdatedAt(LocalDateTime.now());
+            progress.setEnrolledAt(IndiaTime.now());
+            progress.setLastAccessed(IndiaTime.now());
+            progress.setCreatedAt(IndiaTime.now());
+            progress.setUpdatedAt(IndiaTime.now());
             progressRepository.save(progress);
         }
     }

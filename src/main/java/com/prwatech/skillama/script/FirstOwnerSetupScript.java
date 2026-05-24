@@ -10,6 +10,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.Optional;
 
 /**
@@ -75,7 +76,7 @@ public class FirstOwnerSetupScript implements CommandLineRunner {
                     // Promote existing user to OWNER
                     LOGGER.info("Promoting existing user {} to OWNER role", FIRST_OWNER_EMAIL);
                     user.setRole(User.UserRole.OWNER);
-                    user.setUpdatedAt(LocalDateTime.now());
+                    user.setUpdatedAt(IndiaTime.now());
                     userRepository.save(user);
                     LOGGER.warn("================================================");
                     LOGGER.warn("FIRST OWNER CREATED: {}", FIRST_OWNER_EMAIL);
@@ -98,8 +99,8 @@ public class FirstOwnerSetupScript implements CommandLineRunner {
             firstOwner.setPassword(passwordEncode.getEncryptedPassword(FIRST_OWNER_PASSWORD));
             firstOwner.setRole(User.UserRole.OWNER);
             firstOwner.setActive(true);
-            firstOwner.setCreatedAt(LocalDateTime.now());
-            firstOwner.setUpdatedAt(LocalDateTime.now());
+            firstOwner.setCreatedAt(IndiaTime.now());
+            firstOwner.setUpdatedAt(IndiaTime.now());
             firstOwner.setCreatedBy("SYSTEM");
             firstOwner.setUpdatedBy("SYSTEM");
             

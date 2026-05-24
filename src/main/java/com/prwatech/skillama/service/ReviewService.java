@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.IndiaTime;
 import java.util.List;
 
 @Service
@@ -48,7 +49,7 @@ public class ReviewService {
         review.setReview(request.getComment());
         review.setScope(request.getScope() != null ? request.getScope() : Review.ReviewScope.COURSE);
         review.setStatus(Review.ReviewStatus.OPEN);
-        review.setCreatedAt(LocalDateTime.now());
+        review.setCreatedAt(IndiaTime.now());
 
         Review saved = reviewRepository.save(review);
         sendTeamNotificationEmail(saved, user);
@@ -71,7 +72,7 @@ public class ReviewService {
             review.setStatus(Review.ReviewStatus.OPEN);
         }
         if (review.getCreatedAt() == null) {
-            review.setCreatedAt(LocalDateTime.now());
+            review.setCreatedAt(IndiaTime.now());
         }
         if (!StringUtils.hasText(review.getUserEmail())) {
             review.setUserEmail(user.getEmail());
@@ -147,7 +148,7 @@ public class ReviewService {
             review.setStatus(Review.ReviewStatus.REPLIED);
         }
 
-        review.setRepliedAt(LocalDateTime.now());
+        review.setRepliedAt(IndiaTime.now());
         review.setRepliedBy(adminUserId);
 
         Review saved = reviewRepository.save(review);
