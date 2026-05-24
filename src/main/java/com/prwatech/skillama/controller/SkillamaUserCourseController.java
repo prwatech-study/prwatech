@@ -13,6 +13,7 @@ import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserCourseEnrollment;
 import com.prwatech.skillama.service.UserCourseService;
 import com.prwatech.skillama.service.UserService;
+import com.prwatech.skillama.util.IndiaTime;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
@@ -259,7 +260,7 @@ public class SkillamaUserCourseController {
                 user.setGender(requestBody.getGender());
             }
             
-            user.setUpdatedAt(java.time.IndiaTime.now());
+            user.setUpdatedAt(IndiaTime.now());
             user = userService.save(user);
             
             // Convert to DTO
