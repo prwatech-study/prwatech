@@ -580,14 +580,21 @@ public class AdminService {
     }
     
     public DashboardStatsDTO getDashboardStatistics() {
-        long totalUsers = userRepository.count();
-        long activeUsers = userRepository.findAll().stream()
-            .filter(User::isActive)
-            .count();
-        
-        long totalCourses = courseRepository.count();
-        long activeCourses = totalCourses; // Assuming all courses are active
-        
+        List<User> allUsers = userRepository.findAll();
+        long totalUsers = allUsers.stream()
+                .filter(u -> u.getEffectiveRole() == User.UserRole.USER)
+                .count();
+        long activeUsers = allUsers.stream()
+                .filter(u -> u.getEffectiveRole() == User.UserRole.USER && u.isActive())
+                .count();
+        long inactiveUsers = totalUsers - activeUsers;
+
+        List<Course> allCourses = courseRepository.findAll();
+        long totalCourses = allCourses.size();
+        long activeCourses = allCourses.stream()
+                .filter(c -> c.getDeletedAt() == null)
+                .count();
+
         long totalEnrollments = enrollmentRepository.count();
         
         List<UserCourseProgress> allProgress = progressRepository.findAll();
@@ -608,6 +615,7 @@ public class AdminService {
         DashboardStatsDTO stats = new DashboardStatsDTO();
         stats.setTotalUsers(totalUsers);
         stats.setActiveUsers(activeUsers);
+        stats.setInactiveUsers(inactiveUsers);
         stats.setTotalCourses(totalCourses);
         stats.setActiveCourses(activeCourses);
         stats.setTotalEnrollments(totalEnrollments);

@@ -16,8 +16,12 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class DashboardStatsDTO {
+    /** Learner accounts (USER role; null role counts as USER). */
     private Long totalUsers;
+    /** Learners with {@code active == true} (can sign in). */
     private Long activeUsers;
+    /** Learners with {@code active == false}. */
+    private Long inactiveUsers;
     private Long totalCourses;
     private Long activeCourses;
     private Long totalEnrollments;
