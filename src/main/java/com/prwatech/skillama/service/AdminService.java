@@ -368,6 +368,9 @@ public class AdminService {
         for (String courseId : courseIds) {
             Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found: " + courseId));
+            if (course.getDeletedAt() != null) {
+                throw new IllegalStateException("Cannot assign archived course: " + courseId);
+            }
             
             // Check if already enrolled
             if (!enrollmentRepository.existsByUserIdAndCourseId(userId, courseId)) {

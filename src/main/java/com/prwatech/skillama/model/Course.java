@@ -26,5 +26,14 @@ public class Course {
     private Boolean isGuestCourse = Boolean.FALSE; // Default guest course flag
     @Builder.Default
     private Boolean isPublic = Boolean.FALSE; // Public course flag for guest access
+    /** When set, course is hidden from learners and admins; only Owner can restore. */
+    private java.time.LocalDateTime deletedAt;
+    private String deletedBy;
+    private java.time.LocalDateTime restoredAt;
+    private String restoredBy;
     // Removed curriculum field; curriculum is stored in CourseCurriculum collection
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
 }

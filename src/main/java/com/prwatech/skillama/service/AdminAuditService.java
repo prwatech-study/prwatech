@@ -26,6 +26,7 @@ public class AdminAuditService {
     public static final String COURSE_CREATE = "COURSE_CREATE";
     public static final String COURSE_UPDATE = "COURSE_UPDATE";
     public static final String COURSE_DELETE = "COURSE_DELETE";
+    public static final String COURSE_RESTORE = "COURSE_RESTORE";
     public static final String ASSIGN_COURSE = "ASSIGN_COURSE";
     public static final String UNASSIGN_COURSE = "UNASSIGN_COURSE";
     public static final String PLAN_UPDATE = "PLAN_UPDATE";

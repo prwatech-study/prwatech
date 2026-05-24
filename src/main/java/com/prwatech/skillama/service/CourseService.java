@@ -5,14 +5,15 @@ import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import com.prwatech.skillama.repository.CourseRepository;
-import com.prwatech.skillama.repository.UserCourseEnrollmentRepository;
-import com.prwatech.skillama.repository.UserCourseProgressRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -30,21 +31,29 @@ import lombok.Getter;
 public class CourseService {
     private final CourseRepository courseRepository;
     private final CourseCurriculumRepository curriculumRepository;
-    private final UserCourseEnrollmentRepository enrollmentRepository;
-    private final UserCourseProgressRepository progressRepository;
     private final MongoTemplate skillamaMongoTemplate;
 
     public CourseService(
             CourseRepository courseRepository,
             CourseCurriculumRepository curriculumRepo,
-            UserCourseEnrollmentRepository enrollmentRepository,
-            UserCourseProgressRepository progressRepository,
             @Qualifier("skillamaMongoTemplate") MongoTemplate skillamaMongoTemplate) {
         this.courseRepository = courseRepository;
         this.curriculumRepository = curriculumRepo;
-        this.enrollmentRepository = enrollmentRepository;
-        this.progressRepository = progressRepository;
         this.skillamaMongoTemplate = skillamaMongoTemplate;
+    }
+
+    public static boolean isActive(Course course) {
+        return course != null && course.getDeletedAt() == null;
+    }
+
+    private static Criteria activeCourseCriteria() {
+        return new Criteria().orOperator(
+                Criteria.where("deletedAt").is(null),
+                Criteria.where("deletedAt").exists(false));
+    }
+
+    private static Criteria deletedCourseCriteria() {
+        return Criteria.where("deletedAt").ne(null);
     }
 
     public Course create(Course course) {
@@ -56,17 +65,50 @@ public class CourseService {
         return courseRepository.findById(id);
     }
 
+    public Optional<Course> findActiveById(String id) {
+        return courseRepository.findById(id).filter(CourseService::isActive);
+    }
+
+    public void assertCourseActive(Course course) {
+        if (course == null) {
+            throw new NotFoundException("Course not found");
+        }
+        if (!isActive(course)) {
+            throw new NotFoundException("Course is archived");
+        }
+    }
+
     public Page<Course> findAll(int page, int size, String sortBy, boolean desc) {
+        return findAllActive(page, size, sortBy, desc);
+    }
+
+    public Page<Course> findAllActive(int page, int size, String sortBy, boolean desc) {
         Pageable pageable = PageRequest.of(page, size, desc ? Sort.Direction.DESC : Sort.Direction.ASC, sortBy);
-        return courseRepository.findAll(pageable);
+        Query query = new Query(activeCourseCriteria());
+        long total = skillamaMongoTemplate.count(query, Course.class);
+        query.with(pageable);
+        List<Course> content = skillamaMongoTemplate.find(query, Course.class);
+        return new PageImpl<>(content, pageable, total);
+    }
+
+    public List<Course> findAllDeleted() {
+        Query query = new Query(deletedCourseCriteria()).with(Sort.by(Sort.Direction.DESC, "deletedAt"));
+        return skillamaMongoTemplate.find(query, Course.class);
     }
 
     public List<Course> findAll() {
-        return courseRepository.findAll();
+        return findAllActiveList();
+    }
+
+    public List<Course> findAllActiveList() {
+        return skillamaMongoTemplate.find(new Query(activeCourseCriteria()), Course.class);
     }
 
     public Course update(String id, Course updated) {
         return courseRepository.findById(id).map(existing -> {
+            if (!isActive(existing)) {
+                throw new IllegalStateException("Cannot update an archived course. Restore it first.");
+            }
             existing.setName(updated.getName());
             existing.setDescription(updated.getDescription());
             existing.setThumbnail(updated.getThumbnail());
@@ -82,31 +124,49 @@ public class CourseService {
         }).orElse(null);
     }
 
+    /** Soft-delete only — curriculum, enrollments, and progress are retained. */
+    @Transactional
+    public Course softDelete(String id, String deletedByUserId) {
+        Course course = courseRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Course not found"));
+        if (!isActive(course)) {
+            return course;
+        }
+        course.setDeletedAt(LocalDateTime.now());
+        course.setDeletedBy(deletedByUserId);
+        course.setRestoredAt(null);
+        course.setRestoredBy(null);
+        course.setUpdatedAt(LocalDateTime.now());
+        course.setUpdatedBy(deletedByUserId);
+        return courseRepository.save(course);
+    }
+
+    @Transactional
+    public Course restore(String id, String restoredByUserId) {
+        Course course = courseRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Course not found"));
+        if (isActive(course)) {
+            return course;
+        }
+        course.setDeletedAt(null);
+        course.setDeletedBy(null);
+        course.setRestoredAt(LocalDateTime.now());
+        course.setRestoredBy(restoredByUserId);
+        course.setUpdatedAt(LocalDateTime.now());
+        course.setUpdatedBy(restoredByUserId);
+        return courseRepository.save(course);
+    }
+
+    /** @deprecated Use {@link #softDelete(String, String)} — hard delete is not permitted. */
+    @Deprecated
     @Transactional
     public void delete(String id) {
-        if (!courseRepository.existsById(id)) {
-            throw new NotFoundException("Course not found");
-        }
-        List<CourseCurriculum> modules = curriculumRepository.findByCourseIdOrderByOrderAsc(id);
-        if (!modules.isEmpty()) {
-            curriculumRepository.deleteAll(modules);
-        }
-        List<com.prwatech.skillama.model.UserCourseEnrollment> enrollments =
-                enrollmentRepository.findByCourseId(id);
-        if (!enrollments.isEmpty()) {
-            enrollmentRepository.deleteAll(enrollments);
-        }
-        List<com.prwatech.skillama.model.UserCourseProgress> progressRows =
-                progressRepository.findByCourseId(id);
-        if (!progressRows.isEmpty()) {
-            progressRepository.deleteAll(progressRows);
-        }
-        courseRepository.deleteById(id);
+        softDelete(id, null);
     }
 
     // Fetch course with curriculum
     public Optional<CourseWithCurriculum> findCourseWithCurriculum(String id) {
-        Optional<Course> courseOpt = courseRepository.findById(id);
+        Optional<Course> courseOpt = findActiveById(id);
         if (courseOpt.isPresent()) {
             Course course = courseOpt.get();
             List<CourseCurriculum> curriculumList = getCurriculumByCourseIdOrdered(id);
@@ -278,11 +338,12 @@ public class CourseService {
      */
     public Optional<Course> findGuestCourse() {
         Optional<Course> guestCourse = courseRepository.findByIsGuestCourseTrue();
-        if (guestCourse.isPresent()) {
+        if (guestCourse.isPresent() && isActive(guestCourse.get())) {
             return guestCourse;
         }
-        // Fallback to first public course
-        return courseRepository.findFirstByIsPublicTrue();
+        return courseRepository.findByIsPublicTrue().stream()
+                .filter(CourseService::isActive)
+                .findFirst();
     }
 
     /**
@@ -318,7 +379,9 @@ public class CourseService {
      * @return List of public courses
      */
     public List<Course> findPublicCourses() {
-        return courseRepository.findByIsPublicTrue();
+        return courseRepository.findByIsPublicTrue().stream()
+                .filter(CourseService::isActive)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -326,7 +389,7 @@ public class CourseService {
      * @return Optional containing the first public course, or empty if none found
      */
     public Optional<Course> findFirstPublicCourse() {
-        return courseRepository.findFirstByIsPublicTrue();
+        return findPublicCourses().stream().findFirst();
     }
 
     // --- SUBMODULE MANAGEMENT ---

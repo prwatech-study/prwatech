@@ -42,7 +42,10 @@ public class UserCourseServiceImpl implements UserCourseService {
         // 2. For each enrollment, get course details and progress
         return enrollments.stream().map(enrollment -> {
             Course course = courseRepository.findById(enrollment.getCourseId())
-                .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
+                .orElse(null);
+            if (course == null || course.getDeletedAt() != null) {
+                return null;
+            }
             
             // Get or create progress
             UserCourseProgress progress = progressRepository
@@ -79,7 +82,9 @@ public class UserCourseServiceImpl implements UserCourseService {
             dto.setLastAccessed(progress.getLastAccessed());
             
             return dto;
-        }).collect(Collectors.toList());
+        })
+        .filter(java.util.Objects::nonNull)
+        .collect(Collectors.toList());
     }
     
     @Override

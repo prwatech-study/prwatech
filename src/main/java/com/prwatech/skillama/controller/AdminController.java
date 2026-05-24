@@ -500,10 +500,11 @@ public class AdminController {
             @PathVariable String courseId,
             HttpServletRequest request) {
         try {
-            String adminId = extractUserIdFromRequest(request);
-            courseService.delete(courseId);
-            adminAuditService.log(adminId, AdminAuditService.COURSE_DELETE, "COURSE", courseId,
-                    "Deleted course " + courseId, null);
+            String actorId = extractUserIdFromRequest(request);
+            adminService.requireOwner(actorId);
+            courseService.softDelete(courseId, actorId);
+            adminAuditService.log(actorId, AdminAuditService.COURSE_DELETE, "COURSE", courseId,
+                    "Archived (soft-deleted) course " + courseId, null);
             return ResponseEntity.ok(new ApiResponse<>(200, null));
         } catch (com.prwatech.common.exception.NotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -513,11 +514,70 @@ public class AdminController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new ApiResponse<>(401, null));
             }
+            if (e.getMessage() != null && e.getMessage().contains("Owner access")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ApiResponse<>(403, null));
+            }
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiResponse<>(400, null));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiResponse<>(500, null));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
+    @GetMapping("/courses/archived")
+    public ResponseEntity<ApiResponse<List<Course>>> getArchivedCourses(HttpServletRequest request) {
+        try {
+            String actorId = extractUserIdFromRequest(request);
+            adminService.requireOwner(actorId);
+            return ResponseEntity.ok(new ApiResponse<>(200, courseService.findAllDeleted()));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Owner access")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
+    @PostMapping("/courses/{courseId}/restore")
+    public ResponseEntity<ApiResponse<Course>> restoreCourse(
+            @PathVariable String courseId,
+            HttpServletRequest request) {
+        try {
+            String actorId = extractUserIdFromRequest(request);
+            adminService.requireOwner(actorId);
+            Course restored = courseService.restore(courseId, actorId);
+            adminAuditService.log(actorId, AdminAuditService.COURSE_RESTORE, "COURSE", courseId,
+                    "Restored archived course " + restored.getName(), null);
+            return ResponseEntity.ok(new ApiResponse<>(200, restored));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Owner access")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }
     }
     

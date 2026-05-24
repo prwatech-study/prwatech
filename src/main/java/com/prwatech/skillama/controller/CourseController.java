@@ -47,7 +47,7 @@ public class CourseController {
     public ResponseEntity<Course> getById(
             @PathVariable String id,
             HttpServletRequest request) {
-        return courseService.findById(id)
+        return courseService.findActiveById(id)
                 .map(course -> {
                     enforceLearnerCourseAccess(request, id);
                     return ResponseEntity.ok(course);
@@ -126,8 +126,15 @@ public class CourseController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable String id) {
-        courseService.delete(id);
+    public ResponseEntity<Void> delete(@PathVariable String id, HttpServletRequest request) {
+        String userId = extractUserId(request);
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (!userCourseAccessService.isOwner(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        courseService.softDelete(id, userId);
         return ResponseEntity.noContent().build();
     }
 

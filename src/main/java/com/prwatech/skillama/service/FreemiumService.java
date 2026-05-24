@@ -73,6 +73,7 @@ public class FreemiumService {
 
     public List<FreemiumCourseOptionDTO> listSignupCourseOptions() {
         return courseRepository.findAll().stream()
+                .filter(c -> c.getDeletedAt() == null)
                 .sorted(Comparator.comparing(Course::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
                 .map(c -> FreemiumCourseOptionDTO.builder()
                         .id(c.getId())

@@ -30,6 +30,12 @@ public class UserCourseAccessService {
                 .orElse(false);
     }
 
+    public boolean isOwner(String userId) {
+        return userRepository.findById(userId)
+                .map(u -> u.getRole() == User.UserRole.OWNER)
+                .orElse(false);
+    }
+
     public boolean hasActiveEnrollment(String userId, String courseId) {
         return enrollmentRepository.findByUserIdAndCourseId(userId, courseId)
                 .map(e -> e.getStatus() == UserCourseEnrollment.EnrollmentStatus.ACTIVE)
@@ -37,6 +43,10 @@ public class UserCourseAccessService {
     }
 
     public void assertCanAccessCourse(String userId, String courseId) {
+        Course course = courseRepository.findById(courseId).orElse(null);
+        if (course != null && course.getDeletedAt() != null && !isOwner(userId)) {
+            throw new ForbiddenException("This course is no longer available.");
+        }
         if (isAdminOrOwner(userId)) {
             return;
         }
