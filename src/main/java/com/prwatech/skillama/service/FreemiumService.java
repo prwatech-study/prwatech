@@ -85,6 +85,10 @@ public class FreemiumService {
 
     public FreemiumStatusDTO getStatus(String userId) {
         User user = requireUser(userId);
+        if (user.getPlanTier() == User.PlanTier.FREEMIUM) {
+            initializeFreemiumDefaults(user);
+            user = userRepository.save(user);
+        }
         return toStatusDto(user);
     }
 
@@ -496,14 +500,16 @@ public class FreemiumService {
     }
 
     private FreemiumStatusDTO toStatusDto(User user) {
+        boolean unlimited = isUnlimited(user);
         return FreemiumStatusDTO.builder()
-                .planTier(user.getPlanTier() != null ? user.getPlanTier() : User.PlanTier.FREEMIUM)
+                .planTier(user.getPlanTier())
                 .phone(user.getPhone())
                 .emailVerified(user.getEmailVerified())
                 .referralCode(user.getReferralCode())
                 .referredBy(user.getReferredBy())
                 .queryCreditsUsed(user.getQueryCreditsUsed())
-                .queryCreditsLimit(isUnlimited(user) ? null : effectiveLimit(user))
+                .queryCreditsLimit(unlimited ? null : effectiveLimit(user))
+                .unlimitedQueries(unlimited)
                 .enabledModules(user.getEnabledModules())
                 .build();
     }

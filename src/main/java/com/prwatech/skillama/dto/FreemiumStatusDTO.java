@@ -20,5 +20,7 @@ public class FreemiumStatusDTO {
     private String referredBy;
     private Integer queryCreditsUsed;
     private Integer queryCreditsLimit;
+    /** True for PAID, ENTERPRISE, and legacy (planTier null) accounts with unlimited AI queries. */
+    private Boolean unlimitedQueries;
     private List<String> enabledModules;
 }
