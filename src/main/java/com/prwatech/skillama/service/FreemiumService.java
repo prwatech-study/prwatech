@@ -8,6 +8,7 @@ import com.prwatech.skillama.dto.FreemiumCourseOptionDTO;
 import com.prwatech.skillama.dto.FreemiumOfferingDTO;
 import com.prwatech.skillama.dto.FreemiumRegisterRequestDTO;
 import com.prwatech.skillama.dto.FreemiumStatusDTO;
+import com.prwatech.skillama.dto.LegacyFreemiumBackfillResultDTO;
 import com.prwatech.skillama.dto.QueryCreditsDTO;
 import com.prwatech.skillama.model.CreditAdjustmentLog;
 import com.prwatech.skillama.repository.CreditAdjustmentLogRepository;
@@ -274,11 +275,77 @@ public class FreemiumService {
     public FreemiumStatusDTO migrateLegacyUserToFreemium(String email, String phone) {
         User user = userRepository.findByEmail(email.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
-        validateEligibleForFreemiumMigration(user);
-        applyFreemiumPlan(user, phone);
+        migrateUserToFreemiumPlan(user, phone);
         user.setUpdatedAt(IndiaTime.now());
         userRepository.save(user);
         return toStatusDto(user);
+    }
+
+    /**
+     * OWNER maintenance: move all legacy users (planTier null) to FREEMIUM with product defaults.
+     * Skips ADMIN/OWNER, inactive accounts, and users without a phone on file.
+     *
+     * @param dryRun when true, reports what would change without saving
+     */
+    @Transactional
+    public LegacyFreemiumBackfillResultDTO backfillLegacyUsersToFreemium(boolean dryRun) {
+        List<User> legacy = userRepository.findByPlanTierIsNull();
+        List<String> migratedEmails = new ArrayList<>();
+        List<String> skippedNoPhoneEmails = new ArrayList<>();
+        List<String> skippedStaffEmails = new ArrayList<>();
+        int migrated = 0;
+        int skippedStaff = 0;
+        int skippedNoPhone = 0;
+        int skippedInactive = 0;
+
+        for (User user : legacy) {
+            User.UserRole role = user.getEffectiveRole();
+            if (role == User.UserRole.ADMIN || role == User.UserRole.OWNER) {
+                skippedStaff++;
+                if (user.getEmail() != null) {
+                    skippedStaffEmails.add(user.getEmail());
+                }
+                continue;
+            }
+            if (!user.isActive()) {
+                skippedInactive++;
+                continue;
+            }
+            if (user.getPhone() == null || user.getPhone().isBlank()) {
+                skippedNoPhone++;
+                if (user.getEmail() != null) {
+                    skippedNoPhoneEmails.add(user.getEmail());
+                }
+                continue;
+            }
+            if (!dryRun) {
+                migrateUserToFreemiumPlan(user, user.getPhone());
+                user.setUpdatedAt(IndiaTime.now());
+                userRepository.save(user);
+            }
+            migrated++;
+            if (user.getEmail() != null) {
+                migratedEmails.add(user.getEmail());
+            }
+        }
+
+        return LegacyFreemiumBackfillResultDTO.builder()
+                .dryRun(dryRun)
+                .legacyUsersFound(legacy.size())
+                .migrated(migrated)
+                .skippedStaff(skippedStaff)
+                .skippedNoPhone(skippedNoPhone)
+                .skippedInactive(skippedInactive)
+                .migratedEmails(migratedEmails)
+                .skippedNoPhoneEmails(skippedNoPhoneEmails)
+                .skippedStaffEmails(skippedStaffEmails)
+                .build();
+    }
+
+    private void migrateUserToFreemiumPlan(User user, String phone) {
+        validateEligibleForFreemiumMigration(user);
+        applyFreemiumPlan(user, phone);
+        initializeFreemiumDefaults(user);
     }
 
     @Transactional

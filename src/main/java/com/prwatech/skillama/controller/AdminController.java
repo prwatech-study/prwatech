@@ -1050,6 +1050,33 @@ public class AdminController {
         }
     }
 
+    /**
+     * OWNER: backfill legacy users (planTier null) to FREEMIUM with 50/70 query limits.
+     * Default dryRun=true — pass dryRun=false to apply.
+     */
+    @PostMapping("/maintenance/backfill-legacy-to-freemium")
+    public ResponseEntity<ApiResponse<LegacyFreemiumBackfillResultDTO>> backfillLegacyToFreemium(
+            @RequestParam(defaultValue = "true") boolean dryRun,
+            HttpServletRequest request) {
+        try {
+            String adminId = extractUserIdFromRequest(request);
+            adminService.requireOwner(adminId);
+            LegacyFreemiumBackfillResultDTO result = freemiumService.backfillLegacyUsersToFreemium(dryRun);
+            adminAuditService.log(adminId, AdminAuditService.PLAN_UPDATE, "SYSTEM", "legacy-freemium-backfill",
+                    (dryRun ? "Dry-run: " : "Applied: ")
+                            + result.getMigrated() + " migrated, "
+                            + result.getSkippedNoPhone() + " skipped (no phone), "
+                            + result.getSkippedStaff() + " skipped (staff), "
+                            + result.getSkippedInactive() + " skipped (inactive)",
+                    null);
+            return ResponseEntity.ok(new ApiResponse<>(200, result));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
     @GetMapping("/audit-logs")
     public ResponseEntity<ApiResponse<Page<AdminAuditLogDTO>>> listAuditLogs(
             @RequestParam(defaultValue = "0") int page,
