@@ -4,12 +4,13 @@ Pre-freemium accounts have `planTier: null` and unlimited AI access. To align th
 
 ## Who gets migrated
 
-| Included | Excluded |
+| Included (default in Admin UI) | Excluded |
 |----------|----------|
 | `planTier == null` | Already `FREEMIUM`, `PAID`, `ENTERPRISE` |
-| `active == true` | `active == false` |
-| Has `phone` on file | Missing phone (fix in admin, re-run) |
-| Role `USER` | `ADMIN`, `OWNER` |
+| Inactive (optional checkbox) | `ADMIN`, `OWNER` |
+| No phone (optional checkbox) | — |
+
+Query params: `includeInactive`, `allowMissingPhone` (both default `false` on API; Admin Settings enables them by default).
 
 Referral (`referredBy`) is preserved; limit becomes **70** and modules stay at the freemium set.
 

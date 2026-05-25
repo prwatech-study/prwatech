@@ -1057,11 +1057,14 @@ public class AdminController {
     @PostMapping("/maintenance/backfill-legacy-to-freemium")
     public ResponseEntity<ApiResponse<LegacyFreemiumBackfillResultDTO>> backfillLegacyToFreemium(
             @RequestParam(defaultValue = "true") boolean dryRun,
+            @RequestParam(defaultValue = "false") boolean includeInactive,
+            @RequestParam(defaultValue = "false") boolean allowMissingPhone,
             HttpServletRequest request) {
         try {
             String adminId = extractUserIdFromRequest(request);
             adminService.requireOwner(adminId);
-            LegacyFreemiumBackfillResultDTO result = freemiumService.backfillLegacyUsersToFreemium(dryRun);
+            LegacyFreemiumBackfillResultDTO result = freemiumService.backfillLegacyUsersToFreemium(
+                    dryRun, includeInactive, allowMissingPhone);
             adminAuditService.log(adminId, AdminAuditService.PLAN_UPDATE, "SYSTEM", "legacy-freemium-backfill",
                     (dryRun ? "Dry-run: " : "Applied: ")
                             + result.getMigrated() + " migrated, "

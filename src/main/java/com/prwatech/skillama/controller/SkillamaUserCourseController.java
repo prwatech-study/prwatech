@@ -11,6 +11,7 @@ import com.prwatech.skillama.dto.UserDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserCourseEnrollment;
+import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.UserCourseService;
 import com.prwatech.skillama.service.UserService;
 import com.prwatech.skillama.util.IndiaTime;
@@ -33,6 +34,7 @@ public class SkillamaUserCourseController {
     
     private final UserCourseService userCourseService;
     private final UserService userService;
+    private final FreemiumService freemiumService;
     private final JwtUtils jwtUtils;
     
     /**
@@ -215,6 +217,25 @@ public class SkillamaUserCourseController {
     }
     
     /**
+     * Get authenticated user's profile (includes phone and plan tier).
+     */
+    @GetMapping("/profile")
+    public ResponseEntity<ApiResponse<UserDTO>> getProfile(HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            User user = userService.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+            return ResponseEntity.ok(new ApiResponse<>(200, toUserDto(user)));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(404, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
      * Update user profile
      */
     @ApiOperation(value = "Update user profile", notes = "Update the authenticated user's profile information")
@@ -259,22 +280,15 @@ public class SkillamaUserCourseController {
             if (requestBody.getGender() != null) {
                 user.setGender(requestBody.getGender());
             }
+            if (requestBody.getPhone() != null && !requestBody.getPhone().isBlank()) {
+                FreemiumService.validatePhone(requestBody.getPhone());
+                user.setPhone(FreemiumService.normalizePhone(requestBody.getPhone()));
+            }
             
             user.setUpdatedAt(IndiaTime.now());
             user = userService.save(user);
             
-            // Convert to DTO
-            UserDTO dto = new UserDTO();
-            dto.setId(user.getId());
-            dto.setName(user.getName());
-            dto.setEmail(user.getEmail());
-            dto.setRole(user.getRole() != null ? user.getRole() : User.UserRole.USER);
-            dto.setActive(user.isActive());
-            dto.setGender(user.getGender() != null ? user.getGender().toString() : null);
-            dto.setCreatedAt(user.getCreatedAt());
-            dto.setUpdatedAt(user.getUpdatedAt());
-            
-            return ResponseEntity.ok(new ApiResponse<>(200, dto));
+            return ResponseEntity.ok(new ApiResponse<>(200, toUserDto(user)));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiResponse<>(404, null));
@@ -287,6 +301,23 @@ public class SkillamaUserCourseController {
         }
     }
     
+    private static UserDTO toUserDto(User user) {
+        UserDTO dto = new UserDTO();
+        dto.setId(user.getId());
+        dto.setName(user.getName());
+        dto.setEmail(user.getEmail());
+        dto.setPhone(user.getPhone());
+        dto.setPlanTier(user.getPlanTier());
+        dto.setRole(user.getRole() != null ? user.getRole() : User.UserRole.USER);
+        dto.setActive(user.isActive());
+        dto.setGender(user.getGender() != null ? user.getGender().toString() : null);
+        dto.setCreatedAt(user.getCreatedAt());
+        dto.setUpdatedAt(user.getUpdatedAt());
+        dto.setLastLoginAt(user.getLastLoginAt());
+        dto.setLoginCount(user.getLoginCount());
+        return dto;
+    }
+
     /**
      * Extracts userId from JWT token in Authorization header
      * The JWT subject contains the user's email, which is used to find the user and get their ID

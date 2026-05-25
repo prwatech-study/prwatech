@@ -283,12 +283,15 @@ public class FreemiumService {
 
     /**
      * OWNER maintenance: move all legacy users (planTier null) to FREEMIUM with product defaults.
-     * Skips ADMIN/OWNER, inactive accounts, and users without a phone on file.
+     * Skips ADMIN/OWNER. Optionally includes inactive users and users without phone.
      *
      * @param dryRun when true, reports what would change without saving
+     * @param includeInactive when true, migrates inactive learners and sets active=true
+     * @param allowMissingPhone when true, migrates without requiring phone on file
      */
     @Transactional
-    public LegacyFreemiumBackfillResultDTO backfillLegacyUsersToFreemium(boolean dryRun) {
+    public LegacyFreemiumBackfillResultDTO backfillLegacyUsersToFreemium(
+            boolean dryRun, boolean includeInactive, boolean allowMissingPhone) {
         List<User> legacy = userRepository.findByPlanTierIsNull();
         List<String> migratedEmails = new ArrayList<>();
         List<String> skippedNoPhoneEmails = new ArrayList<>();
@@ -307,11 +310,12 @@ public class FreemiumService {
                 }
                 continue;
             }
-            if (!user.isActive()) {
+            if (!user.isActive() && !includeInactive) {
                 skippedInactive++;
                 continue;
             }
-            if (user.getPhone() == null || user.getPhone().isBlank()) {
+            boolean missingPhone = user.getPhone() == null || user.getPhone().isBlank();
+            if (missingPhone && !allowMissingPhone) {
                 skippedNoPhone++;
                 if (user.getEmail() != null) {
                     skippedNoPhoneEmails.add(user.getEmail());
@@ -319,7 +323,10 @@ public class FreemiumService {
                 continue;
             }
             if (!dryRun) {
-                migrateUserToFreemiumPlan(user, user.getPhone());
+                migrateUserToFreemiumPlanForBackfill(user, allowMissingPhone);
+                if (includeInactive && !user.isActive()) {
+                    user.setActive(true);
+                }
                 user.setUpdatedAt(IndiaTime.now());
                 userRepository.save(user);
             }
@@ -346,6 +353,36 @@ public class FreemiumService {
         validateEligibleForFreemiumMigration(user);
         applyFreemiumPlan(user, phone);
         initializeFreemiumDefaults(user);
+    }
+
+    private void migrateUserToFreemiumPlanForBackfill(User user, boolean allowMissingPhone) {
+        validateEligibleForFreemiumMigration(user);
+        if (allowMissingPhone) {
+            applyFreemiumPlanWithoutPhoneRequirement(user);
+        } else {
+            applyFreemiumPlan(user, user.getPhone());
+        }
+        initializeFreemiumDefaults(user);
+    }
+
+    /** Admin backfill only — does not require phone when missing (collect on next login). */
+    private void applyFreemiumPlanWithoutPhoneRequirement(User user) {
+        user.setPlanTier(User.PlanTier.FREEMIUM);
+        if (user.getQueryCreditsUsed() == null) {
+            user.setQueryCreditsUsed(0);
+        }
+        if (hasReferralBonus(user)) {
+            applyReferralBenefits(user);
+        } else {
+            user.setQueryCreditsLimit(FREEMIUM_QUERY_LIMIT);
+            user.setEnabledModules(new ArrayList<>(FREEMIUM_BASE_MODULES));
+        }
+        if (user.getReferralCode() == null) {
+            user.setReferralCode(generateReferralCode());
+        }
+        if (user.getEmailVerified() == null) {
+            user.setEmailVerified(true);
+        }
     }
 
     @Transactional

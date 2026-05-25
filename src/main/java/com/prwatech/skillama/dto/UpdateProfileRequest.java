@@ -13,6 +13,7 @@ import lombok.Setter;
 public class UpdateProfileRequest {
     private String name;
     private String email;
+    private String phone;
     private GenderEnum gender;
     // Note: Password update should be separate endpoint for security
 }

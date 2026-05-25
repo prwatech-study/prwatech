@@ -20,6 +20,8 @@ if [[ -z "$OWNER_TOKEN" ]]; then
 fi
 
 DRY_RUN="true"
+INCLUDE_INACTIVE="true"
+ALLOW_MISSING_PHONE="true"
 if [[ "${1:-}" == "--apply" ]]; then
   DRY_RUN="false"
   echo "Applying backfill (dryRun=false)..."
@@ -27,7 +29,7 @@ else
   echo "Dry-run only (pass --apply to write). Response:"
 fi
 
-URL="${BASE_URL%/}/skillama/api/admin/maintenance/backfill-legacy-to-freemium?dryRun=${DRY_RUN}"
+URL="${BASE_URL%/}/skillama/api/admin/maintenance/backfill-legacy-to-freemium?dryRun=${DRY_RUN}&includeInactive=${INCLUDE_INACTIVE}&allowMissingPhone=${ALLOW_MISSING_PHONE}"
 
 curl -sS -X POST "$URL" \
   -H "Authorization: Bearer ${OWNER_TOKEN}" \
