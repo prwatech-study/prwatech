@@ -12,6 +12,15 @@ public interface SkillamaUserRepository extends MongoRepository<User, String>, S
     java.util.Optional<User> findByReferralCode(String referralCode);
     Optional<User> findByEmail(String email);
 
+    Optional<User> findByEmailIgnoreCase(String email);
+
+    Optional<User> findByPhone(String phone);
+
+    /** Match last 10 digits for legacy rows stored without country code. */
+    Optional<User> findByPhoneEndingWith(String lastTenDigits);
+
+    Optional<User> findByEmailAndPhone(String email, String phone);
+
     /** Pre-freemium accounts (planTier not set) — candidates for admin backfill. */
     List<User> findByPlanTierIsNull();
 }

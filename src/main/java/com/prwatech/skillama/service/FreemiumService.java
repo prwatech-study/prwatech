@@ -59,6 +59,7 @@ public class FreemiumService {
     private final PasswordEncode passwordEncode;
     private final UserCourseAccessService userCourseAccessService;
     private final CreditAdjustmentLogRepository creditAdjustmentLogRepository;
+    private final UserContactService userContactService;
 
     /** Public read — home page banner, signup copy (no auth). */
     public FreemiumOfferingDTO getPublicOffering() {
@@ -158,12 +159,17 @@ public class FreemiumService {
     @Transactional
     public User registerFreemiumUser(FreemiumRegisterRequestDTO request) {
         validatePhone(request.getPhone());
-        String email = request.getEmail().trim();
+        String email = userContactService.normalizeEmail(request.getEmail());
         Optional<User> existing = userRepository.findByEmail(email);
+        if (existing.isEmpty()) {
+            existing = userRepository.findByEmailIgnoreCase(email);
+        }
         validateFreemiumCourseSelection(request, existing);
         if (existing.isPresent()) {
             return completeFreemiumRegistrationForExisting(existing.get(), request);
         }
+
+        userContactService.assertContactUnique(email, request.getPhone(), null);
 
         User user = new User();
         user.setName(request.getName());
@@ -200,6 +206,11 @@ public class FreemiumService {
             throw new IllegalStateException(
                     "This email has a premium account. Use the login page or contact support.");
         }
+
+        userContactService.assertContactUnique(
+                userContactService.normalizeEmail(request.getEmail()),
+                request.getPhone(),
+                user.getId());
 
         if (user.getPlanTier() == null) {
             applyFreemiumPlan(user, request.getPhone());
@@ -273,8 +284,12 @@ public class FreemiumService {
 
     @Transactional
     public FreemiumStatusDTO migrateLegacyUserToFreemium(String email, String phone) {
-        User user = userRepository.findByEmail(email.trim())
+        String normEmail = userContactService.normalizeEmail(email);
+        User user = userRepository.findByEmail(normEmail)
+                .or(() -> userRepository.findByEmailIgnoreCase(normEmail))
                 .orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + email));
+        validateEligibleForFreemiumMigration(user);
+        userContactService.assertContactUnique(normEmail, phone, user.getId());
         migrateUserToFreemiumPlan(user, phone);
         user.setUpdatedAt(IndiaTime.now());
         userRepository.save(user);

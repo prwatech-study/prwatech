@@ -29,6 +29,7 @@ public class OtpService {
     private final EmailServiceImpl emailService;
     private final PasswordEncode passwordEncode;
     private final UserService userService;
+    private final UserContactService userContactService;
 
     @Transactional
     public void sendOtp(String email, EmailOtp.OtpPurpose purpose) {
@@ -37,10 +38,6 @@ public class OtpService {
         }
         if (purpose == null) {
             purpose = EmailOtp.OtpPurpose.SIGNUP;
-        }
-
-        if (purpose == EmailOtp.OtpPurpose.SIGNUP) {
-            assertEmailAvailableForSignup(email.trim());
         }
 
         String otp = generateOtp();
@@ -123,9 +120,20 @@ public class OtpService {
         }
     }
 
-    private void assertEmailAvailableForSignup(String email) {
-        if (userService.findByEmail(email).isPresent()) {
+    /**
+     * Validates email/phone for signup OTP. {@code phone} may be null until the client sends it.
+     */
+    public void assertSignupContactAvailable(String email, String phone) {
+        String normEmail = userContactService.normalizeEmail(email);
+        if (userContactService.isEmailBlockedForNewSignup(normEmail)) {
             throw new IllegalStateException("Email is already in use. Please sign in.");
+        }
+        String excludeUserId = userContactService.resolveExcludeUserIdForSignupOtp(normEmail);
+        if (phone != null && !phone.isBlank()) {
+            FreemiumService.validatePhone(phone);
+            userContactService.assertContactUnique(normEmail, phone, excludeUserId);
+        } else if (excludeUserId == null) {
+            userContactService.assertContactUnique(normEmail, null, null);
         }
     }
 

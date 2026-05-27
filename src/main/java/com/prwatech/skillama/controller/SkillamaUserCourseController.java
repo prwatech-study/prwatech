@@ -12,6 +12,7 @@ import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserCourseEnrollment;
 import com.prwatech.skillama.service.FreemiumService;
+import com.prwatech.skillama.service.UserContactService;
 import com.prwatech.skillama.service.UserCourseService;
 import com.prwatech.skillama.service.UserService;
 import com.prwatech.skillama.util.IndiaTime;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/skillama/api/users/me")
@@ -35,6 +37,7 @@ public class SkillamaUserCourseController {
     private final UserCourseService userCourseService;
     private final UserService userService;
     private final FreemiumService freemiumService;
+    private final UserContactService userContactService;
     private final JwtUtils jwtUtils;
     
     /**
@@ -255,7 +258,7 @@ public class SkillamaUserCourseController {
                     paramType = Constants.AUTH_PARAM_TYPE)
     })
     @PutMapping("/profile")
-    public ResponseEntity<ApiResponse<UserDTO>> updateProfile(
+    public ResponseEntity<?> updateProfile(
             @RequestBody com.prwatech.skillama.dto.UpdateProfileRequest requestBody,
             HttpServletRequest request) {
         try {
@@ -268,21 +271,16 @@ public class SkillamaUserCourseController {
                 user.setName(requestBody.getName());
             }
             if (requestBody.getEmail() != null) {
-                // Check if email is already taken by another user
-                userService.findByEmail(requestBody.getEmail())
-                    .ifPresent(existing -> {
-                        if (!existing.getId().equals(userId)) {
-                            throw new IllegalArgumentException("Email already exists");
-                        }
-                    });
-                user.setEmail(requestBody.getEmail());
+                user.setEmail(userContactService.normalizeEmail(requestBody.getEmail()));
             }
             if (requestBody.getGender() != null) {
                 user.setGender(requestBody.getGender());
             }
             if (requestBody.getPhone() != null && !requestBody.getPhone().isBlank()) {
                 FreemiumService.validatePhone(requestBody.getPhone());
-                user.setPhone(FreemiumService.normalizePhone(requestBody.getPhone()));
+                String newPhone = FreemiumService.normalizePhone(requestBody.getPhone());
+                userContactService.assertContactUnique(user.getEmail(), newPhone, userId);
+                user.setPhone(newPhone);
             }
             
             user.setUpdatedAt(IndiaTime.now());
@@ -295,6 +293,9 @@ public class SkillamaUserCourseController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiResponse<>(400, null));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("status", 409, "message", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ApiResponse<>(401, null));

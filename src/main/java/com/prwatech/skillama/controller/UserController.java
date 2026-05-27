@@ -11,6 +11,7 @@ import com.prwatech.skillama.service.AdminService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.OtpService;
 import com.prwatech.skillama.service.PasswordResetService;
+import com.prwatech.skillama.service.UserContactService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -31,15 +32,25 @@ public class UserController {
     private final OtpService otpService;
     private final FreemiumService freemiumService;
     private final PasswordResetService passwordResetService;
+    private final UserContactService userContactService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody User user) {
-        if (userService.findByEmail(user.getEmail()).isPresent()) {
+        try {
+            userContactService.assertContactUnique(user.getEmail(), user.getPhone(), null);
+            if (user.getEmail() != null) {
+                user.setEmail(userContactService.normalizeEmail(user.getEmail()));
+            }
+            return ResponseEntity.ok(userService.register(user));
+        } catch (IllegalStateException e) {
             return ResponseEntity.status(409).body(Map.of(
                     "status", "error",
-                    "message", "Email is already registered"));
+                    "message", e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage()));
         }
-        return ResponseEntity.ok(userService.register(user));
     }
 
     @PostMapping("/login")
@@ -78,12 +89,35 @@ public class UserController {
     public ResponseEntity<?> sendEmailOtp(@RequestBody OtpSendRequestDTO request) {
         try {
             EmailOtp.OtpPurpose purpose = request.getPurpose() != null ? request.getPurpose() : EmailOtp.OtpPurpose.SIGNUP;
+            if (purpose == EmailOtp.OtpPurpose.SIGNUP) {
+                otpService.assertSignupContactAvailable(request.getEmail(), request.getPhone());
+            }
             otpService.sendOtp(request.getEmail(), purpose);
             return ResponseEntity.ok(Map.of("status", "success", "message", "OTP sent to email"));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(409).body(Map.of("status", "error", "message", e.getMessage()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Public check before signup or profile save (no auth).
+     */
+    @PostMapping("/contact/check-availability")
+    public ResponseEntity<ContactAvailabilityDTO> checkContactAvailability(
+            @RequestBody Map<String, String> body) {
+        try {
+            String email = body != null ? body.get("email") : null;
+            String phone = body != null ? body.get("phone") : null;
+            String excludeUserId = body != null ? body.get("excludeUserId") : null;
+            if (phone != null && !phone.isBlank()) {
+                FreemiumService.validatePhone(phone);
+            }
+            return ResponseEntity.ok(
+                    userContactService.checkAvailability(email, phone, excludeUserId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
         }
     }
 
