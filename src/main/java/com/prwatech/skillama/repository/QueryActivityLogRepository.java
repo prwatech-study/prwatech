@@ -7,4 +7,6 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface QueryActivityLogRepository extends MongoRepository<QueryActivityLog, String> {
     Page<QueryActivityLog> findByUserIdOrderByCreatedAtDesc(String userId, Pageable pageable);
+
+    long countByUserId(String userId);
 }

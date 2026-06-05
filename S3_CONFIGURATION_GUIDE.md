@@ -216,10 +216,43 @@ https://presentation-image-courses.s3.ap-south-1.amazonaws.com/courses/{courseId
 4. **AdminCurriculumImageController.java** - Updated to use S3 path structure
 5. **application.properties** - Added S3 configuration properties
 
+## Study materials bucket (downloadable course content)
+
+Downloadable files (PDF, DOC, ZIP, etc.) use a **separate** bucket from curriculum images:
+
+| Setting | Default |
+|---------|---------|
+| Bucket | `skillama-course-materials` |
+| Region | `ap-south-1` |
+| Base URL | `https://skillama-course-materials.s3.ap-south-1.amazonaws.com` |
+| Key pattern | `courses/{courseId}/materials/{timestamp}-{uuid}-{name}.pdf` |
+
+`application.properties`:
+
+```properties
+aws.s3.study-materials-bucket-name=skillama-course-materials
+file.upload.s3.study-materials-base-url=https://skillama-course-materials.s3.ap-south-1.amazonaws.com
+```
+
+Override via env: `STUDY_MATERIALS_S3_BUCKET`, `STUDY_MATERIALS_S3_BASE_URL`.
+
+Extend the EC2 IAM role policy with:
+
+```json
+{
+    "Effect": "Allow",
+    "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+    "Resource": "arn:aws:s3:::skillama-course-materials/*"
+}
+```
+
+Apply the same CORS / public-read bucket policy pattern as `presentation-image-courses` if learners download directly from S3 URLs.
+
 ## Next Steps
 
-1. Configure AWS S3 credentials in `application.properties`
-2. Test image upload endpoint
-3. Verify images are accessible via S3 URLs
-4. Update frontend to use the returned S3 URLs
+1. Create `skillama-course-materials` bucket in AWS (if not exists)
+2. Configure AWS S3 credentials / IAM role for both buckets
+3. Test image upload endpoint (`presentation-image-courses`)
+4. Test study material upload (`skillama-course-materials`)
+5. Verify files are accessible via S3 URLs
 

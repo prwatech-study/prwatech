@@ -41,6 +41,8 @@ public class CourseStudyMaterialService {
             Integer sortOrder,
             String adminUserId) throws IOException {
         ensureCourseExists(courseId);
+        // Folder is keyed by Mongo course id (unique), never by display name — duplicate course titles are isolated.
+        // Object keys also include timestamp + uuid so re-uploading the same filename does not overwrite.
         String prefix = studyMaterialsPrefix + "/" + courseId + "/materials";
         String fileUrl = fileStorageService.uploadDocumentToS3(file, prefix);
 

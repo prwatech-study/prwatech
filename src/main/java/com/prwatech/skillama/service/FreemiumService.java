@@ -9,6 +9,7 @@ import com.prwatech.skillama.dto.FreemiumOfferingDTO;
 import com.prwatech.skillama.dto.FreemiumRegisterRequestDTO;
 import com.prwatech.skillama.dto.FreemiumStatusDTO;
 import com.prwatech.skillama.dto.LegacyFreemiumBackfillResultDTO;
+import com.prwatech.skillama.dto.QueryCreditRepairResultDTO;
 import com.prwatech.skillama.dto.QueryCreditsDTO;
 import com.prwatech.skillama.model.CreditAdjustmentLog;
 import com.prwatech.skillama.repository.CreditAdjustmentLogRepository;
@@ -484,6 +485,122 @@ public class FreemiumService {
                 .reason(log.getReason())
                 .createdAt(log.getCreatedAt())
                 .build();
+    }
+
+    /**
+     * One-click repair for freemium query credits across all users.
+     * <ul>
+     *   <li><b>Used</b> — max of query activity log count, current stored used, and pre-corruption
+     *       values from legacy admin adjustments that incorrectly reduced used on positive delta.</li>
+     *   <li><b>Limit</b> — replays credit adjustment logs: applies limitAfter when set, adds positive
+     *       deltas when the old bug left limit unchanged, then ensures limit &ge; used.</li>
+     * </ul>
+     */
+    @Transactional
+    public QueryCreditRepairResultDTO repairQueryCreditsForAllUsers(boolean dryRun) {
+        QueryCreditRepairResultDTO result = QueryCreditRepairResultDTO.builder()
+                .dryRun(dryRun)
+                .build();
+
+        for (User user : userRepository.findAll()) {
+            result.setUsersScanned(result.getUsersScanned() + 1);
+            if (isUnlimited(user)) {
+                result.setUsersSkippedUnlimited(result.getUsersSkippedUnlimited() + 1);
+                continue;
+            }
+
+            int usedBefore = user.getQueryCreditsUsed() != null ? user.getQueryCreditsUsed() : 0;
+            int limitBefore = effectiveLimit(user);
+
+            long activityCount = queryActivityLogRepository.countByUserId(user.getId());
+            List<CreditAdjustmentLog> logs =
+                    creditAdjustmentLogRepository.findByUserIdOrderByCreatedAtAsc(user.getId());
+
+            int maxFromLegacyBug = logs.stream()
+                    .filter(this::isLegacyPositiveDeltaUsedReduction)
+                    .mapToInt(CreditAdjustmentLog::getBalanceBeforeUsed)
+                    .max()
+                    .orElse(0);
+
+            int correctUsed = (int) Math.min(
+                    Integer.MAX_VALUE,
+                    Math.max(Math.max(activityCount, usedBefore), maxFromLegacyBug));
+
+            int correctLimit = computeRepairedLimit(user, logs, correctUsed);
+
+            if (usedBefore == correctUsed && limitBefore == correctLimit) {
+                result.setUsersAlreadyCorrect(result.getUsersAlreadyCorrect() + 1);
+                continue;
+            }
+
+            String note = buildRepairNote(usedBefore, correctUsed, limitBefore, correctLimit, activityCount, logs);
+
+            result.getRepairs().add(QueryCreditRepairResultDTO.UserRepairDetail.builder()
+                    .userId(user.getId())
+                    .email(user.getEmail())
+                    .usedBefore(usedBefore)
+                    .usedAfter(correctUsed)
+                    .limitBefore(limitBefore)
+                    .limitAfter(correctLimit)
+                    .activityLogCount(activityCount)
+                    .note(note)
+                    .build());
+
+            if (!dryRun) {
+                user.setQueryCreditsUsed(correctUsed);
+                user.setQueryCreditsLimit(correctLimit);
+                user.setUpdatedAt(IndiaTime.now());
+                userRepository.save(user);
+            }
+            result.setUsersRepaired(result.getUsersRepaired() + 1);
+        }
+
+        return result;
+    }
+
+    private boolean isLegacyPositiveDeltaUsedReduction(CreditAdjustmentLog log) {
+        return log.getDelta() > 0 && log.getBalanceAfterUsed() < log.getBalanceBeforeUsed();
+    }
+
+    private int computeRepairedLimit(User user, List<CreditAdjustmentLog> logs, int correctUsed) {
+        int limit = hasReferralBonus(user)
+                ? FREEMIUM_QUERY_LIMIT + REFERRAL_QUERY_BONUS
+                : FREEMIUM_QUERY_LIMIT;
+
+        for (CreditAdjustmentLog log : logs) {
+            Integer before = log.getLimitBefore();
+            Integer after = log.getLimitAfter();
+            if (after != null && (before == null || !after.equals(before))) {
+                limit = after;
+            } else if (log.getDelta() > 0 && isLegacyPositiveDeltaUsedReduction(log)) {
+                limit += log.getDelta();
+            }
+        }
+
+        if (user.getQueryCreditsLimit() != null) {
+            limit = Math.max(limit, user.getQueryCreditsLimit());
+        }
+        return Math.max(limit, correctUsed);
+    }
+
+    private String buildRepairNote(
+            int usedBefore,
+            int correctUsed,
+            int limitBefore,
+            int correctLimit,
+            long activityCount,
+            List<CreditAdjustmentLog> logs) {
+        boolean legacyBug = logs.stream().anyMatch(this::isLegacyPositiveDeltaUsedReduction);
+        if (legacyBug && usedBefore < correctUsed) {
+            return "Restored used from activity/audit after legacy credit-adjust bug";
+        }
+        if (limitBefore < correctLimit) {
+            return "Applied missing allowance from credit adjustment history";
+        }
+        if (activityCount > usedBefore) {
+            return "Synced used count to query activity log";
+        }
+        return "Aligned used/limit with activity and adjustment history";
     }
 
     private void applyFreemiumPlan(User user, String phone) {

@@ -1051,6 +1051,29 @@ public class AdminController {
     }
 
     /**
+     * ADMIN/OWNER: repair freemium query credits for all users (dryRun=true previews changes).
+     * Fixes legacy bug where positive credit deltas reduced "used" instead of increasing limit.
+     */
+    @PostMapping("/maintenance/repair-query-credits")
+    public ResponseEntity<ApiResponse<QueryCreditRepairResultDTO>> repairQueryCredits(
+            @RequestParam(defaultValue = "true") boolean dryRun,
+            HttpServletRequest request) {
+        try {
+            String adminId = extractUserIdFromRequest(request);
+            adminService.requireAdminOrOwner(adminId);
+            QueryCreditRepairResultDTO result = freemiumService.repairQueryCreditsForAllUsers(dryRun);
+            adminAuditService.log(adminId, AdminAuditService.CREDIT_ADJUST, "SYSTEM", "query-credits-repair",
+                    (dryRun ? "Dry-run" : "Applied") + " query credit repair — fixed "
+                            + result.getUsersRepaired() + " of " + result.getUsersScanned() + " users", null);
+            return ResponseEntity.ok(new ApiResponse<>(200, result));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
      * OWNER: backfill legacy users (planTier null) to FREEMIUM with 50/70 query limits.
      * Default dryRun=true — pass dryRun=false to apply.
      */
