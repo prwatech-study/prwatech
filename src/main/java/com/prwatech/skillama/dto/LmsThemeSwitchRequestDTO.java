@@ -9,4 +9,7 @@ public class LmsThemeSwitchRequestDTO {
     private String previousTheme;
     private String source;
     private String pagePath;
+    /** homepage | lms */
+    private String context;
+    private String visitorId;
 }

@@ -28,6 +28,14 @@ public class LmsThemeEvent {
     private String source;
     private String pagePath;
 
+    /** homepage | lms */
+    @Indexed
+    private String context;
+
+    @Indexed
+    private String visitorId;
+    private boolean anonymous;
+
     @Indexed
     private LocalDateTime createdAt;
 }

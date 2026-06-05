@@ -5,4 +5,8 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface LmsThemeEventRepository extends MongoRepository<LmsThemeEvent, String> {
     long countByTheme(String theme);
+
+    long countByThemeAndContext(String theme, String context);
+
+    long countByThemeAndAnonymousTrue(String theme);
 }

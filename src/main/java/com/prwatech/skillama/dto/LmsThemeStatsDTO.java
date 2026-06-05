@@ -21,4 +21,12 @@ public class LmsThemeStatsDTO {
     private long activeClassic;
     /** Learners whose saved preference is Aurora */
     private long activeAurora;
+
+    private long homepageClassic;
+    private long homepageAurora;
+    private long lmsClassic;
+    private long lmsAurora;
+    /** Anonymous homepage visitor switches */
+    private long visitorClassic;
+    private long visitorAurora;
 }
