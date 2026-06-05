@@ -5,6 +5,7 @@ import com.prwatech.skillama.dto.*;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.ReferralShareService;
+import com.prwatech.skillama.service.LmsThemeService;
 import com.prwatech.skillama.service.UpgradeRequestService;
 import com.prwatech.skillama.service.UserProfileService;
 import com.prwatech.skillama.service.UserService;
@@ -27,6 +28,7 @@ public class UserProfileController {
     private final FreemiumService freemiumService;
     private final ReferralShareService referralShareService;
     private final UpgradeRequestService upgradeRequestService;
+    private final LmsThemeService lmsThemeService;
     private final JwtUtils jwtUtils;
     
     private static final String SESSION_COOKIE_NAME = "skillama_session_id";
@@ -210,6 +212,21 @@ public class UserProfileController {
         try {
             String userId = extractUserIdFromRequest(request);
             return ResponseEntity.ok(upgradeRequestService.recordInterest(userId, body));
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body(Map.of("status", "error", "message", "Unauthorized"));
+        }
+    }
+
+    @PostMapping("/lms-theme")
+    public ResponseEntity<?> recordLmsThemeSwitch(
+            @RequestBody LmsThemeSwitchRequestDTO body,
+            HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            lmsThemeService.recordThemeSwitch(userId, body);
+            return ResponseEntity.ok(Map.of("status", "success"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(401).body(Map.of("status", "error", "message", "Unauthorized"));
         }

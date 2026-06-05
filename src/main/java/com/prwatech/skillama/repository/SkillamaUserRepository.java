@@ -14,6 +14,8 @@ public interface SkillamaUserRepository extends MongoRepository<User, String>, S
 
     Optional<User> findByEmailIgnoreCase(String email);
 
+    long countByLmsThemePreference(String lmsThemePreference);
+
     Optional<User> findByPhone(String phone);
 
     /** Match last 10 digits for legacy rows stored without country code. */

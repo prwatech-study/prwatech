@@ -49,6 +49,9 @@ public class User {
     private String createdBy;
     private String updatedBy;
 
+    /** Learner LMS UI theme: classic | aurora */
+    private String lmsThemePreference;
+
     public enum UserRole {
         USER, ADMIN, OWNER
     }

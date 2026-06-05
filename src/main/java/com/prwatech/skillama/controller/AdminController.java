@@ -18,6 +18,7 @@ import com.prwatech.skillama.service.NotificationSettingsService;
 import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.ReviewService;
 import com.prwatech.skillama.service.SalesLeadService;
+import com.prwatech.skillama.service.LmsThemeService;
 import com.prwatech.skillama.service.UpgradeRequestService;
 import com.prwatech.skillama.service.UserService;
 import org.springframework.http.MediaType;
@@ -58,6 +59,7 @@ public class AdminController {
     private final NotificationSettingsService notificationSettingsService;
     private final AdminAuditService adminAuditService;
     private final UpgradeRequestService upgradeRequestService;
+    private final LmsThemeService lmsThemeService;
 
     // ========== Authentication & Authorization ==========
     
@@ -907,6 +909,18 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @ApiOperation(value = "LMS theme analytics", notes = "Classic vs Aurora theme switches and active preferences (Admin/Owner)")
+    @GetMapping("/analytics/lms-themes")
+    public ResponseEntity<ApiResponse<LmsThemeStatsDTO>> getLmsThemeStats(HttpServletRequest request) {
+        try {
+            String adminId = extractUserIdFromRequest(request);
+            adminService.requireAdminOrOwner(adminId);
+            return ResponseEntity.ok(new ApiResponse<>(200, lmsThemeService.getStats()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }
     }
     
