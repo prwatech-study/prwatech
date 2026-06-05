@@ -3,16 +3,21 @@ package com.prwatech.skillama.controller;
 import com.prwatech.authentication.security.JwtUtils;
 import com.prwatech.common.exception.ForbiddenException;
 import com.prwatech.common.exception.NotFoundException;
+import com.prwatech.skillama.dto.CourseShareMetadataDTO;
+import com.prwatech.skillama.dto.StudyMaterialDTO;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.CourseService;
+import com.prwatech.skillama.service.CourseStudyMaterialService;
 import com.prwatech.skillama.service.UserCourseAccessService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
@@ -23,9 +28,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CourseController {
     private final CourseService courseService;
+    private final CourseStudyMaterialService studyMaterialService;
     private final JwtUtils jwtUtils;
     private final UserService userService;
     private final UserCourseAccessService userCourseAccessService;
+
+    @Value("${skillama.app.public-url:https://skillama.co.in}")
+    private String publicAppUrl;
 
     @PostMapping
     public ResponseEntity<Course> create(@RequestBody Course course) {
@@ -114,6 +123,43 @@ public class CourseController {
         return courseService.findFirstPublicCourse()
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    }
+
+    /**
+     * Public share metadata for social previews (OG tags). No auth required.
+     */
+    @GetMapping("/{id}/share")
+    public ResponseEntity<CourseShareMetadataDTO> getShareMetadata(@PathVariable String id) {
+        return courseService.findActiveById(id)
+                .map(course -> {
+                    String base = publicAppUrl != null ? publicAppUrl.replaceAll("/$", "") : "https://skillama.co.in";
+                    String shareUrl = base + "/courses/" + id;
+                    String imageUrl = StringUtils.hasText(course.getThumbnail())
+                            ? course.getThumbnail()
+                            : base + "/assets/images/aitutor.png";
+                    return ResponseEntity.ok(CourseShareMetadataDTO.builder()
+                            .courseId(course.getId())
+                            .title(course.getName())
+                            .description(course.getDescription())
+                            .imageUrl(imageUrl)
+                            .shareUrl(shareUrl)
+                            .build());
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Downloadable study materials for enrolled learners (or admins).
+     */
+    @GetMapping("/{courseId}/materials")
+    public ResponseEntity<List<StudyMaterialDTO>> getStudyMaterials(
+            @PathVariable String courseId,
+            HttpServletRequest request) {
+        if (extractUserId(request) == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        enforceLearnerCourseAccess(request, courseId);
+        return ResponseEntity.ok(studyMaterialService.listForCourse(courseId));
     }
 
     @PutMapping("/{id}")

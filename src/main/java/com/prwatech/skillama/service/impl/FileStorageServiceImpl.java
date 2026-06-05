@@ -38,6 +38,25 @@ public class FileStorageServiceImpl implements FileStorageService {
     private static final List<String> ALLOWED_VIDEO_CONTENT_TYPES = Arrays.asList(
         "video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"
     );
+
+    private static final List<String> ALLOWED_DOCUMENT_CONTENT_TYPES = Arrays.asList(
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/zip",
+        "application/x-zip-compressed",
+        "text/plain",
+        "text/csv",
+        "image/jpeg",
+        "image/jpg",
+        "image/png"
+    );
+
+    private static final long MAX_DOCUMENT_FILE_SIZE = 50L * 1024 * 1024; // 50MB
     
     @Value("${file.upload.directory:uploads}")
     private String uploadDirectory;
@@ -302,6 +321,96 @@ public class FileStorageServiceImpl implements FileStorageService {
         if (contentType == null || !ALLOWED_VIDEO_CONTENT_TYPES.contains(contentType.toLowerCase())) {
             throw new IllegalArgumentException("Unsupported video type. Use MP4, WebM, MOV, or AVI.");
         }
+    }
+
+    @Override
+    public String uploadDocumentToS3(MultipartFile file, String s3Prefix) throws IOException {
+        validateDocumentFile(file);
+
+        String timestamp = IndiaTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        String randomId = UUID.randomUUID().toString().substring(0, 8);
+        String originalFilename = file.getOriginalFilename();
+        String extension = "";
+
+        if (originalFilename != null && originalFilename.contains(".")) {
+            extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
+        } else {
+            String contentType = file.getContentType();
+            if (contentType != null) {
+                if (contentType.contains("pdf")) extension = ".pdf";
+                else if (contentType.contains("wordprocessingml")) extension = ".docx";
+                else if (contentType.contains("msword")) extension = ".doc";
+                else if (contentType.contains("spreadsheetml")) extension = ".xlsx";
+                else if (contentType.contains("presentationml")) extension = ".pptx";
+                else if (contentType.contains("zip")) extension = ".zip";
+                else if (contentType.contains("plain")) extension = ".txt";
+                else if (contentType.contains("csv")) extension = ".csv";
+                else if (contentType.contains("jpeg") || contentType.contains("jpg")) extension = ".jpg";
+                else if (contentType.contains("png")) extension = ".png";
+            }
+        }
+
+        String safeName = sanitizeFileName(originalFilename);
+        String prefix = (s3Prefix != null && !s3Prefix.isEmpty()) ? s3Prefix.replaceAll("/$", "") + "/" : "";
+        String s3Key = prefix + timestamp + "-" + randomId + (safeName != null ? "-" + safeName : "") + extension;
+
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(s3Key)
+                .contentType(file.getContentType() != null ? file.getContentType() : "application/octet-stream")
+                .build();
+
+            long size = file.getSize();
+            RequestBody body;
+            if (size >= 0) {
+                body = RequestBody.fromInputStream(file.getInputStream(), size);
+            } else {
+                byte[] bytes = file.getBytes();
+                body = RequestBody.fromBytes(bytes);
+            }
+            s3Client.putObject(putObjectRequest, body);
+            return s3BaseUrl + "/" + s3Key;
+        } catch (S3Exception e) {
+            throw new IOException("Failed to upload document to S3: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void validateDocumentFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File is required");
+        }
+        if (file.getSize() > MAX_DOCUMENT_FILE_SIZE) {
+            throw new IllegalArgumentException("File size exceeds maximum allowed size of 50MB");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_DOCUMENT_CONTENT_TYPES.contains(contentType.toLowerCase())) {
+            String originalFilename = file.getOriginalFilename();
+            if (originalFilename != null) {
+                String ext = originalFilename.substring(originalFilename.lastIndexOf(".") + 1).toLowerCase();
+                List<String> allowedExtensions = Arrays.asList(
+                    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "zip", "txt", "csv", "jpg", "jpeg", "png"
+                );
+                if (allowedExtensions.contains(ext)) {
+                    return;
+                }
+            }
+            throw new IllegalArgumentException(
+                "Unsupported file type. Allowed: PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, ZIP, TXT, CSV, JPG, PNG.");
+        }
+    }
+
+    private String sanitizeFileName(String name) {
+        if (name == null || name.isEmpty()) {
+            return null;
+        }
+        int slash = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'));
+        String base = slash >= 0 ? name.substring(slash + 1) : name;
+        if (base.contains(".")) {
+            base = base.substring(0, base.lastIndexOf('.'));
+        }
+        return base.replaceAll("[^a-zA-Z0-9._-]", "_").toLowerCase();
     }
 
     @Override

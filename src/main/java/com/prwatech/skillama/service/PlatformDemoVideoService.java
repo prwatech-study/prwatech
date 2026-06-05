@@ -195,7 +195,7 @@ public class PlatformDemoVideoService {
             return new ParsedExternal(PLAYBACK_YOUTUBE, "https://www.youtube.com/embed/" + youtubeId);
         }
 
-        if (looksLikeDirectVideoFileUrl(working)) {
+        if (looksLikeDirectVideoFileUrl(working) || looksLikeS3VideoUrl(working)) {
             return new ParsedExternal(PLAYBACK_DIRECT, working);
         }
 
@@ -261,6 +261,20 @@ public class PlatformDemoVideoService {
         }
         int slash = pathRemainder.indexOf('/');
         return slash < 0 ? pathRemainder : pathRemainder.substring(0, slash);
+    }
+
+    private static boolean looksLikeS3VideoUrl(String url) {
+        try {
+            URI u = URI.create(url.trim());
+            String host = u.getHost();
+            if (host == null) {
+                return false;
+            }
+            host = host.toLowerCase(Locale.ROOT);
+            return host.contains("amazonaws.com") || host.contains("s3.");
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     private static boolean looksLikeDirectVideoFileUrl(String url) {
