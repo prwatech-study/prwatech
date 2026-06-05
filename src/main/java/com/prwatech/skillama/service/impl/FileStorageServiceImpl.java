@@ -66,9 +66,15 @@ public class FileStorageServiceImpl implements FileStorageService {
     
     @Value("${file.upload.s3.base-url:https://presentation-image-courses.s3.ap-south-1.amazonaws.com}")
     private String s3BaseUrl;
+
+    @Value("${file.upload.s3.study-materials-base-url:https://skillama-course-materials.s3.ap-south-1.amazonaws.com}")
+    private String studyMaterialsBaseUrl;
     
     @Value("${aws.s3.bucket-name:presentation-image-courses}")
     private String bucketName;
+
+    @Value("${aws.s3.study-materials-bucket-name:skillama-course-materials}")
+    private String studyMaterialsBucketName;
     
     @Autowired
     private S3Client s3Client;
@@ -210,7 +216,7 @@ public class FileStorageServiceImpl implements FileStorageService {
             return false;
         }
         String u = url.trim();
-        if (u.startsWith(s3BaseUrl)) {
+        if (u.startsWith(s3BaseUrl) || u.startsWith(studyMaterialsBaseUrl)) {
             return true;
         }
         return u.startsWith(baseUrl);
@@ -221,16 +227,8 @@ public class FileStorageServiceImpl implements FileStorageService {
         if (filePath == null || filePath.isEmpty()) {
             return false;
         }
-        
-        // Extract S3 key from URL
-        String s3Key = null;
-        if (filePath.startsWith(s3BaseUrl)) {
-            s3Key = filePath.substring(s3BaseUrl.length());
-            if (s3Key.startsWith("/")) {
-                s3Key = s3Key.substring(1);
-            }
-        } else if (filePath.startsWith(baseUrl)) {
-            // Local file
+
+        if (filePath.startsWith(baseUrl)) {
             String relativePath = filePath.substring(baseUrl.length());
             if (relativePath.startsWith("/")) {
                 relativePath = relativePath.substring(1);
@@ -241,27 +239,49 @@ public class FileStorageServiceImpl implements FileStorageService {
                 return true;
             }
             return false;
-        } else {
-            // Assume it's already a key
-            s3Key = filePath;
         }
-        
-        // Delete from S3 using IAM role credentials (EC2 instance profile)
-        if (s3Key != null) {
-            try {
-                DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
-                    .bucket(bucketName)
-                    .key(s3Key)
-                    .build();
-                
-                s3Client.deleteObject(deleteObjectRequest);
-                return true;
-            } catch (S3Exception e) {
-                throw new IOException("Failed to delete file from S3: " + e.getMessage(), e);
-            }
+
+        S3ObjectRef ref = resolveS3ObjectRef(filePath);
+        if (ref == null) {
+            return false;
         }
-        
-        return false;
+
+        try {
+            DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                .bucket(ref.bucket())
+                .key(ref.key())
+                .build();
+            s3Client.deleteObject(deleteObjectRequest);
+            return true;
+        } catch (S3Exception e) {
+            throw new IOException("Failed to delete file from S3: " + e.getMessage(), e);
+        }
+    }
+
+    private record S3ObjectRef(String bucket, String key) {}
+
+    private S3ObjectRef resolveS3ObjectRef(String filePath) {
+        if (filePath.startsWith(studyMaterialsBaseUrl)) {
+            return new S3ObjectRef(
+                studyMaterialsBucketName,
+                extractS3KeyFromUrl(filePath, studyMaterialsBaseUrl));
+        }
+        if (filePath.startsWith(s3BaseUrl)) {
+            return new S3ObjectRef(bucketName, extractS3KeyFromUrl(filePath, s3BaseUrl));
+        }
+        // Legacy: bare key — assume primary (presentation) bucket
+        if (!filePath.startsWith("http")) {
+            return new S3ObjectRef(bucketName, filePath);
+        }
+        return null;
+    }
+
+    private static String extractS3KeyFromUrl(String filePath, String baseUrl) {
+        String key = filePath.substring(baseUrl.length());
+        if (key.startsWith("/")) {
+            key = key.substring(1);
+        }
+        return key;
     }
     
     @Override
@@ -356,7 +376,7 @@ public class FileStorageServiceImpl implements FileStorageService {
 
         try {
             PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                .bucket(bucketName)
+                .bucket(studyMaterialsBucketName)
                 .key(s3Key)
                 .contentType(file.getContentType() != null ? file.getContentType() : "application/octet-stream")
                 .build();
@@ -370,9 +390,9 @@ public class FileStorageServiceImpl implements FileStorageService {
                 body = RequestBody.fromBytes(bytes);
             }
             s3Client.putObject(putObjectRequest, body);
-            return s3BaseUrl + "/" + s3Key;
+            return studyMaterialsBaseUrl + "/" + s3Key;
         } catch (S3Exception e) {
-            throw new IOException("Failed to upload document to S3: " + e.getMessage(), e);
+            throw new IOException("Failed to upload document to study-materials S3: " + e.getMessage(), e);
         }
     }
 

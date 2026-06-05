@@ -77,7 +77,8 @@ public interface FileStorageService {
     void validateVideoFile(MultipartFile file);
 
     /**
-     * Uploads a document (PDF, DOCX, ZIP, etc.) to S3 under the given prefix.
+     * Uploads a document (PDF, DOCX, ZIP, etc.) to the dedicated study-materials S3 bucket
+     * under the given prefix (e.g. courses/{courseId}/materials).
      */
     String uploadDocumentToS3(MultipartFile file, String s3Prefix) throws IOException;
 

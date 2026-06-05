@@ -423,8 +423,9 @@ public class FreemiumService {
     }
 
     /**
-     * Admin adjustment: positive delta grants extra queries (lowers used, min 0).
-     * Optional newLimit sets absolute freemium cap.
+     * Admin adjustment: positive delta increases total allowance (limit) while preserving
+     * lifetime used count — e.g. 29/50 + 100 → 29/150. Negative delta reduces allowance
+     * (not below used). Optional newLimit sets absolute cap (not below used).
      */
     @Transactional
     public CreditAdjustmentLogDTO adjustQueryCredits(String userId, CreditAdjustRequestDTO request, String adminId) {
@@ -439,14 +440,14 @@ public class FreemiumService {
         }
 
         int usedBefore = user.getQueryCreditsUsed() != null ? user.getQueryCreditsUsed() : 0;
-        Integer limitBefore = user.getQueryCreditsLimit();
+        int limitBefore = effectiveLimit(user);
         int delta = request.getDelta() != null ? request.getDelta() : 0;
 
         if (request.getNewLimit() != null) {
-            user.setQueryCreditsLimit(Math.max(0, request.getNewLimit()));
+            user.setQueryCreditsLimit(Math.max(usedBefore, Math.max(0, request.getNewLimit())));
         } else if (delta != 0) {
-            int usedAfter = Math.max(0, usedBefore - delta);
-            user.setQueryCreditsUsed(usedAfter);
+            int newLimit = Math.max(usedBefore, limitBefore + delta);
+            user.setQueryCreditsLimit(newLimit);
         }
 
         user.setUpdatedAt(IndiaTime.now());

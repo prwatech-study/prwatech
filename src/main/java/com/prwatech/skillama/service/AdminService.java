@@ -54,6 +54,7 @@ public class AdminService {
     private final PasswordEncode passwordEncode;
     private final AdminAuditService adminAuditService;
     private final DeletedSkillamaUserRepository deletedSkillamaUserRepository;
+    private final FreemiumService freemiumService;
 
     public User requireAdminOrOwner(String userId) {
         User user = userRepository.findById(userId)
@@ -784,6 +785,8 @@ public class AdminService {
                     .orElse(null);
         }
 
+        QueryCreditsDTO queryCredits = freemiumService.getQueryCredits(user);
+
         return UserAdminProfileDTO.builder()
                 .userId(user.getId())
                 .name(user.getName())
@@ -795,8 +798,8 @@ public class AdminService {
                 .createdAt(user.getCreatedAt())
                 .lastLoginAt(user.getLastLoginAt())
                 .loginCount(loginCount)
-                .queryCreditsUsed(user.getQueryCreditsUsed())
-                .queryCreditsLimit(user.getQueryCreditsLimit())
+                .queryCreditsUsed(queryCredits.getUsed())
+                .queryCreditsLimit(queryCredits.getLimit())
                 .enabledModules(user.getEnabledModules())
                 .referralCode(user.getReferralCode())
                 .referredBy(user.getReferredBy())
