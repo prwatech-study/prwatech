@@ -134,9 +134,7 @@ public class CourseController {
                 .map(course -> {
                     String base = publicAppUrl != null ? publicAppUrl.replaceAll("/$", "") : "https://skillama.co.in";
                     String shareUrl = base + "/courses/" + id;
-                    String imageUrl = StringUtils.hasText(course.getThumbnail())
-                            ? course.getThumbnail()
-                            : base + "/assets/images/aitutor.png";
+                    String imageUrl = resolveShareImageUrl(course.getThumbnail(), base);
                     return ResponseEntity.ok(CourseShareMetadataDTO.builder()
                             .courseId(course.getId())
                             .title(course.getName())
@@ -208,6 +206,27 @@ public class CourseController {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private String resolveShareImageUrl(String thumbnail, String publicBase) {
+        String fallback = publicBase + "/assets/images/aitutor.png";
+        if (!StringUtils.hasText(thumbnail)) {
+            return fallback;
+        }
+        String url = thumbnail.trim();
+        url = url.replace(
+                "presentation-image-course.s3.ap-south-1.amazonaws.com",
+                "presentation-image-courses.s3.ap-south-1.amazonaws.com");
+        if (url.startsWith("http://")) {
+            url = "https://" + url.substring(7);
+        }
+        if (url.startsWith("https://")) {
+            return url;
+        }
+        if (url.startsWith("/")) {
+            return publicBase + url;
+        }
+        return fallback;
     }
 
     private boolean isAdminUser(HttpServletRequest request) {
