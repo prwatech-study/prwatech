@@ -152,6 +152,7 @@ public class FileStorageServiceImpl implements FileStorageService {
                 .bucket(bucketName)
                 .key(s3Key)
                 .contentType(contentType != null ? contentType : "image/png")
+                .cacheControl("max-age=0, no-cache, no-store, must-revalidate")
                 .build();
             
             // Use bytes when size unknown (-1) so S3 always receives valid content length
@@ -166,7 +167,8 @@ public class FileStorageServiceImpl implements FileStorageService {
             }
             s3Client.putObject(putObjectRequest, body);
             
-            return s3BaseUrl + "/" + s3Key;
+            long version = System.currentTimeMillis();
+            return s3BaseUrl + "/" + s3Key + "?v=" + version;
         } catch (S3Exception e) {
             throw new IOException("Failed to upload file to S3: " + e.getMessage(), e);
         }
@@ -280,6 +282,10 @@ public class FileStorageServiceImpl implements FileStorageService {
         String key = filePath.substring(baseUrl.length());
         if (key.startsWith("/")) {
             key = key.substring(1);
+        }
+        int queryIndex = key.indexOf('?');
+        if (queryIndex >= 0) {
+            key = key.substring(0, queryIndex);
         }
         return key;
     }
