@@ -88,7 +88,7 @@ public class AdminService {
         return user.getRole() != User.UserRole.ADMIN && user.getRole() != User.UserRole.OWNER;
     }
     
-    public AdminAccessDTO checkAdminAccess(String userId) {
+    public AdminAccessDTO checkAdminAccess(String userId, AdminPermissionService adminPermissionService) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         
@@ -97,15 +97,21 @@ public class AdminService {
                 .hasAccess(false)
                 .role(user.getRole() != null ? user.getRole().name() : "USER")
                 .permissions(new ArrayList<>())
+                .modulePermissions(new ArrayList<>())
+                .legacyFullAccess(false)
                 .build();
         }
         
         List<String> permissions = getPermissions(user.getRole());
+        boolean legacyFullAccess = user.getRole() == User.UserRole.ADMIN
+                && adminPermissionService.usesLegacyFullAccess(user);
         
         return AdminAccessDTO.builder()
             .hasAccess(true)
             .role(user.getRole().name())
             .permissions(permissions)
+            .modulePermissions(adminPermissionService.resolveEffectivePermissions(user))
+            .legacyFullAccess(legacyFullAccess)
             .build();
     }
     
@@ -299,6 +305,10 @@ public class AdminService {
     
     @Transactional
     public void deleteUser(String userId, String deletedBy, boolean hardDelete, String reason) {
+        if (hardDelete) {
+            throw new IllegalArgumentException(
+                    "Permanent delete is disabled. Users are deactivated (soft delete) only.");
+        }
         User deleter = requireAdminOrOwner(deletedBy);
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -307,23 +317,10 @@ public class AdminService {
             throw new RuntimeException("Cannot delete OWNER user");
         }
         if (user.getRole() == User.UserRole.ADMIN && deleter.getRole() != User.UserRole.OWNER) {
-            throw new RuntimeException("Only OWNER can delete ADMIN users");
+            throw new RuntimeException("Only OWNER can deactivate ADMIN users");
         }
         if (deleter.getId().equals(userId)) {
             throw new RuntimeException("Cannot delete your own account");
-        }
-
-        if (hardDelete) {
-            if (deleter.getRole() != User.UserRole.OWNER) {
-                throw new RuntimeException("Only OWNER can permanently delete users");
-            }
-            if (reason == null || reason.isBlank()) {
-                throw new IllegalArgumentException("reason is required for permanent delete");
-            }
-            archiveAndHardDeleteUser(user, deleter, reason.trim());
-            adminAuditService.log(deletedBy, AdminAuditService.USER_HARD_DELETE, "USER", userId,
-                    "Permanently deleted user " + user.getEmail() + ": " + reason, null);
-            return;
         }
         
         user.setActive(false);

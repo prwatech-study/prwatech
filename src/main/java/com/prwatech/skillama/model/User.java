@@ -52,6 +52,13 @@ public class User {
     /** Learner LMS UI theme: classic | aurora */
     private String lmsThemePreference;
 
+    /**
+     * Per-module CRUD grants for ADMIN users. Null or empty = legacy full access (same as today).
+     * OWNER ignores this field (always full access).
+     */
+    @Builder.Default
+    private List<AdminModulePermission> adminModulePermissions = new ArrayList<>();
+
     public enum UserRole {
         USER, ADMIN, OWNER
     }

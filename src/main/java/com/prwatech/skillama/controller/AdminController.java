@@ -15,7 +15,11 @@ import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.PlatformDemoVideoService;
 import com.prwatech.skillama.service.NotificationSettingsService;
+import com.prwatech.skillama.service.AdminPermissionService;
 import com.prwatech.skillama.service.ReferralShareService;
+import com.prwatech.skillama.service.SkillamaPlatformConfigService;
+import com.prwatech.skillama.model.AdminModule;
+import com.prwatech.skillama.model.AdminPermissionAction;
 import com.prwatech.skillama.service.ReviewService;
 import com.prwatech.skillama.service.SalesLeadService;
 import com.prwatech.skillama.service.LmsThemeService;
@@ -60,6 +64,8 @@ public class AdminController {
     private final AdminAuditService adminAuditService;
     private final UpgradeRequestService upgradeRequestService;
     private final LmsThemeService lmsThemeService;
+    private final SkillamaPlatformConfigService platformConfigService;
+    private final AdminPermissionService adminPermissionService;
 
     // ========== Authentication & Authorization ==========
     
@@ -84,7 +90,7 @@ public class AdminController {
     public ResponseEntity<ApiResponse<AdminAccessDTO>> checkAccess(HttpServletRequest request) {
         try {
             String userId = extractUserIdFromRequest(request);
-            AdminAccessDTO access = adminService.checkAdminAccess(userId);
+            AdminAccessDTO access = adminService.checkAdminAccess(userId, adminPermissionService);
             return ResponseEntity.ok(new ApiResponse<>(200, access));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -92,6 +98,79 @@ public class AdminController {
         }
     }
     
+    // ========== Admin access control (OWNER) ==========
+
+    @GetMapping("/access-control/modules")
+    public ResponseEntity<ApiResponse<List<Map<String, String>>>> listAssignableModules(
+            HttpServletRequest request) {
+        try {
+            adminPermissionService.requireOwner(extractUserIdFromRequest(request));
+            return ResponseEntity.ok(new ApiResponse<>(200, adminPermissionService.listAssignableModules()));
+        } catch (RuntimeException e) {
+            if (isOwnerForbidden(e)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @GetMapping("/access-control/admins")
+    public ResponseEntity<ApiResponse<List<AdminUserPermissionsDTO>>> listAdminPermissions(
+            HttpServletRequest request) {
+        try {
+            adminPermissionService.requireOwner(extractUserIdFromRequest(request));
+            return ResponseEntity.ok(
+                    new ApiResponse<>(200, adminPermissionService.listAdminUsersForOwner()));
+        } catch (RuntimeException e) {
+            if (isOwnerForbidden(e)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @GetMapping("/access-control/admins/{userId}")
+    public ResponseEntity<ApiResponse<AdminUserPermissionsDTO>> getAdminPermissions(
+            @PathVariable String userId,
+            HttpServletRequest request) {
+        try {
+            adminPermissionService.requireOwner(extractUserIdFromRequest(request));
+            return ResponseEntity.ok(
+                    new ApiResponse<>(200, adminPermissionService.getAdminUserPermissions(userId)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (RuntimeException e) {
+            if (isOwnerForbidden(e)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PutMapping("/access-control/admins/{userId}")
+    public ResponseEntity<ApiResponse<AdminUserPermissionsDTO>> updateAdminPermissions(
+            @PathVariable String userId,
+            @RequestBody UpdateAdminPermissionsRequestDTO body,
+            HttpServletRequest request) {
+        try {
+            String ownerId = extractUserIdFromRequest(request);
+            AdminUserPermissionsDTO updated = adminPermissionService.updateAdminUserPermissions(
+                    userId, body, ownerId);
+            return ResponseEntity.ok(new ApiResponse<>(200, updated));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (RuntimeException e) {
+            if (isOwnerForbidden(e)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
     // ========== User Management ==========
     
     /**
@@ -125,7 +204,7 @@ public class AdminController {
             @RequestParam(required = false) String toDate,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request);
+            assertModulePermission(request, AdminModule.USERS, AdminPermissionAction.READ);
             java.time.LocalDateTime from = fromDate != null ? java.time.LocalDate.parse(fromDate).atStartOfDay() : null;
             java.time.LocalDateTime to = toDate != null ? java.time.LocalDate.parse(toDate).atTime(23, 59, 59) : null;
             Page<UserDTO> users = adminService.getUsers(page, size, search, role, active, phone, planTier, from, to);
@@ -160,6 +239,7 @@ public class AdminController {
             @RequestBody CreateUserRequest request,
             HttpServletRequest httpRequest) {
         try {
+            assertModulePermission(httpRequest, AdminModule.USERS, AdminPermissionAction.CREATE);
             String createdBy = extractUserIdFromRequest(httpRequest);
             UserDTO user = adminService.createUser(request, createdBy);
             return ResponseEntity.status(HttpStatus.CREATED)
@@ -241,6 +321,7 @@ public class AdminController {
             @RequestBody UpdateUserRequest request,
             HttpServletRequest httpRequest) {
         try {
+            assertModulePermission(httpRequest, AdminModule.USERS, AdminPermissionAction.UPDATE);
             String updatedBy = extractUserIdFromRequest(httpRequest);
             UserDTO user = adminService.updateUser(userId, request, updatedBy);
             return ResponseEntity.ok(new ApiResponse<>(200, user));
@@ -381,6 +462,7 @@ public class AdminController {
             @RequestParam(required = false) String reason,
             HttpServletRequest httpRequest) {
         try {
+            assertModulePermission(httpRequest, AdminModule.USERS, AdminPermissionAction.DELETE);
             String deletedBy = extractUserIdFromRequest(httpRequest);
             adminService.deleteUser(userId, deletedBy, hard, reason);
             return ResponseEntity.ok(new ApiResponse<>(200, null));
@@ -451,7 +533,7 @@ public class AdminController {
             @RequestParam(defaultValue = "desc") String order,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request); // Verify authentication
+            assertModulePermission(request, AdminModule.COURSES, AdminPermissionAction.READ);
             boolean desc = order.equalsIgnoreCase("desc");
             Page<Course> courses = courseService.findAll(page, size, sortBy, desc);
             return ResponseEntity.ok(new ApiResponse<>(200, courses));
@@ -484,6 +566,7 @@ public class AdminController {
             @RequestBody Course course,
             HttpServletRequest request) {
         try {
+            assertModulePermission(request, AdminModule.COURSES, AdminPermissionAction.CREATE);
             String adminId = extractUserIdFromRequest(request);
             Course created = courseService.create(course);
             adminAuditService.log(adminId, AdminAuditService.COURSE_CREATE, "COURSE", created.getId(),
@@ -521,6 +604,7 @@ public class AdminController {
             @RequestBody Course course,
             HttpServletRequest request) {
         try {
+            assertModulePermission(request, AdminModule.COURSES, AdminPermissionAction.UPDATE);
             String adminId = extractUserIdFromRequest(request);
             Course updated = courseService.update(courseId, course);
             if (updated == null) {
@@ -559,8 +643,8 @@ public class AdminController {
             @PathVariable String courseId,
             HttpServletRequest request) {
         try {
+            assertModulePermission(request, AdminModule.COURSES, AdminPermissionAction.DELETE);
             String actorId = extractUserIdFromRequest(request);
-            adminService.requireOwner(actorId);
             courseService.softDelete(courseId, actorId);
             adminAuditService.log(actorId, AdminAuditService.COURSE_DELETE, "COURSE", courseId,
                     "Archived (soft-deleted) course " + courseId, null);
@@ -732,6 +816,7 @@ public class AdminController {
             @RequestBody AssignCoursesRequest request,
             HttpServletRequest httpRequest) {
         try {
+            assertModulePermission(httpRequest, AdminModule.ASSIGNMENTS, AdminPermissionAction.CREATE);
             String assignedBy = extractUserIdFromRequest(httpRequest);
             AssignmentResponseDTO response = adminService.assignCourses(
                 request.getUserId(), request.getCourseIds(), assignedBy);
@@ -782,6 +867,7 @@ public class AdminController {
             HttpServletRequest httpRequest) {
         UnassignCourseRequest body = resolveUnassignRequest(request, userId, courseId);
         try {
+            assertModulePermission(httpRequest, AdminModule.ASSIGNMENTS, AdminPermissionAction.DELETE);
             String unassignedBy = extractUserIdFromRequest(httpRequest);
             adminService.unassignCourse(body.getUserId(), body.getCourseId(), unassignedBy);
             return ResponseEntity.ok(new ApiResponse<>(200, null));
@@ -903,7 +989,7 @@ public class AdminController {
     public ResponseEntity<ApiResponse<DashboardStatsDTO>> getDashboardStats(
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request); // Verify authentication
+            assertModulePermission(request, AdminModule.DASHBOARD, AdminPermissionAction.READ);
             DashboardStatsDTO stats = adminService.getDashboardStatistics();
             return ResponseEntity.ok(new ApiResponse<>(200, stats));
         } catch (Exception e) {
@@ -916,8 +1002,7 @@ public class AdminController {
     @GetMapping("/analytics/lms-themes")
     public ResponseEntity<ApiResponse<LmsThemeStatsDTO>> getLmsThemeStats(HttpServletRequest request) {
         try {
-            String adminId = extractUserIdFromRequest(request);
-            adminService.requireAdminOrOwner(adminId);
+            assertModulePermission(request, AdminModule.ANALYTICS, AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200, lmsThemeService.getStats()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
@@ -952,6 +1037,7 @@ public class AdminController {
             @RequestBody UpdateUserPlanRequestDTO request,
             HttpServletRequest httpRequest) {
         try {
+            assertModulePermission(httpRequest, AdminModule.FREEMIUM, AdminPermissionAction.UPDATE);
             String adminId = extractUserIdFromRequest(httpRequest);
             if (request.getPlanTier() == null) {
                 return ResponseEntity.badRequest()
@@ -979,6 +1065,7 @@ public class AdminController {
             @PathVariable String userId,
             HttpServletRequest httpRequest) {
         try {
+            assertModulePermission(httpRequest, AdminModule.FREEMIUM, AdminPermissionAction.UPDATE);
             String adminId = extractUserIdFromRequest(httpRequest);
             FreemiumStatusDTO status = freemiumService.updateUserPlan(userId, User.PlanTier.PAID);
             adminAuditService.log(adminId, AdminAuditService.PLAN_UPDATE, "USER", userId,
@@ -997,8 +1084,8 @@ public class AdminController {
             @RequestBody CreditAdjustRequestDTO body,
             HttpServletRequest httpRequest) {
         try {
+            assertModulePermission(httpRequest, AdminModule.FREEMIUM, AdminPermissionAction.UPDATE);
             String adminId = extractUserIdFromRequest(httpRequest);
-            adminService.requireAdminOrOwner(adminId);
             CreditAdjustmentLogDTO log = freemiumService.adjustQueryCredits(userId, body, adminId);
             adminAuditService.log(adminId, AdminAuditService.CREDIT_ADJUST, "USER", userId,
                     "Credit adjust delta=" + body.getDelta() + " reason=" + body.getReason(), null);
@@ -1020,7 +1107,7 @@ public class AdminController {
             @RequestParam(required = false) String search,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request);
+            assertModulePermission(request, AdminModule.UPGRADE_REQUESTS, AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     upgradeRequestService.list(page, size, status, search)));
         } catch (Exception e) {
@@ -1034,6 +1121,7 @@ public class AdminController {
             @RequestBody UpdateUpgradeRequestDTO body,
             HttpServletRequest request) {
         try {
+            assertModulePermission(request, AdminModule.UPGRADE_REQUESTS, AdminPermissionAction.UPDATE);
             String adminId = extractUserIdFromRequest(request);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     upgradeRequestService.update(requestId, body, adminId)));
@@ -1125,7 +1213,7 @@ public class AdminController {
             @RequestParam(required = false) String actorId,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request);
+            assertModulePermission(request, AdminModule.AUDIT_LOGS, AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     adminAuditService.list(page, size, action, actorId)));
         } catch (Exception e) {
@@ -1139,7 +1227,7 @@ public class AdminController {
     @GetMapping("/platform/demo-video")
     public ResponseEntity<ApiResponse<DemoVideoDTO>> getDemoVideoConfig(HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request);
+            assertModulePermission(request, AdminModule.SETTINGS_DEMO_VIDEO, AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200, platformDemoVideoService.getPublicConfig()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
@@ -1153,6 +1241,7 @@ public class AdminController {
             @RequestParam(required = false) String description,
             HttpServletRequest request) {
         try {
+            assertModulePermission(request, AdminModule.SETTINGS_DEMO_VIDEO, AdminPermissionAction.CREATE);
             String adminUserId = extractUserIdFromRequest(request);
             DemoVideoDTO dto = platformDemoVideoService.upload(video, title, description, adminUserId);
             return ResponseEntity.ok(new ApiResponse<>(200, dto));
@@ -1172,6 +1261,7 @@ public class AdminController {
             @RequestBody DemoVideoUrlRequestDTO body,
             HttpServletRequest request) {
         try {
+            assertModulePermission(request, AdminModule.SETTINGS_DEMO_VIDEO, AdminPermissionAction.UPDATE);
             String adminUserId = extractUserIdFromRequest(request);
             DemoVideoDTO dto = platformDemoVideoService.saveFromUrl(
                     body.getVideoUrl(), body.getTitle(), body.getDescription(), adminUserId);
@@ -1189,6 +1279,7 @@ public class AdminController {
             @RequestParam(required = false) String description,
             HttpServletRequest request) {
         try {
+            assertModulePermission(request, AdminModule.SETTINGS_DEMO_VIDEO, AdminPermissionAction.UPDATE);
             String adminUserId = extractUserIdFromRequest(request);
             return ResponseEntity.ok(new ApiResponse<>(
                     200, platformDemoVideoService.updateMetadata(title, description, adminUserId)));
@@ -1202,6 +1293,7 @@ public class AdminController {
     @DeleteMapping("/platform/demo-video")
     public ResponseEntity<ApiResponse<Void>> deleteDemoVideo(HttpServletRequest request) {
         try {
+            assertModulePermission(request, AdminModule.SETTINGS_DEMO_VIDEO, AdminPermissionAction.DELETE);
             String adminUserId = extractUserIdFromRequest(request);
             platformDemoVideoService.remove(adminUserId);
             return ResponseEntity.ok(new ApiResponse<>(200, null));
@@ -1210,10 +1302,42 @@ public class AdminController {
         }
     }
 
+    @GetMapping("/platform/upgrade-contact")
+    public ResponseEntity<ApiResponse<UpgradeContactDTO>> getUpgradeContactAdminConfig(HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            return ResponseEntity.ok(new ApiResponse<>(200, platformConfigService.getUpgradeContact()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PutMapping("/platform/upgrade-contact")
+    public ResponseEntity<ApiResponse<UpgradeContactDTO>> updateUpgradeContactConfig(
+            @RequestBody UpdateUpgradeContactDTO body,
+            HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            adminService.requireOwner(userId);
+            return ResponseEntity.ok(
+                    new ApiResponse<>(200, platformConfigService.updateUpgradeContact(body, userId)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null
+                    && (e.getMessage().contains("Only OWNER") || e.getMessage().contains("Owner access"))) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
     @GetMapping("/platform/referral-share")
     public ResponseEntity<ApiResponse<ReferralShareConfigDTO>> getReferralShareAdminConfig(HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request);
+            assertModulePermission(request, AdminModule.SETTINGS_REFERRAL, AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200, referralShareService.getPublicConfig()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
@@ -1225,6 +1349,7 @@ public class AdminController {
             @RequestBody UpdateReferralShareConfigDTO body,
             HttpServletRequest request) {
         try {
+            assertModulePermission(request, AdminModule.SETTINGS_REFERRAL, AdminPermissionAction.UPDATE);
             String adminUserId = extractUserIdFromRequest(request);
             return ResponseEntity.ok(
                     new ApiResponse<>(200, referralShareService.updateConfig(body, adminUserId)));
@@ -1238,7 +1363,7 @@ public class AdminController {
     @GetMapping("/platform/notification-settings")
     public ResponseEntity<ApiResponse<NotificationSettingsDTO>> getNotificationSettings(HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request);
+            assertModulePermission(request, AdminModule.SETTINGS_NOTIFICATIONS, AdminPermissionAction.READ);
             return ResponseEntity.ok(
                     new ApiResponse<>(200, notificationSettingsService.getAdminSettings()));
         } catch (Exception e) {
@@ -1251,6 +1376,7 @@ public class AdminController {
             @RequestBody UpdateNotificationSettingsDTO body,
             HttpServletRequest request) {
         try {
+            assertModulePermission(request, AdminModule.SETTINGS_NOTIFICATIONS, AdminPermissionAction.UPDATE);
             String adminUserId = extractUserIdFromRequest(request);
             return ResponseEntity.ok(
                     new ApiResponse<>(200, notificationSettingsService.updateSettings(body, adminUserId)));
@@ -1272,7 +1398,7 @@ public class AdminController {
             @RequestParam(defaultValue = "20") int size,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request);
+            assertModulePermission(request, AdminModule.FEEDBACK, AdminPermissionAction.READ);
             Page<Review> reviews = reviewService.getReviewsForAdmin(courseId, status, page, size);
             return ResponseEntity.ok(new ApiResponse<>(200, reviews));
         } catch (Exception e) {
@@ -1289,6 +1415,7 @@ public class AdminController {
             @RequestBody AdminReviewReplyRequestDTO body,
             HttpServletRequest request) {
         try {
+            assertModulePermission(request, AdminModule.FEEDBACK, AdminPermissionAction.UPDATE);
             String adminUserId = extractUserIdFromRequest(request);
             Review updated = reviewService.adminReply(reviewId, body, adminUserId);
             return ResponseEntity.ok(new ApiResponse<>(200, updated));
@@ -1419,6 +1546,20 @@ public class AdminController {
     /**
      * Extracts userId from JWT token in Authorization header
      */
+    private void assertModulePermission(
+            HttpServletRequest request, AdminModule module, AdminPermissionAction action) {
+        adminPermissionService.requirePermission(extractUserIdFromRequest(request), module, action);
+    }
+
+    private boolean isOwnerForbidden(RuntimeException e) {
+        return e.getMessage() != null
+                && (e.getMessage().contains("Owner access") || e.getMessage().contains("Only OWNER"));
+    }
+
+    private boolean isModuleForbidden(RuntimeException e) {
+        return e.getMessage() != null && e.getMessage().contains("Insufficient permission");
+    }
+
     private String extractUserIdFromRequest(HttpServletRequest request) {
         final String requestTokenHeader = request.getHeader("Authorization");
         

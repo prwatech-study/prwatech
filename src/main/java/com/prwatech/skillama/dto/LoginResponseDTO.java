@@ -23,6 +23,7 @@ public class LoginResponseDTO {
     private Boolean active;
     private GenderEnum gender;
     private LocalDateTime createdAt;
+    private User.PlanTier planTier;
     private String token; // JWT access token
 }
 

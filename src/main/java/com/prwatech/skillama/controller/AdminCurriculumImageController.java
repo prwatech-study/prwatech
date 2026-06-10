@@ -7,8 +7,11 @@ import com.prwatech.skillama.dto.ErrorResponse;
 import com.prwatech.skillama.dto.ImageDeleteResponseDTO;
 import com.prwatech.skillama.dto.ImageUploadResponseDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
+import com.prwatech.skillama.model.AdminModule;
+import com.prwatech.skillama.model.AdminPermissionAction;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.service.AdminPermissionService;
 import com.prwatech.skillama.service.CourseCurriculumService;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.FileStorageService;
@@ -47,6 +50,7 @@ public class AdminCurriculumImageController {
     private final CourseService courseService;
     private final CourseCurriculumService curriculumService;
     private final UserService userService;
+    private final AdminPermissionService adminPermissionService;
     private final JwtUtils jwtUtils;
     
     private static final String IMAGE_SUBDIRECTORY = "curriculum/images";
@@ -79,9 +83,8 @@ public class AdminCurriculumImageController {
             @RequestParam("image") MultipartFile file,
             HttpServletRequest request) {
         try {
-            // Verify admin access
-            verifyAdminAccess(request);
-            
+            assertCurriculumPermission(request, AdminPermissionAction.UPDATE);
+
             // Find module to get courseId and module order
             CourseCurriculum module = curriculumService.findById(moduleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Module not found"));
@@ -182,9 +185,8 @@ public class AdminCurriculumImageController {
             @RequestParam("image") MultipartFile file,
             HttpServletRequest request) {
         try {
-            // Verify admin access
-            verifyAdminAccess(request);
-            
+            assertCurriculumPermission(request, AdminPermissionAction.UPDATE);
+
             // Generic curriculum image: upload to AWS S3 (curriculum/images prefix)
             // Same bucket as submodule images; UI can use this URL when saving submodule imagePath
             String imagePath = fileStorageService.uploadImageToS3(file, IMAGE_SUBDIRECTORY);
@@ -246,9 +248,8 @@ public class AdminCurriculumImageController {
             @PathVariable int idx,
             HttpServletRequest request) {
         try {
-            // Verify admin access
-            verifyAdminAccess(request);
-            
+            assertCurriculumPermission(request, AdminPermissionAction.UPDATE);
+
             // Find submodule
             Optional<CourseCurriculum.Submodule> submoduleOpt = courseService.findSubmodule(moduleId, idx);
             if (submoduleOpt.isEmpty()) {
@@ -297,17 +298,9 @@ public class AdminCurriculumImageController {
         }
     }
     
-    /**
-     * Verifies that the user has ADMIN or OWNER role
-     */
-    private void verifyAdminAccess(HttpServletRequest request) {
+    private void assertCurriculumPermission(HttpServletRequest request, AdminPermissionAction action) {
         String userId = extractUserIdFromRequest(request);
-        User user = userService.findById(userId)
-            .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        if (user.getRole() != User.UserRole.ADMIN && user.getRole() != User.UserRole.OWNER) {
-            throw new RuntimeException("Access denied. ADMIN or OWNER role required.");
-        }
+        adminPermissionService.requirePermission(userId, AdminModule.CURRICULUM, action);
     }
     
     /**

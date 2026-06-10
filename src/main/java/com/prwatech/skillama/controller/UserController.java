@@ -76,6 +76,7 @@ public class UserController {
                     .active(user.isActive())
                     .gender(user.getGender())
                     .createdAt(user.getCreatedAt())
+                    .planTier(user.getPlanTier())
                     .token(accessToken)
                     .build();
                 
@@ -186,6 +187,7 @@ public class UserController {
                     .email(user.getEmail())
                     .role(user.getRole())
                     .active(user.isActive())
+                    .planTier(user.getPlanTier())
                     .token(accessToken)
                     .build());
         } catch (IllegalArgumentException e) {
