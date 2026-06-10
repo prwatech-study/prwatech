@@ -47,5 +47,6 @@ public class UserOrder {
     private LocalDateTime updatedAt;
 
     @Field(name = "isCompleted")
-    private Boolean isCompleted=Boolean.FALSE;
+    @Builder.Default
+    private Boolean isCompleted = Boolean.FALSE;
 }

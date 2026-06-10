@@ -32,13 +32,15 @@ public class CourseTrack {
     private ObjectId courseId;
 
     @Field(name = "is_all_completed")
-    private Boolean isAllCompleted=Boolean.FALSE;
+    @Builder.Default
+    private Boolean isAllCompleted = Boolean.FALSE;
 
     @Field(name = "total_size")
     private Integer totalSize;
 
     @Field(name = "current_item")
-    private Integer currentItem=1;
+    @Builder.Default
+    private Integer currentItem = 1;
 
     @Field(name = "created_at")
     @CreationTimestamp

@@ -16,6 +16,7 @@ import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.PlatformDemoVideoService;
 import com.prwatech.skillama.service.NotificationSettingsService;
 import com.prwatech.skillama.service.AdminPermissionService;
+import com.prwatech.skillama.service.DemoDashboardSeedService;
 import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.SkillamaPlatformConfigService;
 import com.prwatech.skillama.model.AdminModule;
@@ -66,6 +67,7 @@ public class AdminController {
     private final LmsThemeService lmsThemeService;
     private final SkillamaPlatformConfigService platformConfigService;
     private final AdminPermissionService adminPermissionService;
+    private final DemoDashboardSeedService demoDashboardSeedService;
 
     // ========== Authentication & Authorization ==========
     
@@ -1053,6 +1055,36 @@ public class AdminController {
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
         } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * OWNER: seed balanced course progress for learner dashboard screenshots.
+     * POST ?email=learner@example.com&amp;assignAll=true
+     */
+    @PostMapping("/users/seed-demo-dashboard")
+    public ResponseEntity<ApiResponse<DemoDashboardSeedResultDTO>> seedDemoDashboard(
+            @RequestParam String email,
+            @RequestParam(defaultValue = "true") boolean assignAll,
+            HttpServletRequest httpRequest) {
+        try {
+            String ownerId = extractUserIdFromRequest(httpRequest);
+            adminService.requireOwner(ownerId);
+            DemoDashboardSeedResultDTO result = demoDashboardSeedService.seedForEmail(email, ownerId, assignAll);
+            adminAuditService.log(ownerId, AdminAuditService.USER_UPDATE, "USER", result.getUserId(),
+                    "Seeded demo dashboard progress for " + email, null);
+            return ResponseEntity.ok(new ApiResponse<>(200, result));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(404, null));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse<>(400, null));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Owner access")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }
     }

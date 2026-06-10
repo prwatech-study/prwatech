@@ -35,7 +35,8 @@ public class QuizContentAttemptMap {
     private ObjectId quizContentId;
 
     @Field(name = "attempt")
-    private Integer attempt=0;
+    @Builder.Default
+    private Integer attempt = 0;
 
     @Field(name = "last_score")
     private Integer lastScore;
@@ -44,7 +45,8 @@ public class QuizContentAttemptMap {
     private Integer currentScore;
 
     @Field(name = "un_attempted")
-    private Integer unAttempted=0;
+    @Builder.Default
+    private Integer unAttempted = 0;
 
     @Field(name = "created_at")
     @CreationTimestamp

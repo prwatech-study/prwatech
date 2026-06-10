@@ -22,7 +22,8 @@ public class CreateOrderDto implements Serializable {
     private Integer amount;
 
     @JsonProperty("currency")
-    private String currency="INR";
+    @Builder.Default
+    private String currency = "INR";
 
     @JsonProperty("receipt")
     private String receipt;
@@ -31,7 +32,8 @@ public class CreateOrderDto implements Serializable {
     private Map<String, String> notes;
 
     @JsonProperty("partial_payment")
-    private Boolean partialPayment=Boolean.FALSE;
+    @Builder.Default
+    private Boolean partialPayment = Boolean.FALSE;
 
     @JsonProperty("course_ids")
     private List<String> courseIds;

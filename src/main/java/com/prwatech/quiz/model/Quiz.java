@@ -39,10 +39,12 @@ public class Quiz {
     private String templateUrl;
 
     @Field(name = "why_this_quiz")
-    private List<String> whyThisQuiz=new ArrayList<>();
+    @Builder.Default
+    private List<String> whyThisQuiz = new ArrayList<>();
 
     @Field(name = "quiz_content")
-    private List<QuizContent> quizContents=new ArrayList<>();
+    @Builder.Default
+    private List<QuizContent> quizContents = new ArrayList<>();
 
     @Field(name = "price")
     private Integer price;
