@@ -209,7 +209,7 @@ public class CourseController {
     }
 
     private String resolveShareImageUrl(String thumbnail, String publicBase) {
-        String fallback = publicBase + "/assets/images/aitutor.png";
+        String fallback = publicBase + "/assets/images/skillama-course-share.jpg";
         if (!StringUtils.hasText(thumbnail)) {
             return fallback;
         }
