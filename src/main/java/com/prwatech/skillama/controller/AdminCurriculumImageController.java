@@ -151,12 +151,7 @@ public class AdminCurriculumImageController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ErrorResponse(500, "UPLOAD_ERROR", "Failed to upload image: " + e.getMessage()));
         } catch (RuntimeException e) {
-            if (e.getMessage().contains("Authorization") || e.getMessage().contains("Unauthorized")) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new ErrorResponse(401, "UNAUTHORIZED", e.getMessage()));
-            }
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(400, "BAD_REQUEST", e.getMessage()));
+            return curriculumPermissionError(e);
         }
     }
     
@@ -214,12 +209,7 @@ public class AdminCurriculumImageController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ErrorResponse(500, "UPLOAD_ERROR", "Failed to upload image: " + e.getMessage()));
         } catch (RuntimeException e) {
-            if (e.getMessage().contains("Authorization") || e.getMessage().contains("Unauthorized")) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new ErrorResponse(401, "UNAUTHORIZED", e.getMessage()));
-            }
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(400, "BAD_REQUEST", e.getMessage()));
+            return curriculumPermissionError(e);
         }
     }
     
@@ -289,13 +279,22 @@ public class AdminCurriculumImageController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ErrorResponse(404, "SUBMODULE_NOT_FOUND", e.getMessage()));
         } catch (RuntimeException e) {
-            if (e.getMessage().contains("Authorization") || e.getMessage().contains("Unauthorized")) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new ErrorResponse(401, "UNAUTHORIZED", e.getMessage()));
-            }
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ErrorResponse(400, "BAD_REQUEST", e.getMessage()));
+            return curriculumPermissionError(e);
         }
+    }
+    
+    private ResponseEntity<ErrorResponse> curriculumPermissionError(RuntimeException e) {
+        String msg = e.getMessage() != null ? e.getMessage() : "";
+        if (msg.contains("Insufficient permission")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ErrorResponse(403, "FORBIDDEN", msg));
+        }
+        if (msg.contains("Authorization") || msg.contains("Admin access")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ErrorResponse(401, "UNAUTHORIZED", msg));
+        }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(new ErrorResponse(400, "BAD_REQUEST", msg));
     }
     
     private void assertCurriculumPermission(HttpServletRequest request, AdminPermissionAction action) {
