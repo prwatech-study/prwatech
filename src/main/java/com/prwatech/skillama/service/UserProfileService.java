@@ -11,6 +11,7 @@ import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserProfileService {
     
     private static final int MAX_GUEST_QUESTIONS = 5;
@@ -34,6 +36,7 @@ public class UserProfileService {
     private final FreemiumService freemiumService;
     private final SkillamaUserRepository userRepository;
     private final MongoTemplate skillamaMongoTemplate;
+    private final UserCourseService userCourseService;
     
     // ========== Session Management ==========
     
@@ -562,6 +565,9 @@ public class UserProfileService {
         profile.setLastActivityAt(IndiaTime.now());
         profile.setUpdatedAt(IndiaTime.now());
         userProfileRepository.save(profile);
+
+        // Keep dashboard progress (UserLectureProgress) in sync with profiling completions.
+        syncDashboardProgress(userId, courseId, lectureLabel, request.getTimeSpent());
         
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
@@ -573,6 +579,25 @@ public class UserProfileService {
         return response;
     }
     
+    /**
+     * Mirror lecture completion into the dashboard progress store for logged-in users.
+     */
+    private void syncDashboardProgress(String userId, String courseId, String lectureLabel, Integer timeSpent) {
+        if (userId == null || userId.isBlank() || courseId == null || courseId.isBlank() || lectureLabel == null) {
+            return;
+        }
+        try {
+            userCourseService.updateProgress(userId, courseId, lectureLabel, true, timeSpent);
+        } catch (Exception e) {
+            log.warn(
+                    "Dashboard progress sync failed for user={}, course={}, lecture={}: {}",
+                    userId,
+                    courseId,
+                    lectureLabel,
+                    e.getMessage());
+        }
+    }
+
     /**
      * Update lecture progress (in-progress)
      */
