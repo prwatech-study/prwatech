@@ -1,7 +1,7 @@
 package com.prwatech.skillama.model;
 
 import lombok.*;
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -20,7 +20,8 @@ public class User {
     private String id;
     private String name;
     private String email;
-    @JsonIgnore
+    /** Accept on login/register requests; never include in API responses. */
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
     private boolean active;
     private String activationKey;
