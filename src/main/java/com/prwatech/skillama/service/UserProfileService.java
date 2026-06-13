@@ -13,6 +13,9 @@ import com.prwatech.skillama.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 
@@ -705,11 +708,102 @@ public class UserProfileService {
                         .id(c.getId())
                         .question(c.getQuestion())
                         .answer(c.getAnswer())
+                        .answerAudioUrl(c.getAudioUrl())
                         .timestamp(c.getTimestamp())
                         .lectureContext(c.getLectureContext())
                         .courseId(c.getCourseId())
+                        .questionType(c.getQuestionType())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Admin monitor: paginated AI chat exchanges across all learners/guests.
+     */
+    public Page<AdminChatInteractionDTO> listAdminChatInteractions(
+            int page, int size, String userId, String courseId, String email) {
+        int limit = Math.min(Math.max(size, 1), 100);
+        int pageNum = Math.max(page, 0);
+
+        String emailFilter = email != null ? email.trim().toLowerCase() : null;
+        Set<String> allowedUserIds = null;
+        if (emailFilter != null && !emailFilter.isBlank()) {
+            allowedUserIds = userRepository.findAll().stream()
+                    .filter(u -> u.getEmail() != null
+                            && u.getEmail().toLowerCase().contains(emailFilter))
+                    .map(User::getId)
+                    .collect(Collectors.toSet());
+            if (allowedUserIds.isEmpty()) {
+                return new PageImpl<>(List.of(), PageRequest.of(pageNum, limit), 0);
+            }
+        }
+
+        Map<String, User> userCache = new HashMap<>();
+        Map<String, String> courseNameCache = new HashMap<>();
+        List<AdminChatInteractionDTO> rows = new ArrayList<>();
+
+        for (UserProfile profile : userProfileRepository.findAll()) {
+            if (profile.getChatInteractions() == null || profile.getChatInteractions().isEmpty()) {
+                continue;
+            }
+            if (userId != null && !userId.isBlank()
+                    && (profile.getUserId() == null || !userId.equals(profile.getUserId()))) {
+                continue;
+            }
+            if (allowedUserIds != null
+                    && (profile.getUserId() == null || !allowedUserIds.contains(profile.getUserId()))) {
+                continue;
+            }
+
+            User user = null;
+            if (profile.getUserId() != null) {
+                user = userCache.computeIfAbsent(
+                        profile.getUserId(),
+                        id -> userRepository.findById(id).orElse(null));
+            }
+
+            for (UserProfile.ChatInteraction chat : profile.getChatInteractions()) {
+                if (courseId != null && !courseId.isBlank()
+                        && (chat.getCourseId() == null || !courseId.equals(chat.getCourseId()))) {
+                    continue;
+                }
+
+                String courseName = null;
+                if (chat.getCourseId() != null) {
+                    courseName = courseNameCache.computeIfAbsent(chat.getCourseId(), cid ->
+                            courseRepository.findById(cid).map(Course::getName).orElse(null));
+                }
+
+                rows.add(AdminChatInteractionDTO.builder()
+                        .interactionId(chat.getId())
+                        .userId(profile.getUserId())
+                        .userName(user != null ? user.getName() : null)
+                        .userEmail(user != null ? user.getEmail() : null)
+                        .isGuest(profile.getUserId() == null || Boolean.TRUE.equals(profile.getIsGuest()))
+                        .sessionId(profile.getSessionId())
+                        .courseId(chat.getCourseId())
+                        .courseName(courseName)
+                        .question(chat.getQuestion())
+                        .answer(chat.getAnswer())
+                        .answerAudioUrl(chat.getAudioUrl())
+                        .lectureContext(chat.getLectureContext())
+                        .questionType(chat.getQuestionType())
+                        .timestamp(chat.getTimestamp())
+                        .build());
+            }
+        }
+
+        rows.sort(Comparator.comparing(
+                AdminChatInteractionDTO::getTimestamp,
+                Comparator.nullsLast(Comparator.reverseOrder())));
+
+        int total = rows.size();
+        int from = pageNum * limit;
+        if (from >= total) {
+            return new PageImpl<>(List.of(), PageRequest.of(pageNum, limit), total);
+        }
+        int to = Math.min(from + limit, total);
+        return new PageImpl<>(rows.subList(from, to), PageRequest.of(pageNum, limit), total);
     }
 
     private Optional<UserProfile> resolveProfileForRead(String sessionId, String userId) {

@@ -1,0 +1,98 @@
+package com.prwatech.skillama.service;
+
+import com.prwatech.skillama.dto.AdminChatInteractionDTO;
+import com.prwatech.skillama.model.Course;
+import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.model.UserProfile;
+import com.prwatech.skillama.repository.CourseCurriculumRepository;
+import com.prwatech.skillama.repository.CourseRepository;
+import com.prwatech.skillama.repository.SkillamaUserRepository;
+import com.prwatech.skillama.repository.UserProfileRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.mongodb.core.MongoTemplate;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class UserProfileServiceAdminChatTest {
+
+    @Mock private UserProfileRepository userProfileRepository;
+    @Mock private CourseRepository courseRepository;
+    @Mock private CourseCurriculumRepository curriculumRepository;
+    @Mock private CourseService courseService;
+    @Mock private FreemiumService freemiumService;
+    @Mock private SkillamaUserRepository userRepository;
+    @Mock private MongoTemplate skillamaMongoTemplate;
+    @Mock private UserCourseService userCourseService;
+
+    @InjectMocks private UserProfileService userProfileService;
+
+    private UserProfile profile;
+
+    @BeforeEach
+    void setUp() {
+        profile = UserProfile.builder()
+                .userId("u1")
+                .isGuest(false)
+                .chatInteractions(List.of(
+                        chat("c1", "What is Python?", "A language", LocalDateTime.of(2026, 6, 1, 10, 0)),
+                        chat("c2", "What is Java?", "Another language", LocalDateTime.of(2026, 6, 2, 10, 0))))
+                .build();
+    }
+
+    @Test
+    void listAdminChatInteractions_filtersByCourseAndIncludesUserDetails() {
+        when(userProfileRepository.findAll()).thenReturn(List.of(profile));
+        when(userRepository.findById("u1")).thenReturn(Optional.of(
+                User.builder().id("u1").name("Ada").email("ada@skillama.co.in").build()));
+        when(courseRepository.findById("c1")).thenReturn(Optional.of(
+                Course.builder().id("c1").name("Python Basics").build()));
+
+        Page<AdminChatInteractionDTO> page =
+                userProfileService.listAdminChatInteractions(0, 20, null, "c1", null);
+
+        assertEquals(1, page.getTotalElements());
+        AdminChatInteractionDTO row = page.getContent().get(0);
+        assertEquals("Ada", row.getUserName());
+        assertEquals("ada@skillama.co.in", row.getUserEmail());
+        assertEquals("Python Basics", row.getCourseName());
+        assertEquals("What is Python?", row.getQuestion());
+    }
+
+    @Test
+    void listAdminChatInteractions_sortsNewestFirst() {
+        when(userProfileRepository.findAll()).thenReturn(List.of(profile));
+        when(userRepository.findById("u1")).thenReturn(Optional.of(
+                User.builder().id("u1").name("Ada").email("ada@skillama.co.in").build()));
+
+        Page<AdminChatInteractionDTO> page =
+                userProfileService.listAdminChatInteractions(0, 20, null, null, null);
+
+        assertEquals(2, page.getTotalElements());
+        assertTrue(page.getContent().get(0).getQuestion().contains("Java"));
+    }
+
+    private static UserProfile.ChatInteraction chat(
+            String courseId, String question, String answer, LocalDateTime ts) {
+        return UserProfile.ChatInteraction.builder()
+                .id("chat-" + courseId + "-" + question.hashCode())
+                .courseId(courseId)
+                .question(question)
+                .answer(answer)
+                .questionType("text")
+                .timestamp(ts)
+                .build();
+    }
+}

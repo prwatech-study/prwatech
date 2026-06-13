@@ -25,6 +25,7 @@ import com.prwatech.skillama.service.ReviewService;
 import com.prwatech.skillama.service.SalesLeadService;
 import com.prwatech.skillama.service.LmsThemeService;
 import com.prwatech.skillama.service.UpgradeRequestService;
+import com.prwatech.skillama.service.UserProfileService;
 import com.prwatech.skillama.service.UserService;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
@@ -68,6 +69,7 @@ public class AdminController {
     private final SkillamaPlatformConfigService platformConfigService;
     private final AdminPermissionService adminPermissionService;
     private final DemoDashboardSeedService demoDashboardSeedService;
+    private final UserProfileService userProfileService;
 
     // ========== Authentication & Authorization ==========
     
@@ -1248,6 +1250,26 @@ public class AdminController {
             assertModulePermission(request, AdminModule.AUDIT_LOGS, AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     adminAuditService.list(page, size, action, actorId)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * Monitor learner/guest AI chat exchanges (question, answer, course, lecture, time).
+     */
+    @GetMapping("/chat-interactions")
+    public ResponseEntity<ApiResponse<Page<AdminChatInteractionDTO>>> listChatInteractions(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) String courseId,
+            @RequestParam(required = false) String email,
+            HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.ANALYTICS, AdminPermissionAction.READ);
+            return ResponseEntity.ok(new ApiResponse<>(200,
+                    userProfileService.listAdminChatInteractions(page, size, userId, courseId, email)));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }

@@ -8,19 +8,25 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
-/** Lightweight chat row for paginated history reads. */
+/** Admin view of a single learner/guest AI chat exchange. */
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatHistoryItemDTO {
-    private String id;
+public class AdminChatInteractionDTO {
+    private String interactionId;
+    private String userId;
+    private String userName;
+    private String userEmail;
+    private Boolean isGuest;
+    private String sessionId;
+    private String courseId;
+    private String courseName;
     private String question;
     private String answer;
     private String answerAudioUrl;
-    private LocalDateTime timestamp;
     private String lectureContext;
-    private String courseId;
     private String questionType;
+    private LocalDateTime timestamp;
 }
