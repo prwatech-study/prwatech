@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -163,6 +164,24 @@ public class UserProfileController {
     }
     
     // ========== Chat Tracking ==========
+
+    /**
+     * Paginated chat history (max 50 per page). Requires session cookie or Bearer token.
+     */
+    @GetMapping("/chat/history")
+    public ResponseEntity<List<ChatHistoryItemDTO>> getChatHistory(
+            @RequestParam(required = false) String courseId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest httpRequest) {
+        String sessionId = getSessionIdFromRequest(httpRequest);
+        String userId = getUserIdFromRequest(httpRequest);
+        if (sessionId == null && userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok(
+                userProfileService.getChatHistory(sessionId, userId, courseId, page, size));
+    }
     
     /**
      * Track chat question/answer

@@ -227,8 +227,57 @@ public class CourseService {
             return curriculum;
         }
         List<CourseCurriculum> learner = filterCurriculumForLearner(curriculum);
+        if (guestAccess) {
+            learner = applyGuestScriptRestrictions(learner);
+        }
         applyPracticalScriptIntegrityWarnings(learner);
         return learner;
+    }
+
+    /**
+     * Guest/teaser view: structure visible for all modules, but narration script only on the first enabled lecture.
+     */
+    static List<CourseCurriculum> applyGuestScriptRestrictions(List<CourseCurriculum> modules) {
+        if (modules == null || modules.isEmpty()) {
+            return List.of();
+        }
+        boolean firstLectureScriptRetained = false;
+        List<CourseCurriculum> result = new ArrayList<>();
+        for (CourseCurriculum module : modules) {
+            if (module.getSubmodules() == null || module.getSubmodules().isEmpty()) {
+                continue;
+            }
+            CourseCurriculum moduleCopy = new CourseCurriculum();
+            moduleCopy.setId(module.getId());
+            moduleCopy.setCourseId(module.getCourseId());
+            moduleCopy.setModuleName(module.getModuleName());
+            moduleCopy.setModuleAssetPath(module.getModuleAssetPath());
+            moduleCopy.setTitle(module.getTitle());
+            moduleCopy.setContent(module.getContent());
+            moduleCopy.setOrder(module.getOrder());
+            List<CourseCurriculum.Submodule> subs = new ArrayList<>();
+            for (CourseCurriculum.Submodule sub : module.getSubmodules()) {
+                if (!isSubmoduleEnabled(sub)) {
+                    continue;
+                }
+                CourseCurriculum.Submodule copy = new CourseCurriculum.Submodule();
+                copy.setLabel(sub.getLabel());
+                copy.setImagePath(sub.getImagePath());
+                copy.setPracticalRequired(sub.isPracticalRequired());
+                copy.setOrder(sub.getOrder());
+                copy.setEnabled(sub.getEnabled());
+                if (!firstLectureScriptRetained) {
+                    copy.setScriptText(sub.getScriptText());
+                    firstLectureScriptRetained = true;
+                }
+                subs.add(copy);
+            }
+            if (!subs.isEmpty()) {
+                moduleCopy.setSubmodules(subs);
+                result.add(moduleCopy);
+            }
+        }
+        return result;
     }
 
     public static void validatePracticalSubmoduleScript(CourseCurriculum.Submodule submodule) {

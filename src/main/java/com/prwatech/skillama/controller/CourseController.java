@@ -71,12 +71,17 @@ public class CourseController {
             @RequestParam(value = "forAdmin", required = false, defaultValue = "false") boolean forAdmin,
             HttpServletRequest request) {
         boolean adminView = forAdmin && isAdminUser(request);
-        if (!guestAccess && !adminView) {
-            enforceLearnerCourseAccess(request, courseId);
-            String userId = extractUserId(request);
-            if (userId != null) {
-                userCourseAccessService.touchLastAccessed(userId, courseId);
+        if (guestAccess) {
+            if (!isGuestCourseId(courseId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
+        } else if (!adminView) {
+            String userId = extractUserId(request);
+            if (userId == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            enforceLearnerCourseAccess(request, courseId);
+            userCourseAccessService.touchLastAccessed(userId, courseId);
         }
         return ResponseEntity.ok(courseService.getCurriculumByCourseIdOrdered(courseId, guestAccess, adminView));
     }
@@ -185,7 +190,7 @@ public class CourseController {
     private void enforceLearnerCourseAccess(HttpServletRequest request, String courseId) {
         String userId = extractUserId(request);
         if (userId == null) {
-            return;
+            throw new ForbiddenException("Authentication required.");
         }
         if (userCourseAccessService.isAdminOrOwner(userId)) {
             return;
@@ -193,6 +198,12 @@ public class CourseController {
         if (!userCourseAccessService.hasActiveEnrollment(userId, courseId)) {
             throw new ForbiddenException("You do not have access to this course.");
         }
+    }
+
+    private boolean isGuestCourseId(String courseId) {
+        return courseService.findGuestCourse()
+                .map(c -> c.getId().equals(courseId))
+                .orElse(false);
     }
 
     private String extractUserId(HttpServletRequest request) {

@@ -107,11 +107,17 @@ public class UserController {
      */
     @PostMapping("/contact/check-availability")
     public ResponseEntity<ContactAvailabilityDTO> checkContactAvailability(
-            @RequestBody Map<String, String> body) {
+            @RequestBody Map<String, String> body,
+            HttpServletRequest request) {
         try {
             String email = body != null ? body.get("email") : null;
             String phone = body != null ? body.get("phone") : null;
-            String excludeUserId = body != null ? body.get("excludeUserId") : null;
+            String excludeUserId = null;
+            try {
+                excludeUserId = extractUserIdFromRequest(request);
+            } catch (RuntimeException ignored) {
+                // Public signup — never trust client-supplied excludeUserId
+            }
             if (phone != null && !phone.isBlank()) {
                 FreemiumService.validatePhone(phone);
             }
@@ -265,22 +271,72 @@ public class UserController {
         }
     }
 
+    /**
+     * Lightweight authenticated session snapshot (no token in body).
+     */
+    @GetMapping("/session")
+    public ResponseEntity<UserSessionDTO> getSession(HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            User user = userService.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+            if (!user.isActive()) {
+                return ResponseEntity.status(403).build();
+            }
+            return ResponseEntity.ok(UserMapper.toSessionDto(user));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(404).build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(401).build();
+        }
+    }
+
     @GetMapping
-    public ResponseEntity<Page<User>> getAllUsers(
+    public ResponseEntity<?> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "desc") String order
+            @RequestParam(defaultValue = "desc") String order,
+            HttpServletRequest request
     ) {
-        boolean desc = order.equalsIgnoreCase("desc");
-        return ResponseEntity.ok(userService.findAll(page, size, sortBy, desc));
+        try {
+            String requesterId = extractUserIdFromRequest(request);
+            User requester = userService.findById(requesterId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+            if (requester.getRole() != User.UserRole.ADMIN && requester.getRole() != User.UserRole.OWNER) {
+                return ResponseEntity.status(403).body(Map.of("message", "Admin access required"));
+            }
+            boolean desc = order.equalsIgnoreCase("desc");
+            Page<User> users = userService.findAll(page, size, sortBy, desc);
+            Page<UserPublicDTO> projected = users.map(UserMapper::toPublicDto);
+            return ResponseEntity.ok(projected);
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Authorization")) {
+                return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+            }
+            return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        }
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<User> getUserById(@PathVariable String id) {
-        return userService.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<UserPublicDTO> getUserById(
+            @PathVariable String id,
+            HttpServletRequest request) {
+        try {
+            String requesterId = extractUserIdFromRequest(request);
+            User requester = userService.findById(requesterId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+            boolean isAdmin = requester.getRole() == User.UserRole.ADMIN
+                    || requester.getRole() == User.UserRole.OWNER;
+            if (!requesterId.equals(id) && !isAdmin) {
+                return ResponseEntity.status(403).build();
+            }
+            return userService.findById(id)
+                    .map(u -> ResponseEntity.ok(UserMapper.toPublicDto(u)))
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(401).build();
+        }
     }
     
     @PostMapping("/admin/activate")

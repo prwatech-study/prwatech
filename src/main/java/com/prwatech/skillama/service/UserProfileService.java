@@ -677,6 +677,50 @@ public class UserProfileService {
     }
     
     // ========== Chat Tracking ==========
+
+    /**
+     * Paginated chat history for the current session/user (lightweight — no audio URLs).
+     */
+    public List<ChatHistoryItemDTO> getChatHistory(
+            String sessionId, String userId, String courseId, int page, int size) {
+        Optional<UserProfile> profileOpt = resolveProfileForRead(sessionId, userId);
+        if (profileOpt.isEmpty()) {
+            return List.of();
+        }
+        int limit = Math.min(Math.max(size, 1), 50);
+        int pageNum = Math.max(page, 0);
+        List<UserProfile.ChatInteraction> interactions =
+                profileOpt.get().getChatInteractions() != null
+                        ? profileOpt.get().getChatInteractions()
+                        : List.of();
+
+        return interactions.stream()
+                .filter(c -> courseId == null || courseId.isBlank() || courseId.equals(c.getCourseId()))
+                .sorted(Comparator.comparing(
+                        UserProfile.ChatInteraction::getTimestamp,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .skip((long) pageNum * limit)
+                .limit(limit)
+                .map(c -> ChatHistoryItemDTO.builder()
+                        .id(c.getId())
+                        .question(c.getQuestion())
+                        .answer(c.getAnswer())
+                        .timestamp(c.getTimestamp())
+                        .lectureContext(c.getLectureContext())
+                        .courseId(c.getCourseId())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private Optional<UserProfile> resolveProfileForRead(String sessionId, String userId) {
+        if (userId != null) {
+            return userProfileRepository.findByUserId(userId);
+        }
+        if (sessionId != null) {
+            return userProfileRepository.findBySessionId(sessionId);
+        }
+        return Optional.empty();
+    }
     
     /**
      * Track chat question/answer

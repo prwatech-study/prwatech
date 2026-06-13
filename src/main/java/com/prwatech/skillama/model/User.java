@@ -1,6 +1,7 @@
 package com.prwatech.skillama.model;
 
 import lombok.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -19,6 +20,7 @@ public class User {
     private String id;
     private String name;
     private String email;
+    @JsonIgnore
     private String password;
     private boolean active;
     private String activationKey;
