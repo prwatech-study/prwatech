@@ -32,4 +32,14 @@ class UserPasswordJsonTest {
         assertFalse(json.contains("hashed-secret"));
         assertFalse(json.contains("password"));
     }
+
+    @Test
+    void registerRequest_deserializesPasswordForEncoding() throws Exception {
+        User user = mapper.readValue(
+                "{\"name\":\"Ada\",\"email\":\"ada@skillama.co.in\",\"password\":\"signup-pass\",\"phone\":\"9876543210\"}",
+                User.class);
+
+        assertEquals("Ada", user.getName());
+        assertEquals("signup-pass", user.getPassword());
+    }
 }

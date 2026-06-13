@@ -5,6 +5,10 @@
 #   APP_DIR=~/Prwatech/Webservices/prwatech
 #   PM2_NAME=prwatech-java
 #   GIT_BRANCH=adminDevelopment
+#
+# Order (live app untouched until the end):
+#   pull → ./gradlew clean build (runs tests first) → pm2 restart
+# If tests or build fail, set -e stops the script — PM2 keeps serving the old JAR.
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-$HOME/Prwatech/Webservices/prwatech}"
