@@ -74,7 +74,24 @@ public class ProgressReconciliationService {
     public BulkReconcileProgressResultDTO reconcileAllActiveEnrollments(boolean dryRun) {
         List<UserCourseEnrollment> enrollments = enrollmentRepository.findByStatus(
                 UserCourseEnrollment.EnrollmentStatus.ACTIVE);
+        return reconcileEnrollments(enrollments, dryRun);
+    }
 
+    /**
+     * Reconcile progress for every active enrollment of a single learner (all assigned courses).
+     */
+    public BulkReconcileProgressResultDTO reconcileAllCoursesForUser(String userId, boolean dryRun) {
+        if (!StringUtils.hasText(userId)) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        List<UserCourseEnrollment> enrollments = enrollmentRepository.findByUserIdAndStatus(
+                userId.trim(), UserCourseEnrollment.EnrollmentStatus.ACTIVE);
+        return reconcileEnrollments(enrollments, dryRun);
+    }
+
+    private BulkReconcileProgressResultDTO reconcileEnrollments(
+            List<UserCourseEnrollment> enrollments,
+            boolean dryRun) {
         Set<String> userIds = new HashSet<>();
         Set<String> courseIds = new HashSet<>();
         int lecturesSynced = 0;

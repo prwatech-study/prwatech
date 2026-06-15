@@ -6,6 +6,7 @@ import com.prwatech.skillama.dto.ChatHistoryItemDTO;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.LmsThemeService;
+import com.prwatech.skillama.service.ProgressReconciliationService;
 import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.UpgradeRequestService;
 import com.prwatech.skillama.service.UserProfileService;
@@ -40,6 +41,7 @@ class UserProfileControllerChatHistoryTest {
     @Mock private ReferralShareService referralShareService;
     @Mock private UpgradeRequestService upgradeRequestService;
     @Mock private LmsThemeService lmsThemeService;
+    @Mock private ProgressReconciliationService progressReconciliationService;
     @Mock private JwtUtils jwtUtils;
 
     private static final String TOKEN = "Bearer valid.jwt.token";
@@ -53,6 +55,7 @@ class UserProfileControllerChatHistoryTest {
                 referralShareService,
                 upgradeRequestService,
                 lmsThemeService,
+                progressReconciliationService,
                 jwtUtils);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())

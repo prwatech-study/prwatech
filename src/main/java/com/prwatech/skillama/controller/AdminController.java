@@ -1586,6 +1586,34 @@ public class AdminController {
         }
     }
 
+    @PostMapping("/users/{userId}/progress/reconcile-all")
+    public ResponseEntity<ApiResponse<BulkReconcileProgressResultDTO>> reconcileUserAllCoursesProgress(
+            @PathVariable String userId,
+            @RequestParam(defaultValue = "false") boolean dryRun,
+            HttpServletRequest request) {
+        try {
+            String adminId = extractUserIdFromRequest(request);
+            assertModulePermission(request, AdminModule.USERS, AdminPermissionAction.UPDATE);
+            BulkReconcileProgressResultDTO result = progressReconciliationService.reconcileAllCoursesForUser(userId, dryRun);
+            adminAuditService.log(adminId, AdminAuditService.USER_UPDATE, userId, "progress-reconcile-user",
+                    (dryRun ? "Dry-run: " : "Applied: ")
+                            + result.getEnrollmentsProcessed() + " enrollments, "
+                            + result.getTotalLecturesSynced() + " lectures synced, "
+                            + result.getFailures() + " failures",
+                    null);
+            return ResponseEntity.ok(new ApiResponse<>(200, result));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (RuntimeException e) {
+            if (isModuleForbidden(e)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ApiResponse<>(500, null));
+        }
+    }
+
     @PostMapping("/users/{userId}/progress/reconcile")
     public ResponseEntity<ApiResponse<ReconcileProgressResultDTO>> reconcileUserProgress(
             @PathVariable String userId,
