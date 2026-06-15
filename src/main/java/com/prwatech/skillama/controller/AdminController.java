@@ -17,6 +17,7 @@ import com.prwatech.skillama.service.PlatformDemoVideoService;
 import com.prwatech.skillama.service.NotificationSettingsService;
 import com.prwatech.skillama.service.AdminPermissionService;
 import com.prwatech.skillama.service.ProgressReconciliationService;
+import com.prwatech.skillama.service.DemoDashboardSeedService;
 import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.SkillamaPlatformConfigService;
 import com.prwatech.skillama.model.AdminModule;
