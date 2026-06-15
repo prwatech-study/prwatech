@@ -12,6 +12,7 @@ import com.prwatech.skillama.service.UserProfileService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.Cookie;
@@ -98,8 +99,9 @@ public class UserProfileController {
         org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(UserProfileController.class);
         logger.debug("Access control request: userId={}, sessionId={}, courseId={}", userId, sessionId, courseId);
         
-        // If neither sessionId nor userId exists, create a new guest session
-        if (sessionId == null && userId == null) {
+        // Auto guest session only when anonymous and no explicit course scope.
+        // With courseId + Bearer token, learners must not hit guest-course bootstrap.
+        if (sessionId == null && userId == null && !StringUtils.hasText(courseId)) {
             logger.debug("No session or user ID found, creating guest session");
             Map<String, Object> initResult = userProfileService.initializeGuestSession(
                     InitGuestSessionRequestDTO.builder().build());
@@ -111,6 +113,10 @@ public class UserProfileController {
             cookie.setPath("/");
             cookie.setMaxAge(7 * 24 * 60 * 60); // 7 days
             response.addCookie(cookie);
+        }
+
+        if (sessionId == null && userId == null) {
+            return ResponseEntity.status(401).build();
         }
         
         AccessControlResponseDTO accessControl = userProfileService.getAccessControl(

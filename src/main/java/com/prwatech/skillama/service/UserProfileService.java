@@ -136,9 +136,8 @@ public class UserProfileService {
     }
 
     private UserProfile createUserProfile(String userId) {
-        Course guestCourse = courseService.getGuestCourseOrThrow();
         String sessionId = "user-session-" + UUID.randomUUID().toString();
-        
+
         return UserProfile.builder()
                 .userId(userId)
                 .sessionId(sessionId)
@@ -165,6 +164,10 @@ public class UserProfileService {
         // Use provided courseId or profile's current course
         String targetCourseId = courseId != null ? courseId : profile.getCurrentCourseId();
         if (targetCourseId == null) {
+            if (userId != null) {
+                throw new NotFoundException(
+                        "courseId is required. No active course on profile for user: " + userId);
+            }
             Course guestCourse = courseService.getGuestCourseOrThrow();
             targetCourseId = guestCourse.getId();
             profile.setCurrentCourseId(targetCourseId);
