@@ -158,7 +158,20 @@ public class ProgressReconciliationService {
         List<LectureRef> ordered = collectEnabledLectures(courseId);
         Set<String> targetLabels = collectTargetCompletedLabels(userId, courseId, request, ordered);
 
+        boolean hasPendingSync = false;
+        for (String label : targetLabels) {
+            if (!isInOrderedCurriculum(label, ordered)) {
+                continue;
+            }
+            if (isCompletedInProfile(userId, label, courseId)) {
+                continue;
+            }
+            hasPendingSync = true;
+            break;
+        }
+
         int synced = 0;
+        if (hasPendingSync) {
         for (String label : targetLabels) {
             if (!isInOrderedCurriculum(label, ordered)) {
                 continue;
@@ -181,6 +194,7 @@ public class ProgressReconciliationService {
             } catch (Exception e) {
                 log.warn("Progress reconcile skipped lecture {} for user {}: {}", label, userId, e.getMessage());
             }
+        }
         }
 
         int totalCompleted = countProfileCompletedForCourse(userId, courseId);

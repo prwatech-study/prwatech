@@ -88,8 +88,9 @@ public class UserProfileController {
      */
     @GetMapping("/access-control")
     public ResponseEntity<AccessControlResponseDTO> getAccessControl(
-            @RequestParam(required = false) String courseId,
-            HttpServletRequest request,
+        @RequestParam(required = false) String courseId,
+        @RequestParam(defaultValue = "false") boolean reconcile,
+        HttpServletRequest request,
             HttpServletResponse response) {
         
         String sessionId = getSessionIdFromRequest(request);
@@ -119,8 +120,8 @@ public class UserProfileController {
             return ResponseEntity.status(401).build();
         }
 
-        // Merge legacy/dashboard progress into profiling before computing locks.
-        if (userId != null && StringUtils.hasText(courseId)) {
+        // Optional: merge legacy progress (first LMS open only — not every course switch).
+        if (reconcile && userId != null && StringUtils.hasText(courseId)) {
             try {
                 progressReconciliationService.reconcileForUser(
                         userId,
