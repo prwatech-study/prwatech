@@ -118,6 +118,19 @@ public class UserProfileController {
         if (sessionId == null && userId == null) {
             return ResponseEntity.status(401).build();
         }
+
+        // Merge legacy/dashboard progress into profiling before computing locks.
+        if (userId != null && StringUtils.hasText(courseId)) {
+            try {
+                progressReconciliationService.reconcileForUser(
+                        userId,
+                        ReconcileProgressRequestDTO.builder().courseId(courseId).build());
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(UserProfileController.class)
+                        .warn("Access-control reconcile skipped for user {} course {}: {}",
+                                userId, courseId, e.getMessage());
+            }
+        }
         
         AccessControlResponseDTO accessControl = userProfileService.getAccessControl(
                 profilingSessionId(sessionId, userId), userId, courseId);
