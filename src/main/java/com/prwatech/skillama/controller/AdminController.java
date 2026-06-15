@@ -16,7 +16,7 @@ import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.PlatformDemoVideoService;
 import com.prwatech.skillama.service.NotificationSettingsService;
 import com.prwatech.skillama.service.AdminPermissionService;
-import com.prwatech.skillama.service.DemoDashboardSeedService;
+import com.prwatech.skillama.service.ProgressReconciliationService;
 import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.SkillamaPlatformConfigService;
 import com.prwatech.skillama.model.AdminModule;
@@ -70,6 +70,7 @@ public class AdminController {
     private final AdminPermissionService adminPermissionService;
     private final DemoDashboardSeedService demoDashboardSeedService;
     private final UserProfileService userProfileService;
+    private final ProgressReconciliationService progressReconciliationService;
 
     // ========== Authentication & Authorization ==========
     
@@ -1553,6 +1554,30 @@ public class AdminController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PostMapping("/users/{userId}/progress/reconcile")
+    public ResponseEntity<ApiResponse<ReconcileProgressResultDTO>> reconcileUserProgress(
+            @PathVariable String userId,
+            @RequestBody ReconcileProgressRequestDTO body,
+            HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.USERS, AdminPermissionAction.UPDATE);
+            ReconcileProgressResultDTO result = progressReconciliationService.reconcileForUserAsAdmin(userId, body);
+            return ResponseEntity.ok(new ApiResponse<>(200, result));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (RuntimeException e) {
+            if (isModuleForbidden(e)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
+            if (e.getMessage() != null && e.getMessage().contains("Authorization")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+            }
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ApiResponse<>(500, null));
         }
     }
 

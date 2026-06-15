@@ -7,6 +7,7 @@ import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.LmsThemeService;
 import com.prwatech.skillama.service.UpgradeRequestService;
+import com.prwatech.skillama.service.ProgressReconciliationService;
 import com.prwatech.skillama.service.UserProfileService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class UserProfileController {
     private final ReferralShareService referralShareService;
     private final UpgradeRequestService upgradeRequestService;
     private final LmsThemeService lmsThemeService;
+    private final ProgressReconciliationService progressReconciliationService;
     private final JwtUtils jwtUtils;
     
     private static final String SESSION_COOKIE_NAME = "skillama_session_id";
@@ -165,6 +167,17 @@ public class UserProfileController {
         Map<String, Object> result = userProfileService.updateLectureProgress(
                 profilingSessionId(sessionId, userId), userId, request);
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Merge dashboard/legacy completion data into profiling (UserProfile) for LMS locks.
+     */
+    @PostMapping("/progress/reconcile")
+    public ResponseEntity<ReconcileProgressResultDTO> reconcileProgress(
+            @RequestBody ReconcileProgressRequestDTO request,
+            HttpServletRequest httpRequest) {
+        String userId = extractUserIdFromRequest(httpRequest);
+        return ResponseEntity.ok(progressReconciliationService.reconcileForUser(userId, request));
     }
     
     // ========== Chat Tracking ==========
