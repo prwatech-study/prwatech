@@ -94,6 +94,7 @@ public class UserProfileService {
     public UserProfile getOrCreateProfile(String sessionId, String userId) {
         if (userId != null) {
             return userProfileRepository.findByUserId(userId)
+                    .map(this::ensureRegisteredProfile)
                     .orElseGet(() -> createUserProfile(userId));
         }
         
@@ -125,6 +126,15 @@ public class UserProfileService {
         throw new NotFoundException("Session ID or User ID required");
     }
     
+    private UserProfile ensureRegisteredProfile(UserProfile profile) {
+        if (Boolean.TRUE.equals(profile.getIsGuest())) {
+            profile.setIsGuest(false);
+            profile.setUpdatedAt(IndiaTime.now());
+            return userProfileRepository.save(profile);
+        }
+        return profile;
+    }
+
     private UserProfile createUserProfile(String userId) {
         Course guestCourse = courseService.getGuestCourseOrThrow();
         String sessionId = "user-session-" + UUID.randomUUID().toString();
@@ -317,6 +327,13 @@ public class UserProfileService {
         Integer completionPercentage = getLectureProgress(profile, lectureLabel, courseId);
         LocalDateTime completedAt = getLectureCompletedAt(profile, lectureLabel, courseId);
         LocalDateTime unlockedAt = getLectureUnlockedAt(profile, lectureLabel);
+
+        // Completed lectures stay accessible after reload even if unlock chain metadata is stale.
+        if (isCompleted) {
+            isAccessible = true;
+            isLocked = false;
+            lockReason = null;
+        }
         
         return LectureAccessDTO.builder()
                 .lectureLabel(lectureLabel)
@@ -645,10 +662,11 @@ public class UserProfileService {
     }
     
     private List<String> unlockNextLectures(UserProfile profile, String completedLectureLabel, String courseId) {
-        List<CourseCurriculum> curriculum = courseService.getCurriculumByCourseIdOrdered(courseId);
-        
+        List<CourseCurriculum> curriculum =
+                courseService.getCurriculumByCourseIdOrdered(courseId, false, false);
+
         List<String> unlocked = new ArrayList<>();
-        
+
         for (CourseCurriculum module : curriculum) {
             if (module.getSubmodules() == null) {
                 continue;
@@ -656,20 +674,13 @@ public class UserProfileService {
             List<CourseCurriculum.Submodule> submodules = module.getSubmodules();
             for (int i = 0; i < submodules.size(); i++) {
                 CourseCurriculum.Submodule submodule = submodules.get(i);
-                if (!CourseService.isSubmoduleEnabled(submodule)) {
-                    continue;
-                }
                 if (!submodule.getLabel().equals(completedLectureLabel)) {
                     continue;
                 }
-                for (int j = i + 1; j < submodules.size(); j++) {
-                    CourseCurriculum.Submodule next = submodules.get(j);
-                    if (CourseService.isSubmoduleEnabled(next)) {
-                        String nextLabel = next.getLabel();
-                        if (!profile.getUnlockedLectures().contains(nextLabel)) {
-                            unlocked.add(nextLabel);
-                        }
-                        break;
+                if (i + 1 < submodules.size()) {
+                    String nextLabel = submodules.get(i + 1).getLabel();
+                    if (!profile.getUnlockedLectures().contains(nextLabel)) {
+                        unlocked.add(nextLabel);
                     }
                 }
                 break;

@@ -111,7 +111,8 @@ public class UserProfileController {
             response.addCookie(cookie);
         }
         
-        AccessControlResponseDTO accessControl = userProfileService.getAccessControl(sessionId, userId, courseId);
+        AccessControlResponseDTO accessControl = userProfileService.getAccessControl(
+                profilingSessionId(sessionId, userId), userId, courseId);
         return ResponseEntity.ok(accessControl);
     }
     
@@ -127,7 +128,8 @@ public class UserProfileController {
         String sessionId = getSessionIdFromRequest(request);
         String userId = getUserIdFromRequest(request);
         
-        LectureAccessDTO access = userProfileService.checkLectureAccess(sessionId, userId, lectureLabel, courseId);
+        LectureAccessDTO access = userProfileService.checkLectureAccess(
+                profilingSessionId(sessionId, userId), userId, lectureLabel, courseId);
         return ResponseEntity.ok(access);
     }
     
@@ -144,7 +146,8 @@ public class UserProfileController {
         String sessionId = getSessionIdFromRequest(httpRequest);
         String userId = getUserIdFromRequest(httpRequest);
         
-        Map<String, Object> result = userProfileService.completeLecture(sessionId, userId, request);
+        Map<String, Object> result = userProfileService.completeLecture(
+                profilingSessionId(sessionId, userId), userId, request);
         return ResponseEntity.ok(result);
     }
     
@@ -159,7 +162,8 @@ public class UserProfileController {
         String sessionId = getSessionIdFromRequest(httpRequest);
         String userId = getUserIdFromRequest(httpRequest);
         
-        Map<String, Object> result = userProfileService.updateLectureProgress(sessionId, userId, request);
+        Map<String, Object> result = userProfileService.updateLectureProgress(
+                profilingSessionId(sessionId, userId), userId, request);
         return ResponseEntity.ok(result);
     }
     
@@ -180,7 +184,8 @@ public class UserProfileController {
             return ResponseEntity.status(401).build();
         }
         return ResponseEntity.ok(
-                userProfileService.getChatHistory(sessionId, userId, courseId, page, size));
+                userProfileService.getChatHistory(
+                        profilingSessionId(sessionId, userId), userId, courseId, page, size));
     }
     
     /**
@@ -194,7 +199,8 @@ public class UserProfileController {
         String sessionId = getSessionIdFromRequest(httpRequest);
         String userId = getUserIdFromRequest(httpRequest);
         
-        Map<String, Object> result = userProfileService.trackChat(sessionId, userId, request);
+        Map<String, Object> result = userProfileService.trackChat(
+                profilingSessionId(sessionId, userId), userId, request);
         return ResponseEntity.ok(result);
     }
     
@@ -340,6 +346,11 @@ public class UserProfileController {
         return userService.findByEmail(email)
                 .map(User::getId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    /** Logged-in learners must use their user profile, not an old guest session cookie. */
+    private static String profilingSessionId(String sessionId, String userId) {
+        return userId != null ? null : sessionId;
     }
 }
 
