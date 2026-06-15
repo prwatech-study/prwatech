@@ -57,14 +57,13 @@ public class UserCourseServiceImpl implements UserCourseService {
             List<CourseCurriculum> curriculum = curriculumRepository.findByCourseIdOrderByOrderAsc(course.getId());
             int totalLectures = calculateTotalLectures(curriculum);
             
-            // Calculate completed lectures
-            long completedLectures = lectureProgressRepository
-                .countByUserIdAndCourseIdAndCompleted(userId, course.getId(), true);
+            // Calculate completed lectures (only labels still in enabled curriculum)
+            int completedLectures = countCompletedInCurriculum(
+                    userId, course.getId(), curriculum);
             
-            // Calculate progress percentage
-            int progressPercentage = totalLectures > 0 
-                ? (int) Math.round((completedLectures * 100.0) / totalLectures) 
-                : 0;
+            // Calculate progress percentage (capped at 100%)
+            int progressPercentage = CourseService.calculateProgressPercent(
+                    completedLectures, totalLectures);
             
             // Determine status
             String status = determineStatus(progressPercentage);
@@ -77,7 +76,7 @@ public class UserCourseServiceImpl implements UserCourseService {
             dto.setThumbnail(course.getThumbnail()); // Optional field
             dto.setProgress(progressPercentage);
             dto.setTotalLectures(totalLectures);
-            dto.setCompletedLectures((int) completedLectures);
+            dto.setCompletedLectures(completedLectures);
             dto.setStatus(status);
             dto.setEnrolledAt(enrollment.getEnrolledAt());
             dto.setLastAccessed(progress.getLastAccessed());
@@ -105,14 +104,12 @@ public class UserCourseServiceImpl implements UserCourseService {
         List<CourseCurriculum> curriculum = curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
         int totalLectures = calculateTotalLectures(curriculum);
         
-        // Get completed lectures count
-        long completedLectures = lectureProgressRepository
-            .countByUserIdAndCourseIdAndCompleted(userId, courseId, true);
+        // Get completed lectures count (enabled curriculum only)
+        int completedLectures = countCompletedInCurriculum(userId, courseId, curriculum);
         
-        // Calculate progress percentage
-        int progressPercentage = totalLectures > 0 
-            ? (int) Math.round((completedLectures * 100.0) / totalLectures) 
-            : 0;
+        // Calculate progress percentage (capped at 100%)
+        int progressPercentage = CourseService.calculateProgressPercent(
+                completedLectures, totalLectures);
         
         // Get all lecture progress for this course
         List<UserLectureProgress> lectureProgressList = lectureProgressRepository
@@ -137,7 +134,7 @@ public class UserCourseServiceImpl implements UserCourseService {
         dto.setCourseId(courseId);
         dto.setProgress(progressPercentage);
         dto.setTotalLectures(totalLectures);
-        dto.setCompletedLectures((int) completedLectures);
+        dto.setCompletedLectures(completedLectures);
         dto.setLastAccessed(progress.getLastAccessed());
         dto.setLectures(lectureDTOs);
         
@@ -221,14 +218,11 @@ public class UserCourseServiceImpl implements UserCourseService {
         List<CourseCurriculum> curriculum = curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
         int totalLectures = calculateTotalLectures(curriculum);
         
-        // Get completed lectures
-        long completedLectures = lectureProgressRepository
-            .countByUserIdAndCourseIdAndCompleted(userId, courseId, true);
+        // Get completed lectures (enabled curriculum only)
+        int completedLectures = countCompletedInCurriculum(userId, courseId, curriculum);
         
-        // Calculate progress
-        int progress = totalLectures > 0 
-            ? (int) Math.round((completedLectures * 100.0) / totalLectures) 
-            : 0;
+        // Calculate progress (capped at 100%)
+        int progress = CourseService.calculateProgressPercent(completedLectures, totalLectures);
         
         // Update or create UserCourseProgress
         UserCourseProgress courseProgress = progressRepository
@@ -239,7 +233,7 @@ public class UserCourseServiceImpl implements UserCourseService {
         courseProgress.setCourseId(courseId);
         courseProgress.setProgress(progress);
         courseProgress.setTotalLectures(totalLectures);
-        courseProgress.setCompletedLectures((int) completedLectures);
+        courseProgress.setCompletedLectures(completedLectures);
         courseProgress.setLastAccessed(IndiaTime.now());
         
         if (courseProgress.getCreatedAt() == null) {
@@ -252,6 +246,31 @@ public class UserCourseServiceImpl implements UserCourseService {
     
     private int calculateTotalLectures(List<CourseCurriculum> curriculum) {
         return CourseService.countEnabledLectures(curriculum);
+    }
+
+    /** Count completions that still exist in the current enabled curriculum. */
+    private int countCompletedInCurriculum(
+            String userId, String courseId, List<CourseCurriculum> curriculum) {
+        java.util.Set<String> enabled = new java.util.HashSet<>();
+        if (curriculum != null) {
+            for (CourseCurriculum module : curriculum) {
+                if (module.getSubmodules() == null) {
+                    continue;
+                }
+                for (CourseCurriculum.Submodule sub : module.getSubmodules()) {
+                    if (CourseService.isSubmoduleEnabled(sub) && sub.getLabel() != null) {
+                        enabled.add(sub.getLabel());
+                    }
+                }
+            }
+        }
+        if (enabled.isEmpty()) {
+            return 0;
+        }
+        return (int) lectureProgressRepository.findByUserIdAndCourseId(userId, courseId).stream()
+                .filter(lp -> Boolean.TRUE.equals(lp.getCompleted()))
+                .filter(lp -> lp.getLectureId() != null && enabled.contains(lp.getLectureId()))
+                .count();
     }
     
     private String determineStatus(int progress) {

@@ -199,9 +199,7 @@ public class ProgressReconciliationService {
 
         int totalCompleted = countProfileCompletedForCourse(userId, courseId);
         int totalLectures = ordered.size();
-        int percent = totalLectures > 0
-                ? (int) Math.round((totalCompleted * 100.0) / totalLectures)
-                : 0;
+        int percent = CourseService.calculateProgressPercent(totalCompleted, totalLectures);
 
         return ReconcileProgressResultDTO.builder()
                 .courseId(courseId)

@@ -304,6 +304,22 @@ public class CourseService {
                 .sum();
     }
 
+    /** Progress percent capped at 100; completed count capped at total enabled lectures. */
+    public static int calculateProgressPercent(int completedLectures, int totalLectures) {
+        if (totalLectures <= 0) {
+            return 0;
+        }
+        int cappedCompleted = Math.min(Math.max(completedLectures, 0), totalLectures);
+        return Math.min(100, (int) Math.round(cappedCompleted * 100.0 / totalLectures));
+    }
+
+    public static int clampStoredProgressPercent(Integer progress) {
+        if (progress == null) {
+            return 0;
+        }
+        return Math.min(100, Math.max(0, progress));
+    }
+
     private static CourseCurriculum.Submodule copySubmoduleForLearner(CourseCurriculum.Submodule submodule) {
         CourseCurriculum.Submodule copy = new CourseCurriculum.Submodule();
         copy.setLabel(submodule.getLabel());

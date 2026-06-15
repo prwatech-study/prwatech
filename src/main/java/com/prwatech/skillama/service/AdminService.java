@@ -519,7 +519,8 @@ public class AdminService {
                 dto.setCourseId(enrollment.getCourseId());
                 dto.setCourseName(course != null ? course.getName() : "Unknown");
                 dto.setEnrolledAt(enrollment.getEnrolledAt());
-                dto.setProgress(progress != null ? progress.getProgress() : 0);
+                dto.setProgress(CourseService.clampStoredProgressPercent(
+                        progress != null ? progress.getProgress() : 0));
                 
                 return dto;
             })
@@ -561,7 +562,8 @@ public class AdminService {
                 dto.setUserName(user.getName());
                 dto.setUserEmail(user.getEmail());
                 dto.setEnrolledAt(enrollment.getEnrolledAt());
-                dto.setProgress(progress != null ? progress.getProgress() : 0);
+                dto.setProgress(CourseService.clampStoredProgressPercent(
+                        progress != null ? progress.getProgress() : 0));
                 
                 return dto;
             })
@@ -632,7 +634,7 @@ public class AdminService {
             return 0.0;
         }
         double avg = allProgress.stream()
-                .mapToInt(p -> p.getProgress() != null ? p.getProgress() : 0)
+                .mapToInt(p -> CourseService.clampStoredProgressPercent(p.getProgress()))
                 .average()
                 .orElse(0.0);
         return Math.round(avg * 100.0) / 100.0;
@@ -698,12 +700,12 @@ public class AdminService {
             .collect(Collectors.toList());
         
         long completedEnrollments = progressList.stream()
-            .filter(p -> p.getProgress() != null && p.getProgress() == 100)
+            .filter(p -> CourseService.clampStoredProgressPercent(p.getProgress()) == 100)
             .count();
         
         double averageProgress = progressList.isEmpty() ? 0.0 :
             progressList.stream()
-                .mapToInt(p -> p.getProgress() != null ? p.getProgress() : 0)
+                .mapToInt(p -> CourseService.clampStoredProgressPercent(p.getProgress()))
                 .average()
                 .orElse(0.0);
         
@@ -760,7 +762,8 @@ public class AdminService {
                             .courseName(course != null ? course.getName() : "Unknown")
                             .enrollmentType(enrollment.getEnrollmentType())
                             .enrolledAt(enrollment.getEnrolledAt())
-                            .progress(progress != null ? progress.getProgress() : 0)
+                            .progress(CourseService.clampStoredProgressPercent(
+                                    progress != null ? progress.getProgress() : 0))
                             .lastAccessed(progress != null ? progress.getLastAccessed() : null)
                             .status(enrollment.getStatus())
                             .build();

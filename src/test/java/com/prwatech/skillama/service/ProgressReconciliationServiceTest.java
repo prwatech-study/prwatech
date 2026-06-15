@@ -12,7 +12,6 @@ import com.prwatech.skillama.repository.UserCourseEnrollmentRepository;
 import com.prwatech.skillama.repository.UserCourseProgressRepository;
 import com.prwatech.skillama.repository.UserLectureProgressRepository;
 import com.prwatech.skillama.repository.UserProfileRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -49,8 +48,7 @@ class ProgressReconciliationServiceTest {
     private static final String USER_ID = "u1";
     private static final String COURSE_ID = "course-1";
 
-    @BeforeEach
-    void stubCurriculum() {
+    private void stubCurriculum() {
         CourseCurriculum module = new CourseCurriculum();
         module.setModuleName("Module 1");
         CourseCurriculum.Submodule sub1 = new CourseCurriculum.Submodule();
@@ -78,6 +76,7 @@ class ProgressReconciliationServiceTest {
 
     @Test
     void reconcileForUser_skipsWritesWhenAlreadySynced() {
+        stubCurriculum();
         when(userProfileRepository.findByUserId(USER_ID)).thenReturn(Optional.of(
                 UserProfile.builder()
                         .userId(USER_ID)
@@ -107,6 +106,7 @@ class ProgressReconciliationServiceTest {
 
     @Test
     void reconcileForUser_syncsLectureProgressMissingFromProfile() {
+        stubCurriculum();
         when(userProfileRepository.findByUserId(USER_ID)).thenReturn(Optional.of(
                 UserProfile.builder()
                         .userId(USER_ID)
