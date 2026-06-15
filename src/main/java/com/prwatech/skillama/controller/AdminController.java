@@ -1254,6 +1254,34 @@ public class AdminController {
         }
     }
 
+    /**
+     * OWNER: reconcile LMS progress for every active enrollment (all learners × assigned courses).
+     * Merges dashboard/legacy progress into profiling so module locks match completed lectures.
+     * Default dryRun=true — pass dryRun=false to apply.
+     */
+    @PostMapping("/maintenance/reconcile-all-progress")
+    public ResponseEntity<ApiResponse<BulkReconcileProgressResultDTO>> reconcileAllProgress(
+            @RequestParam(defaultValue = "true") boolean dryRun,
+            HttpServletRequest request) {
+        try {
+            String adminId = extractUserIdFromRequest(request);
+            adminService.requireOwner(adminId);
+            BulkReconcileProgressResultDTO result = progressReconciliationService.reconcileAllActiveEnrollments(dryRun);
+            adminAuditService.log(adminId, AdminAuditService.USER_UPDATE, "SYSTEM", "progress-reconcile-all",
+                    (dryRun ? "Dry-run: " : "Applied: ")
+                            + result.getEnrollmentsProcessed() + " enrollments, "
+                            + result.getUniqueUsers() + " users, "
+                            + result.getTotalLecturesSynced() + " lectures synced, "
+                            + result.getFailures() + " failures",
+                    null);
+            return ResponseEntity.ok(new ApiResponse<>(200, result));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
     @GetMapping("/audit-logs")
     public ResponseEntity<ApiResponse<Page<AdminAuditLogDTO>>> listAuditLogs(
             @RequestParam(defaultValue = "0") int page,

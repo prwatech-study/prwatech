@@ -1,24 +1,31 @@
 package com.prwatech.skillama.service;
 
+import com.prwatech.skillama.dto.BulkReconcileProgressResultDTO;
 import com.prwatech.skillama.dto.CompleteLectureRequestDTO;
 import com.prwatech.skillama.dto.ReconcileProgressRequestDTO;
 import com.prwatech.skillama.dto.ReconcileProgressResultDTO;
+import com.prwatech.skillama.model.UserCourseEnrollment;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.UserCourseProgress;
 import com.prwatech.skillama.model.UserLectureProgress;
 import com.prwatech.skillama.model.UserProfile;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
+import com.prwatech.skillama.repository.UserCourseEnrollmentRepository;
 import com.prwatech.skillama.repository.UserCourseProgressRepository;
 import com.prwatech.skillama.repository.UserLectureProgressRepository;
 import com.prwatech.skillama.repository.UserProfileRepository;
 import com.prwatech.skillama.util.IndiaTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -38,15 +45,81 @@ public class ProgressReconciliationService {
     private final UserCourseProgressRepository courseProgressRepository;
     private final CourseCurriculumRepository curriculumRepository;
     private final UserCourseAccessService userCourseAccessService;
+    private final UserCourseEnrollmentRepository enrollmentRepository;
+
+    private ProgressReconciliationService self;
+
+    @Autowired
+    @Lazy
+    void setSelf(ProgressReconciliationService self) {
+        this.self = self;
+    }
+
+  private static final int MAX_FAILURE_SAMPLES = 25;
 
     @Transactional
     public ReconcileProgressResultDTO reconcileForUser(String userId, ReconcileProgressRequestDTO request) {
         return reconcileForUser(userId, request, false);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ReconcileProgressResultDTO reconcileForUserAsAdmin(String userId, ReconcileProgressRequestDTO request) {
         return reconcileForUser(userId, request, true);
+    }
+
+    /**
+     * OWNER maintenance: reconcile progress for every active enrollment (all learners × assigned courses).
+     * Each enrollment is reconciled independently so partial failures do not roll back the whole run.
+     */
+    public BulkReconcileProgressResultDTO reconcileAllActiveEnrollments(boolean dryRun) {
+        List<UserCourseEnrollment> enrollments = enrollmentRepository.findByStatus(
+                UserCourseEnrollment.EnrollmentStatus.ACTIVE);
+
+        Set<String> userIds = new HashSet<>();
+        Set<String> courseIds = new HashSet<>();
+        int lecturesSynced = 0;
+        int failures = 0;
+        List<String> failureSamples = new ArrayList<>();
+
+        for (UserCourseEnrollment enrollment : enrollments) {
+            if (enrollment == null
+                    || !StringUtils.hasText(enrollment.getUserId())
+                    || !StringUtils.hasText(enrollment.getCourseId())) {
+                continue;
+            }
+            userIds.add(enrollment.getUserId());
+            courseIds.add(enrollment.getCourseId());
+
+            if (dryRun) {
+                continue;
+            }
+
+            try {
+                ReconcileProgressRequestDTO request = ReconcileProgressRequestDTO.builder()
+                        .courseId(enrollment.getCourseId())
+                        .build();
+                ReconcileProgressResultDTO result = self.reconcileForUserAsAdmin(enrollment.getUserId(), request);
+                lecturesSynced += result.getSyncedLectures();
+            } catch (Exception e) {
+                failures++;
+                if (failureSamples.size() < MAX_FAILURE_SAMPLES) {
+                    failureSamples.add(enrollment.getUserId() + " / " + enrollment.getCourseId()
+                            + ": " + e.getMessage());
+                }
+                log.warn("Bulk progress reconcile failed for user {} course {}: {}",
+                        enrollment.getUserId(), enrollment.getCourseId(), e.getMessage());
+            }
+        }
+
+        return BulkReconcileProgressResultDTO.builder()
+                .dryRun(dryRun)
+                .enrollmentsProcessed(enrollments.size())
+                .uniqueUsers(userIds.size())
+                .uniqueCourses(courseIds.size())
+                .totalLecturesSynced(lecturesSynced)
+                .failures(failures)
+                .failureSamples(failureSamples)
+                .build();
     }
 
     private ReconcileProgressResultDTO reconcileForUser(
@@ -161,13 +234,13 @@ public class ProgressReconciliationService {
     }
 
     private int countProfileCompletedForCourse(String userId, String courseId) {
-        return (int) userProfileRepository.findByUserId(userId)
-                .map(profile -> profile.getCompletedLectures().stream()
+        return userProfileRepository.findByUserId(userId)
+                .map(profile -> (int) profile.getCompletedLectures().stream()
                         .filter(cl -> courseId.equals(cl.getCourseId()))
                         .map(UserProfile.CompletedLecture::getLectureLabel)
                         .distinct()
                         .count())
-                .orElse(0L);
+                .orElse(0);
     }
 
     private List<LectureRef> collectEnabledLectures(String courseId) {

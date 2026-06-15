@@ -14,5 +14,6 @@ public interface UserCourseEnrollmentRepository extends MongoRepository<UserCour
     boolean existsByUserIdAndCourseId(String userId, String courseId);
     long countByUserIdAndStatus(String userId, UserCourseEnrollment.EnrollmentStatus status);
     List<UserCourseEnrollment> findByCourseId(String courseId);
+    List<UserCourseEnrollment> findByStatus(UserCourseEnrollment.EnrollmentStatus status);
 }
 
