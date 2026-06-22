@@ -122,6 +122,63 @@ public class FileStorageServiceImpl implements FileStorageService {
     }
     
     @Override
+    public String uploadImageForSubmoduleById(MultipartFile file, String courseId, String moduleId, int submoduleIdx, Integer slideNumber) throws IOException {
+        validateImageFile(file);
+
+        // Unique key per Mongo module + submodule index (order fields can duplicate across modules).
+        String submoduleIdxStr = String.format("%02d", submoduleIdx + 1);
+        String slideNumberStr = String.format("%02d", slideNumber != null ? slideNumber : 1);
+
+        String contentType = file.getContentType();
+        String originalFilename = file.getOriginalFilename();
+        String extension = resolveImageExtension(originalFilename, contentType);
+
+        String s3Key = String.format("courses/%s/modules/%s/submodules/%s/slides/%s%s",
+            courseId, moduleId, submoduleIdxStr, slideNumberStr, extension);
+
+        return uploadToS3WithKey(file, s3Key, contentType);
+    }
+
+    private String resolveImageExtension(String originalFilename, String contentType) {
+        String extension = ".png";
+        if (originalFilename != null && originalFilename.contains(".")) {
+            extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
+        } else if (contentType != null) {
+            if (contentType.contains("jpeg") || contentType.contains("jpg")) extension = ".jpg";
+            else if (contentType.contains("png")) extension = ".png";
+            else if (contentType.contains("gif")) extension = ".gif";
+            else if (contentType.contains("webp")) extension = ".webp";
+        }
+        return extension;
+    }
+
+    private String uploadToS3WithKey(MultipartFile file, String s3Key, String contentType) throws IOException {
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(s3Key)
+                .contentType(contentType != null ? contentType : "image/png")
+                .cacheControl("max-age=0, no-cache, no-store, must-revalidate")
+                .build();
+
+            long size = file.getSize();
+            RequestBody body;
+            if (size >= 0) {
+                body = RequestBody.fromInputStream(file.getInputStream(), size);
+            } else {
+                byte[] bytes = file.getBytes();
+                body = RequestBody.fromBytes(bytes);
+            }
+            s3Client.putObject(putObjectRequest, body);
+
+            long version = System.currentTimeMillis();
+            return s3BaseUrl + "/" + s3Key + "?v=" + version;
+        } catch (S3Exception e) {
+            throw new IOException("Failed to upload file to S3: " + e.getMessage(), e);
+        }
+    }
+    
+    @Override
     public String uploadImageForSubmodule(MultipartFile file, String courseId, Integer moduleOrder, Integer lessonOrder, Integer slideNumber) throws IOException {
         validateImageFile(file);
         
@@ -133,45 +190,13 @@ public class FileStorageServiceImpl implements FileStorageService {
         
         String contentType = file.getContentType();
         String originalFilename = file.getOriginalFilename();
-        String extension = ".png";
-        if (originalFilename != null && originalFilename.contains(".")) {
-            extension = originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
-        } else if (contentType != null) {
-            if (contentType.contains("jpeg") || contentType.contains("jpg")) extension = ".jpg";
-            else if (contentType.contains("png")) extension = ".png";
-            else if (contentType.contains("gif")) extension = ".gif";
-            else if (contentType.contains("webp")) extension = ".webp";
-        }
+        String extension = resolveImageExtension(originalFilename, contentType);
         
         // Key: courses/{courseId}/modules/03/lessons/01/slides/01.png
         String s3Key = String.format("courses/%s/modules/%s/lessons/%s/slides/%s%s",
             courseId, moduleOrderStr, lessonOrderStr, slideNumberStr, extension);
         
-        try {
-            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                .bucket(bucketName)
-                .key(s3Key)
-                .contentType(contentType != null ? contentType : "image/png")
-                .cacheControl("max-age=0, no-cache, no-store, must-revalidate")
-                .build();
-            
-            // Use bytes when size unknown (-1) so S3 always receives valid content length
-            long size = file.getSize();
-            RequestBody body;
-            if (size >= 0) {
-                body = RequestBody.fromInputStream(file.getInputStream(), size);
-            } else {
-                byte[] bytes = file.getBytes();
-                body = RequestBody.fromBytes(bytes);
-                size = bytes.length;
-            }
-            s3Client.putObject(putObjectRequest, body);
-            
-            long version = System.currentTimeMillis();
-            return s3BaseUrl + "/" + s3Key + "?v=" + version;
-        } catch (S3Exception e) {
-            throw new IOException("Failed to upload file to S3: " + e.getMessage(), e);
-        }
+        return uploadToS3WithKey(file, s3Key, contentType);
     }
     
     @Override

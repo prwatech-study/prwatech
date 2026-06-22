@@ -34,6 +34,12 @@ public interface FileStorageService {
      * @throws IllegalArgumentException if file validation fails
      */
     String uploadImageForSubmodule(MultipartFile file, String courseId, Integer moduleOrder, Integer lessonOrder, Integer slideNumber) throws IOException;
+
+    /**
+     * Uploads a submodule image using stable module/submodule identifiers (avoids S3 key collisions
+     * when module or lesson order values repeat).
+     */
+    String uploadImageForSubmoduleById(MultipartFile file, String courseId, String moduleId, int submoduleIdx, Integer slideNumber) throws IOException;
     
     /**
      * Uploads an image file to S3 under the given prefix (e.g. "curriculum/images").

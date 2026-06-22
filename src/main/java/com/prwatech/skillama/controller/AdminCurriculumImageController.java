@@ -106,18 +106,13 @@ public class AdminCurriculumImageController {
                 }
             }
             
-            // Get module order and submodule order (default to 1 if null)
-            Integer moduleOrder = module.getOrder() != null ? module.getOrder() : 1;
-            Integer lessonOrder = submodule.getOrder() != null ? submodule.getOrder() : (idx + 1);
-            Integer slideNumber = 1; // Default slide number
-            
-            // Upload new image to S3 with proper path structure
-            String imagePath = fileStorageService.uploadImageForSubmodule(
-                file, 
-                module.getCourseId(), 
-                moduleOrder, 
-                lessonOrder, 
-                slideNumber
+            // Upload new image to S3 — use moduleId + submodule index (order fields can collide).
+            String imagePath = fileStorageService.uploadImageForSubmoduleById(
+                file,
+                module.getCourseId(),
+                moduleId,
+                idx,
+                1
             );
             
             // Update submodule
