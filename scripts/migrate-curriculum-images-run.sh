@@ -15,6 +15,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PRWATECH_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export PRWATECH_ROOT
 # shellcheck source=_lib/read-skillama-mongo-uri.sh
 source "$SCRIPT_DIR/_lib/read-skillama-mongo-uri.sh"
 _read_skillama_mongo_uri

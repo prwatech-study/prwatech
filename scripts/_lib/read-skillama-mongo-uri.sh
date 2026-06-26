@@ -6,9 +6,9 @@
 _read_skillama_mongo_uri() {
   local root="${PRWATECH_ROOT:-}"
   if [[ -z "$root" ]]; then
-    local script_dir
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[1]}")" && pwd)"
-    root="$(cd "$script_dir/../.." && pwd)"
+    local lib_dir
+    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    root="$(cd "$lib_dir/../.." && pwd)"
   fi
   PRWATECH_ROOT="$root"
 
