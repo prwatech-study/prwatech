@@ -19,6 +19,8 @@
 #
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 PLAN_FILE="${1:?Usage: $0 plan.json [--dry-run|--execute]}"
 MODE="${2:---dry-run}"
 BUCKET="${S3_BUCKET:-presentation-image-courses}"

@@ -51,7 +51,8 @@ function extractS3Key(imagePath) {
 }
 
 function buildCanonicalKey(courseId, moduleId, submoduleIdx, imagePath) {
-  const idxStr = String(submoduleIdx + 1).padStart(2, "0");
+  const idxNum = Number(submoduleIdx);
+  const idxStr = String(idxNum + 1).padStart(2, "0");
   const ext = extensionFromPath(imagePath);
   return `courses/${courseId}/modules/${moduleId}/submodules/${idxStr}/slides/01${ext}`;
 }
@@ -105,7 +106,8 @@ let skippedExternal = 0;
 const errors = [];
 
 rows.forEach((row) => {
-  const { courseId, moduleId, submoduleIdx, imagePath } = row;
+  const { courseId, moduleId, imagePath } = row;
+  const submoduleIdx = Number(row.submoduleIdx);
   const recordId = `${courseId}:${moduleId}:${submoduleIdx}`;
 
   if (isCanonical(imagePath)) {
