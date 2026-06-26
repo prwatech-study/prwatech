@@ -1,0 +1,18 @@
+---
+description: Skillama application repository paths for cross-repo and parallel work
+alwaysApply: true
+---
+
+# Skillama Application Repositories
+
+The Skillama application spans three separate repositories. Use these absolute paths when working across services or in parallel:
+
+| Service | Path | Role |
+|---------|------|------|
+| Frontend | `/Users/jitendra_chandwani/Desktop/skillama-lms` | React LMS web application |
+| API Backend | `/Users/jitendra_chandwani/Desktop/prwatech` | Main API / backend services |
+| AI Tutor Backend | `/Users/jitendra_chandwani/Desktop/ai-tutor` | AI tutor service |
+
+## Parallel Work
+
+When a task touches multiple services, read or edit files in the relevant repos above. Shell commands and file tools can target any of these paths directly.
