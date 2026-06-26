@@ -106,51 +106,8 @@ while IFS= read -r item; do
   fi
 
   # Update only the targeted submodule (array index) — never batch-update by imagePath (avoids re-collision).
-  newPathJson=$(jq -n --arg p "$newImagePath" '$p')
-  UPDATE_JS=$(cat <<EOF
-const moduleId = "$moduleId";
-const idx = $submoduleIdx;
-const newPath = $newPathJson;
-const coll = db.getSiblingDB("skillamaDB").course_curricula;
-
-function resolveModuleFilter(id) {
-  const attempts = [id];
-  if (/^[a-fA-F0-9]{24}$/.test(id)) {
-    try { attempts.push(ObjectId(id)); } catch (e) {}
-  }
-  for (const _id of attempts) {
-    if (coll.findOne({ _id }, { _id: 1 })) return { _id };
-  }
-  return { _id: id };
-}
-
-const filter = resolveModuleFilter(moduleId);
-const update = { \$set: {} };
-update.\$set["submodules." + idx + ".imagePath"] = newPath;
-
-const res = coll.updateOne(filter, update);
-
-if (res.matchedCount !== 1) {
-  print("MONGO_UPDATE_WARN matched=" + res.matchedCount + " modified=" + res.modifiedCount + " filter=" + tojson(filter));
-  quit(2);
-}
-
-if (res.modifiedCount === 0) {
-  const doc = coll.findOne(filter, { submodules: 1 });
-  const current = doc && doc.submodules && doc.submodules[idx] ? doc.submodules[idx].imagePath : null;
-  if (current === newPath) {
-    print("MONGO_OK_ALREADY");
-    quit(0);
-  }
-  print("MONGO_UPDATE_WARN matched=1 modified=0 current=" + current);
-  quit(2);
-}
-
-print("MONGO_OK");
-EOF
-)
-
-  mongo_out=$(mongosh "$MONGO_URI" --quiet --eval "$UPDATE_JS" 2>&1) || true
+  mongo_out=$(MIG_MODULE_ID="$moduleId" MIG_IDX="$submoduleIdx" MIG_NEW_PATH="$newImagePath" \
+    mongosh "$MONGO_URI" --quiet --file "$SCRIPT_DIR/_lib/mongo-update-submodule-imagepath.js" 2>&1) || true
   if echo "$mongo_out" | grep -qE 'MONGO_OK|MONGO_OK_ALREADY'; then
     :
   else
