@@ -35,3 +35,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# Migration backups (local dumps — do not commit)
+backups/

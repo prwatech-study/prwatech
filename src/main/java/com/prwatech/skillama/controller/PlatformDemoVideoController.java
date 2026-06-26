@@ -1,9 +1,11 @@
 package com.prwatech.skillama.controller;
 
+import com.prwatech.skillama.dto.AiSettingsDTO;
 import com.prwatech.skillama.dto.DemoVideoDTO;
 import com.prwatech.skillama.dto.FreemiumOfferingDTO;
 import com.prwatech.skillama.dto.UpgradeContactDTO;
 import com.prwatech.skillama.service.FreemiumService;
+import com.prwatech.skillama.service.PlatformAiSettingsService;
 import com.prwatech.skillama.service.PlatformDemoVideoService;
 import com.prwatech.skillama.service.SkillamaPlatformConfigService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ public class PlatformDemoVideoController {
 
     private final PlatformDemoVideoService platformDemoVideoService;
     private final SkillamaPlatformConfigService platformConfigService;
+    private final PlatformAiSettingsService platformAiSettingsService;
     private final FreemiumService freemiumService;
 
     @GetMapping("/demo-video")
@@ -39,5 +42,11 @@ public class PlatformDemoVideoController {
     @GetMapping("/freemium-offering")
     public ResponseEntity<FreemiumOfferingDTO> getFreemiumOffering() {
         return ResponseEntity.ok(freemiumService.getPublicOffering());
+    }
+
+    /** Public AI routing flag — when true, LMS calls dev-ai with tutot API signatures. */
+    @GetMapping("/ai-settings")
+    public ResponseEntity<AiSettingsDTO> getAiSettings() {
+        return ResponseEntity.ok(platformAiSettingsService.getPublicSettings());
     }
 }
