@@ -111,20 +111,51 @@ while IFS= read -r item; do
 const moduleId = "$moduleId";
 const idx = $submoduleIdx;
 const newPath = $newPathJson;
-const res = db.course_curricula.updateOne(
-  { _id: moduleId },
-  { \$set: { ["submodules." + idx + ".imagePath"]: newPath } }
-);
-if (res.matchedCount !== 1 || res.modifiedCount !== 1) {
-  print("MONGO_UPDATE_WARN matched=" + res.matchedCount + " modified=" + res.modifiedCount);
+const coll = db.getSiblingDB("skillamaDB").course_curricula;
+
+function resolveModuleFilter(id) {
+  const attempts = [id];
+  if (/^[a-fA-F0-9]{24}$/.test(id)) {
+    try { attempts.push(ObjectId(id)); } catch (e) {}
+  }
+  for (const _id of attempts) {
+    if (coll.findOne({ _id }, { _id: 1 })) return { _id };
+  }
+  return { _id: id };
+}
+
+const filter = resolveModuleFilter(moduleId);
+const update = { \$set: {} };
+update.\$set["submodules." + idx + ".imagePath"] = newPath;
+
+const res = coll.updateOne(filter, update);
+
+if (res.matchedCount !== 1) {
+  print("MONGO_UPDATE_WARN matched=" + res.matchedCount + " modified=" + res.modifiedCount + " filter=" + tojson(filter));
   quit(2);
 }
+
+if (res.modifiedCount === 0) {
+  const doc = coll.findOne(filter, { submodules: 1 });
+  const current = doc && doc.submodules && doc.submodules[idx] ? doc.submodules[idx].imagePath : null;
+  if (current === newPath) {
+    print("MONGO_OK_ALREADY");
+    quit(0);
+  }
+  print("MONGO_UPDATE_WARN matched=1 modified=0 current=" + current);
+  quit(2);
+}
+
 print("MONGO_OK");
 EOF
 )
 
-  if ! mongosh "$MONGO_URI" --quiet --eval "$UPDATE_JS" | grep -q MONGO_OK; then
-    echo "   ERROR: MongoDB update failed (S3 object copied — manual fix or restore from backup)"
+  mongo_out=$(mongosh "$MONGO_URI" --quiet --eval "$UPDATE_JS" 2>&1) || true
+  if echo "$mongo_out" | grep -qE 'MONGO_OK|MONGO_OK_ALREADY'; then
+    :
+  else
+    echo "   ERROR: MongoDB update failed (S3 object copied — safe to re-run execute after fix)"
+    echo "$mongo_out" | sed 's/^/   /'
     ((FAIL++)) || true
     continue
   fi
