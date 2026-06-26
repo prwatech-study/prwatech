@@ -75,7 +75,7 @@ const pipeline = [
       from: "courses",
       let: { cid: "$courseId" },
       pipeline: [
-        { $match: { $expr: { $eq: [{ $toString: "$_id" }, "$$cid"] } } } },
+        { $match: { $expr: { $eq: [{ $toString: "$_id" }, "$$cid"] } } },
         { $project: { name: 1 } },
       ],
       as: "course",
