@@ -2,6 +2,7 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.model.Course;
+import com.prwatech.skillama.model.CourseCodeOutputMode;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import com.prwatech.skillama.repository.CourseRepository;
@@ -59,6 +60,11 @@ public class CourseService {
 
     public Course create(Course course) {
         course.setCreatedAt(IndiaTime.now());
+        if (course.getCodeOutputMode() != null) {
+            course.setCodeOutputMode(CourseCodeOutputMode.normalize(course.getCodeOutputMode()));
+        } else {
+            course.setCodeOutputMode(CourseCodeOutputMode.AI);
+        }
         return courseRepository.save(course);
     }
 
@@ -119,6 +125,14 @@ public class CourseService {
             }
             if (updated.getIsPublic() != null) {
                 existing.setIsPublic(updated.getIsPublic());
+            }
+            if (updated.getAiCourseName() != null) {
+                existing.setAiCourseName(StringUtils.hasText(updated.getAiCourseName())
+                        ? updated.getAiCourseName().trim()
+                        : null);
+            }
+            if (updated.getCodeOutputMode() != null) {
+                existing.setCodeOutputMode(CourseCodeOutputMode.normalize(updated.getCodeOutputMode()));
             }
             existing.setUpdatedAt(IndiaTime.now());
             return courseRepository.save(existing);
