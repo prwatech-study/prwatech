@@ -9,6 +9,8 @@ import com.prwatech.common.Constants;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.service.AdminService;
 import com.prwatech.skillama.service.FreemiumService;
+import com.prwatech.skillama.service.OAuthAuthService;
+import com.prwatech.skillama.service.OnboardingService;
 import com.prwatech.skillama.service.OtpService;
 import com.prwatech.skillama.service.PasswordResetService;
 import com.prwatech.skillama.service.UserContactService;
@@ -33,6 +35,8 @@ public class UserController {
     private final FreemiumService freemiumService;
     private final PasswordResetService passwordResetService;
     private final UserContactService userContactService;
+    private final OAuthAuthService oAuthAuthService;
+    private final OnboardingService onboardingService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody User user) {
@@ -68,17 +72,7 @@ public class UserController {
                 Map<String, String> tokens = jwtUtils.generateToken(userDetails);
                 String accessToken = tokens.get("accessToken");
                 
-                LoginResponseDTO response = LoginResponseDTO.builder()
-                    .id(user.getId())
-                    .name(user.getName())
-                    .email(user.getEmail())
-                    .role(user.getRole() != null ? user.getRole() : User.UserRole.USER)
-                    .active(user.isActive())
-                    .gender(user.getGender())
-                    .createdAt(user.getCreatedAt())
-                    .planTier(user.getPlanTier())
-                    .token(accessToken)
-                    .build();
+                LoginResponseDTO response = UserMapper.toLoginResponse(user, accessToken, onboardingService);
                 
                 return ResponseEntity.ok(response);
             }
@@ -151,15 +145,59 @@ public class UserController {
             userService.recordLogin(user);
             UserDetails userDetails = new UserDetails(user.getEmail());
             String accessToken = jwtUtils.generateToken(userDetails).get("accessToken");
-            LoginResponseDTO response = LoginResponseDTO.builder()
-                    .id(user.getId())
-                    .name(user.getName())
-                    .email(user.getEmail())
-                    .role(user.getRole())
-                    .active(user.isActive())
-                    .token(accessToken)
-                    .build();
+            LoginResponseDTO response = UserMapper.toLoginResponse(user, accessToken, onboardingService);
             return ResponseEntity.ok(response);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(409).body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/auth/google")
+    public ResponseEntity<?> authGoogle(@RequestBody GoogleAuthRequestDTO request) {
+        return authWithOAuth(() -> oAuthAuthService.authenticateWithGoogle(request));
+    }
+
+    @PostMapping("/auth/apple")
+    public ResponseEntity<?> authApple(@RequestBody AppleAuthRequestDTO request) {
+        return authWithOAuth(() -> oAuthAuthService.authenticateWithApple(request));
+    }
+
+    @PostMapping("/auth/email/continue")
+    public ResponseEntity<?> emailContinue(@RequestBody EmailContinueRequestDTO request) {
+        return authWithOAuth(() -> oAuthAuthService.emailContinue(request));
+    }
+
+    @PostMapping("/me/onboarding/complete")
+    public ResponseEntity<?> completeOnboarding(
+            @RequestBody OnboardingCompleteRequestDTO request,
+            HttpServletRequest httpRequest) {
+        try {
+            String userId = extractUserIdFromRequest(httpRequest);
+            User user = oAuthAuthService.completeOnboarding(userId, request);
+            userService.recordLogin(user);
+            return ResponseEntity.ok(UserMapper.toSessionDto(user, onboardingService));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(409).body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(401).body(Map.of("status", "error", "message", "Unauthorized"));
+        }
+    }
+
+    private ResponseEntity<?> authWithOAuth(java.util.function.Supplier<User> authenticator) {
+        try {
+            User user = authenticator.get();
+            if (!user.isActive()) {
+                return ResponseEntity.status(403).body(Map.of(
+                        "status", "error",
+                        "message", "Account is not activated"));
+            }
+            userService.recordLogin(user);
+            String accessToken = jwtUtils.generateToken(new UserDetails(user.getEmail())).get("accessToken");
+            return ResponseEntity.ok(UserMapper.toLoginResponse(user, accessToken, onboardingService));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(409).body(Map.of("status", "error", "message", e.getMessage()));
         } catch (IllegalArgumentException e) {
@@ -187,15 +225,7 @@ public class UserController {
             }
             userService.recordLogin(user);
             String accessToken = jwtUtils.generateToken(new UserDetails(user.getEmail())).get("accessToken");
-            return ResponseEntity.ok(LoginResponseDTO.builder()
-                    .id(user.getId())
-                    .name(user.getName())
-                    .email(user.getEmail())
-                    .role(user.getRole())
-                    .active(user.isActive())
-                    .planTier(user.getPlanTier())
-                    .token(accessToken)
-                    .build());
+            return ResponseEntity.ok(UserMapper.toLoginResponse(user, accessToken, onboardingService));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         }
@@ -283,7 +313,7 @@ public class UserController {
             if (!user.isActive()) {
                 return ResponseEntity.status(403).build();
             }
-            return ResponseEntity.ok(UserMapper.toSessionDto(user));
+            return ResponseEntity.ok(UserMapper.toSessionDto(user, onboardingService));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(404).build();
         } catch (RuntimeException e) {

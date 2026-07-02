@@ -33,6 +33,8 @@ public class UserAdminProfileDTO {
     private String referredBy;
     private int completedLecturesCount;
     private int totalQuestionsAsked;
+    private int moduleQuizzesPassedCount;
+    private int moduleQuizAttemptsCount;
     private int reviewCount;
     private int issueReportCount;
     private String chosenFreemiumCourseId;
@@ -46,6 +48,22 @@ public class UserAdminProfileDTO {
 
     @Builder.Default
     private List<ReviewSummaryDTO> recentReviews = new ArrayList<>();
+
+    @Builder.Default
+    private List<PassedModuleQuizSummaryDTO> passedModuleQuizzes = new ArrayList<>();
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PassedModuleQuizSummaryDTO {
+        private String courseId;
+        private String courseName;
+        private String moduleName;
+        private Integer bestScore;
+        private Integer maxScore;
+        private LocalDateTime passedAt;
+    }
 
     @Data
     @Builder

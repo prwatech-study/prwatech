@@ -9,6 +9,8 @@ import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.OtpService;
 import com.prwatech.skillama.service.PasswordResetService;
 import com.prwatech.skillama.service.UserContactService;
+import com.prwatech.skillama.service.OAuthAuthService;
+import com.prwatech.skillama.service.OnboardingService;
 import com.prwatech.skillama.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,8 @@ class UserControllerSecurityTest {
     @Mock private FreemiumService freemiumService;
     @Mock private PasswordResetService passwordResetService;
     @Mock private UserContactService userContactService;
+    @Mock private OAuthAuthService oAuthAuthService;
+    @Mock private OnboardingService onboardingService;
 
     private static final String TOKEN = "Bearer valid.jwt.token";
 
@@ -56,7 +60,9 @@ class UserControllerSecurityTest {
                 otpService,
                 freemiumService,
                 passwordResetService,
-                userContactService);
+                userContactService,
+                oAuthAuthService,
+                onboardingService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();

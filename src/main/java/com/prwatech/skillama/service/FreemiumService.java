@@ -195,7 +195,9 @@ public class FreemiumService {
 
         User saved = userRepository.save(user);
         userCourseAccessService.applyUserChosenFreemiumCourse(saved, request.getFreemiumCourseId());
-        return saved;
+        saved.setOnboardingCompleted(true);
+        saved.setOnboardingCompletedAt(IndiaTime.now());
+        return userRepository.save(saved);
     }
 
     /**
@@ -235,7 +237,9 @@ public class FreemiumService {
         user.setUpdatedAt(IndiaTime.now());
         User saved = userRepository.save(user);
         userCourseAccessService.applyUserChosenFreemiumCourse(saved, request.getFreemiumCourseId());
-        return saved;
+        saved.setOnboardingCompleted(true);
+        saved.setOnboardingCompletedAt(IndiaTime.now());
+        return userRepository.save(saved);
     }
 
     private void validateFreemiumCourseSelection(FreemiumRegisterRequestDTO request, Optional<User> existing) {
@@ -782,6 +786,33 @@ public class FreemiumService {
             return "+91" + trimmed;
         }
         return trimmed;
+    }
+
+    /** Validates freemium course selection during post-login onboarding. */
+    public void applyFreemiumCourseOnOnboarding(User user, String freemiumCourseId) {
+        if (user.getChosenFreemiumCourseId() != null && !user.getChosenFreemiumCourseId().isBlank()) {
+            return;
+        }
+        FreemiumRegisterRequestDTO request = new FreemiumRegisterRequestDTO();
+        request.setFreemiumCourseId(freemiumCourseId);
+        validateFreemiumCourseSelection(request, Optional.of(user));
+    }
+
+    /** Applies referral code during onboarding (same rules as signup). */
+    public void applyReferralOnOnboarding(User user, String referralCode) {
+        if (referralCode == null || referralCode.isBlank()) {
+            return;
+        }
+        FreemiumRegisterRequestDTO request = new FreemiumRegisterRequestDTO();
+        request.setReferralCode(referralCode);
+        applyReferralOnSignup(user, request);
+    }
+
+    /** Enrolls user in chosen freemium course after onboarding save. */
+    public void enrollFreemiumCourseIfNeeded(User user, String freemiumCourseId) {
+        if (user.getPlanTier() == User.PlanTier.FREEMIUM) {
+            userCourseAccessService.applyUserChosenFreemiumCourse(user, freemiumCourseId);
+        }
     }
 
 }

@@ -23,4 +23,8 @@ public class UserSessionDTO {
     private Boolean active;
     private User.PlanTier planTier;
     private String gender;
+    private Boolean onboardingRequired;
+    private String phone;
+    private String chosenFreemiumCourseId;
+    private String profileImageUrl;
 }

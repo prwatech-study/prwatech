@@ -348,6 +348,23 @@ public class UserProfileService {
                     lockReason = "Previous lecture must be completed first";
                 }
             }
+
+            if (!isLocked && moduleIndex > 0 && isFirstEnabledLectureInModule(module, lectureIndex)) {
+                boolean devModeEnabled = platformAiSettingsService.getPublicSettings().isDevModeEnabled();
+                CourseCurriculum previousModule = allModules.get(moduleIndex - 1);
+                if (!isModuleCompletedForUnlock(profile, previousModule, courseId, devModeEnabled)) {
+                    isAccessible = false;
+                    isLocked = true;
+                    boolean lecturesDone = isModuleLecturesCompleted(profile, previousModule, courseId);
+                    if (devModeEnabled && lecturesDone
+                            && !moduleQuizService.hasPassedModuleQuiz(
+                                    profile, courseId, previousModule.getModuleName())) {
+                        lockReason = "Complete the module quiz to unlock";
+                    } else {
+                        lockReason = "Previous module must be completed";
+                    }
+                }
+            }
         }
         
         boolean isCompleted = isLectureCompleted(profile, lectureLabel, courseId);
@@ -421,6 +438,20 @@ public class UserProfileService {
 
     private boolean isModuleCompleted(UserProfile profile, CourseCurriculum module, String courseId) {
         return isModuleLecturesCompleted(profile, module, courseId);
+    }
+
+    private boolean isFirstEnabledLectureInModule(CourseCurriculum module, int lectureIndex) {
+        if (module.getSubmodules() == null || module.getSubmodules().isEmpty()) {
+            return lectureIndex == 0;
+        }
+        for (int i = 0; i < module.getSubmodules().size(); i++) {
+            CourseCurriculum.Submodule sub = module.getSubmodules().get(i);
+            if (sub.getEnabled() != null && !sub.getEnabled()) {
+                continue;
+            }
+            return i == lectureIndex;
+        }
+        return false;
     }
     
     private boolean isLectureCompleted(UserProfile profile, String lectureLabel, String courseId) {
@@ -571,6 +602,7 @@ public class UserProfileService {
     private ProgressSummaryDTO buildProgressSummary(
             UserProfile profile, List<CourseCurriculum> curriculum, String courseId) {
         int totalLectures = CourseService.countEnabledLectures(curriculum);
+        boolean devModeEnabled = platformAiSettingsService.getPublicSettings().isDevModeEnabled();
 
         int completedLectures = (int) profile.getCompletedLectures().stream()
                 .filter(cl -> courseId != null && courseId.equals(cl.getCourseId()))
@@ -579,8 +611,19 @@ public class UserProfileService {
                 .filter(il -> courseId != null && courseId.equals(il.getCourseId()))
                 .count();
         int lockedLectures = Math.max(0, totalLectures - completedLectures - inProgressLectures);
-        int completionPercentage = totalLectures > 0
-                ? Math.min(100, (completedLectures * 100) / totalLectures)
+
+        int totalModuleQuizzes = devModeEnabled ? countEnabledModules(curriculum) : 0;
+        int passedModuleQuizzes = devModeEnabled
+                ? countPassedModuleQuizzesForCourse(profile, courseId)
+                : 0;
+        int pendingModuleQuizzes = devModeEnabled
+                ? countPendingModuleQuizzes(profile, curriculum, courseId)
+                : 0;
+
+        int completionDenominator = totalLectures + totalModuleQuizzes;
+        int completionNumerator = completedLectures + passedModuleQuizzes;
+        int completionPercentage = completionDenominator > 0
+                ? Math.min(100, (completionNumerator * 100) / completionDenominator)
                 : 0;
 
         return ProgressSummaryDTO.builder()
@@ -589,7 +632,54 @@ public class UserProfileService {
                 .inProgressLectures(inProgressLectures)
                 .lockedLectures(lockedLectures)
                 .completionPercentage(completionPercentage)
+                .totalModuleQuizzes(totalModuleQuizzes)
+                .passedModuleQuizzes(passedModuleQuizzes)
+                .pendingModuleQuizzes(pendingModuleQuizzes)
                 .build();
+    }
+
+    private int countEnabledModules(List<CourseCurriculum> curriculum) {
+        if (curriculum == null) {
+            return 0;
+        }
+        int count = 0;
+        for (CourseCurriculum module : curriculum) {
+            if (module.getSubmodules() == null) {
+                continue;
+            }
+            boolean hasEnabled = module.getSubmodules().stream()
+                    .anyMatch(sub -> sub.getEnabled() == null || sub.getEnabled());
+            if (hasEnabled) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private int countPassedModuleQuizzesForCourse(UserProfile profile, String courseId) {
+        if (profile.getPassedModuleQuizzes() == null || courseId == null) {
+            return 0;
+        }
+        return (int) profile.getPassedModuleQuizzes().stream()
+                .filter(pq -> courseId.equals(pq.getCourseId()))
+                .count();
+    }
+
+    private int countPendingModuleQuizzes(
+            UserProfile profile, List<CourseCurriculum> curriculum, String courseId) {
+        if (curriculum == null || profile.getIsGuest()) {
+            return 0;
+        }
+        int pending = 0;
+        for (CourseCurriculum module : curriculum) {
+            if (!isModuleLecturesCompleted(profile, module, courseId)) {
+                continue;
+            }
+            if (!moduleQuizService.hasPassedModuleQuiz(profile, courseId, module.getModuleName())) {
+                pending++;
+            }
+        }
+        return pending;
     }
     
     // ========== Lecture Tracking ==========

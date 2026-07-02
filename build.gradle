@@ -62,6 +62,7 @@ dependencies {
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
     implementation platform('software.amazon.awssdk:bom:2.20.0')
     implementation 'software.amazon.awssdk:s3'
+    implementation 'com.nimbusds:nimbus-jose-jwt:9.37.3'
 }
 
 tasks.named('test') {

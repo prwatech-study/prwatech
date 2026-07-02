@@ -25,5 +25,8 @@ public class LoginResponseDTO {
     private LocalDateTime createdAt;
     private User.PlanTier planTier;
     private String token; // JWT access token
+    private Boolean onboardingRequired;
+    private String phone;
+    private String chosenFreemiumCourseId;
 }
 

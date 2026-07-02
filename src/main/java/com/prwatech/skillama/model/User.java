@@ -55,12 +55,27 @@ public class User {
     /** Learner LMS UI theme: classic | aurora */
     private String lmsThemePreference;
 
+    /** OAuth provider subject IDs (sparse unique indexes). */
+    @Indexed(unique = true, sparse = true)
+    private String googleSub;
+    @Indexed(unique = true, sparse = true)
+    private String appleSub;
+    private AuthProvider authProvider;
+    private String profileImageUrl;
+    @Builder.Default
+    private Boolean onboardingCompleted = false;
+    private LocalDateTime onboardingCompletedAt;
+
     /**
      * Per-module CRUD grants for ADMIN users. Null or empty = legacy full access (same as today).
      * OWNER ignores this field (always full access).
      */
     @Builder.Default
     private List<AdminModulePermission> adminModulePermissions = new ArrayList<>();
+
+    public enum AuthProvider {
+        EMAIL, GOOGLE, APPLE
+    }
 
     public enum UserRole {
         USER, ADMIN, OWNER

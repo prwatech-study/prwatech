@@ -19,4 +19,6 @@ public interface ModuleQuizAttemptRepository extends MongoRepository<ModuleQuizA
 
     int countByGuestSessionIdAndCourseIdAndModuleName(
             String guestSessionId, String courseId, String moduleName);
+
+    long countByUserId(String userId);
 }

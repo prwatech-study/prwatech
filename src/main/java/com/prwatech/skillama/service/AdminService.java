@@ -21,6 +21,7 @@ import com.prwatech.skillama.repository.DeletedSkillamaUserRepository;
 import com.prwatech.skillama.model.DeletedSkillamaUser;
 import com.prwatech.skillama.repository.UserLoginEventRepository;
 import com.prwatech.skillama.repository.UserProfileRepository;
+import com.prwatech.skillama.repository.ModuleQuizAttemptRepository;
 import com.prwatech.skillama.util.IndiaTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -55,6 +56,7 @@ public class AdminService {
     private final AdminAuditService adminAuditService;
     private final DeletedSkillamaUserRepository deletedSkillamaUserRepository;
     private final FreemiumService freemiumService;
+    private final ModuleQuizAttemptRepository moduleQuizAttemptRepository;
 
     public User requireAdminOrOwner(String userId) {
         User user = userRepository.findById(userId)
@@ -734,6 +736,28 @@ public class AdminService {
                 ? profile.getCompletedLectures().size() : 0;
         int questionsAsked = profile != null && profile.getTotalQuestionsAsked() != null
                 ? profile.getTotalQuestionsAsked() : 0;
+        int moduleQuizzesPassedCount = profile != null && profile.getPassedModuleQuizzes() != null
+                ? profile.getPassedModuleQuizzes().size() : 0;
+        long moduleQuizAttemptsCount = moduleQuizAttemptRepository.countByUserId(userId);
+
+        List<UserAdminProfileDTO.PassedModuleQuizSummaryDTO> passedModuleQuizzes =
+                profile != null && profile.getPassedModuleQuizzes() != null
+                        ? profile.getPassedModuleQuizzes().stream()
+                                .map(pq -> {
+                                    String courseName = courseRepository.findById(pq.getCourseId())
+                                            .map(Course::getName)
+                                            .orElse("Unknown");
+                                    return UserAdminProfileDTO.PassedModuleQuizSummaryDTO.builder()
+                                            .courseId(pq.getCourseId())
+                                            .courseName(courseName)
+                                            .moduleName(pq.getModuleName())
+                                            .bestScore(pq.getBestScore())
+                                            .maxScore(pq.getMaxScore())
+                                            .passedAt(pq.getPassedAt())
+                                            .build();
+                                })
+                                .collect(Collectors.toList())
+                        : List.of();
 
         int loginCount = user.getLoginCount() != null ? user.getLoginCount() : 0;
         long eventLoginCount = userLoginEventRepository.countByUserId(userId);
@@ -805,6 +829,8 @@ public class AdminService {
                 .referredBy(user.getReferredBy())
                 .completedLecturesCount(completedCount)
                 .totalQuestionsAsked(questionsAsked)
+                .moduleQuizzesPassedCount(moduleQuizzesPassedCount)
+                .moduleQuizAttemptsCount((int) moduleQuizAttemptsCount)
                 .reviewCount((int) reviewRepository.findByUserId(userId, PageRequest.of(0, 1)).getTotalElements())
                 .issueReportCount((int) issueReportRepository.countByReporterUserId(userId))
                 .chosenFreemiumCourseId(chosenCourseId)
@@ -812,6 +838,7 @@ public class AdminService {
                 .recentLogins(recentLogins)
                 .courseEnrollments(courseEnrollments)
                 .recentReviews(recentReviews)
+                .passedModuleQuizzes(passedModuleQuizzes)
                 .build();
     }
 
