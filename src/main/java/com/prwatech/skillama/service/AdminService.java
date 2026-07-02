@@ -57,6 +57,7 @@ public class AdminService {
     private final DeletedSkillamaUserRepository deletedSkillamaUserRepository;
     private final FreemiumService freemiumService;
     private final ModuleQuizAttemptRepository moduleQuizAttemptRepository;
+    private final ModuleQuizService moduleQuizService;
 
     public User requireAdminOrOwner(String userId) {
         User user = userRepository.findById(userId)
@@ -840,6 +841,21 @@ public class AdminService {
                 .recentReviews(recentReviews)
                 .passedModuleQuizzes(passedModuleQuizzes)
                 .build();
+    }
+
+    public List<ModuleQuizAttemptDetailDTO> getUserModuleQuizAttempts(String userId, String courseId) {
+        userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        return moduleQuizService.getAttemptDetailsForUser(userId, courseId).stream()
+                .map(attempt -> {
+                    String courseName = courseRepository.findById(attempt.getCourseId())
+                            .map(Course::getName)
+                            .orElse("Unknown");
+                    attempt.setCourseName(courseName);
+                    return attempt;
+                })
+                .collect(Collectors.toList());
     }
 
     private UserAdminProfileDTO.ReviewSummaryDTO toReviewSummary(Review review) {

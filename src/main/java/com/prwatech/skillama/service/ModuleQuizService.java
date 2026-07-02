@@ -113,6 +113,7 @@ public class ModuleQuizService {
                     .selectedKey(selectedKey)
                     .correctKey(question.getCorrectKey())
                     .isCorrect(isCorrect)
+                    .explanation(question.getExplanation())
                     .options(question.getOptions())
                     .build());
 
@@ -180,6 +181,17 @@ public class ModuleQuizService {
         }
 
         return attempts.stream().map(this::toSummary).collect(Collectors.toList());
+    }
+
+    public List<ModuleQuizAttemptDetailDTO> getAttemptDetailsForUser(String userId, String courseId) {
+        if (!StringUtils.hasText(userId)) {
+            return List.of();
+        }
+        List<ModuleQuizAttempt> attempts = attemptRepository.findByUserIdOrderBySubmittedAtDesc(userId);
+        return attempts.stream()
+                .filter(a -> !StringUtils.hasText(courseId) || courseId.equals(a.getCourseId()))
+                .map(this::toDetail)
+                .collect(Collectors.toList());
     }
 
     public boolean hasPassedModuleQuiz(UserProfile profile, String courseId, String moduleName) {
@@ -340,6 +352,52 @@ public class ModuleQuizService {
                 .passed(attempt.getPassed())
                 .timeSpentSeconds(attempt.getTimeSpentSeconds())
                 .submittedAt(attempt.getSubmittedAt())
+                .build();
+    }
+
+    private ModuleQuizAttemptDetailDTO toDetail(ModuleQuizAttempt attempt) {
+        List<ModuleQuizAnswerResultDTO> answers = attempt.getAnswers() == null
+                ? new ArrayList<>()
+                : attempt.getAnswers().stream()
+                        .map(this::fromAnswerRecord)
+                        .collect(Collectors.toList());
+
+        return ModuleQuizAttemptDetailDTO.builder()
+                .attemptId(attempt.getId())
+                .courseId(attempt.getCourseId())
+                .moduleName(attempt.getModuleName())
+                .attemptNumber(attempt.getAttemptNumber())
+                .score(attempt.getScore())
+                .maxScore(attempt.getMaxScore())
+                .percentage(attempt.getPercentage())
+                .passed(attempt.getPassed())
+                .passingPercentage(PASSING_PERCENTAGE)
+                .timeSpentSeconds(attempt.getTimeSpentSeconds())
+                .submittedAt(attempt.getSubmittedAt())
+                .answers(answers)
+                .build();
+    }
+
+    private ModuleQuizAnswerResultDTO fromAnswerRecord(ModuleQuizAttempt.AnswerRecord record) {
+        List<ModuleQuizOptionDTO> optionDtos = record.getOptions() == null
+                ? new ArrayList<>()
+                : record.getOptions().stream()
+                        .map(o -> ModuleQuizOptionDTO.builder()
+                                .key(o.getKey())
+                                .text(o.getText())
+                                .build())
+                        .collect(Collectors.toList());
+
+        return ModuleQuizAnswerResultDTO.builder()
+                .questionId(record.getQuestionId())
+                .questionText(record.getQuestionText())
+                .selectedKey(record.getSelectedKey())
+                .selectedOptionText(resolveOptionText(record.getOptions(), record.getSelectedKey()))
+                .correctKey(record.getCorrectKey())
+                .correctOptionText(resolveOptionText(record.getOptions(), record.getCorrectKey()))
+                .isCorrect(record.getIsCorrect())
+                .explanation(record.getExplanation())
+                .options(optionDtos)
                 .build();
     }
 

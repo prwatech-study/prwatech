@@ -203,17 +203,20 @@ public class OAuthAuthService {
         }
         if (byEmail.isPresent()) {
             User user = byEmail.get();
-            if (user.getAuthProvider() == User.AuthProvider.EMAIL
-                    && user.getGoogleSub() == null
-                    && user.getAppleSub() == null) {
-                linkProviderToUser(user, provider, googleSub, appleSub);
-                return updateOAuthProfile(user, name, picture);
-            }
             if (isLinkedToProvider(user, provider, googleSub, appleSub)) {
                 return updateOAuthProfile(user, name, picture);
             }
-            throw new IllegalStateException(
-                    "An account with this email already exists. Sign in with your password to link accounts.");
+            if (hasConflictingProviderSub(user, provider, googleSub, appleSub)) {
+                throw new IllegalStateException(
+                        "This email is already linked to a different "
+                                + provider.name().toLowerCase()
+                                + " account.");
+            }
+            linkProviderToUser(user, provider, googleSub, appleSub);
+            if (user.getAuthProvider() == null && isPasswordAccount(user)) {
+                user.setAuthProvider(User.AuthProvider.EMAIL);
+            }
+            return updateOAuthProfile(user, name, picture);
         }
 
         User user = new User();
@@ -264,6 +267,25 @@ public class OAuthAuthService {
         }
         if (provider == User.AuthProvider.APPLE) {
             return appleSub != null && appleSub.equals(user.getAppleSub());
+        }
+        return false;
+    }
+
+    private boolean isPasswordAccount(User user) {
+        return user.getPassword() != null && !user.getPassword().isBlank();
+    }
+
+    private boolean hasConflictingProviderSub(
+            User user, User.AuthProvider provider, String googleSub, String appleSub) {
+        if (provider == User.AuthProvider.GOOGLE) {
+            return user.getGoogleSub() != null
+                    && googleSub != null
+                    && !googleSub.equals(user.getGoogleSub());
+        }
+        if (provider == User.AuthProvider.APPLE) {
+            return user.getAppleSub() != null
+                    && appleSub != null
+                    && !appleSub.equals(user.getAppleSub());
         }
         return false;
     }

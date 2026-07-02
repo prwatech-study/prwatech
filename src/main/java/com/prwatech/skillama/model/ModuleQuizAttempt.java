@@ -57,6 +57,7 @@ public class ModuleQuizAttempt {
         private String selectedKey;
         private String correctKey;
         private Boolean isCorrect;
+        private String explanation;
         private List<ModuleQuizSession.QuizOption> options;
     }
 }

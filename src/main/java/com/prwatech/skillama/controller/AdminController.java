@@ -1596,6 +1596,22 @@ public class AdminController {
         }
     }
 
+    @GetMapping("/users/{userId}/module-quiz/attempts")
+    public ResponseEntity<ApiResponse<List<ModuleQuizAttemptDetailDTO>>> getUserModuleQuizAttempts(
+            @PathVariable String userId,
+            @RequestParam(required = false) String courseId,
+            HttpServletRequest request) {
+        try {
+            extractUserIdFromRequest(request);
+            return ResponseEntity.ok(new ApiResponse<>(
+                    200, adminService.getUserModuleQuizAttempts(userId, courseId)));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
     @GetMapping("/users/{userId}/activity")
     public ResponseEntity<ApiResponse<UserActivityDTO>> getUserActivity(
             @PathVariable String userId,
