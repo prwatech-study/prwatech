@@ -9,6 +9,7 @@ import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.CourseStudyMaterialService;
 import com.prwatech.skillama.service.UserService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
@@ -30,6 +31,7 @@ public class AdminCourseStudyMaterialController {
     private final CourseStudyMaterialService studyMaterialService;
     private final UserService userService;
     private final JwtUtils jwtUtils;
+    private final SkillamaAuthSupport skillamaAuthSupport;
 
     @ApiOperation(value = "List study materials for a course")
     @ApiImplicitParams({
@@ -122,15 +124,7 @@ public class AdminCourseStudyMaterialController {
     }
 
     private String extractUserIdFromRequest(HttpServletRequest request) {
-        final String requestTokenHeader = request.getHeader("Authorization");
-        if (requestTokenHeader == null || !requestTokenHeader.startsWith("Bearer ")) {
-            throw new RuntimeException("Authorization header missing or invalid");
-        }
-        String jwtToken = requestTokenHeader.substring(7);
-        String email = jwtUtils.extractUsername(jwtToken);
-        User user = userService.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        return user.getId();
+        return skillamaAuthSupport.resolveUserIdFromRequest(request);
     }
 
     private ResponseEntity<?> unauthorizedOrBadRequest(RuntimeException e) {

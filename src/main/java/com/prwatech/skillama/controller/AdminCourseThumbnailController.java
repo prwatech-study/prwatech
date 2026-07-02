@@ -11,6 +11,7 @@ import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.FileStorageService;
 import com.prwatech.skillama.service.UserService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.util.IndiaTime;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
@@ -34,6 +35,7 @@ public class AdminCourseThumbnailController {
     private final CourseService courseService;
     private final UserService userService;
     private final JwtUtils jwtUtils;
+    private final SkillamaAuthSupport skillamaAuthSupport;
 
     @ApiOperation(value = "Upload course thumbnail / social share image")
     @ApiImplicitParams({
@@ -104,15 +106,7 @@ public class AdminCourseThumbnailController {
     }
 
     private String extractUserIdFromRequest(HttpServletRequest request) {
-        final String requestTokenHeader = request.getHeader("Authorization");
-        if (requestTokenHeader == null || !requestTokenHeader.startsWith("Bearer ")) {
-            throw new RuntimeException("Authorization header missing or invalid");
-        }
-        String jwtToken = requestTokenHeader.substring(7);
-        String email = jwtUtils.extractUsername(jwtToken);
-        User user = userService.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        return user.getId();
+        return skillamaAuthSupport.resolveUserIdFromRequest(request);
     }
 
     private ResponseEntity<?> unauthorizedOrBadRequest(RuntimeException e) {

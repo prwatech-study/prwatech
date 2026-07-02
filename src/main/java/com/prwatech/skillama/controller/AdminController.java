@@ -29,6 +29,7 @@ import com.prwatech.skillama.service.LmsThemeService;
 import com.prwatech.skillama.service.UpgradeRequestService;
 import com.prwatech.skillama.service.UserProfileService;
 import com.prwatech.skillama.service.UserService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 import io.swagger.annotations.ApiImplicitParam;
@@ -74,6 +75,7 @@ public class AdminController {
     private final DemoDashboardSeedService demoDashboardSeedService;
     private final UserProfileService userProfileService;
     private final ProgressReconciliationService progressReconciliationService;
+    private final SkillamaAuthSupport skillamaAuthSupport;
 
     // ========== Authentication & Authorization ==========
     
@@ -1767,20 +1769,7 @@ public class AdminController {
     }
 
     private String extractUserIdFromRequest(HttpServletRequest request) {
-        final String requestTokenHeader = request.getHeader("Authorization");
-        
-        if (requestTokenHeader == null || !requestTokenHeader.startsWith("Bearer ")) {
-            throw new RuntimeException("Authorization header missing or invalid");
-        }
-        
-        String jwtToken = requestTokenHeader.substring(7);
-        String email = jwtUtils.extractUsername(jwtToken);
-        
-        // Find user by email to get the MongoDB id
-        User user = userService.findByEmail(email)
-            .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        return user.getId();
+        return skillamaAuthSupport.resolveUserIdFromRequest(request);
     }
 }
 

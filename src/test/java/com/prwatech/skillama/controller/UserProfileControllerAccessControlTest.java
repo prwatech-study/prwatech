@@ -13,6 +13,7 @@ import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.UpgradeRequestService;
 import com.prwatech.skillama.service.UserProfileService;
 import com.prwatech.skillama.service.UserService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,6 +48,7 @@ class UserProfileControllerAccessControlTest {
     @Mock private ProgressReconciliationService progressReconciliationService;
     @Mock private ModuleQuizService moduleQuizService;
     @Mock private JwtUtils jwtUtils;
+    @Mock private SkillamaAuthSupport skillamaAuthSupport;
 
     private static final String TOKEN = "Bearer valid.jwt.token";
     private static final User USER = User.builder()
@@ -66,7 +68,8 @@ class UserProfileControllerAccessControlTest {
                 lmsThemeService,
                 progressReconciliationService,
                 moduleQuizService,
-                jwtUtils);
+                jwtUtils,
+                skillamaAuthSupport);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();
@@ -83,8 +86,7 @@ class UserProfileControllerAccessControlTest {
 
     @Test
     void getAccessControl_defaultSkipsReconcile() throws Exception {
-        when(jwtUtils.extractUsername("valid.jwt.token")).thenReturn("learner@skillama.co.in");
-        when(userService.findByEmail("learner@skillama.co.in")).thenReturn(Optional.of(USER));
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
         when(userProfileService.getAccessControl(isNull(), eq("u1"), eq("course-1")))
                 .thenReturn(AccessControlResponseDTO.builder().courseId("course-1").build());
 
@@ -98,8 +100,7 @@ class UserProfileControllerAccessControlTest {
 
     @Test
     void getAccessControl_withReconcileTrue_invokesReconcileForUser() throws Exception {
-        when(jwtUtils.extractUsername("valid.jwt.token")).thenReturn("learner@skillama.co.in");
-        when(userService.findByEmail("learner@skillama.co.in")).thenReturn(Optional.of(USER));
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
         when(userProfileService.getAccessControl(isNull(), eq("u1"), eq("course-1")))
                 .thenReturn(AccessControlResponseDTO.builder().courseId("course-1").build());
 

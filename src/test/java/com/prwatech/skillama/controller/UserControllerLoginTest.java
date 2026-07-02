@@ -11,6 +11,7 @@ import com.prwatech.skillama.service.PasswordResetService;
 import com.prwatech.skillama.service.UserContactService;
 import com.prwatech.skillama.service.OAuthAuthService;
 import com.prwatech.skillama.service.OnboardingService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,7 @@ class UserControllerLoginTest {
     @Mock private UserContactService userContactService;
     @Mock private OAuthAuthService oAuthAuthService;
     @Mock private OnboardingService onboardingService;
+    @Mock private SkillamaAuthSupport skillamaAuthSupport;
 
     private static final User ACTIVE_USER = User.builder()
             .id("u1")
@@ -74,7 +76,8 @@ class UserControllerLoginTest {
                 passwordResetService,
                 userContactService,
                 oAuthAuthService,
-                onboardingService);
+                onboardingService,
+                skillamaAuthSupport);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();

@@ -15,6 +15,7 @@ import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.UserContactService;
 import com.prwatech.skillama.service.UserCourseService;
 import com.prwatech.skillama.service.UserService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.util.IndiaTime;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
@@ -39,6 +40,7 @@ public class SkillamaUserCourseController {
     private final FreemiumService freemiumService;
     private final UserContactService userContactService;
     private final JwtUtils jwtUtils;
+    private final SkillamaAuthSupport skillamaAuthSupport;
     
     /**
      * Get all courses assigned/purchased by the authenticated user with progress
@@ -324,20 +326,7 @@ public class SkillamaUserCourseController {
      * The JWT subject contains the user's email, which is used to find the user and get their ID
      */
     private String extractUserIdFromRequest(HttpServletRequest request) {
-        final String requestTokenHeader = request.getHeader("Authorization");
-        
-        if (requestTokenHeader == null || !requestTokenHeader.startsWith("Bearer ")) {
-            throw new RuntimeException("Authorization header missing or invalid");
-        }
-        
-        String jwtToken = requestTokenHeader.substring(7);
-        String email = jwtUtils.extractUsername(jwtToken);
-        
-        // Find user by email to get the MongoDB id
-        User user = userService.findByEmail(email)
-            .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        return user.getId();
+        return skillamaAuthSupport.resolveUserIdFromRequest(request);
     }
 }
 

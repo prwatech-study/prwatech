@@ -12,6 +12,7 @@ import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.UpgradeRequestService;
 import com.prwatech.skillama.service.UserProfileService;
 import com.prwatech.skillama.service.UserService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +25,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.util.List;
 import java.util.Optional;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
@@ -45,6 +47,7 @@ class UserProfileControllerChatHistoryTest {
     @Mock private ProgressReconciliationService progressReconciliationService;
     @Mock private ModuleQuizService moduleQuizService;
     @Mock private JwtUtils jwtUtils;
+    @Mock private SkillamaAuthSupport skillamaAuthSupport;
 
     private static final String TOKEN = "Bearer valid.jwt.token";
 
@@ -59,7 +62,8 @@ class UserProfileControllerChatHistoryTest {
                 lmsThemeService,
                 progressReconciliationService,
                 moduleQuizService,
-                jwtUtils);
+                jwtUtils,
+                skillamaAuthSupport);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();
@@ -79,8 +83,7 @@ class UserProfileControllerChatHistoryTest {
                 .active(true)
                 .build();
 
-        when(jwtUtils.extractUsername("valid.jwt.token")).thenReturn("learner@skillama.co.in");
-        when(userService.findByEmail("learner@skillama.co.in")).thenReturn(Optional.of(user));
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
         when(userProfileService.getChatHistory(isNull(), eq("u1"), eq("course-1"), eq(0), eq(20)))
                 .thenReturn(List.of(
                         ChatHistoryItemDTO.builder()

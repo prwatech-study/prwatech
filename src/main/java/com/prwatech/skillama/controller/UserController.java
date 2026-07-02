@@ -7,15 +7,19 @@ import com.prwatech.skillama.model.EmailOtp;
 import com.prwatech.skillama.model.User;
 import com.prwatech.common.Constants;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
+import com.prwatech.skillama.exception.SkillamaAuthException;
 import com.prwatech.skillama.service.AdminService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.OAuthAuthService;
 import com.prwatech.skillama.service.OnboardingService;
 import com.prwatech.skillama.service.OtpService;
 import com.prwatech.skillama.service.PasswordResetService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.service.UserContactService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +32,8 @@ import java.util.Optional;
 @RequestMapping("/skillama/users")
 @RequiredArgsConstructor
 public class UserController {
+    private static final Logger LOGGER = LoggerFactory.getLogger(UserController.class);
+
     private final UserService userService;
     private final AdminService adminService;
     private final JwtUtils jwtUtils;
@@ -37,6 +43,7 @@ public class UserController {
     private final UserContactService userContactService;
     private final OAuthAuthService oAuthAuthService;
     private final OnboardingService onboardingService;
+    private final SkillamaAuthSupport skillamaAuthSupport;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody User user) {
@@ -182,8 +189,9 @@ public class UserController {
             return ResponseEntity.status(409).body(Map.of("status", "error", "message", e.getMessage()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(401).body(Map.of("status", "error", "message", "Unauthorized"));
+        } catch (SkillamaAuthException e) {
+            LOGGER.warn("Onboarding auth failed: {}", e.getMessage());
+            return ResponseEntity.status(401).body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
 
@@ -316,6 +324,8 @@ public class UserController {
             return ResponseEntity.ok(UserMapper.toSessionDto(user, onboardingService));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(404).build();
+        } catch (SkillamaAuthException e) {
+            return ResponseEntity.status(401).build();
         } catch (RuntimeException e) {
             return ResponseEntity.status(401).build();
         }
@@ -410,15 +420,7 @@ public class UserController {
     }
 
     private String extractUserIdFromRequest(HttpServletRequest request) {
-        final String requestTokenHeader = request.getHeader(Constants.AUTH);
-        if (requestTokenHeader == null || !requestTokenHeader.startsWith("Bearer ")) {
-            throw new RuntimeException("Authorization header missing or invalid");
-        }
-        String jwtToken = requestTokenHeader.substring(7);
-        String email = jwtUtils.extractUsername(jwtToken);
-        User user = userService.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        return user.getId();
+        return skillamaAuthSupport.resolveUserIdFromRequest(request);
     }
     
     @PostMapping("/admin/migrate-passwords")

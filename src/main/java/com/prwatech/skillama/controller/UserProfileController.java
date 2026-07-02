@@ -11,6 +11,7 @@ import com.prwatech.skillama.service.UpgradeRequestService;
 import com.prwatech.skillama.service.ProgressReconciliationService;
 import com.prwatech.skillama.service.UserProfileService;
 import com.prwatech.skillama.service.UserService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -36,6 +37,7 @@ public class UserProfileController {
     private final ProgressReconciliationService progressReconciliationService;
     private final ModuleQuizService moduleQuizService;
     private final JwtUtils jwtUtils;
+    private final SkillamaAuthSupport skillamaAuthSupport;
     
     private static final String SESSION_COOKIE_NAME = "skillama_session_id";
     
@@ -403,17 +405,11 @@ public class UserProfileController {
     }
     
     private String getUserIdFromRequest(HttpServletRequest request) {
-        // Try to extract from Authorization header for logged-in users
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             try {
-                String jwtToken = authHeader.substring(7);
-                String email = jwtUtils.extractUsername(jwtToken);
-                return userService.findByEmail(email)
-                        .map(User::getId)
-                        .orElse(null);
+                return skillamaAuthSupport.resolveUserIdFromRequest(request);
             } catch (Exception e) {
-                // Invalid token or user not found
                 return null;
             }
         }
@@ -421,16 +417,7 @@ public class UserProfileController {
     }
     
     private String extractUserIdFromRequest(HttpServletRequest request) {
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new RuntimeException("Authorization required");
-        }
-        
-        String jwtToken = authHeader.substring(7);
-        String email = jwtUtils.extractUsername(jwtToken);
-        return userService.findByEmail(email)
-                .map(User::getId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        return skillamaAuthSupport.resolveUserIdFromRequest(request);
     }
 
     /** Logged-in learners must use their user profile, not an old guest session cookie. */

@@ -10,6 +10,7 @@ import com.prwatech.skillama.service.AdminPermissionService;
 import com.prwatech.skillama.service.CourseCurriculumService;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.UserService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,7 @@ public class CourseCurriculumController {
     private final AdminPermissionService adminPermissionService;
     private final JwtUtils jwtUtils;
     private final UserService userService;
+    private final SkillamaAuthSupport skillamaAuthSupport;
 
     @PostMapping("/module")
     public ResponseEntity<CourseCurriculum> addModule(
@@ -190,16 +192,12 @@ public class CourseCurriculumController {
     }
 
     private String extractUserIdFromRequest(HttpServletRequest request) {
-        String header = request.getHeader("Authorization");
-        if (header == null || !header.startsWith("Bearer ")) {
-            throw new RuntimeException("Authorization header missing or invalid");
-        }
-        String email = jwtUtils.extractUsername(header.substring(7));
-        User user = userService.findByEmail(email)
+        String userId = skillamaAuthSupport.resolveUserIdFromRequest(request);
+        User user = userService.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         if (user.getRole() != User.UserRole.ADMIN && user.getRole() != User.UserRole.OWNER) {
             throw new RuntimeException("Admin access required");
         }
-        return user.getId();
+        return userId;
     }
 }

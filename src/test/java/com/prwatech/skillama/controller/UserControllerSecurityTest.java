@@ -3,6 +3,7 @@ package com.prwatech.skillama.controller;
 import com.prwatech.authentication.security.JwtUtils;
 import com.prwatech.common.Constants;
 import com.prwatech.skillama.dto.UserPublicDTO;
+import com.prwatech.skillama.exception.SkillamaAuthException;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.AdminService;
 import com.prwatech.skillama.service.FreemiumService;
@@ -11,6 +12,7 @@ import com.prwatech.skillama.service.PasswordResetService;
 import com.prwatech.skillama.service.UserContactService;
 import com.prwatech.skillama.service.OAuthAuthService;
 import com.prwatech.skillama.service.OnboardingService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +50,7 @@ class UserControllerSecurityTest {
     @Mock private UserContactService userContactService;
     @Mock private OAuthAuthService oAuthAuthService;
     @Mock private OnboardingService onboardingService;
+    @Mock private SkillamaAuthSupport skillamaAuthSupport;
 
     private static final String TOKEN = "Bearer valid.jwt.token";
 
@@ -62,7 +65,8 @@ class UserControllerSecurityTest {
                 passwordResetService,
                 userContactService,
                 oAuthAuthService,
-                onboardingService);
+                onboardingService,
+                skillamaAuthSupport);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();
@@ -70,6 +74,8 @@ class UserControllerSecurityTest {
 
     @Test
     void getSession_withoutAuth_returns401() throws Exception {
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any()))
+                .thenThrow(new SkillamaAuthException("Session expired. Please sign in again."));
         mockMvc.perform(get("/skillama/users/session"))
                 .andExpect(status().isUnauthorized());
     }
@@ -85,8 +91,7 @@ class UserControllerSecurityTest {
                 .active(true)
                 .build();
 
-        when(jwtUtils.extractUsername("valid.jwt.token")).thenReturn("learner@skillama.co.in");
-        when(userService.findByEmail("learner@skillama.co.in")).thenReturn(Optional.of(user));
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
         when(userService.findById("u1")).thenReturn(Optional.of(user));
 
         mockMvc.perform(get("/skillama/users/session").header(Constants.AUTH, TOKEN))
@@ -105,8 +110,7 @@ class UserControllerSecurityTest {
                 .active(true)
                 .build();
 
-        when(jwtUtils.extractUsername("valid.jwt.token")).thenReturn("a@skillama.co.in");
-        when(userService.findByEmail("a@skillama.co.in")).thenReturn(Optional.of(requester));
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
         when(userService.findById("u1")).thenReturn(Optional.of(requester));
 
         mockMvc.perform(get("/skillama/users/u2").header(Constants.AUTH, TOKEN))
@@ -124,8 +128,7 @@ class UserControllerSecurityTest {
                 .active(true)
                 .build();
 
-        when(jwtUtils.extractUsername("valid.jwt.token")).thenReturn("self@skillama.co.in");
-        when(userService.findByEmail("self@skillama.co.in")).thenReturn(Optional.of(requester));
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
         when(userService.findById("u1")).thenReturn(Optional.of(requester));
 
         mockMvc.perform(get("/skillama/users/u1").header(Constants.AUTH, TOKEN))
@@ -136,6 +139,8 @@ class UserControllerSecurityTest {
 
     @Test
     void getAllUsers_withoutAuth_returns401() throws Exception {
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any()))
+                .thenThrow(new SkillamaAuthException("Session expired. Please sign in again."));
         mockMvc.perform(get("/skillama/users"))
                 .andExpect(status().isUnauthorized());
     }
@@ -158,8 +163,7 @@ class UserControllerSecurityTest {
                 .active(true)
                 .build();
 
-        when(jwtUtils.extractUsername("valid.jwt.token")).thenReturn("admin@skillama.co.in");
-        when(userService.findByEmail("admin@skillama.co.in")).thenReturn(Optional.of(admin));
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("admin1");
         when(userService.findById("admin1")).thenReturn(Optional.of(admin));
         when(userService.findAll(anyInt(), anyInt(), anyString(), anyBoolean()))
                 .thenReturn(new PageImpl<>(List.of(listed)));

@@ -40,6 +40,7 @@ public class UserService {
     private final AppContext appContext;
     private final PasswordEncode passwordEncode;
     private final NotificationSettingsService notificationSettingsService;
+    private final UserContactService userContactService;
 
     public User register(User user) {
         // Encode password before storing in database
@@ -92,6 +93,31 @@ public class UserService {
 
     public Optional<User> findByEmail(String email) {
         return userRepository.findByEmail(email);
+    }
+
+    /**
+     * Resolve a user from JWT subject email (normalized + case-insensitive fallback).
+     */
+    public Optional<User> findByEmailForAuth(String emailFromJwt) {
+        if (emailFromJwt == null || emailFromJwt.isBlank()) {
+            return Optional.empty();
+        }
+        String trimmed = emailFromJwt.trim();
+        String normalized = userContactService.normalizeEmail(trimmed);
+        if (normalized != null) {
+            Optional<User> byNormalized = userRepository.findByEmail(normalized);
+            if (byNormalized.isPresent()) {
+                return byNormalized;
+            }
+        }
+        Optional<User> byTrimmed = userRepository.findByEmail(trimmed);
+        if (byTrimmed.isPresent()) {
+            return byTrimmed;
+        }
+        if (normalized != null) {
+            return userRepository.findByEmailIgnoreCase(normalized);
+        }
+        return Optional.empty();
     }
 
     public Optional<User> findById(String id) {

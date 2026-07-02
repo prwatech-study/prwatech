@@ -16,6 +16,7 @@ import com.prwatech.skillama.service.CourseCurriculumService;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.FileStorageService;
 import com.prwatech.skillama.service.UserService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
@@ -52,6 +53,7 @@ public class AdminCurriculumImageController {
     private final UserService userService;
     private final AdminPermissionService adminPermissionService;
     private final JwtUtils jwtUtils;
+    private final SkillamaAuthSupport skillamaAuthSupport;
     
     private static final String IMAGE_SUBDIRECTORY = "curriculum/images";
     
@@ -301,20 +303,7 @@ public class AdminCurriculumImageController {
      * Extracts userId from JWT token in Authorization header
      */
     private String extractUserIdFromRequest(HttpServletRequest request) {
-        final String requestTokenHeader = request.getHeader("Authorization");
-        
-        if (requestTokenHeader == null || !requestTokenHeader.startsWith("Bearer ")) {
-            throw new RuntimeException("Authorization header missing or invalid");
-        }
-        
-        String jwtToken = requestTokenHeader.substring(7);
-        String email = jwtUtils.extractUsername(jwtToken);
-        
-        // Find user by email to get the MongoDB id
-        User user = userService.findByEmail(email)
-            .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        return user.getId();
+        return skillamaAuthSupport.resolveUserIdFromRequest(request);
     }
     
     /**
