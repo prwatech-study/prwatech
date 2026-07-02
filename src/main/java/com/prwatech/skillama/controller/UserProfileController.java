@@ -6,6 +6,7 @@ import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.LmsThemeService;
+import com.prwatech.skillama.service.ModuleQuizService;
 import com.prwatech.skillama.service.UpgradeRequestService;
 import com.prwatech.skillama.service.ProgressReconciliationService;
 import com.prwatech.skillama.service.UserProfileService;
@@ -33,6 +34,7 @@ public class UserProfileController {
     private final UpgradeRequestService upgradeRequestService;
     private final LmsThemeService lmsThemeService;
     private final ProgressReconciliationService progressReconciliationService;
+    private final ModuleQuizService moduleQuizService;
     private final JwtUtils jwtUtils;
     
     private static final String SESSION_COOKIE_NAME = "skillama_session_id";
@@ -198,6 +200,56 @@ public class UserProfileController {
             HttpServletRequest httpRequest) {
         String userId = extractUserIdFromRequest(httpRequest);
         return ResponseEntity.ok(progressReconciliationService.reconcileForUser(userId, request));
+    }
+
+    // ========== Module Quiz (dev-mode feature) ==========
+
+    @PostMapping("/module-quiz/sessions")
+    public ResponseEntity<?> createModuleQuizSession(
+            @RequestBody CreateModuleQuizSessionRequestDTO request,
+            HttpServletRequest httpRequest) {
+        String sessionId = getSessionIdFromRequest(httpRequest);
+        String userId = getUserIdFromRequest(httpRequest);
+        if (sessionId == null && userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        try {
+            return ResponseEntity.ok(moduleQuizService.createSession(
+                    profilingSessionId(sessionId, userId), userId, request));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/module-quiz/attempts")
+    public ResponseEntity<?> submitModuleQuizAttempt(
+            @RequestBody SubmitModuleQuizAttemptRequestDTO request,
+            HttpServletRequest httpRequest) {
+        String sessionId = getSessionIdFromRequest(httpRequest);
+        String userId = getUserIdFromRequest(httpRequest);
+        if (sessionId == null && userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        try {
+            return ResponseEntity.ok(moduleQuizService.submitAttempt(
+                    profilingSessionId(sessionId, userId), userId, request));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/module-quiz/attempts")
+    public ResponseEntity<List<ModuleQuizAttemptSummaryDTO>> getModuleQuizAttempts(
+            @RequestParam String courseId,
+            @RequestParam(required = false) String moduleName,
+            HttpServletRequest httpRequest) {
+        String sessionId = getSessionIdFromRequest(httpRequest);
+        String userId = getUserIdFromRequest(httpRequest);
+        if (sessionId == null && userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok(moduleQuizService.getAttempts(
+                profilingSessionId(sessionId, userId), userId, courseId, moduleName));
     }
     
     // ========== Chat Tracking ==========

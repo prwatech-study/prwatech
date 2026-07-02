@@ -40,6 +40,8 @@ public class UserProfileService {
     private final SkillamaUserRepository userRepository;
     private final MongoTemplate skillamaMongoTemplate;
     private final UserCourseService userCourseService;
+    private final PlatformAiSettingsService platformAiSettingsService;
+    private final ModuleQuizService moduleQuizService;
     
     // ========== Session Management ==========
     
@@ -222,6 +224,8 @@ public class UserProfileService {
     
     private ModuleAccessDTO buildModuleAccessDTO(UserProfile profile, CourseCurriculum module, int moduleIndex, 
                                                   String courseId, List<CourseCurriculum> allModules) {
+        boolean devModeEnabled = platformAiSettingsService.getPublicSettings().isDevModeEnabled();
+
         // For guest users: Show all modules but lock all except first module (first module's first lecture is unlocked)
         // For logged-in users: Progressive unlocking based on completion
         boolean isModuleAccessible;
@@ -241,15 +245,32 @@ public class UserProfileService {
                 isModuleAccessible = true;
                 isModuleLocked = false;
             } else {
-                // Check if previous module is completed
+                // Check if previous module is completed (lectures + quiz when dev mode)
                 CourseCurriculum previousModule = allModules.get(moduleIndex - 1);
-                boolean previousModuleCompleted = isModuleCompleted(profile, previousModule, courseId);
+                boolean previousModuleCompleted = isModuleCompletedForUnlock(
+                        profile, previousModule, courseId, devModeEnabled);
                 isModuleAccessible = previousModuleCompleted;
                 isModuleLocked = !previousModuleCompleted;
                 if (isModuleLocked) {
-                    lockReason = "Previous module must be completed";
+                    boolean lecturesDone = isModuleLecturesCompleted(profile, previousModule, courseId);
+                    if (devModeEnabled && lecturesDone
+                            && !moduleQuizService.hasPassedModuleQuiz(
+                                    profile, courseId, previousModule.getModuleName())) {
+                        lockReason = "Complete the module quiz to unlock";
+                    } else {
+                        lockReason = "Previous module must be completed";
+                    }
                 }
             }
+        }
+
+        boolean moduleLecturesDone = isModuleLecturesCompleted(profile, module, courseId);
+        boolean quizPassed = moduleQuizService.hasPassedModuleQuiz(profile, courseId, module.getModuleName());
+        Integer quizBestScore = moduleQuizService.getBestQuizScore(profile, courseId, module.getModuleName());
+        Boolean quizRequired = devModeEnabled && moduleLecturesDone && !quizPassed && !profile.getIsGuest();
+        String quizLockReason = null;
+        if (Boolean.TRUE.equals(quizRequired)) {
+            quizLockReason = "Pass the module quiz (70%+) to continue";
         }
         
         // Build lecture access
@@ -271,6 +292,10 @@ public class UserProfileService {
                 .isLocked(isModuleLocked)
                 .lockReason(lockReason)
                 .lectures(lectures)
+                .quizRequired(quizRequired)
+                .quizPassed(quizPassed)
+                .quizBestScore(quizBestScore)
+                .quizLockReason(quizLockReason)
                 .build();
     }
     
@@ -367,17 +392,35 @@ public class UserProfileService {
         return null;
     }
     
-    private boolean isModuleCompleted(UserProfile profile, CourseCurriculum module, String courseId) {
+    private boolean isModuleLecturesCompleted(UserProfile profile, CourseCurriculum module, String courseId) {
         if (module.getSubmodules() == null || module.getSubmodules().isEmpty()) {
             return false;
         }
-        
+
         for (CourseCurriculum.Submodule submodule : module.getSubmodules()) {
+            if (submodule.getEnabled() != null && !submodule.getEnabled()) {
+                continue;
+            }
             if (!isLectureCompleted(profile, submodule.getLabel(), courseId)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private boolean isModuleCompletedForUnlock(
+            UserProfile profile, CourseCurriculum module, String courseId, boolean devModeEnabled) {
+        if (!isModuleLecturesCompleted(profile, module, courseId)) {
+            return false;
+        }
+        if (devModeEnabled) {
+            return moduleQuizService.hasPassedModuleQuiz(profile, courseId, module.getModuleName());
+        }
+        return true;
+    }
+
+    private boolean isModuleCompleted(UserProfile profile, CourseCurriculum module, String courseId) {
+        return isModuleLecturesCompleted(profile, module, courseId);
     }
     
     private boolean isLectureCompleted(UserProfile profile, String lectureLabel, String courseId) {

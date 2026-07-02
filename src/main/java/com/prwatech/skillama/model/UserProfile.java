@@ -53,6 +53,9 @@ public class UserProfile {
     
     @Builder.Default
     private List<ChatInteraction> chatInteractions = new ArrayList<>();
+
+    @Builder.Default
+    private List<PassedModuleQuiz> passedModuleQuizzes = new ArrayList<>();
     
     // Metadata
     private LocalDateTime createdAt;
@@ -103,6 +106,19 @@ public class UserProfile {
         private String lectureContext;       // Which lecture was active when asked
         private String courseId;
         private String questionType;         // "text" or "audio"
+    }
+
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PassedModuleQuiz {
+        private String courseId;
+        private String moduleName;
+        private LocalDateTime passedAt;
+        private Integer bestScore;
+        private Integer maxScore;
     }
 }
 
