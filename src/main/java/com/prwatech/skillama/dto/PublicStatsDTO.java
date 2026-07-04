@@ -15,4 +15,6 @@ public class PublicStatsDTO {
     private long learnerCount;
     /** Active public courses available without login. */
     private long publicCourseCount;
+    /** All active (non-archived) courses on the platform. */
+    private long activeCourseCount;
 }

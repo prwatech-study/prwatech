@@ -43,9 +43,11 @@ public class PlatformPublicStatsService {
                 .filter(u -> u.getEffectiveRole() == User.UserRole.USER)
                 .count();
         long publicCourseCount = courseService.findPublicCourses().size();
+        long activeCourseCount = courseService.findAllActiveList().size();
         return PublicStatsDTO.builder()
                 .learnerCount(learnerCount)
                 .publicCourseCount(publicCourseCount)
+                .activeCourseCount(activeCourseCount)
                 .build();
     }
 }

@@ -204,7 +204,7 @@ public class UserProfileController {
         return ResponseEntity.ok(progressReconciliationService.reconcileForUser(userId, request));
     }
 
-    // ========== Module Quiz (dev-mode feature) ==========
+    // ========== Module Quiz ==========
 
     @PostMapping("/module-quiz/sessions")
     public ResponseEntity<?> createModuleQuizSession(

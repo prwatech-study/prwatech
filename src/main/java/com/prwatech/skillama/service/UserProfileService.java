@@ -40,7 +40,6 @@ public class UserProfileService {
     private final SkillamaUserRepository userRepository;
     private final MongoTemplate skillamaMongoTemplate;
     private final UserCourseService userCourseService;
-    private final PlatformAiSettingsService platformAiSettingsService;
     private final ModuleQuizService moduleQuizService;
     
     // ========== Session Management ==========
@@ -224,10 +223,8 @@ public class UserProfileService {
     
     private ModuleAccessDTO buildModuleAccessDTO(UserProfile profile, CourseCurriculum module, int moduleIndex, 
                                                   String courseId, List<CourseCurriculum> allModules) {
-        boolean devModeEnabled = platformAiSettingsService.getPublicSettings().isDevModeEnabled();
-
         // For guest users: Show all modules but lock all except first module (first module's first lecture is unlocked)
-        // For logged-in users: Progressive unlocking based on completion
+        // For logged-in users: Progressive unlocking based on completion (lectures + module quiz)
         boolean isModuleAccessible;
         boolean isModuleLocked;
         String lockReason = null;
@@ -245,15 +242,14 @@ public class UserProfileService {
                 isModuleAccessible = true;
                 isModuleLocked = false;
             } else {
-                // Check if previous module is completed (lectures + quiz when dev mode)
                 CourseCurriculum previousModule = allModules.get(moduleIndex - 1);
                 boolean previousModuleCompleted = isModuleCompletedForUnlock(
-                        profile, previousModule, courseId, devModeEnabled);
+                        profile, previousModule, courseId);
                 isModuleAccessible = previousModuleCompleted;
                 isModuleLocked = !previousModuleCompleted;
                 if (isModuleLocked) {
                     boolean lecturesDone = isModuleLecturesCompleted(profile, previousModule, courseId);
-                    if (devModeEnabled && lecturesDone
+                    if (lecturesDone
                             && !moduleQuizService.hasPassedModuleQuiz(
                                     profile, courseId, previousModule.getModuleName())) {
                         lockReason = "Complete the module quiz to unlock";
@@ -267,7 +263,7 @@ public class UserProfileService {
         boolean moduleLecturesDone = isModuleLecturesCompleted(profile, module, courseId);
         boolean quizPassed = moduleQuizService.hasPassedModuleQuiz(profile, courseId, module.getModuleName());
         Integer quizBestScore = moduleQuizService.getBestQuizScore(profile, courseId, module.getModuleName());
-        Boolean quizRequired = devModeEnabled && moduleLecturesDone && !quizPassed && !profile.getIsGuest();
+        Boolean quizRequired = moduleLecturesDone && !quizPassed && !profile.getIsGuest();
         String quizLockReason = null;
         if (Boolean.TRUE.equals(quizRequired)) {
             quizLockReason = "Pass the module quiz (70%+) to continue";
@@ -350,13 +346,12 @@ public class UserProfileService {
             }
 
             if (!isLocked && moduleIndex > 0 && isFirstEnabledLectureInModule(module, lectureIndex)) {
-                boolean devModeEnabled = platformAiSettingsService.getPublicSettings().isDevModeEnabled();
                 CourseCurriculum previousModule = allModules.get(moduleIndex - 1);
-                if (!isModuleCompletedForUnlock(profile, previousModule, courseId, devModeEnabled)) {
+                if (!isModuleCompletedForUnlock(profile, previousModule, courseId)) {
                     isAccessible = false;
                     isLocked = true;
                     boolean lecturesDone = isModuleLecturesCompleted(profile, previousModule, courseId);
-                    if (devModeEnabled && lecturesDone
+                    if (lecturesDone
                             && !moduleQuizService.hasPassedModuleQuiz(
                                     profile, courseId, previousModule.getModuleName())) {
                         lockReason = "Complete the module quiz to unlock";
@@ -426,14 +421,11 @@ public class UserProfileService {
     }
 
     private boolean isModuleCompletedForUnlock(
-            UserProfile profile, CourseCurriculum module, String courseId, boolean devModeEnabled) {
+            UserProfile profile, CourseCurriculum module, String courseId) {
         if (!isModuleLecturesCompleted(profile, module, courseId)) {
             return false;
         }
-        if (devModeEnabled) {
-            return moduleQuizService.hasPassedModuleQuiz(profile, courseId, module.getModuleName());
-        }
-        return true;
+        return moduleQuizService.hasPassedModuleQuiz(profile, courseId, module.getModuleName());
     }
 
     private boolean isModuleCompleted(UserProfile profile, CourseCurriculum module, String courseId) {
@@ -602,7 +594,6 @@ public class UserProfileService {
     private ProgressSummaryDTO buildProgressSummary(
             UserProfile profile, List<CourseCurriculum> curriculum, String courseId) {
         int totalLectures = CourseService.countEnabledLectures(curriculum);
-        boolean devModeEnabled = platformAiSettingsService.getPublicSettings().isDevModeEnabled();
 
         int completedLectures = (int) profile.getCompletedLectures().stream()
                 .filter(cl -> courseId != null && courseId.equals(cl.getCourseId()))
@@ -612,13 +603,9 @@ public class UserProfileService {
                 .count();
         int lockedLectures = Math.max(0, totalLectures - completedLectures - inProgressLectures);
 
-        int totalModuleQuizzes = devModeEnabled ? countEnabledModules(curriculum) : 0;
-        int passedModuleQuizzes = devModeEnabled
-                ? countPassedModuleQuizzesForCourse(profile, courseId)
-                : 0;
-        int pendingModuleQuizzes = devModeEnabled
-                ? countPendingModuleQuizzes(profile, curriculum, courseId)
-                : 0;
+        int totalModuleQuizzes = countEnabledModules(curriculum);
+        int passedModuleQuizzes = countPassedModuleQuizzesForCourse(profile, courseId);
+        int pendingModuleQuizzes = countPendingModuleQuizzes(profile, curriculum, courseId);
 
         int completionDenominator = totalLectures + totalModuleQuizzes;
         int completionNumerator = completedLectures + passedModuleQuizzes;
