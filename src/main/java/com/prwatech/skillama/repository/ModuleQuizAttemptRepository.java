@@ -17,6 +17,8 @@ public interface ModuleQuizAttemptRepository extends MongoRepository<ModuleQuizA
 
     List<ModuleQuizAttempt> findByUserIdOrderBySubmittedAtDesc(String userId);
 
+    List<ModuleQuizAttempt> findByGuestSessionIdOrderBySubmittedAtDesc(String guestSessionId);
+
     int countByUserIdAndCourseIdAndModuleName(String userId, String courseId, String moduleName);
 
     int countByGuestSessionIdAndCourseIdAndModuleName(

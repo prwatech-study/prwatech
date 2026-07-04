@@ -240,9 +240,13 @@ public class UserProfileController {
         }
     }
 
+    /**
+     * Learner's own module-quiz history with full answer detail (transparent review).
+     * Optional courseId / moduleName filters. Requires Bearer token or guest session cookie.
+     */
     @GetMapping("/module-quiz/attempts")
-    public ResponseEntity<List<ModuleQuizAttemptSummaryDTO>> getModuleQuizAttempts(
-            @RequestParam String courseId,
+    public ResponseEntity<List<ModuleQuizAttemptDetailDTO>> getModuleQuizAttempts(
+            @RequestParam(required = false) String courseId,
             @RequestParam(required = false) String moduleName,
             HttpServletRequest httpRequest) {
         String sessionId = getSessionIdFromRequest(httpRequest);
@@ -250,7 +254,7 @@ public class UserProfileController {
         if (sessionId == null && userId == null) {
             return ResponseEntity.status(401).build();
         }
-        return ResponseEntity.ok(moduleQuizService.getAttempts(
+        return ResponseEntity.ok(moduleQuizService.getMyAttemptDetails(
                 profilingSessionId(sessionId, userId), userId, courseId, moduleName));
     }
     

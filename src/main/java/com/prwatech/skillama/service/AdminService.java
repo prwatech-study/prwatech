@@ -847,15 +847,7 @@ public class AdminService {
         userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        return moduleQuizService.getAttemptDetailsForUser(userId, courseId).stream()
-                .map(attempt -> {
-                    String courseName = courseRepository.findById(attempt.getCourseId())
-                            .map(Course::getName)
-                            .orElse("Unknown");
-                    attempt.setCourseName(courseName);
-                    return attempt;
-                })
-                .collect(Collectors.toList());
+        return moduleQuizService.getAttemptDetailsForUser(userId, courseId);
     }
 
     private UserAdminProfileDTO.ReviewSummaryDTO toReviewSummary(Review review) {

@@ -1,9 +1,11 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.skillama.dto.*;
+import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.ModuleQuizAttempt;
 import com.prwatech.skillama.model.ModuleQuizSession;
 import com.prwatech.skillama.model.UserProfile;
+import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.ModuleQuizAttemptRepository;
 import com.prwatech.skillama.repository.ModuleQuizSessionRepository;
 import com.prwatech.skillama.repository.UserProfileRepository;
@@ -28,6 +30,7 @@ public class ModuleQuizService {
     private final ModuleQuizSessionRepository sessionRepository;
     private final ModuleQuizAttemptRepository attemptRepository;
     private final UserProfileRepository userProfileRepository;
+    private final CourseRepository courseRepository;
 
     public CreateModuleQuizSessionResponseDTO createSession(
             String profilingSessionId, String userId, CreateModuleQuizSessionRequestDTO request) {
@@ -190,8 +193,39 @@ public class ModuleQuizService {
         List<ModuleQuizAttempt> attempts = attemptRepository.findByUserIdOrderBySubmittedAtDesc(userId);
         return attempts.stream()
                 .filter(a -> !StringUtils.hasText(courseId) || courseId.equals(a.getCourseId()))
-                .map(this::toDetail)
+                .map(this::toDetailWithCourseName)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Full attempt history for the authenticated learner (or guest session), including answers.
+     * courseId / moduleName are optional filters.
+     */
+    public List<ModuleQuizAttemptDetailDTO> getMyAttemptDetails(
+            String profilingSessionId, String userId, String courseId, String moduleName) {
+        List<ModuleQuizAttempt> attempts;
+        if (StringUtils.hasText(userId)) {
+            attempts = attemptRepository.findByUserIdOrderBySubmittedAtDesc(userId);
+        } else if (StringUtils.hasText(profilingSessionId)) {
+            attempts = attemptRepository.findByGuestSessionIdOrderBySubmittedAtDesc(profilingSessionId);
+        } else {
+            return List.of();
+        }
+
+        return attempts.stream()
+                .filter(a -> !StringUtils.hasText(courseId) || courseId.equals(a.getCourseId()))
+                .filter(a -> !StringUtils.hasText(moduleName) || moduleName.equals(a.getModuleName()))
+                .map(this::toDetailWithCourseName)
+                .collect(Collectors.toList());
+    }
+
+    private ModuleQuizAttemptDetailDTO toDetailWithCourseName(ModuleQuizAttempt attempt) {
+        ModuleQuizAttemptDetailDTO detail = toDetail(attempt);
+        String courseName = courseRepository.findById(attempt.getCourseId())
+                .map(Course::getName)
+                .orElse(attempt.getCourseId() != null ? attempt.getCourseId() : "Unknown course");
+        detail.setCourseName(courseName);
+        return detail;
     }
 
     public boolean hasPassedModuleQuiz(UserProfile profile, String courseId, String moduleName) {
