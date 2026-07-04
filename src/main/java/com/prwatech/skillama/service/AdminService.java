@@ -8,6 +8,7 @@ import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserCourseEnrollment;
 import com.prwatech.skillama.model.QueryActivityLog;
 import com.prwatech.skillama.model.UserCourseProgress;
+import com.prwatech.skillama.model.UserLectureProgress;
 import com.prwatech.skillama.model.UserProfile;
 import com.prwatech.skillama.model.Review;
 import com.prwatech.skillama.repository.CourseRepository;
@@ -17,6 +18,7 @@ import com.prwatech.skillama.repository.ReviewRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserCourseEnrollmentRepository;
 import com.prwatech.skillama.repository.UserCourseProgressRepository;
+import com.prwatech.skillama.repository.UserLectureProgressRepository;
 import com.prwatech.skillama.repository.DeletedSkillamaUserRepository;
 import com.prwatech.skillama.model.DeletedSkillamaUser;
 import com.prwatech.skillama.repository.UserLoginEventRepository;
@@ -45,6 +47,7 @@ public class AdminService {
     private final CourseRepository courseRepository;
     private final UserCourseEnrollmentRepository enrollmentRepository;
     private final UserCourseProgressRepository progressRepository;
+    private final UserLectureProgressRepository lectureProgressRepository;
     private final UserProfileRepository userProfileRepository;
     private final QueryActivityLogRepository queryActivityLogRepository;
     private final UserLoginEventRepository userLoginEventRepository;
@@ -627,8 +630,68 @@ public class AdminService {
         stats.setRecentCourses(recentCourses);
         stats.setTopCourses(buildTopCourseStats());
         stats.setRecentLogins(buildRecentLoginStats(15));
+        applyEngagementTimingStats(stats);
 
         return stats;
+    }
+
+    /** Topic listen time + AI query latency averages for admin analytics. */
+    private void applyEngagementTimingStats(DashboardStatsDTO stats) {
+        List<UserLectureProgress> lectures = lectureProgressRepository.findAll();
+        List<Integer> topicTimes = lectures.stream()
+                .map(UserLectureProgress::getTimeSpent)
+                .filter(t -> t != null && t > 0)
+                .collect(Collectors.toList());
+        if (!topicTimes.isEmpty()) {
+            double avgTopic = topicTimes.stream().mapToInt(Integer::intValue).average().orElse(0);
+            stats.setAverageTopicTimeSeconds(Math.round(avgTopic * 10.0) / 10.0);
+            stats.setTotalTopicTimeSamples((long) topicTimes.size());
+        } else {
+            stats.setAverageTopicTimeSeconds(0.0);
+            stats.setTotalTopicTimeSamples(0L);
+        }
+
+        List<UserProfile> profiles = userProfileRepository.findAll();
+        List<Long> responseTimes = new ArrayList<>();
+        List<Integer> answerAudio = new ArrayList<>();
+        List<Integer> userSpeak = new ArrayList<>();
+        for (UserProfile profile : profiles) {
+            if (profile.getChatInteractions() == null) continue;
+            for (UserProfile.ChatInteraction chat : profile.getChatInteractions()) {
+                if (chat.getResponseTimeMs() != null && chat.getResponseTimeMs() > 0) {
+                    responseTimes.add(chat.getResponseTimeMs());
+                }
+                if (chat.getAnswerAudioDurationSeconds() != null && chat.getAnswerAudioDurationSeconds() > 0) {
+                    answerAudio.add(chat.getAnswerAudioDurationSeconds());
+                }
+                if (chat.getUserSpeakDurationSeconds() != null && chat.getUserSpeakDurationSeconds() > 0) {
+                    userSpeak.add(chat.getUserSpeakDurationSeconds());
+                }
+            }
+        }
+
+        if (!responseTimes.isEmpty()) {
+            double avgMs = responseTimes.stream().mapToLong(Long::longValue).average().orElse(0);
+            stats.setAverageQueryResponseTimeMs(Math.round(avgMs * 10.0) / 10.0);
+            stats.setTotalQueryTimingSamples((long) responseTimes.size());
+        } else {
+            stats.setAverageQueryResponseTimeMs(0.0);
+            stats.setTotalQueryTimingSamples(0L);
+        }
+
+        if (!answerAudio.isEmpty()) {
+            double avgAns = answerAudio.stream().mapToInt(Integer::intValue).average().orElse(0);
+            stats.setAverageAnswerAudioSeconds(Math.round(avgAns * 10.0) / 10.0);
+        } else {
+            stats.setAverageAnswerAudioSeconds(0.0);
+        }
+
+        if (!userSpeak.isEmpty()) {
+            double avgSpeak = userSpeak.stream().mapToInt(Integer::intValue).average().orElse(0);
+            stats.setAverageUserSpeakSeconds(Math.round(avgSpeak * 10.0) / 10.0);
+        } else {
+            stats.setAverageUserSpeakSeconds(0.0);
+        }
     }
 
     /** Average stored progress (0-100). No scaling; values under 1% stay as-is (e.g. 0.05). */

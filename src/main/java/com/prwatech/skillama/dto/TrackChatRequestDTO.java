@@ -19,5 +19,11 @@ public class TrackChatRequestDTO {
     private String lectureContext;        // Current lecture
     private String courseId;
     private LocalDateTime timestamp;
+    /** Milliseconds from question send until AI reply was received. */
+    private Long responseTimeMs;
+    /** Seconds the learner spent speaking (voice questions). */
+    private Integer userSpeakDurationSeconds;
+    /** Seconds of AI answer audio (when available). */
+    private Integer answerAudioDurationSeconds;
 }
 

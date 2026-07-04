@@ -30,6 +30,17 @@ public class DashboardStatsDTO {
     private Integer recentUsers;
     private Integer recentCourses;
 
+    /** Average active listen time per topic/lecture (seconds). */
+    private Double averageTopicTimeSeconds;
+    /** Average AI response latency for chat/tutor queries (milliseconds). */
+    private Double averageQueryResponseTimeMs;
+    /** Average AI answer audio length (seconds). */
+    private Double averageAnswerAudioSeconds;
+    /** Average learner speak duration for voice questions (seconds). */
+    private Double averageUserSpeakSeconds;
+    private Long totalTopicTimeSamples;
+    private Long totalQueryTimingSamples;
+
     @Builder.Default
     private List<TopCourseStatDTO> topCourses = new ArrayList<>();
 

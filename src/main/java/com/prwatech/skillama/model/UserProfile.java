@@ -106,6 +106,12 @@ public class UserProfile {
         private String lectureContext;       // Which lecture was active when asked
         private String courseId;
         private String questionType;         // "text" or "audio"
+        /** Milliseconds from question send until AI reply was received. */
+        private Long responseTimeMs;
+        /** Seconds the learner spent speaking (voice questions). */
+        private Integer userSpeakDurationSeconds;
+        /** Seconds of AI answer audio played (when available). */
+        private Integer answerAudioDurationSeconds;
     }
 
     @Getter

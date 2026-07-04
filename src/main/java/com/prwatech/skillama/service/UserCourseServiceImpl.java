@@ -182,8 +182,10 @@ public class UserCourseServiceImpl implements UserCourseService {
         if (completed && lectureProgress.getCompletedAt() == null) {
             lectureProgress.setCompletedAt(IndiaTime.now());
         }
-        if (timeSpent != null) {
-            lectureProgress.setTimeSpent(timeSpent);
+        if (timeSpent != null && timeSpent > 0) {
+            // Accumulate active listen time across sessions.
+            int prev = lectureProgress.getTimeSpent() != null ? lectureProgress.getTimeSpent() : 0;
+            lectureProgress.setTimeSpent(prev + timeSpent);
         }
         if (lectureProgress.getCreatedAt() == null) {
             lectureProgress.setCreatedAt(IndiaTime.now());

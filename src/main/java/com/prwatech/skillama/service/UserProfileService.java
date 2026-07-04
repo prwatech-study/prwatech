@@ -974,6 +974,9 @@ public class UserProfileService {
                 .lectureContext(request.getLectureContext())
                 .courseId(request.getCourseId())
                 .questionType(request.getQuestionType() != null ? request.getQuestionType() : "text")
+                .responseTimeMs(request.getResponseTimeMs())
+                .userSpeakDurationSeconds(request.getUserSpeakDurationSeconds())
+                .answerAudioDurationSeconds(request.getAnswerAudioDurationSeconds())
                 .build();
         
         profile.getChatInteractions().add(interaction);
