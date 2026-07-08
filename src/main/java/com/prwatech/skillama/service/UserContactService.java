@@ -6,6 +6,10 @@ import com.prwatech.skillama.repository.SkillamaUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -33,29 +37,23 @@ public class UserContactService {
                 phone != null && !phone.isBlank() ? FreemiumService.normalizePhone(phone) : null;
 
         if (normEmail != null) {
-            findByEmail(normEmail).ifPresent(owner -> {
-                if (!isSameUser(owner, excludeUserId)) {
-                    throw new IllegalStateException(
-                            "This email is already registered. Please sign in instead.");
-                }
+            findConflictingEmailOwner(normEmail, excludeUserId).ifPresent(owner -> {
+                throw new IllegalStateException(
+                        "This email is already registered. Please sign in instead.");
             });
         }
 
         if (normPhone != null) {
-            findByPhone(normPhone).ifPresent(owner -> {
-                if (!isSameUser(owner, excludeUserId)) {
-                    throw new IllegalStateException(
-                            "This mobile number is already linked to another account.");
-                }
+            findConflictingPhoneOwner(normPhone, excludeUserId).ifPresent(owner -> {
+                throw new IllegalStateException(
+                        "This mobile number is already linked to another account.");
             });
         }
 
         if (normEmail != null && normPhone != null) {
-            userRepository.findByEmailAndPhone(normEmail, normPhone).ifPresent(owner -> {
-                if (!isSameUser(owner, excludeUserId)) {
-                    throw new IllegalStateException(
-                            "An account with this email and mobile number already exists.");
-                }
+            findConflictingComboOwner(normEmail, normPhone, excludeUserId).ifPresent(owner -> {
+                throw new IllegalStateException(
+                        "An account with this email and mobile number already exists.");
             });
         }
     }
@@ -71,24 +69,21 @@ public class UserContactService {
         StringBuilder message = new StringBuilder();
 
         if (normEmail != null) {
-            Optional<User> byEmail = findByEmail(normEmail);
-            if (byEmail.isPresent() && !isSameUser(byEmail.get(), excludeUserId)) {
+            if (findConflictingEmailOwner(normEmail, excludeUserId).isPresent()) {
                 emailAvailable = false;
                 message.append("Email is already registered. ");
             }
         }
 
         if (normPhone != null) {
-            Optional<User> byPhone = findByPhone(normPhone);
-            if (byPhone.isPresent() && !isSameUser(byPhone.get(), excludeUserId)) {
+            if (findConflictingPhoneOwner(normPhone, excludeUserId).isPresent()) {
                 phoneAvailable = false;
                 message.append("Mobile number is already in use. ");
             }
         }
 
         if (normEmail != null && normPhone != null) {
-            Optional<User> byCombo = userRepository.findByEmailAndPhone(normEmail, normPhone);
-            if (byCombo.isPresent() && !isSameUser(byCombo.get(), excludeUserId)) {
+            if (findConflictingComboOwner(normEmail, normPhone, excludeUserId).isPresent()) {
                 comboAvailable = false;
                 if (emailAvailable && phoneAvailable) {
                     message.append("This email and mobile combination is already registered. ");
@@ -143,20 +138,57 @@ public class UserContactService {
         return userRepository.findByEmailIgnoreCase(normEmail);
     }
 
-    private Optional<User> findByPhone(String normPhone) {
+    private Optional<User> findConflictingEmailOwner(String normEmail, String excludeUserId) {
+        return findByEmail(normEmail)
+                .filter(user -> !isSameUser(user, excludeUserId));
+    }
+
+    private Optional<User> findConflictingPhoneOwner(String normPhone, String excludeUserId) {
+        return findUsersByNormalizedPhone(normPhone).stream()
+                .filter(user -> !isSameUser(user, excludeUserId))
+                .findFirst();
+    }
+
+    private Optional<User> findConflictingComboOwner(
+            String normEmail, String normPhone, String excludeUserId) {
+        return findUsersByEmailAndPhone(normEmail, normPhone).stream()
+                .filter(user -> !isSameUser(user, excludeUserId))
+                .findFirst();
+    }
+
+    private List<User> findUsersByNormalizedPhone(String normPhone) {
         if (normPhone == null) {
-            return Optional.empty();
+            return List.of();
         }
-        Optional<User> direct = userRepository.findByPhone(normPhone);
-        if (direct.isPresent()) {
-            return direct;
+        Map<String, User> byId = new LinkedHashMap<>();
+        for (User user : userRepository.findAllByPhone(normPhone)) {
+            if (user.getId() != null) {
+                byId.put(user.getId(), user);
+            }
         }
         String digits = normPhone.replaceAll("[^0-9]", "");
         if (digits.length() >= 10) {
             String last10 = digits.substring(digits.length() - 10);
-            return userRepository.findByPhoneEndingWith(last10);
+            for (User user : userRepository.findAllByPhoneEndingWith(last10)) {
+                if (user.getId() != null) {
+                    byId.putIfAbsent(user.getId(), user);
+                }
+            }
         }
-        return Optional.empty();
+        return new ArrayList<>(byId.values());
+    }
+
+    private List<User> findUsersByEmailAndPhone(String normEmail, String normPhone) {
+        if (normEmail == null || normPhone == null) {
+            return List.of();
+        }
+        Map<String, User> byId = new LinkedHashMap<>();
+        for (User user : userRepository.findAllByEmailAndPhone(normEmail, normPhone)) {
+            if (user.getId() != null) {
+                byId.put(user.getId(), user);
+            }
+        }
+        return new ArrayList<>(byId.values());
     }
 
     private static boolean isSameUser(User user, String excludeUserId) {

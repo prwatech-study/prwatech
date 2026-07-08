@@ -18,10 +18,16 @@ public interface SkillamaUserRepository extends MongoRepository<User, String>, S
 
     Optional<User> findByPhone(String phone);
 
+    List<User> findAllByPhone(String phone);
+
     /** Match last 10 digits for legacy rows stored without country code. */
     Optional<User> findByPhoneEndingWith(String lastTenDigits);
 
+    List<User> findAllByPhoneEndingWith(String lastTenDigits);
+
     Optional<User> findByEmailAndPhone(String email, String phone);
+
+    List<User> findAllByEmailAndPhone(String email, String phone);
 
     /** Pre-freemium accounts (planTier not set) — candidates for admin backfill. */
     List<User> findByPlanTierIsNull();

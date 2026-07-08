@@ -197,6 +197,13 @@ public class UserController {
         } catch (SkillamaAuthException e) {
             LOGGER.warn("Onboarding auth failed: {}", e.getMessage());
             return ResponseEntity.status(401).body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (RuntimeException e) {
+            LOGGER.error("Onboarding complete failed: {}", e.getMessage());
+            String msg = e.getMessage() != null ? e.getMessage() : "Failed to complete onboarding";
+            if (msg.contains("non unique result")) {
+                msg = "This mobile number is already linked to another account.";
+            }
+            return ResponseEntity.status(409).body(Map.of("status", "error", "message", msg));
         }
     }
 
