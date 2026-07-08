@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import com.prwatech.skillama.util.EmailValidation;
 import com.prwatech.skillama.util.IndiaTime;
 import java.util.UUID;
 
@@ -33,9 +34,7 @@ public class OtpService {
 
     @Transactional
     public void sendOtp(String email, EmailOtp.OtpPurpose purpose) {
-        if (email == null || email.isBlank()) {
-            throw new IllegalArgumentException("Email is required");
-        }
+        EmailValidation.assertValidFormat(email);
         if (purpose == null) {
             purpose = EmailOtp.OtpPurpose.SIGNUP;
         }

@@ -14,7 +14,9 @@ import com.prwatech.skillama.dto.GoogleAuthRequestDTO;
 import com.prwatech.skillama.dto.OnboardingCompleteRequestDTO;
 import com.prwatech.skillama.dto.OtpContinueRequestDTO;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.model.EmailOtp;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
+import com.prwatech.skillama.util.EmailValidation;
 import com.prwatech.skillama.util.IndiaTime;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -92,9 +94,7 @@ public class OAuthAuthService {
 
     @Transactional
     public User emailContinue(EmailContinueRequestDTO request) {
-        if (request.getEmail() == null || request.getEmail().isBlank()) {
-            throw new IllegalArgumentException("Email is required");
-        }
+        EmailValidation.assertValidFormat(request.getEmail());
         if (request.getPassword() == null || request.getPassword().isBlank()) {
             throw new IllegalArgumentException("Password is required");
         }
@@ -119,12 +119,19 @@ public class OAuthAuthService {
             return user;
         }
 
+        EmailValidation.assertPasswordLength(request.getPassword());
+        if (request.getVerificationToken() == null || request.getVerificationToken().isBlank()) {
+            throw new IllegalArgumentException("Please verify your email with OTP first.");
+        }
+        otpService.validateVerificationToken(
+                email, request.getVerificationToken(), EmailOtp.OtpPurpose.SIGNUP);
+
         User user = new User();
         user.setEmail(email);
         user.setName(email.split("@")[0]);
         user.setPassword(passwordEncode.getEncryptedPassword(request.getPassword()));
         user.setActive(true);
-        user.setEmailVerified(false);
+        user.setEmailVerified(true);
         user.setRole(User.UserRole.USER);
         user.setPlanTier(User.PlanTier.FREEMIUM);
         user.setQueryCreditsUsed(0);
@@ -140,9 +147,7 @@ public class OAuthAuthService {
 
     @Transactional
     public User otpContinue(OtpContinueRequestDTO request) {
-        if (request.getEmail() == null || request.getEmail().isBlank()) {
-            throw new IllegalArgumentException("Email is required");
-        }
+        EmailValidation.assertValidFormat(request.getEmail());
         String email = userContactService.normalizeEmail(request.getEmail());
 
         if (request.getVerificationToken() != null && !request.getVerificationToken().isBlank()) {
@@ -158,30 +163,16 @@ public class OAuthAuthService {
             existing = userRepository.findByEmailIgnoreCase(email);
         }
 
-        if (existing.isPresent()) {
-            User user = existing.get();
-            if (!user.isActive()) {
-                throw new IllegalStateException("Account is not activated. Please contact admin.");
-            }
-            return user;
+        if (existing.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "No account found for this email. Please sign up to create an account.");
         }
 
-        User user = new User();
-        user.setEmail(email);
-        user.setName(email.split("@")[0]);
-        user.setActive(true);
-        user.setEmailVerified(true);
-        user.setRole(User.UserRole.USER);
-        user.setPlanTier(User.PlanTier.FREEMIUM);
-        user.setQueryCreditsUsed(0);
-        user.setQueryCreditsLimit(FreemiumService.FREEMIUM_QUERY_LIMIT);
-        user.setEnabledModules(new ArrayList<>(FreemiumService.FREEMIUM_BASE_MODULES));
-        user.setReferralCode(FreemiumService.generateReferralCode());
-        user.setAuthProvider(User.AuthProvider.EMAIL);
-        user.setOnboardingCompleted(false);
-        user.setCreatedAt(IndiaTime.now());
-        user.setUpdatedAt(IndiaTime.now());
-        return userRepository.save(user);
+        User user = existing.get();
+        if (!user.isActive()) {
+            throw new IllegalStateException("Account is not activated. Please contact admin.");
+        }
+        return user;
     }
 
     @Transactional
@@ -217,7 +208,11 @@ public class OAuthAuthService {
             }
         }
 
-        user.setEmailVerified(true);
+        if (Boolean.TRUE.equals(user.getEmailVerified())
+                || user.getAuthProvider() == User.AuthProvider.GOOGLE
+                || user.getAuthProvider() == User.AuthProvider.APPLE) {
+            user.setEmailVerified(true);
+        }
         user.setActive(true);
         onboardingService.markOnboardingComplete(user);
         user.setOnboardingCompletedAt(IndiaTime.now());

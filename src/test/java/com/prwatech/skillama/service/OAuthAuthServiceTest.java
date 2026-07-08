@@ -1,8 +1,10 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.common.configuration.PasswordEncode;
+import com.prwatech.skillama.dto.EmailContinueRequestDTO;
 import com.prwatech.skillama.dto.OtpContinueRequestDTO;
 import com.prwatech.skillama.dto.OtpVerifyResponseDTO;
+import com.prwatech.skillama.model.EmailOtp;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -137,7 +139,70 @@ class OAuthAuthServiceTest {
     }
 
     @Test
-    void otpContinue_createsFreemiumUserWhenEmailUnknown() {
+    void emailContinue_newUserWithoutVerificationToken_rejected() {
+        EmailContinueRequestDTO request = new EmailContinueRequestDTO();
+        request.setEmail(EMAIL);
+        request.setPassword("password123");
+
+        when(userService.findByEmail(EMAIL)).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.empty());
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class, () -> oAuthAuthService.emailContinue(request));
+
+        assertTrue(ex.getMessage().toLowerCase().contains("verify your email"));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void emailContinue_newUserWithSignupToken_createsVerifiedUser() {
+        EmailContinueRequestDTO request = new EmailContinueRequestDTO();
+        request.setEmail(EMAIL);
+        request.setPassword("password123");
+        request.setVerificationToken("signup-tok");
+
+        when(userService.findByEmail(EMAIL)).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.empty());
+        when(passwordEncode.getEncryptedPassword("password123")).thenReturn("encoded");
+
+        User result = oAuthAuthService.emailContinue(request);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        verify(otpService)
+                .validateVerificationToken(EMAIL, "signup-tok", EmailOtp.OtpPurpose.SIGNUP);
+        User saved = captor.getValue();
+        assertEquals(EMAIL, saved.getEmail());
+        assertEquals(Boolean.TRUE, saved.getEmailVerified());
+        assertEquals(User.AuthProvider.EMAIL, saved.getAuthProvider());
+        assertFalse(Boolean.TRUE.equals(saved.getOnboardingCompleted()));
+        assertNotNull(result);
+    }
+
+    @Test
+    void emailContinue_existingUser_loginWithoutToken() {
+        EmailContinueRequestDTO request = new EmailContinueRequestDTO();
+        request.setEmail(EMAIL);
+        request.setPassword("password123");
+
+        User existing = User.builder()
+                .id("u1")
+                .email(EMAIL)
+                .password("encoded")
+                .active(true)
+                .build();
+        when(userService.findByEmail(EMAIL)).thenReturn(Optional.of(existing));
+        when(userService.validatePassword("password123", "encoded")).thenReturn(true);
+
+        User result = oAuthAuthService.emailContinue(request);
+
+        assertEquals("u1", result.getId());
+        verify(otpService, never()).validateVerificationToken(any(), any(), any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void otpContinue_unknownEmail_rejected() {
         OtpContinueRequestDTO request = new OtpContinueRequestDTO();
         request.setEmail(EMAIL);
         request.setOtp("123456");
@@ -147,16 +212,11 @@ class OAuthAuthServiceTest {
         when(otpService.verifyOtp(EMAIL, "123456"))
                 .thenReturn(OtpVerifyResponseDTO.builder().verificationToken("tok").build());
 
-        User result = oAuthAuthService.otpContinue(request);
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class, () -> oAuthAuthService.otpContinue(request));
 
-        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).save(captor.capture());
-        User saved = captor.getValue();
-        assertEquals(EMAIL, saved.getEmail());
-        assertEquals(User.AuthProvider.EMAIL, saved.getAuthProvider());
-        assertFalse(Boolean.TRUE.equals(saved.getOnboardingCompleted()));
-        assertEquals(Boolean.TRUE, saved.getEmailVerified());
-        assertNotNull(result);
+        assertTrue(ex.getMessage().toLowerCase().contains("sign up"));
+        verify(userRepository, never()).save(any());
     }
 
     @Test
