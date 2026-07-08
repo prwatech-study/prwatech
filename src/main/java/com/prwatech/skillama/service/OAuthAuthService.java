@@ -12,6 +12,7 @@ import com.prwatech.skillama.dto.AppleAuthRequestDTO;
 import com.prwatech.skillama.dto.EmailContinueRequestDTO;
 import com.prwatech.skillama.dto.GoogleAuthRequestDTO;
 import com.prwatech.skillama.dto.OnboardingCompleteRequestDTO;
+import com.prwatech.skillama.dto.OtpContinueRequestDTO;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.util.IndiaTime;
@@ -45,6 +46,7 @@ public class OAuthAuthService {
     private final UserContactService userContactService;
     private final FreemiumService freemiumService;
     private final OnboardingService onboardingService;
+    private final OtpService otpService;
     private final PasswordEncode passwordEncode;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestTemplate restTemplate = new RestTemplate();
@@ -123,6 +125,52 @@ public class OAuthAuthService {
         user.setPassword(passwordEncode.getEncryptedPassword(request.getPassword()));
         user.setActive(true);
         user.setEmailVerified(false);
+        user.setRole(User.UserRole.USER);
+        user.setPlanTier(User.PlanTier.FREEMIUM);
+        user.setQueryCreditsUsed(0);
+        user.setQueryCreditsLimit(FreemiumService.FREEMIUM_QUERY_LIMIT);
+        user.setEnabledModules(new ArrayList<>(FreemiumService.FREEMIUM_BASE_MODULES));
+        user.setReferralCode(FreemiumService.generateReferralCode());
+        user.setAuthProvider(User.AuthProvider.EMAIL);
+        user.setOnboardingCompleted(false);
+        user.setCreatedAt(IndiaTime.now());
+        user.setUpdatedAt(IndiaTime.now());
+        return userRepository.save(user);
+    }
+
+    @Transactional
+    public User otpContinue(OtpContinueRequestDTO request) {
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+        String email = userContactService.normalizeEmail(request.getEmail());
+
+        if (request.getVerificationToken() != null && !request.getVerificationToken().isBlank()) {
+            otpService.validateVerificationToken(email, request.getVerificationToken());
+        } else if (request.getOtp() != null && !request.getOtp().isBlank()) {
+            otpService.verifyOtp(email, request.getOtp());
+        } else {
+            throw new IllegalArgumentException("OTP or verificationToken required");
+        }
+
+        Optional<User> existing = userService.findByEmail(email);
+        if (existing.isEmpty()) {
+            existing = userRepository.findByEmailIgnoreCase(email);
+        }
+
+        if (existing.isPresent()) {
+            User user = existing.get();
+            if (!user.isActive()) {
+                throw new IllegalStateException("Account is not activated. Please contact admin.");
+            }
+            return user;
+        }
+
+        User user = new User();
+        user.setEmail(email);
+        user.setName(email.split("@")[0]);
+        user.setActive(true);
+        user.setEmailVerified(true);
         user.setRole(User.UserRole.USER);
         user.setPlanTier(User.PlanTier.FREEMIUM);
         user.setQueryCreditsUsed(0);

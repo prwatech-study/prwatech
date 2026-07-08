@@ -2,9 +2,11 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.skillama.dto.*;
 import com.prwatech.skillama.model.Course;
+import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.ModuleQuizAttempt;
 import com.prwatech.skillama.model.ModuleQuizSession;
 import com.prwatech.skillama.model.UserProfile;
+import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.ModuleQuizAttemptRepository;
 import com.prwatech.skillama.repository.ModuleQuizSessionRepository;
@@ -31,11 +33,13 @@ public class ModuleQuizService {
     private final ModuleQuizAttemptRepository attemptRepository;
     private final UserProfileRepository userProfileRepository;
     private final CourseRepository courseRepository;
+    private final CourseCurriculumRepository curriculumRepository;
 
     public CreateModuleQuizSessionResponseDTO createSession(
             String profilingSessionId, String userId, CreateModuleQuizSessionRequestDTO request) {
 
         validateSessionRequest(request);
+        assertQuizEligible(profilingSessionId, userId, request.getCourseId(), request.getModuleName());
 
         String quizSessionId = "quiz-" + UUID.randomUUID();
         LocalDateTime now = IndiaTime.now();
@@ -310,6 +314,64 @@ public class ModuleQuizService {
         } else if (!profilingSessionId.equals(session.getGuestSessionId())) {
             throw new IllegalArgumentException("Quiz session does not belong to this session");
         }
+    }
+
+    private void assertQuizEligible(
+            String profilingSessionId, String userId, String courseId, String moduleName) {
+        UserProfile profile = resolveProfile(profilingSessionId, userId);
+        if (profile == null) {
+            throw new IllegalArgumentException("User profile not found");
+        }
+        if (Boolean.TRUE.equals(profile.getIsGuest())) {
+            return;
+        }
+        if (hasPassedModuleQuiz(profile, courseId, moduleName)) {
+            throw new IllegalArgumentException("Module quiz already passed");
+        }
+        CourseCurriculum module = findModuleInCurriculum(courseId, moduleName);
+        if (module == null) {
+            throw new IllegalArgumentException("Module not found in course curriculum");
+        }
+        if (!isModuleLecturesCompleted(profile, module, courseId)) {
+            throw new IllegalArgumentException(
+                    "Complete all module lectures before starting the quiz");
+        }
+    }
+
+    private CourseCurriculum findModuleInCurriculum(String courseId, String moduleName) {
+        List<CourseCurriculum> curriculum =
+                curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
+        for (CourseCurriculum mod : curriculum) {
+            if (moduleName.equals(mod.getModuleName())) {
+                return mod;
+            }
+        }
+        return null;
+    }
+
+    private boolean isModuleLecturesCompleted(
+            UserProfile profile, CourseCurriculum module, String courseId) {
+        if (module.getSubmodules() == null || module.getSubmodules().isEmpty()) {
+            return false;
+        }
+        for (CourseCurriculum.Submodule submodule : module.getSubmodules()) {
+            if (submodule.getEnabled() != null && !submodule.getEnabled()) {
+                continue;
+            }
+            if (!isLectureCompleted(profile, submodule.getLabel(), courseId)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isLectureCompleted(UserProfile profile, String lectureLabel, String courseId) {
+        if (profile.getCompletedLectures() == null) {
+            return false;
+        }
+        return profile.getCompletedLectures().stream()
+                .anyMatch(cl -> lectureLabel.equals(cl.getLectureLabel())
+                        && courseId.equals(cl.getCourseId()));
     }
 
     private void validateSessionRequest(CreateModuleQuizSessionRequestDTO request) {

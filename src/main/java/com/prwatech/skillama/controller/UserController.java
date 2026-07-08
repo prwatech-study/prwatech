@@ -176,6 +176,11 @@ public class UserController {
         return authWithOAuth(() -> oAuthAuthService.emailContinue(request));
     }
 
+    @PostMapping("/auth/otp/continue")
+    public ResponseEntity<?> otpContinue(@RequestBody OtpContinueRequestDTO request) {
+        return authWithOAuth(() -> oAuthAuthService.otpContinue(request));
+    }
+
     @PostMapping("/me/onboarding/complete")
     public ResponseEntity<?> completeOnboarding(
             @RequestBody OnboardingCompleteRequestDTO request,

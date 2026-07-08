@@ -1,6 +1,8 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.common.configuration.PasswordEncode;
+import com.prwatech.skillama.dto.OtpContinueRequestDTO;
+import com.prwatech.skillama.dto.OtpVerifyResponseDTO;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +30,7 @@ class OAuthAuthServiceTest {
     @Mock private UserContactService userContactService;
     @Mock private FreemiumService freemiumService;
     @Mock private OnboardingService onboardingService;
+    @Mock private OtpService otpService;
     @Mock private PasswordEncode passwordEncode;
 
     @InjectMocks private OAuthAuthService oAuthAuthService;
@@ -131,6 +134,50 @@ class OAuthAuthServiceTest {
         assertEquals(User.AuthProvider.GOOGLE, saved.getAuthProvider());
         assertFalse(Boolean.TRUE.equals(saved.getOnboardingCompleted()));
         assertNotNull(result);
+    }
+
+    @Test
+    void otpContinue_createsFreemiumUserWhenEmailUnknown() {
+        OtpContinueRequestDTO request = new OtpContinueRequestDTO();
+        request.setEmail(EMAIL);
+        request.setOtp("123456");
+
+        when(userService.findByEmail(EMAIL)).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.empty());
+        when(otpService.verifyOtp(EMAIL, "123456"))
+                .thenReturn(OtpVerifyResponseDTO.builder().verificationToken("tok").build());
+
+        User result = oAuthAuthService.otpContinue(request);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        User saved = captor.getValue();
+        assertEquals(EMAIL, saved.getEmail());
+        assertEquals(User.AuthProvider.EMAIL, saved.getAuthProvider());
+        assertFalse(Boolean.TRUE.equals(saved.getOnboardingCompleted()));
+        assertEquals(Boolean.TRUE, saved.getEmailVerified());
+        assertNotNull(result);
+    }
+
+    @Test
+    void otpContinue_returnsExistingUserWhenEmailKnown() {
+        OtpContinueRequestDTO request = new OtpContinueRequestDTO();
+        request.setEmail(EMAIL);
+        request.setOtp("654321");
+
+        User existing = User.builder()
+                .id("u1")
+                .email(EMAIL)
+                .active(true)
+                .build();
+        when(userService.findByEmail(EMAIL)).thenReturn(Optional.of(existing));
+        when(otpService.verifyOtp(EMAIL, "654321"))
+                .thenReturn(OtpVerifyResponseDTO.builder().verificationToken("tok").build());
+
+        User result = oAuthAuthService.otpContinue(request);
+
+        assertEquals("u1", result.getId());
+        verify(userRepository, never()).save(any());
     }
 
     private User invokeResolve(
