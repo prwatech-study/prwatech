@@ -26,5 +26,6 @@ public class AccessControlResponseDTO {
     private FeatureAccessDTO features;
     private ProgressSummaryDTO progress;
     private QueryCreditsDTO queryCredits;
+    private AiBudgetDTO aiBudget;
 }
 

@@ -40,6 +40,9 @@ public class UserAdminProfileDTO {
     private String chosenFreemiumCourseId;
     private String chosenFreemiumCourseName;
 
+    private AiBudgetDTO aiBudget;
+    private AiUsageUserDetailDTO aiUsageThisMonth;
+
     @Builder.Default
     private List<LoginHistoryItemDTO> recentLogins = new ArrayList<>();
 

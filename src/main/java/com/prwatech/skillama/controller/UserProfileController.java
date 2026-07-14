@@ -38,6 +38,7 @@ public class UserProfileController {
     private final ModuleQuizService moduleQuizService;
     private final JwtUtils jwtUtils;
     private final SkillamaAuthSupport skillamaAuthSupport;
+    private final com.prwatech.skillama.service.AiUsageService aiUsageService;
     
     private static final String SESSION_COOKIE_NAME = "skillama_session_id";
     
@@ -316,8 +317,34 @@ public class UserProfileController {
                     "message", e.getMessage(),
                     "queryCreditsUsed", e.getQueryCreditsUsed(),
                     "queryCreditsLimit", e.getQueryCreditsLimit()));
+        } catch (com.prwatech.skillama.exception.AiBudgetLimitException e) {
+            return ResponseEntity.status(429).body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage(),
+                    "aiBudgetLimitReached", true,
+                    "aiCostUsedUsd", e.getAiCostUsedUsd(),
+                    "aiCostLimitUsd", e.getAiCostLimitUsd()));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(429).body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/ai-usage/record")
+    public ResponseEntity<Map<String, Object>> recordAiUsage(
+            @RequestBody AiUsageRecordRequestDTO body,
+            HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            if (body != null) {
+                body.setUserId(userId);
+            }
+            return ResponseEntity.ok(Map.of(
+                    "status", "ok",
+                    "recorded", aiUsageService.recordUsage(body) != null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body(Map.of("status", "error", "message", "Unauthorized"));
         }
     }
 

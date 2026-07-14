@@ -1,6 +1,7 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.common.configuration.PasswordEncode;
+import com.prwatech.skillama.dto.AiBudgetDTO;
 import com.prwatech.skillama.dto.ConsumeQueryRequestDTO;
 import com.prwatech.skillama.dto.CreditAdjustRequestDTO;
 import com.prwatech.skillama.dto.CreditAdjustmentLogDTO;
@@ -13,6 +14,7 @@ import com.prwatech.skillama.dto.QueryCreditRepairResultDTO;
 import com.prwatech.skillama.dto.QueryCreditsDTO;
 import com.prwatech.skillama.model.CreditAdjustmentLog;
 import com.prwatech.skillama.repository.CreditAdjustmentLogRepository;
+import com.prwatech.skillama.exception.AiBudgetLimitException;
 import com.prwatech.skillama.exception.QueryCreditLimitException;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.Course;
@@ -61,6 +63,7 @@ public class FreemiumService {
     private final UserCourseAccessService userCourseAccessService;
     private final CreditAdjustmentLogRepository creditAdjustmentLogRepository;
     private final UserContactService userContactService;
+    private final AiUsageService aiUsageService;
 
     /** Public read — home page banner, signup copy (no auth). */
     public FreemiumOfferingDTO getPublicOffering() {
@@ -108,6 +111,7 @@ public class FreemiumService {
     public FreemiumStatusDTO consumeQuery(String userId, ConsumeQueryRequestDTO request) {
         User user = requireUser(userId);
         if (!isUnlimited(user)) {
+            aiUsageService.assertWithinBudget(user);
             int limit = effectiveLimit(user);
             int used = user.getQueryCreditsUsed() != null ? user.getQueryCreditsUsed() : 0;
             if (used >= limit) {
@@ -752,7 +756,12 @@ public class FreemiumService {
                 .queryCreditsLimit(unlimited ? null : effectiveLimit(user))
                 .unlimitedQueries(unlimited)
                 .enabledModules(user.getEnabledModules())
+                .aiBudget(aiUsageService.getAiBudget(user))
                 .build();
+    }
+
+    public AiBudgetDTO getAiBudgetForUser(User user) {
+        return aiUsageService.getAiBudget(user);
     }
 
     private User requireUser(String userId) {

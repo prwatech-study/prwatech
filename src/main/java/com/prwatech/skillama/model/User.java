@@ -41,6 +41,12 @@ public class User {
     @Builder.Default
     private Integer queryCreditsUsed = 0;
     private Integer queryCreditsLimit;
+
+    /** Accumulated Bedrock cost for the current calendar month (USD). */
+    @Builder.Default
+    private Double aiCostUsdThisPeriod = 0.0;
+    /** Start of the current AI cost billing period (calendar month). */
+    private LocalDateTime aiCostPeriodStart;
     @Builder.Default
     private List<String> enabledModules = new ArrayList<>();
 

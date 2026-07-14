@@ -59,6 +59,7 @@ public class AdminService {
     private final AdminAuditService adminAuditService;
     private final DeletedSkillamaUserRepository deletedSkillamaUserRepository;
     private final FreemiumService freemiumService;
+    private final AiUsageService aiUsageService;
     private final ModuleQuizAttemptRepository moduleQuizAttemptRepository;
     private final ModuleQuizService moduleQuizService;
 
@@ -899,6 +900,8 @@ public class AdminService {
                 .issueReportCount((int) issueReportRepository.countByReporterUserId(userId))
                 .chosenFreemiumCourseId(chosenCourseId)
                 .chosenFreemiumCourseName(chosenCourseName)
+                .aiBudget(freemiumService.getAiBudgetForUser(user))
+                .aiUsageThisMonth(aiUsageService.getUserUsageDetail(userId, "month"))
                 .recentLogins(recentLogins)
                 .courseEnrollments(courseEnrollments)
                 .recentReviews(recentReviews)

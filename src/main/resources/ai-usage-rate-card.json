@@ -1,0 +1,18 @@
+{
+  "default": {
+    "inputPer1kTokensUsd": 0.0003,
+    "outputPer1kTokensUsd": 0.0006
+  },
+  "models": {
+    "deepseek.v3.2": { "inputPer1kTokensUsd": 0.00028, "outputPer1kTokensUsd": 0.00042 },
+    "qwen.qwen3-next-80b-a3b": { "inputPer1kTokensUsd": 0.00035, "outputPer1kTokensUsd": 0.0014 },
+    "qwen.qwen3-vl-235b-a22b": { "inputPer1kTokensUsd": 0.00045, "outputPer1kTokensUsd": 0.0018 },
+    "mistral.devstral-2-123b": { "inputPer1kTokensUsd": 0.00035, "outputPer1kTokensUsd": 0.0014 },
+    "openai.gpt-oss-120b-1:0": { "inputPer1kTokensUsd": 0.0004, "outputPer1kTokensUsd": 0.0016 },
+    "google.gemma-3-4b-it": { "inputPer1kTokensUsd": 0.00008, "outputPer1kTokensUsd": 0.00016 },
+    "google.gemma-3-12b-it": { "inputPer1kTokensUsd": 0.00012, "outputPer1kTokensUsd": 0.00024 },
+    "nvidia.nemotron-nano-3-30b": { "inputPer1kTokensUsd": 0.0002, "outputPer1kTokensUsd": 0.0008 },
+    "qwen.qwen3-coder-30b-a3b-v1:0": { "inputPer1kTokensUsd": 0.00025, "outputPer1kTokensUsd": 0.001 },
+    "amazon.titan-embed-image-v1": { "inputPer1kTokensUsd": 0.00008, "outputPer1kTokensUsd": 0.0 }
+  }
+}

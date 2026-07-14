@@ -23,4 +23,5 @@ public class FreemiumStatusDTO {
     /** True for PAID, ENTERPRISE, and legacy (planTier null) accounts with unlimited AI queries. */
     private Boolean unlimitedQueries;
     private List<String> enabledModules;
+    private AiBudgetDTO aiBudget;
 }

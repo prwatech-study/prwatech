@@ -194,6 +194,7 @@ public class UserProfileService {
         QueryCreditsDTO queryCredits = user != null && !freemiumService.isLegacyUser(user)
                 ? freemiumService.getQueryCredits(user)
                 : null;
+        AiBudgetDTO aiBudget = user != null ? freemiumService.getAiBudgetForUser(user) : null;
 
         return AccessControlResponseDTO.builder()
                 .userId(profile.getUserId())
@@ -206,6 +207,7 @@ public class UserProfileService {
                 .features(features)
                 .progress(progress)
                 .queryCredits(queryCredits)
+                .aiBudget(aiBudget)
                 .build();
     }
     

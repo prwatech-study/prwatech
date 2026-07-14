@@ -4,6 +4,6 @@ import lombok.Data;
 
 @Data
 public class ConsumeQueryRequestDTO {
-    private String queryType; // CHAT, DEBUG
+    private String queryType; // CHAT, DEBUG, CODE_EXECUTION, GENERATE_CODE, LECTURE, MODULE_QUIZ
     private String courseId;
 }
