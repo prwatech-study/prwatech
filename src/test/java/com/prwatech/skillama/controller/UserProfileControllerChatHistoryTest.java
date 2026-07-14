@@ -5,6 +5,7 @@ import com.prwatech.common.Constants;
 import com.prwatech.skillama.dto.ChatHistoryItemDTO;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.FreemiumService;
+import com.prwatech.skillama.service.AiUsageService;
 import com.prwatech.skillama.service.LmsThemeService;
 import com.prwatech.skillama.service.ModuleQuizService;
 import com.prwatech.skillama.service.ProgressReconciliationService;
@@ -48,6 +49,7 @@ class UserProfileControllerChatHistoryTest {
     @Mock private ModuleQuizService moduleQuizService;
     @Mock private JwtUtils jwtUtils;
     @Mock private SkillamaAuthSupport skillamaAuthSupport;
+    @Mock private AiUsageService aiUsageService;
 
     private static final String TOKEN = "Bearer valid.jwt.token";
 
@@ -63,7 +65,8 @@ class UserProfileControllerChatHistoryTest {
                 progressReconciliationService,
                 moduleQuizService,
                 jwtUtils,
-                skillamaAuthSupport);
+                skillamaAuthSupport,
+                aiUsageService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();
