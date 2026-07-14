@@ -18,7 +18,6 @@ public class PlatformAiSettings {
     private boolean aiUsageTrackingEnabled = true;
     private double platformMonthlyBudgetUsd = 1000.0;
     private double freemiumMonthlyBudgetUsdPerUser = 0.50;
-    private double usdToInrRate = 83.0;
     private LocalDateTime updatedAt;
     private String updatedBy;
 }

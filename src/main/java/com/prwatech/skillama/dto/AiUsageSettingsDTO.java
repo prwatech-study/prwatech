@@ -15,6 +15,9 @@ public class AiUsageSettingsDTO {
     private boolean aiUsageTrackingEnabled;
     private double platformMonthlyBudgetUsd;
     private double freemiumMonthlyBudgetUsdPerUser;
+    /** Live USD → INR from FX API (read-only). */
     private double usdToInrRate;
+    /** Date the FX provider quotes for the rate (e.g. ECB publication date). */
+    private String usdToInrRateAsOf;
     private LocalDateTime updatedAt;
 }

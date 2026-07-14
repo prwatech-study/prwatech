@@ -13,5 +13,4 @@ public class UpdateAiUsageSettingsDTO {
     private Boolean aiUsageTrackingEnabled;
     private Double platformMonthlyBudgetUsd;
     private Double freemiumMonthlyBudgetUsdPerUser;
-    private Double usdToInrRate;
 }

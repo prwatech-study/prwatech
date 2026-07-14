@@ -43,12 +43,12 @@ public class AiUsageService {
 
     private static final double DEFAULT_PLATFORM_BUDGET_USD = 1000.0;
     private static final double DEFAULT_FREEMIUM_BUDGET_USD = 0.50;
-    private static final double DEFAULT_USD_TO_INR = 83.0;
 
     private final AiUsageEventRepository aiUsageEventRepository;
     private final PlatformAiSettingsRepository platformAiSettingsRepository;
     private final SkillamaUserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final UsdInrExchangeRateService usdInrExchangeRateService;
 
     @Value("${skillama.ai-usage.internal-api-key:}")
     private String internalApiKey;
@@ -83,9 +83,6 @@ public class AiUsageService {
         if (settings.getFreemiumMonthlyBudgetUsdPerUser() <= 0) {
             settings.setFreemiumMonthlyBudgetUsdPerUser(DEFAULT_FREEMIUM_BUDGET_USD);
         }
-        if (settings.getUsdToInrRate() <= 0) {
-            settings.setUsdToInrRate(DEFAULT_USD_TO_INR);
-        }
         return settings;
     }
 
@@ -96,19 +93,16 @@ public class AiUsageService {
         settings.setAiUsageTrackingEnabled(true);
         settings.setPlatformMonthlyBudgetUsd(DEFAULT_PLATFORM_BUDGET_USD);
         settings.setFreemiumMonthlyBudgetUsdPerUser(DEFAULT_FREEMIUM_BUDGET_USD);
-        settings.setUsdToInrRate(DEFAULT_USD_TO_INR);
         return settings;
+    }
+
+    private double liveUsdToInrRate() {
+        return usdInrExchangeRateService.getUsdToInrRate();
     }
 
     public AiUsageSettingsDTO getSettingsDto() {
         PlatformAiSettings settings = loadSettings();
-        return AiUsageSettingsDTO.builder()
-                .aiUsageTrackingEnabled(settings.isAiUsageTrackingEnabled())
-                .platformMonthlyBudgetUsd(settings.getPlatformMonthlyBudgetUsd())
-                .freemiumMonthlyBudgetUsdPerUser(settings.getFreemiumMonthlyBudgetUsdPerUser())
-                .usdToInrRate(settings.getUsdToInrRate())
-                .updatedAt(settings.getUpdatedAt())
-                .build();
+        return toSettingsDto(settings);
     }
 
     public AiUsageSettingsDTO updateSettings(UpdateAiUsageSettingsDTO body, String ownerUserId) {
@@ -126,9 +120,6 @@ public class AiUsageService {
         if (body.getFreemiumMonthlyBudgetUsdPerUser() != null) {
             settings.setFreemiumMonthlyBudgetUsdPerUser(Math.max(0, body.getFreemiumMonthlyBudgetUsdPerUser()));
         }
-        if (body.getUsdToInrRate() != null) {
-            settings.setUsdToInrRate(Math.max(0, body.getUsdToInrRate()));
-        }
         settings.setUpdatedAt(IndiaTime.now());
         settings.setUpdatedBy(ownerUserId);
         return toSettingsDto(platformAiSettingsRepository.save(settings));
@@ -139,7 +130,8 @@ public class AiUsageService {
                 .aiUsageTrackingEnabled(settings.isAiUsageTrackingEnabled())
                 .platformMonthlyBudgetUsd(settings.getPlatformMonthlyBudgetUsd())
                 .freemiumMonthlyBudgetUsdPerUser(settings.getFreemiumMonthlyBudgetUsdPerUser())
-                .usdToInrRate(settings.getUsdToInrRate())
+                .usdToInrRate(liveUsdToInrRate())
+                .usdToInrRateAsOf(usdInrExchangeRateService.getRateAsOfDate())
                 .updatedAt(settings.getUpdatedAt())
                 .build();
     }
@@ -166,7 +158,7 @@ public class AiUsageService {
 
         String modelId = request.getModelId() != null ? request.getModelId() : "default";
         double costUsd = computeCostUsd(modelId, inputTokens, outputTokens);
-        double costInr = round(costUsd * settings.getUsdToInrRate());
+        double costInr = round(costUsd * liveUsdToInrRate());
 
         AiUsageEvent event = AiUsageEvent.builder()
                 .userId(request.getUserId())
@@ -224,7 +216,7 @@ public class AiUsageService {
 
     public AiBudgetDTO getAiBudget(User user) {
         PlatformAiSettings settings = loadSettings();
-        double rate = settings.getUsdToInrRate();
+        double rate = liveUsdToInrRate();
         if (user == null || isUnlimitedForBudget(user)) {
             return AiBudgetDTO.builder()
                     .unlimited(true)
@@ -256,7 +248,7 @@ public class AiUsageService {
         long outputTokens = events.stream().mapToLong(AiUsageEvent::getOutputTokens).sum();
         long totalTokens = events.stream().mapToLong(AiUsageEvent::getTotalTokens).sum();
         double totalCostUsd = round(events.stream().mapToDouble(AiUsageEvent::getCostUsd).sum());
-        double totalCostInr = round(totalCostUsd * settings.getUsdToInrRate());
+        double totalCostInr = round(totalCostUsd * liveUsdToInrRate());
 
         Set<String> usersWithUsage = events.stream()
                 .map(AiUsageEvent::getUserId)
@@ -269,7 +261,7 @@ public class AiUsageService {
 
         int daysElapsed = Math.max(1, (int) ChronoUnit.DAYS.between(range.periodStartDate(), range.periodEndDate()) + 1);
         double avgPerUserUsd = usersWithUsage.isEmpty() ? 0 : totalCostUsd / usersWithUsage.size();
-        double avgPerUserInr = avgPerUserUsd * settings.getUsdToInrRate();
+        double avgPerUserInr = avgPerUserUsd * liveUsdToInrRate();
         double avgPerUserPerDayUsd = avgPerUserUsd / daysElapsed;
         double avgPerUserPerDayInr = avgPerUserInr / daysElapsed;
 
@@ -300,7 +292,7 @@ public class AiUsageService {
                 .avgCostPerUserPerDayInr(round(avgPerUserPerDayInr))
                 .daysElapsedInPeriod(daysElapsed)
                 .projectedMonthEndCostUsd(round(projectedMonthEnd))
-                .usdToInrRate(settings.getUsdToInrRate())
+                .usdToInrRate(liveUsdToInrRate())
                 .build();
     }
 
@@ -320,7 +312,7 @@ public class AiUsageService {
             long output = userEvents.stream().mapToLong(AiUsageEvent::getOutputTokens).sum();
             long total = userEvents.stream().mapToLong(AiUsageEvent::getTotalTokens).sum();
             double costUsd = round(userEvents.stream().mapToDouble(AiUsageEvent::getCostUsd).sum());
-            double costInr = round(costUsd * settings.getUsdToInrRate());
+            double costInr = round(costUsd * liveUsdToInrRate());
             Double freemiumCap = null;
             Double usedPct = null;
             if (user != null && !isUnlimitedForBudget(user)) {
@@ -356,7 +348,7 @@ public class AiUsageService {
         long output = events.stream().mapToLong(AiUsageEvent::getOutputTokens).sum();
         long total = events.stream().mapToLong(AiUsageEvent::getTotalTokens).sum();
         double costUsd = round(events.stream().mapToDouble(AiUsageEvent::getCostUsd).sum());
-        double costInr = round(costUsd * settings.getUsdToInrRate());
+        double costInr = round(costUsd * liveUsdToInrRate());
 
         Map<String, AiUsageUserDetailDTO.EndpointBreakdownDTO> breakdownMap = new HashMap<>();
         for (AiUsageEvent event : events) {
