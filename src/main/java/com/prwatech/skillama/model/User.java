@@ -47,6 +47,21 @@ public class User {
     private Double aiCostUsdThisPeriod = 0.0;
     /** Start of the current AI cost billing period (calendar month). */
     private LocalDateTime aiCostPeriodStart;
+
+    /**
+     * Subscription catalog code: SPARK, PULSE, NOVA, QUANTUM.
+     * Null treated as Spark/freemium for learners without an active paid sub.
+     */
+    private String subscriptionPlanCode;
+    /** ACTIVE, CANCELLED, EXPIRED — null for never-subscribed freemium users. */
+    private String subscriptionStatus;
+    private LocalDateTime currentPeriodEnd;
+    /**
+     * Paid-plan AI wallet ceiling in USD for the current period.
+     * Null = use platform freemium budget (Spark) or unlimited (ENTERPRISE / legacy PAID).
+     */
+    private Double aiWalletLimitUsd;
+
     @Builder.Default
     private List<String> enabledModules = new ArrayList<>();
 

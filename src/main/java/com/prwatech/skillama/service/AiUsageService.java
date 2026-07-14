@@ -198,7 +198,7 @@ public class AiUsageService {
             return;
         }
         resetPeriodIfNeeded(user);
-        double limit = settings.getFreemiumMonthlyBudgetUsdPerUser();
+        double limit = resolveBudgetLimitUsd(user, settings);
         double used = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
         if (used >= limit) {
             throw new AiBudgetLimitException("AI budget limit reached for this billing period", used, limit);
@@ -224,7 +224,7 @@ public class AiUsageService {
                     .build();
         }
         resetPeriodIfNeeded(user);
-        double limitUsd = settings.getFreemiumMonthlyBudgetUsdPerUser();
+        double limitUsd = resolveBudgetLimitUsd(user, settings);
         double usedUsd = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
         double remainingUsd = Math.max(0, limitUsd - usedUsd);
         return AiBudgetDTO.builder()
@@ -316,7 +316,7 @@ public class AiUsageService {
             Double freemiumCap = null;
             Double usedPct = null;
             if (user != null && !isUnlimitedForBudget(user)) {
-                freemiumCap = settings.getFreemiumMonthlyBudgetUsdPerUser();
+                freemiumCap = resolveBudgetLimitUsd(user, settings);
                 usedPct = freemiumCap > 0 ? round((costUsd / freemiumCap) * 100.0) : 0.0;
             }
             rows.add(AiUsageUserRowDTO.builder()
@@ -390,6 +390,17 @@ public class AiUsageService {
     private void resetPeriodIfNeeded(User user) {
         LocalDateTime now = IndiaTime.now();
         LocalDateTime periodStart = user.getAiCostPeriodStart();
+
+        // Subscription-aligned period: reset when past currentPeriodEnd
+        if (user.getCurrentPeriodEnd() != null
+                && user.getAiWalletLimitUsd() != null
+                && user.getAiWalletLimitUsd() > 0
+                && now.isAfter(user.getCurrentPeriodEnd())) {
+            user.setAiCostPeriodStart(now);
+            user.setAiCostUsdThisPeriod(0.0);
+            return;
+        }
+
         if (periodStart == null || !sameCalendarMonth(periodStart, now)) {
             user.setAiCostPeriodStart(now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0));
             user.setAiCostUsdThisPeriod(0.0);
@@ -400,11 +411,35 @@ public class AiUsageService {
         return a.getYear() == b.getYear() && a.getMonthValue() == b.getMonthValue();
     }
 
+    /**
+     * Paid subscription wallets use aiWalletLimitUsd.
+     * Spark / freemium uses platform freemiumMonthlyBudgetUsdPerUser.
+     * ENTERPRISE, admin roles, legacy null tier, and legacy PAID without a wallet stay unlimited.
+     */
     private boolean isUnlimitedForBudget(User user) {
+        if (user.getEffectiveRole() == User.UserRole.ADMIN
+                || user.getEffectiveRole() == User.UserRole.OWNER) {
+            return true;
+        }
         if (user.getPlanTier() == null) {
             return true;
         }
-        return user.getPlanTier() == User.PlanTier.PAID || user.getPlanTier() == User.PlanTier.ENTERPRISE;
+        if (user.getPlanTier() == User.PlanTier.ENTERPRISE) {
+            return true;
+        }
+        // Legacy admin "mark paid" without a subscription wallet remains unlimited
+        if (user.getPlanTier() == User.PlanTier.PAID
+                && (user.getAiWalletLimitUsd() == null || user.getAiWalletLimitUsd() <= 0)) {
+            return true;
+        }
+        return false;
+    }
+
+    private double resolveBudgetLimitUsd(User user, PlatformAiSettings settings) {
+        if (user.getAiWalletLimitUsd() != null && user.getAiWalletLimitUsd() > 0) {
+            return user.getAiWalletLimitUsd();
+        }
+        return settings.getFreemiumMonthlyBudgetUsdPerUser();
     }
 
     private double computeCostUsd(String modelId, int inputTokens, int outputTokens) {

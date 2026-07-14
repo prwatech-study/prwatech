@@ -110,8 +110,9 @@ public class FreemiumService {
     @Transactional
     public FreemiumStatusDTO consumeQuery(String userId, ConsumeQueryRequestDTO request) {
         User user = requireUser(userId);
+        // Wallet metering applies to paid subscriptions even when query credits are unlimited
+        aiUsageService.assertWithinBudget(user);
         if (!isUnlimited(user)) {
-            aiUsageService.assertWithinBudget(user);
             int limit = effectiveLimit(user);
             int used = user.getQueryCreditsUsed() != null ? user.getQueryCreditsUsed() : 0;
             if (used >= limit) {
@@ -618,6 +619,10 @@ public class FreemiumService {
             throw new IllegalArgumentException("Phone is required to move to freemium plan");
         }
         user.setPlanTier(User.PlanTier.FREEMIUM);
+        user.setSubscriptionPlanCode(SubscriptionService.PLAN_SPARK);
+        user.setSubscriptionStatus(null);
+        user.setCurrentPeriodEnd(null);
+        user.setAiWalletLimitUsd(null);
         if (user.getQueryCreditsUsed() == null) {
             user.setQueryCreditsUsed(0);
         }
@@ -644,6 +649,11 @@ public class FreemiumService {
     public void initializeFreemiumDefaults(User user) {
         if (user.getPlanTier() == null) {
             user.setPlanTier(User.PlanTier.FREEMIUM);
+        }
+        if (user.getSubscriptionPlanCode() == null
+                && (user.getPlanTier() == User.PlanTier.FREEMIUM
+                        || user.getPlanTier() == null)) {
+            user.setSubscriptionPlanCode(SubscriptionService.PLAN_SPARK);
         }
         if (user.getQueryCreditsLimit() == null && user.getPlanTier() == User.PlanTier.FREEMIUM) {
             user.setQueryCreditsLimit(FREEMIUM_QUERY_LIMIT);
@@ -748,6 +758,8 @@ public class FreemiumService {
         boolean unlimited = isUnlimited(user);
         return FreemiumStatusDTO.builder()
                 .planTier(user.getPlanTier())
+                .subscriptionPlanCode(user.getSubscriptionPlanCode())
+                .subscriptionStatus(user.getSubscriptionStatus())
                 .phone(user.getPhone())
                 .emailVerified(user.getEmailVerified())
                 .referralCode(user.getReferralCode())

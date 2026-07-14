@@ -14,6 +14,8 @@ import java.util.List;
 @AllArgsConstructor
 public class FreemiumStatusDTO {
     private User.PlanTier planTier;
+    private String subscriptionPlanCode;
+    private String subscriptionStatus;
     private String phone;
     private Boolean emailVerified;
     private String referralCode;

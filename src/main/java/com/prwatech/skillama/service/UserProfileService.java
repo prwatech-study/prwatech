@@ -203,6 +203,8 @@ public class UserProfileService {
                 .courseId(targetCourseId)
                 .courseName(course.getName())
                 .planTier(user != null && user.getPlanTier() != null ? user.getPlanTier() : null)
+                .subscriptionPlanCode(user != null ? user.getSubscriptionPlanCode() : null)
+                .subscriptionStatus(user != null ? user.getSubscriptionStatus() : null)
                 .modules(modules)
                 .features(features)
                 .progress(progress)

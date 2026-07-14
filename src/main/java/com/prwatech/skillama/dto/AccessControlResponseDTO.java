@@ -21,6 +21,8 @@ public class AccessControlResponseDTO {
     private String courseId;
     private String courseName;
     private User.PlanTier planTier;
+    private String subscriptionPlanCode;
+    private String subscriptionStatus;
 
     private List<ModuleAccessDTO> modules;
     private FeatureAccessDTO features;
