@@ -56,6 +56,10 @@ public class UserProfile {
 
     @Builder.Default
     private List<PassedModuleQuiz> passedModuleQuizzes = new ArrayList<>();
+
+    /** Modules the learner skipped after failing the quiz (next content unlocked; quiz still pending). */
+    @Builder.Default
+    private List<SkippedModuleQuiz> skippedModuleQuizzes = new ArrayList<>();
     
     // Metadata
     private LocalDateTime createdAt;
@@ -125,6 +129,18 @@ public class UserProfile {
         private LocalDateTime passedAt;
         private Integer bestScore;
         private Integer maxScore;
+    }
+
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SkippedModuleQuiz {
+        private String courseId;
+        private String moduleName;
+        private LocalDateTime skippedAt;
+        private Integer attemptCountAtSkip;
     }
 }
 

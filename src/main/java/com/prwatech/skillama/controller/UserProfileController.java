@@ -242,6 +242,30 @@ public class UserProfileController {
     }
 
     /**
+     * After failing the module quiz at least twice, skip ahead to the next module.
+     * The quiz stays pending until the learner eventually passes it.
+     */
+    @PostMapping("/module-quiz/skip")
+    public ResponseEntity<?> skipModuleQuiz(
+            @RequestBody SkipModuleQuizRequestDTO request,
+            HttpServletRequest httpRequest) {
+        String sessionId = getSessionIdFromRequest(httpRequest);
+        String userId = getUserIdFromRequest(httpRequest);
+        if (sessionId == null && userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        try {
+            return ResponseEntity.ok(moduleQuizService.skipModuleQuiz(
+                    profilingSessionId(sessionId, userId),
+                    userId,
+                    request != null ? request.getCourseId() : null,
+                    request != null ? request.getModuleName() : null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    /**
      * Learner's own module-quiz history with full answer detail (transparent review).
      * Optional courseId / moduleName filters. Requires Bearer token or guest session cookie.
      */

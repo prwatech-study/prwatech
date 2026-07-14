@@ -27,6 +27,8 @@ import java.util.stream.Collectors;
 public class ModuleQuizService {
 
     public static final int PASSING_PERCENTAGE = 70;
+    /** After this many failed attempts the learner may skip ahead with quiz still pending. */
+    public static final int MIN_ATTEMPTS_BEFORE_SKIP = 2;
     private static final int SESSION_EXPIRY_HOURS = 2;
 
     private final ModuleQuizSessionRepository sessionRepository;
@@ -238,6 +240,68 @@ public class ModuleQuizService {
         }
         return profile.getPassedModuleQuizzes().stream()
                 .anyMatch(p -> courseId.equals(p.getCourseId()) && moduleName.equals(p.getModuleName()));
+    }
+
+    public boolean hasSkippedModuleQuiz(UserProfile profile, String courseId, String moduleName) {
+        if (profile == null || profile.getSkippedModuleQuizzes() == null) {
+            return false;
+        }
+        return profile.getSkippedModuleQuizzes().stream()
+                .anyMatch(s -> courseId.equals(s.getCourseId()) && moduleName.equals(s.getModuleName()));
+    }
+
+    /**
+     * Unlock next module when the quiz is passed <em>or</em> explicitly skipped after retries.
+     * Skipped quizzes remain "pending" for retake UI until they pass.
+     */
+    public boolean canUnlockPastModuleQuiz(UserProfile profile, String courseId, String moduleName) {
+        return hasPassedModuleQuiz(profile, courseId, moduleName)
+                || hasSkippedModuleQuiz(profile, courseId, moduleName);
+    }
+
+    public Map<String, Object> skipModuleQuiz(
+            String profilingSessionId, String userId, String courseId, String moduleName) {
+        if (!StringUtils.hasText(courseId) || !StringUtils.hasText(moduleName)) {
+            throw new IllegalArgumentException("courseId and moduleName are required");
+        }
+
+        UserProfile profile = resolveProfile(profilingSessionId, userId);
+        if (profile == null) {
+            throw new IllegalArgumentException("User profile not found");
+        }
+        if (Boolean.TRUE.equals(profile.getIsGuest())) {
+            throw new IllegalArgumentException("Guests cannot skip module quizzes");
+        }
+        if (hasPassedModuleQuiz(profile, courseId, moduleName)) {
+            return Map.of("status", "ok", "skipped", false, "alreadyPassed", true);
+        }
+        if (hasSkippedModuleQuiz(profile, courseId, moduleName)) {
+            return Map.of("status", "ok", "skipped", true, "alreadySkipped", true);
+        }
+
+        int attemptCount = countAttempts(userId, profilingSessionId, courseId, moduleName);
+        if (attemptCount < MIN_ATTEMPTS_BEFORE_SKIP) {
+            throw new IllegalArgumentException(
+                    "Skip is available after " + MIN_ATTEMPTS_BEFORE_SKIP + " quiz attempts");
+        }
+
+        if (profile.getSkippedModuleQuizzes() == null) {
+            profile.setSkippedModuleQuizzes(new ArrayList<>());
+        }
+        profile.getSkippedModuleQuizzes().add(UserProfile.SkippedModuleQuiz.builder()
+                .courseId(courseId)
+                .moduleName(moduleName)
+                .skippedAt(IndiaTime.now())
+                .attemptCountAtSkip(attemptCount)
+                .build());
+        profile.setUpdatedAt(IndiaTime.now());
+        userProfileRepository.save(profile);
+
+        return Map.of(
+                "status", "ok",
+                "skipped", true,
+                "attemptCount", attemptCount,
+                "quizPending", true);
     }
 
     public Integer getBestQuizScore(UserProfile profile, String courseId, String moduleName) {

@@ -252,7 +252,7 @@ public class UserProfileService {
                 if (isModuleLocked) {
                     boolean lecturesDone = isModuleLecturesCompleted(profile, previousModule, courseId);
                     if (lecturesDone
-                            && !moduleQuizService.hasPassedModuleQuiz(
+                            && !moduleQuizService.canUnlockPastModuleQuiz(
                                     profile, courseId, previousModule.getModuleName())) {
                         lockReason = "Complete the module quiz to unlock";
                     } else {
@@ -354,7 +354,7 @@ public class UserProfileService {
                     isLocked = true;
                     boolean lecturesDone = isModuleLecturesCompleted(profile, previousModule, courseId);
                     if (lecturesDone
-                            && !moduleQuizService.hasPassedModuleQuiz(
+                            && !moduleQuizService.canUnlockPastModuleQuiz(
                                     profile, courseId, previousModule.getModuleName())) {
                         lockReason = "Complete the module quiz to unlock";
                     } else {
@@ -427,7 +427,7 @@ public class UserProfileService {
         if (!isModuleLecturesCompleted(profile, module, courseId)) {
             return false;
         }
-        return moduleQuizService.hasPassedModuleQuiz(profile, courseId, module.getModuleName());
+        return moduleQuizService.canUnlockPastModuleQuiz(profile, courseId, module.getModuleName());
     }
 
     private boolean isModuleCompleted(UserProfile profile, CourseCurriculum module, String courseId) {
