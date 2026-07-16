@@ -550,6 +550,48 @@ public class CourseService {
         }).orElse(null);
     }
 
+    /**
+     * How many AI image generations this submodule has used TODAY (India time).
+     * Returns 0 when the stored date is not today (the daily counter has rolled over).
+     */
+    public int imageGenUsedToday(CourseCurriculum.Submodule submodule) {
+        if (submodule == null) {
+            return 0;
+        }
+        String today = IndiaTime.now().toLocalDate().toString();
+        if (today.equals(submodule.getImageGenCountDate()) && submodule.getImageGenCountToday() != null) {
+            return Math.max(0, submodule.getImageGenCountToday());
+        }
+        return 0;
+    }
+
+    /**
+     * Records one AI image generation against the submodule's daily counter,
+     * resetting first if the stored date has rolled over. Persisted to Mongo so
+     * the cap cannot be bypassed from the client. Returns the new today-count.
+     */
+    public int incrementImageGenCount(String moduleId, int submoduleIdx) {
+        String today = IndiaTime.now().toLocalDate().toString();
+        return curriculumRepository.findById(moduleId).map(module -> {
+            List<CourseCurriculum.Submodule> list = module.getSubmodules();
+            if (list != null && submoduleIdx >= 0 && submoduleIdx < list.size()) {
+                CourseCurriculum.Submodule submodule = list.get(submoduleIdx);
+                int used = today.equals(submodule.getImageGenCountDate()) && submodule.getImageGenCountToday() != null
+                        ? Math.max(0, submodule.getImageGenCountToday())
+                        : 0;
+                int next = used + 1;
+                submodule.setImageGenCountDate(today);
+                submodule.setImageGenCountToday(next);
+                list.set(submoduleIdx, submodule);
+                module.setSubmodules(list);
+                module.setUpdatedAt(IndiaTime.now());
+                curriculumRepository.save(module);
+                return next;
+            }
+            return 0;
+        }).orElse(0);
+    }
+
     @Getter
     @AllArgsConstructor
     public static class CourseWithCurriculum {

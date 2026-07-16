@@ -43,6 +43,11 @@ public class CourseCurriculum {
         private Integer order; // Order of the submodule within the module
         private Boolean enabled;
 
+        // AI image generation daily-cap tracking (server-side, exploit-proof).
+        // Counter resets when the stored date no longer matches "today" (India time).
+        private Integer imageGenCountToday;
+        private String imageGenCountDate; // ISO yyyy-MM-dd, India time
+
         /** API-only: set when practical topic is missing scriptText (not stored in Mongo). */
         @Transient
         private String contentIntegrityIssueCode;

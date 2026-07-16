@@ -177,7 +177,47 @@ public class FileStorageServiceImpl implements FileStorageService {
             throw new IOException("Failed to upload file to S3: " + e.getMessage(), e);
         }
     }
-    
+
+    @Override
+    public String uploadGeneratedImageForSubmodule(byte[] data, String courseId, String moduleId, int submoduleIdx, String contentType) throws IOException {
+        if (data == null || data.length == 0) {
+            throw new IllegalArgumentException("Generated image data is empty");
+        }
+        String submoduleIdxStr = String.format("%02d", submoduleIdx + 1);
+        String slideNumberStr = "01";
+        String extension = resolveGeneratedExtension(contentType);
+        String resolvedContentType = (contentType != null && !contentType.isBlank()) ? contentType : "image/svg+xml";
+
+        String s3Key = String.format("courses/%s/modules/%s/submodules/%s/slides/%s%s",
+            courseId, moduleId, submoduleIdxStr, slideNumberStr, extension);
+
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(s3Key)
+                .contentType(resolvedContentType)
+                .cacheControl("max-age=0, no-cache, no-store, must-revalidate")
+                .build();
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(data));
+            long version = System.currentTimeMillis();
+            return s3BaseUrl + "/" + s3Key + "?v=" + version;
+        } catch (S3Exception e) {
+            throw new IOException("Failed to upload generated image to S3: " + e.getMessage(), e);
+        }
+    }
+
+    private String resolveGeneratedExtension(String contentType) {
+        if (contentType == null) {
+            return ".svg";
+        }
+        String ct = contentType.toLowerCase();
+        if (ct.contains("svg")) return ".svg";
+        if (ct.contains("png")) return ".png";
+        if (ct.contains("jpeg") || ct.contains("jpg")) return ".jpg";
+        if (ct.contains("webp")) return ".webp";
+        return ".svg";
+    }
+
     @Override
     public String uploadImageForSubmodule(MultipartFile file, String courseId, Integer moduleOrder, Integer lessonOrder, Integer slideNumber) throws IOException {
         validateImageFile(file);

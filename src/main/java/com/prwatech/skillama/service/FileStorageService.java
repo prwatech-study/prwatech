@@ -40,6 +40,22 @@ public interface FileStorageService {
      * when module or lesson order values repeat).
      */
     String uploadImageForSubmoduleById(MultipartFile file, String courseId, String moduleId, int submoduleIdx, Integer slideNumber) throws IOException;
+
+    /**
+     * Uploads AI-generated image bytes for a submodule, using the same S3 key convention as
+     * {@link #uploadImageForSubmoduleById} but sourced from raw bytes (no MultipartFile / no
+     * user-file validation). The file extension is derived from {@code contentType}
+     * (e.g. image/svg+xml -&gt; .svg, image/png -&gt; .png).
+     *
+     * @param data        the raw image bytes (e.g. decoded from base64)
+     * @param courseId    the course ID
+     * @param moduleId    the Mongo module ID
+     * @param submoduleIdx the submodule index
+     * @param contentType the MIME type of the bytes (e.g. "image/svg+xml")
+     * @return the full S3 URL (with cache-busting version query param)
+     * @throws IOException if upload fails
+     */
+    String uploadGeneratedImageForSubmodule(byte[] data, String courseId, String moduleId, int submoduleIdx, String contentType) throws IOException;
     
     /**
      * Uploads an image file to S3 under the given prefix (e.g. "curriculum/images").

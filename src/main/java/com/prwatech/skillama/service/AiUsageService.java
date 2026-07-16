@@ -442,6 +442,25 @@ public class AiUsageService {
         return settings.getFreemiumMonthlyBudgetUsdPerUser();
     }
 
+    /**
+     * Prices a single AI call for display (e.g. admin "this image cost ₹X"),
+     * without persisting a usage event. Reuses the same rate card + live FX rate.
+     */
+    public com.prwatech.skillama.dto.AiCostEstimateDTO estimateCost(String modelId, int inputTokens, int outputTokens) {
+        int in = Math.max(0, inputTokens);
+        int out = Math.max(0, outputTokens);
+        double usd = computeCostUsd(modelId != null && !modelId.isBlank() ? modelId : "default", in, out);
+        double rate = liveUsdToInrRate();
+        return com.prwatech.skillama.dto.AiCostEstimateDTO.builder()
+                .costUsd(round(usd))
+                .costInr(round(usd * rate))
+                .usdToInrRate(rate)
+                .inputTokens(in)
+                .outputTokens(out)
+                .totalTokens(in + out)
+                .build();
+    }
+
     private double computeCostUsd(String modelId, int inputTokens, int outputTokens) {
         JsonNode modelRates = rateCard.path("models").path(modelId);
         if (modelRates.isMissingNode()) {
