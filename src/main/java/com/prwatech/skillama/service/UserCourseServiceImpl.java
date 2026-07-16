@@ -44,7 +44,7 @@ public class UserCourseServiceImpl implements UserCourseService {
         return enrollments.stream().map(enrollment -> {
             Course course = courseRepository.findById(enrollment.getCourseId())
                 .orElse(null);
-            if (course == null || course.getDeletedAt() != null) {
+            if (course == null || !CourseService.isAvailableToLearner(course)) {
                 return null;
             }
             

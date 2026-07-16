@@ -198,6 +198,12 @@ public class CourseController {
         if (!userCourseAccessService.hasActiveEnrollment(userId, courseId)) {
             throw new ForbiddenException("You do not have access to this course.");
         }
+        boolean available = courseService.findById(courseId)
+                .map(CourseService::isAvailableToLearner)
+                .orElse(false);
+        if (!available) {
+            throw new ForbiddenException("This course is not currently available.");
+        }
     }
 
     private boolean isGuestCourseId(String courseId) {

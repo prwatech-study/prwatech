@@ -47,6 +47,11 @@ public class CourseService {
         return course != null && course.getDeletedAt() == null;
     }
 
+    /** Visible to learners: not archived AND not deactivated by an admin. */
+    public static boolean isAvailableToLearner(Course course) {
+        return isActive(course) && !Boolean.FALSE.equals(course.getActive());
+    }
+
     private static Criteria activeCourseCriteria() {
         return new Criteria().orOperator(
                 Criteria.where("deletedAt").is(null),
@@ -59,6 +64,9 @@ public class CourseService {
 
     public Course create(Course course) {
         course.setCreatedAt(IndiaTime.now());
+        if (course.getActive() == null) {
+            course.setActive(Boolean.TRUE);
+        }
         return courseRepository.save(course);
     }
 
@@ -119,6 +127,9 @@ public class CourseService {
             }
             if (updated.getIsPublic() != null) {
                 existing.setIsPublic(updated.getIsPublic());
+            }
+            if (updated.getActive() != null) {
+                existing.setActive(updated.getActive());
             }
             existing.setUpdatedAt(IndiaTime.now());
             return courseRepository.save(existing);

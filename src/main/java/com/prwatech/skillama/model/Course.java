@@ -26,6 +26,9 @@ public class Course {
     private Boolean isGuestCourse = Boolean.FALSE; // Default guest course flag
     @Builder.Default
     private Boolean isPublic = Boolean.FALSE; // Public course flag for guest access
+    /** When false, the course is hidden from learners and not available for assignment. Distinct from archive (deletedAt). */
+    @Builder.Default
+    private Boolean active = Boolean.TRUE;
     /** When set, course is hidden from learners and admins; only Owner can restore. */
     private java.time.LocalDateTime deletedAt;
     private String deletedBy;
