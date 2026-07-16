@@ -3,6 +3,7 @@ package com.prwatech.skillama.controller;
 import com.prwatech.authentication.security.JwtUtils;
 import com.prwatech.common.Constants;
 import com.prwatech.skillama.dto.AiCostEstimateDTO;
+import com.prwatech.skillama.dto.AiUsageRecordRequestDTO;
 import com.prwatech.skillama.dto.ApiResponse;
 import com.prwatech.skillama.dto.ErrorResponse;
 import com.prwatech.skillama.dto.GeneratedImageDTO;
@@ -365,6 +366,22 @@ public class AdminCurriculumImageController {
             // Only count the try after a successful generation (failed calls are free).
             int newUsed = courseService.incrementImageGenCount(moduleId, idx);
             AiCostEstimateDTO cost = aiUsageService.estimateCost(gen.getModelId(), gen.getInputTokens(), gen.getOutputTokens());
+
+            // Persist the usage so it accumulates on the AI-usage page (endpoint "generate_image").
+            // Tracking failures must never break image generation, so this is best-effort.
+            try {
+                aiUsageService.recordUsage(AiUsageRecordRequestDTO.builder()
+                    .userId(extractUserIdFromRequest(request))
+                    .courseId(module.getCourseId())
+                    .endpoint("generate_image")
+                    .modelId(gen.getModelId())
+                    .inputTokens(gen.getInputTokens())
+                    .outputTokens(gen.getOutputTokens())
+                    .totalTokens(gen.getTotalTokens())
+                    .build());
+            } catch (Exception usageEx) {
+                // swallow — cost was still shown to the admin; only the tracking write failed
+            }
 
             ImageGenerateResponseDTO response = ImageGenerateResponseDTO.builder()
                 .moduleId(moduleId)
