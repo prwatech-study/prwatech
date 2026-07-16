@@ -67,4 +67,8 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// The app runs in India time (see IndiaTime); services compare against Asia/Kolkata
+	// while several tests build timestamps with LocalDateTime.now(). Pin the test JVM
+	// to Asia/Kolkata so tests match production and don't fail on UTC CI/servers.
+	systemProperty 'user.timezone', 'Asia/Kolkata'
 }
