@@ -127,7 +127,14 @@ public class SkillamaAiClient {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
 
-        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+        ResponseEntity<String> response;
+        try {
+            response = restTemplate.postForEntity(url, entity, String.class);
+        } catch (org.springframework.web.client.RestClientException e) {
+            // A 4xx/5xx (e.g. the endpoint not yet deployed) or a transport error — surface as an
+            // AI-service failure so the controller returns 502 rather than a confusing 400.
+            throw new IllegalStateException("thumbnail request to " + url + " failed: " + e.getMessage(), e);
+        }
         if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
             throw new IllegalStateException("AI thumbnail service returned " + response.getStatusCode());
         }
