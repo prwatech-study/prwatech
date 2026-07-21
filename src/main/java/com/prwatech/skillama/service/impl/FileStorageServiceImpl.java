@@ -206,6 +206,36 @@ public class FileStorageServiceImpl implements FileStorageService {
         }
     }
 
+    @Override
+    public String uploadGeneratedThumbnail(byte[] data, String courseId, String contentType) throws IOException {
+        if (data == null || data.length == 0) {
+            throw new IllegalArgumentException("Generated thumbnail data is empty");
+        }
+        String resolvedContentType = (contentType != null && !contentType.isBlank()) ? contentType : "image/png";
+        String extension = resolveGeneratedExtension(resolvedContentType);
+        if (".svg".equals(extension)) {
+            // Thumbnails are raster; never default to SVG for an unknown content type.
+            extension = ".png";
+            resolvedContentType = "image/png";
+        }
+
+        String timestamp = IndiaTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        String randomId = UUID.randomUUID().toString().substring(0, 8);
+        String s3Key = String.format("courses/%s/social/%s-%s%s", courseId, timestamp, randomId, extension);
+
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(s3Key)
+                .contentType(resolvedContentType)
+                .build();
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(data));
+            return s3BaseUrl + "/" + s3Key;
+        } catch (S3Exception e) {
+            throw new IOException("Failed to upload generated thumbnail to S3: " + e.getMessage(), e);
+        }
+    }
+
     private String resolveGeneratedExtension(String contentType) {
         if (contentType == null) {
             return ".svg";

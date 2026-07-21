@@ -592,6 +592,43 @@ public class CourseService {
         }).orElse(0);
     }
 
+    /**
+     * How many AI thumbnail generations this course has used TODAY (India time).
+     * Returns 0 when the stored date is not today (the daily counter has rolled over).
+     * Mirrors {@link #imageGenUsedToday}.
+     */
+    public int thumbnailGenUsedToday(Course course) {
+        if (course == null) {
+            return 0;
+        }
+        String today = IndiaTime.now().toLocalDate().toString();
+        if (today.equals(course.getThumbnailGenCountDate()) && course.getThumbnailGenCountToday() != null) {
+            return Math.max(0, course.getThumbnailGenCountToday());
+        }
+        return 0;
+    }
+
+    /**
+     * Records one AI thumbnail generation against the course's daily counter,
+     * resetting first if the stored date has rolled over. Persisted to Mongo so
+     * the cap cannot be bypassed from the client. Returns the new today-count.
+     * Mirrors {@link #incrementImageGenCount}.
+     */
+    public int incrementThumbnailGenCount(String courseId) {
+        String today = IndiaTime.now().toLocalDate().toString();
+        return courseRepository.findById(courseId).map(course -> {
+            int used = today.equals(course.getThumbnailGenCountDate()) && course.getThumbnailGenCountToday() != null
+                    ? Math.max(0, course.getThumbnailGenCountToday())
+                    : 0;
+            int next = used + 1;
+            course.setThumbnailGenCountDate(today);
+            course.setThumbnailGenCountToday(next);
+            course.setUpdatedAt(IndiaTime.now());
+            courseRepository.save(course);
+            return next;
+        }).orElse(0);
+    }
+
     @Getter
     @AllArgsConstructor
     public static class CourseWithCurriculum {

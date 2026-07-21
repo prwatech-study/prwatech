@@ -18,6 +18,9 @@ public class Course {
     private String name;
     private String description;
     private String thumbnail; // Course thumbnail image URL (optional)
+    // AI thumbnail generation daily-cap counters (mirrors Submodule.imageGenCount*).
+    private Integer thumbnailGenCountToday;
+    private String thumbnailGenCountDate; // ISO yyyy-MM-dd, India time
     private String createdBy;
     private String updatedBy;
     private java.time.LocalDateTime createdAt;

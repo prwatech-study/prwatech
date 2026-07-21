@@ -56,7 +56,20 @@ public interface FileStorageService {
      * @throws IOException if upload fails
      */
     String uploadGeneratedImageForSubmodule(byte[] data, String courseId, String moduleId, int submoduleIdx, String contentType) throws IOException;
-    
+
+    /**
+     * Uploads AI-generated course-thumbnail bytes to S3 under {@code courses/{courseId}/social}
+     * (the same prefix as manual thumbnail uploads), sourced from raw bytes. The file extension
+     * is derived from {@code contentType} (e.g. image/png -&gt; .png).
+     *
+     * @param data        the raw image bytes (e.g. decoded from base64)
+     * @param courseId    the course ID
+     * @param contentType the MIME type of the bytes (e.g. "image/png")
+     * @return the full S3 URL of the uploaded thumbnail
+     * @throws IOException if upload fails
+     */
+    String uploadGeneratedThumbnail(byte[] data, String courseId, String contentType) throws IOException;
+
     /**
      * Uploads an image file to S3 under the given prefix (e.g. "curriculum/images").
      * Used for generic curriculum image upload when module/submodule context is not yet known.
