@@ -57,8 +57,41 @@ public class IssueReportService {
         }
         IssueReport issue = issueReportRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Issue report not found: " + id));
-        issue.setStatus(status.trim().toUpperCase());
-        return issueReportRepository.save(issue);
+        String previous = issue.getStatus();
+        String next = status.trim().toUpperCase();
+        issue.setStatus(next);
+        IssueReport saved = issueReportRepository.save(issue);
+
+        // Close the loop with the reporter when the issue is resolved (only on the
+        // transition into RESOLVED, and only if we have their email).
+        if ("RESOLVED".equals(next) && !"RESOLVED".equals(previous)) {
+            sendResolvedEmailToReporter(saved);
+        }
+        return saved;
+    }
+
+    private void sendResolvedEmailToReporter(IssueReport report) {
+        String to = report.getReporterEmail();
+        if (!StringUtils.hasText(to)) {
+            return; // anonymous / guest report — no reporter to notify
+        }
+        try {
+            String ref = report.getId();
+            String reported = StringUtils.hasText(report.getUserDescription())
+                    ? report.getUserDescription()
+                    : nullToDash(report.getIssueCategory());
+            String subject = "Your reported issue has been resolved — " + ref;
+            String message = "Hi,\n\n"
+                    + "Good news — the issue you reported on Skillama has been marked as RESOLVED.\n\n"
+                    + "Your report: " + reported + "\n"
+                    + "Reference: " + ref + "\n\n"
+                    + "If you're still seeing the problem, just report it again and we'll take another look.\n\n"
+                    + "— Team Skillama";
+            emailService.sendEmail(new EmailSendDto(to.trim(), subject, message));
+            LOGGER.info("Resolved-notification email sent to reporter for issue {}", ref);
+        } catch (Exception e) {
+            LOGGER.error("Failed to send resolved email to reporter for issue {}", report.getId(), e);
+        }
     }
 
     public IssueReportResponseDTO submit(ReportIssueRequestDTO request, HttpServletRequest httpRequest) {
