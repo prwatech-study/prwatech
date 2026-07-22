@@ -42,7 +42,7 @@ public class AiUsageAdminController {
         try {
             adminPermissionService.requirePermission(
                     skillamaAuthSupport.resolveUserIdFromRequest(request),
-                    AdminModule.ANALYTICS,
+                    AdminModule.AI_USAGE,
                     AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200, aiUsageService.getPlatformSummary(period)));
         } catch (ResourceNotFoundException e) {
@@ -59,7 +59,7 @@ public class AiUsageAdminController {
         try {
             adminPermissionService.requirePermission(
                     skillamaAuthSupport.resolveUserIdFromRequest(request),
-                    AdminModule.ANALYTICS,
+                    AdminModule.AI_USAGE,
                     AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200, aiUsageService.listUserUsage(period)));
         } catch (Exception e) {
@@ -75,7 +75,7 @@ public class AiUsageAdminController {
         try {
             adminPermissionService.requirePermission(
                     skillamaAuthSupport.resolveUserIdFromRequest(request),
-                    AdminModule.ANALYTICS,
+                    AdminModule.AI_USAGE,
                     AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200, aiUsageService.getUserUsageDetail(userId, period)));
         } catch (ResourceNotFoundException e) {

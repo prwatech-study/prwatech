@@ -1317,7 +1317,7 @@ public class AdminController {
             @RequestParam(required = false) String email,
             HttpServletRequest request) {
         try {
-            assertModulePermission(request, AdminModule.ANALYTICS, AdminPermissionAction.READ);
+            assertModulePermission(request, AdminModule.CHAT_MONITOR, AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     userProfileService.listAdminChatInteractions(page, size, userId, courseId, email)));
         } catch (Exception e) {
@@ -1581,7 +1581,7 @@ public class AdminController {
             @RequestParam(defaultValue = "50") int size,
             HttpServletRequest request) {
         try {
-            assertModulePermission(request, AdminModule.FEEDBACK, AdminPermissionAction.READ);
+            assertModulePermission(request, AdminModule.SUPPORT, AdminPermissionAction.READ);
             Page<IssueReport> issues = issueReportService.getIssuesForAdmin(status, page, size);
             return ResponseEntity.ok(new ApiResponse<>(200, issues));
         } catch (Exception e) {
@@ -1598,7 +1598,7 @@ public class AdminController {
             @RequestBody Map<String, String> body,
             HttpServletRequest request) {
         try {
-            assertModulePermission(request, AdminModule.FEEDBACK, AdminPermissionAction.UPDATE);
+            assertModulePermission(request, AdminModule.SUPPORT, AdminPermissionAction.UPDATE);
             IssueReport updated = issueReportService.updateStatus(issueId, body.get("status"));
             String adminUserId = extractUserIdFromRequest(request);
             adminAuditService.log(adminUserId, "ISSUE_STATUS_UPDATE", "ISSUE", issueId,
