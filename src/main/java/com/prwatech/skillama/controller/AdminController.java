@@ -24,6 +24,8 @@ import com.prwatech.skillama.service.SkillamaPlatformConfigService;
 import com.prwatech.skillama.model.AdminModule;
 import com.prwatech.skillama.model.AdminPermissionAction;
 import com.prwatech.skillama.service.ReviewService;
+import com.prwatech.skillama.service.IssueReportService;
+import com.prwatech.skillama.model.IssueReport;
 import com.prwatech.skillama.service.SalesLeadService;
 import com.prwatech.skillama.service.LmsThemeService;
 import com.prwatech.skillama.service.UpgradeRequestService;
@@ -63,6 +65,7 @@ public class AdminController {
     private final FreemiumService freemiumService;
     private final SalesLeadService salesLeadService;
     private final ReviewService reviewService;
+    private final IssueReportService issueReportService;
     private final PlatformDemoVideoService platformDemoVideoService;
     private final PlatformAiSettingsService platformAiSettingsService;
     private final ReferralShareService referralShareService;
@@ -1561,6 +1564,46 @@ public class AdminController {
             return ResponseEntity.ok(new ApiResponse<>(200, updated));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * List reported issues / support tickets for admin triage.
+     */
+    @GetMapping("/issues")
+    public ResponseEntity<ApiResponse<Page<IssueReport>>> listIssues(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.FEEDBACK, AdminPermissionAction.READ);
+            Page<IssueReport> issues = issueReportService.getIssuesForAdmin(status, page, size);
+            return ResponseEntity.ok(new ApiResponse<>(200, issues));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * Update the workflow status of a reported issue (OPEN / IN_PROGRESS / RESOLVED).
+     */
+    @PutMapping("/issues/{issueId}/status")
+    public ResponseEntity<ApiResponse<IssueReport>> updateIssueStatus(
+            @PathVariable String issueId,
+            @RequestBody Map<String, String> body,
+            HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.FEEDBACK, AdminPermissionAction.UPDATE);
+            IssueReport updated = issueReportService.updateStatus(issueId, body.get("status"));
+            String adminUserId = extractUserIdFromRequest(request);
+            adminAuditService.log(adminUserId, "ISSUE_STATUS_UPDATE", "ISSUE", issueId,
+                    "Set issue status to " + updated.getStatus(), null);
+            return ResponseEntity.ok(new ApiResponse<>(200, updated));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
         } catch (Exception e) {

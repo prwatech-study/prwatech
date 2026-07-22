@@ -13,6 +13,10 @@ import javax.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -33,6 +37,29 @@ public class IssueReportService {
     private final EmailServiceImpl emailService;
     private final ObjectMapper objectMapper;
     private final NotificationSettingsService notificationSettingsService;
+
+    /** Admin triage: paginated issue reports, newest first, optionally by status. */
+    public Page<IssueReport> getIssuesForAdmin(String status, int page, int size) {
+        Pageable pageable = PageRequest.of(
+                Math.max(page, 0),
+                size <= 0 ? 50 : size,
+                Sort.by(Sort.Direction.DESC, "createdAt"));
+        if (StringUtils.hasText(status) && !"all".equalsIgnoreCase(status)) {
+            return issueReportRepository.findByStatus(status.trim().toUpperCase(), pageable);
+        }
+        return issueReportRepository.findAll(pageable);
+    }
+
+    /** Admin triage: update the workflow status of a reported issue. */
+    public IssueReport updateStatus(String id, String status) {
+        if (!StringUtils.hasText(status)) {
+            throw new IllegalArgumentException("status is required");
+        }
+        IssueReport issue = issueReportRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Issue report not found: " + id));
+        issue.setStatus(status.trim().toUpperCase());
+        return issueReportRepository.save(issue);
+    }
 
     public IssueReportResponseDTO submit(ReportIssueRequestDTO request, HttpServletRequest httpRequest) {
         if (request == null || !StringUtils.hasText(request.getUserDescription())) {
