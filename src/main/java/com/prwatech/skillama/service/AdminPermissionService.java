@@ -270,6 +270,9 @@ public class AdminPermissionService {
             case SETTINGS_DEMO_VIDEO -> "Settings — Demo video";
             case SETTINGS_REFERRAL -> "Settings — Referral share";
             case SETTINGS_NOTIFICATIONS -> "Settings — Notifications";
+            case SUPPORT -> "Support";
+            case CHAT_MONITOR -> "AI chat monitor";
+            case AI_USAGE -> "Money usage (AI usage)";
         };
     }
 }
