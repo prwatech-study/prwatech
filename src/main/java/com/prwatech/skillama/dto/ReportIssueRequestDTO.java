@@ -3,6 +3,7 @@ package com.prwatech.skillama.dto;
 import lombok.Data;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -24,6 +25,9 @@ public class ReportIssueRequestDTO {
 
     private String reporterUserId;
     private String reporterEmail;
+
+    /** Public S3 URLs of attachments uploaded via POST /skillama/issues/attachments. */
+    private List<String> attachmentUrls;
 
     /**
      * Optional structured client context (API errors, Redux snapshot ids, etc.).

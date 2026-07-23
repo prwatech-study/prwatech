@@ -75,6 +75,12 @@ public class FileStorageServiceImpl implements FileStorageService {
 
     @Value("${aws.s3.study-materials-bucket-name:skillama-course-materials}")
     private String studyMaterialsBucketName;
+
+    @Value("${file.upload.s3.support-attachments-base-url:https://skillama-support-attachments.s3.ap-south-1.amazonaws.com}")
+    private String supportAttachmentsBaseUrl;
+
+    @Value("${aws.s3.support-attachments-bucket-name:skillama-support-attachments}")
+    private String supportAttachmentsBucketName;
     
     @Autowired
     private S3Client s3Client;
@@ -313,7 +319,9 @@ public class FileStorageServiceImpl implements FileStorageService {
             return false;
         }
         String u = url.trim();
-        if (u.startsWith(s3BaseUrl) || u.startsWith(studyMaterialsBaseUrl)) {
+        if (u.startsWith(s3BaseUrl)
+                || u.startsWith(studyMaterialsBaseUrl)
+                || u.startsWith(supportAttachmentsBaseUrl)) {
             return true;
         }
         return u.startsWith(baseUrl);
@@ -362,6 +370,11 @@ public class FileStorageServiceImpl implements FileStorageService {
             return new S3ObjectRef(
                 studyMaterialsBucketName,
                 extractS3KeyFromUrl(filePath, studyMaterialsBaseUrl));
+        }
+        if (filePath.startsWith(supportAttachmentsBaseUrl)) {
+            return new S3ObjectRef(
+                supportAttachmentsBucketName,
+                extractS3KeyFromUrl(filePath, supportAttachmentsBaseUrl));
         }
         if (filePath.startsWith(s3BaseUrl)) {
             return new S3ObjectRef(bucketName, extractS3KeyFromUrl(filePath, s3BaseUrl));
@@ -520,6 +533,74 @@ public class FileStorageServiceImpl implements FileStorageService {
             throw new IllegalArgumentException(
                 "Unsupported file type. Allowed: PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, ZIP, TXT, CSV, JPG, PNG.");
         }
+    }
+
+    private static final long MAX_SUPPORT_ATTACHMENT_SIZE = 10L * 1024 * 1024; // 10MB
+    private static final List<String> ALLOWED_SUPPORT_ATTACHMENT_TYPES = Arrays.asList(
+        "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "application/pdf"
+    );
+
+    @Override
+    public String uploadSupportAttachment(MultipartFile file) throws IOException {
+        validateSupportAttachment(file);
+
+        String timestamp = IndiaTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        String randomId = UUID.randomUUID().toString().substring(0, 8);
+        String originalFilename = file.getOriginalFilename();
+        String contentType = file.getContentType();
+        String extension = resolveSupportAttachmentExtension(originalFilename, contentType);
+        String safeName = sanitizeFileName(originalFilename);
+
+        String s3Key = String.format("attachments/%s-%s%s%s",
+            timestamp, randomId, (safeName != null ? "-" + safeName : ""), extension);
+
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(supportAttachmentsBucketName)
+                .key(s3Key)
+                .contentType(contentType != null ? contentType : "application/octet-stream")
+                .build();
+
+            long size = file.getSize();
+            RequestBody body;
+            if (size >= 0) {
+                body = RequestBody.fromInputStream(file.getInputStream(), size);
+            } else {
+                body = RequestBody.fromBytes(file.getBytes());
+            }
+            s3Client.putObject(putObjectRequest, body);
+            return supportAttachmentsBaseUrl + "/" + s3Key;
+        } catch (S3Exception e) {
+            throw new IOException("Failed to upload support attachment to S3: " + e.getMessage(), e);
+        }
+    }
+
+    private void validateSupportAttachment(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File is required");
+        }
+        if (file.getSize() > MAX_SUPPORT_ATTACHMENT_SIZE) {
+            throw new IllegalArgumentException("File size exceeds maximum allowed size of 10MB");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_SUPPORT_ATTACHMENT_TYPES.contains(contentType.toLowerCase())) {
+            throw new IllegalArgumentException("Unsupported file type. Allowed: PNG, JPG, GIF, WebP, PDF.");
+        }
+    }
+
+    private String resolveSupportAttachmentExtension(String originalFilename, String contentType) {
+        if (originalFilename != null && originalFilename.contains(".")) {
+            return originalFilename.substring(originalFilename.lastIndexOf(".")).toLowerCase();
+        }
+        if (contentType != null) {
+            String ct = contentType.toLowerCase();
+            if (ct.contains("pdf")) return ".pdf";
+            if (ct.contains("jpeg") || ct.contains("jpg")) return ".jpg";
+            if (ct.contains("png")) return ".png";
+            if (ct.contains("gif")) return ".gif";
+            if (ct.contains("webp")) return ".webp";
+        }
+        return "";
     }
 
     private String sanitizeFileName(String name) {

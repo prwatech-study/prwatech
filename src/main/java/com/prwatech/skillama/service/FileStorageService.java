@@ -118,5 +118,12 @@ public interface FileStorageService {
     String uploadDocumentToS3(MultipartFile file, String s3Prefix) throws IOException;
 
     void validateDocumentFile(MultipartFile file);
+
+    /**
+     * Uploads a support-ticket attachment (screenshot / PDF) to the dedicated
+     * support-attachments S3 bucket. Returns the public object URL to persist
+     * on the issue report.
+     */
+    String uploadSupportAttachment(MultipartFile file) throws IOException;
 }
 

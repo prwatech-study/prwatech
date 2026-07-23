@@ -126,6 +126,9 @@ public class IssueReportService {
         entity.setReporterEmail(trimToNull(request.getReporterEmail()));
         entity.setClientPagePath(trimToNull(request.getClientPagePath()));
         entity.setServerRecordedUserAgent(trimToNull(ua));
+        if (request.getAttachmentUrls() != null) {
+            entity.setAttachmentUrls(request.getAttachmentUrls());
+        }
 
         IssueReport saved = issueReportRepository.save(entity);
         sendTeamEmail(saved);

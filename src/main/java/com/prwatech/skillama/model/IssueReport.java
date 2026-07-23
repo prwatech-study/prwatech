@@ -5,6 +5,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import com.prwatech.skillama.util.IndiaTime;
 
 /**
@@ -39,6 +41,9 @@ public class IssueReport {
 
     private String serverRecordedUserAgent;
     private String clientPagePath;
+
+    /** Public S3 URLs of attachments (screenshots / PDFs) the reporter added. */
+    private List<String> attachmentUrls = new ArrayList<>();
 
     private String status = "OPEN";
 }
