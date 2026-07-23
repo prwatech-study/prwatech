@@ -2,6 +2,7 @@ package com.prwatech.skillama.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prwatech.skillama.dto.IssueReportResponseDTO;
+import com.prwatech.skillama.service.FileStorageService;
 import com.prwatech.skillama.service.IssueReportService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,9 +29,13 @@ class IssueReportControllerTest {
     @Mock
     private IssueReportService issueReportService;
 
+    @Mock
+    private FileStorageService fileStorageService;
+
     @BeforeEach
     void setUp() {
-        IssueReportController controller = new IssueReportController(issueReportService);
+        IssueReportController controller =
+                new IssueReportController(issueReportService, fileStorageService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 

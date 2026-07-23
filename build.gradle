@@ -9,10 +9,6 @@ group = 'com'
 version = '0.0.1-SNAPSHOT'
 sourceCompatibility = '17'
 
-// Spring Boot 2.7.9 pins Lombok 1.18.26, which fails on JDK 21 with
-// "JCTree$JCImport ... qualid". 1.18.30+ adds JDK 21 support.
-ext['lombok.version'] = '1.18.34'
-
 springBoot {
 	mainClass = 'com.prwatech.PrwatechApplication'
 }
