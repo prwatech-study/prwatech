@@ -111,6 +111,26 @@ public class CourseController {
     }
 
     /**
+     * Get the public no-login DEMO course. Public; no authentication required.
+     * @throws NotFoundException if no demo course is configured
+     */
+    @GetMapping("/demo")
+    public ResponseEntity<Course> getDemoCourse() {
+        return ResponseEntity.ok(courseService.getDemoCourseOrThrow());
+    }
+
+    /**
+     * Get the demo course curriculum — FULL (all modules + scripts), no teaser restriction.
+     * Public; no authentication required.
+     */
+    @GetMapping("/demo/curriculum")
+    public ResponseEntity<List<CourseCurriculum>> getDemoCourseCurriculum() {
+        Course demo = courseService.getDemoCourseOrThrow();
+        return ResponseEntity.ok(
+                courseService.getCurriculumByCourseIdOrdered(demo.getId(), false, false));
+    }
+
+    /**
      * Get all public courses accessible to non-logged-in users
      * This endpoint is public and does not require authentication
      */

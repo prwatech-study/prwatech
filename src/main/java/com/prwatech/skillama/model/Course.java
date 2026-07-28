@@ -29,6 +29,13 @@ public class Course {
     private Boolean isGuestCourse = Boolean.FALSE; // Default guest course flag
     @Builder.Default
     private Boolean isPublic = Boolean.FALSE; // Public course flag for guest access
+    /**
+     * Public no-login DEMO course: fully unlocked (all lectures + all features) for
+     * anonymous visitors, capped by a shared daily AI-spend budget. Distinct from
+     * the guest teaser (isGuestCourse), which only unlocks the first lecture.
+     */
+    @Builder.Default
+    private Boolean isDemo = Boolean.FALSE;
     /** When false, the course is hidden from learners and not available for assignment. Distinct from archive (deletedAt). */
     @Builder.Default
     private Boolean active = Boolean.TRUE;

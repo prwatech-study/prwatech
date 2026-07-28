@@ -41,6 +41,7 @@ public class UserProfileService {
     private final MongoTemplate skillamaMongoTemplate;
     private final UserCourseService userCourseService;
     private final ModuleQuizService moduleQuizService;
+    private final AiUsageService aiUsageService;
     
     // ========== Session Management ==========
     
@@ -196,10 +197,19 @@ public class UserProfileService {
                 : null;
         AiBudgetDTO aiBudget = user != null ? freemiumService.getAiBudgetForUser(user) : null;
 
+        // Public demo course: fully unlocked for anyone (no login), but capped by a
+        // shared daily AI-spend budget. Overrides the guest teaser locks/feature gates.
+        boolean demo = CourseService.isDemo(course);
+        if (demo) {
+            aiBudget = aiUsageService.getDemoDailyBudget(targetCourseId);
+            applyDemoAccess(modules, features, Boolean.TRUE.equals(aiBudget.getLimitReached()));
+        }
+
         return AccessControlResponseDTO.builder()
                 .userId(profile.getUserId())
                 .sessionId(profile.getSessionId())
                 .isGuest(profile.getIsGuest())
+                .isDemo(demo)
                 .courseId(targetCourseId)
                 .courseName(course.getName())
                 .planTier(user != null && user.getPlanTier() != null ? user.getPlanTier() : null)
@@ -212,7 +222,50 @@ public class UserProfileService {
                 .aiBudget(aiBudget)
                 .build();
     }
-    
+
+    /**
+     * Demo override: unlock every module/lecture and enable all features. When the
+     * shared daily budget is exhausted, features are disabled and chat is capped so
+     * the frontend can present a "demo limit reached" state (lecture generation is
+     * additionally gated client-side on aiBudget.limitReached).
+     */
+    private void applyDemoAccess(List<ModuleAccessDTO> modules, FeatureAccessDTO features, boolean budgetReached) {
+        if (modules != null) {
+            for (ModuleAccessDTO m : modules) {
+                m.setIsAccessible(true);
+                m.setIsLocked(false);
+                m.setLockReason(null);
+                if (m.getLectures() != null) {
+                    for (LectureAccessDTO l : m.getLectures()) {
+                        l.setIsAccessible(true);
+                        l.setIsLocked(false);
+                        l.setLockReason(null);
+                    }
+                }
+            }
+        }
+        if (features != null) {
+            String reason = budgetReached ? "Demo daily limit reached — resets tomorrow." : null;
+            if (features.getCodeExecution() != null) {
+                features.getCodeExecution().setEnabled(!budgetReached);
+                features.getCodeExecution().setAccessible(!budgetReached);
+                features.getCodeExecution().setReason(reason);
+            }
+            if (features.getDebug() != null) {
+                features.getDebug().setEnabled(!budgetReached);
+                features.getDebug().setAccessible(!budgetReached);
+                features.getDebug().setReason(reason);
+            }
+            if (features.getChat() != null) {
+                features.getChat().setEnabled(!budgetReached);
+                features.getChat().setAccessible(!budgetReached);
+                features.getChat().setLimitReached(budgetReached);
+                // No 5-question guest cap in the demo; the daily budget is the real limiter.
+                features.getChat().setQuestionsRemaining(budgetReached ? 0 : 999);
+            }
+        }
+    }
+
     private List<ModuleAccessDTO> buildModuleAccess(UserProfile profile, List<CourseCurriculum> curriculum, String courseId) {
         List<ModuleAccessDTO> modules = new ArrayList<>();
         

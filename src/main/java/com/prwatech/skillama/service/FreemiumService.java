@@ -80,7 +80,8 @@ public class FreemiumService {
 
     public List<FreemiumCourseOptionDTO> listSignupCourseOptions() {
         return courseRepository.findAll().stream()
-                .filter(c -> c.getDeletedAt() == null)
+                // Only courses available to learners: not archived AND not admin-deactivated.
+                .filter(c -> c.getDeletedAt() == null && !Boolean.FALSE.equals(c.getActive()))
                 .sorted(Comparator.comparing(Course::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
                 .map(c -> FreemiumCourseOptionDTO.builder()
                         .id(c.getId())

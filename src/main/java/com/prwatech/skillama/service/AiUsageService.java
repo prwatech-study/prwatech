@@ -53,6 +53,10 @@ public class AiUsageService {
     @Value("${skillama.ai-usage.internal-api-key:}")
     private String internalApiKey;
 
+    /** Shared daily AI-spend cap for the public demo course (USD). */
+    @Value("${skillama.ai-usage.demo-daily-budget-usd:1.00}")
+    private double demoDailyBudgetUsd;
+
     private JsonNode rateCard;
 
     @PostConstruct
@@ -212,6 +216,37 @@ public class AiUsageService {
         } catch (AiBudgetLimitException e) {
             return false;
         }
+    }
+
+    /**
+     * Shared DAILY AI-spend budget for the public demo course — one pool across ALL
+     * anonymous visitors (India-time day). Used to cap demo cost (default $1/day).
+     */
+    public AiBudgetDTO getDemoDailyBudget(String courseId) {
+        double rate = liveUsdToInrRate();
+        LocalDate today = IndiaTime.now().toLocalDate();
+        LocalDateTime start = today.atStartOfDay();
+        LocalDateTime end = today.plusDays(1).atStartOfDay().minusNanos(1);
+        double usedUsd = 0.0;
+        if (courseId != null) {
+            usedUsd = aiUsageEventRepository
+                    .findByCourseIdAndCreatedAtBetween(courseId, start, end)
+                    .stream()
+                    .mapToDouble(AiUsageEvent::getCostUsd)
+                    .sum();
+        }
+        double limitUsd = demoDailyBudgetUsd;
+        double remainingUsd = Math.max(0, limitUsd - usedUsd);
+        return AiBudgetDTO.builder()
+                .usedUsd(round(usedUsd))
+                .limitUsd(round(limitUsd))
+                .remainingUsd(round(remainingUsd))
+                .usedInr(round(usedUsd * rate))
+                .limitInr(round(limitUsd * rate))
+                .remainingInr(round(remainingUsd * rate))
+                .unlimited(false)
+                .limitReached(usedUsd >= limitUsd)
+                .build();
     }
 
     public AiBudgetDTO getAiBudget(User user) {

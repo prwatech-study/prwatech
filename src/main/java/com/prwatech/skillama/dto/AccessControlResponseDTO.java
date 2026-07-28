@@ -18,6 +18,8 @@ public class AccessControlResponseDTO {
     private String userId;                    // null for guests
     private String sessionId;
     private Boolean isGuest;
+    /** True when this is the public no-login DEMO course (fully unlocked, daily-budget capped). */
+    private Boolean isDemo;
     private String courseId;
     private String courseName;
     private User.PlanTier planTier;

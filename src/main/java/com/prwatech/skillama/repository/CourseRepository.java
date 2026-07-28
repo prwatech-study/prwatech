@@ -12,4 +12,5 @@ public interface CourseRepository extends MongoRepository<Course, String> {
     Optional<Course> findByIsGuestCourseTrue();
     List<Course> findByIsPublicTrue();
     Optional<Course> findFirstByIsPublicTrue();
+    Optional<Course> findByIsDemoTrue();
 }

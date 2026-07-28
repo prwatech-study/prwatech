@@ -407,6 +407,23 @@ public class CourseService {
                 .collect(Collectors.toList());
     }
 
+    // --- DEMO COURSE (public, fully unlocked) ---
+    /** Whether this course is the public demo (fully unlocked + daily-budget capped). */
+    public static boolean isDemo(Course course) {
+        return course != null && Boolean.TRUE.equals(course.getIsDemo());
+    }
+
+    /** Finds the public demo course (isDemo=true), if one is configured and active. */
+    public Optional<Course> findDemoCourse() {
+        return courseRepository.findByIsDemoTrue().filter(CourseService::isActive);
+    }
+
+    public Course getDemoCourseOrThrow() {
+        return findDemoCourse()
+                .orElseThrow(() -> new NotFoundException(
+                        "No demo course configured. Seed one via POST /skillama/admin/courses/seed-demo-course."));
+    }
+
     // --- GUEST COURSE MANAGEMENT ---
     /**
      * Finds the guest course. First tries to find a course marked as isGuestCourse,
@@ -457,7 +474,8 @@ public class CourseService {
      */
     public List<Course> findPublicCourses() {
         return courseRepository.findByIsPublicTrue().stream()
-                .filter(CourseService::isActive)
+                // Exclude archived AND admin-deactivated courses from the public catalog.
+                .filter(CourseService::isAvailableToLearner)
                 .collect(Collectors.toList());
     }
 

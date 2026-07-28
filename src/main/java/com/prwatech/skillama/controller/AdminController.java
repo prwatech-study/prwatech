@@ -25,6 +25,7 @@ import com.prwatech.skillama.model.AdminModule;
 import com.prwatech.skillama.model.AdminPermissionAction;
 import com.prwatech.skillama.service.ReviewService;
 import com.prwatech.skillama.service.IssueReportService;
+import com.prwatech.skillama.service.DemoCourseSeedService;
 import com.prwatech.skillama.model.IssueReport;
 import com.prwatech.skillama.service.SalesLeadService;
 import com.prwatech.skillama.service.LmsThemeService;
@@ -66,6 +67,7 @@ public class AdminController {
     private final SalesLeadService salesLeadService;
     private final ReviewService reviewService;
     private final IssueReportService issueReportService;
+    private final DemoCourseSeedService demoCourseSeedService;
     private final PlatformDemoVideoService platformDemoVideoService;
     private final PlatformAiSettingsService platformAiSettingsService;
     private final ReferralShareService referralShareService;
@@ -757,6 +759,21 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse<>(500, "Error setting up guest course: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Seed the public no-login demo course (Python, theory + practical). Idempotent.
+     */
+    @PostMapping("/courses/seed-demo-course")
+    public ResponseEntity<ApiResponse<Course>> seedDemoCourse(HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.COURSES, AdminPermissionAction.CREATE);
+            Course demo = demoCourseSeedService.seedDemoCourse();
+            return ResponseEntity.ok(new ApiResponse<>(200, demo));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(500, null));
         }
     }
     
