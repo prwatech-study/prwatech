@@ -25,7 +25,6 @@ import com.prwatech.skillama.model.AdminModule;
 import com.prwatech.skillama.model.AdminPermissionAction;
 import com.prwatech.skillama.service.ReviewService;
 import com.prwatech.skillama.service.IssueReportService;
-import com.prwatech.skillama.service.DemoCourseSeedService;
 import com.prwatech.skillama.model.IssueReport;
 import com.prwatech.skillama.service.SalesLeadService;
 import com.prwatech.skillama.service.LmsThemeService;
@@ -67,7 +66,6 @@ public class AdminController {
     private final SalesLeadService salesLeadService;
     private final ReviewService reviewService;
     private final IssueReportService issueReportService;
-    private final DemoCourseSeedService demoCourseSeedService;
     private final PlatformDemoVideoService platformDemoVideoService;
     private final PlatformAiSettingsService platformAiSettingsService;
     private final ReferralShareService referralShareService;
@@ -763,17 +761,21 @@ public class AdminController {
     }
 
     /**
-     * Seed the public no-login demo course (Python, theory + practical). Idempotent.
+     * Mark an EXISTING course as the public no-login demo (reuses its real
+     * curriculum, images and practical scripts). Only one demo at a time.
      */
-    @PostMapping("/courses/seed-demo-course")
-    public ResponseEntity<ApiResponse<Course>> seedDemoCourse(HttpServletRequest request) {
+    @PutMapping("/courses/{courseId}/set-demo")
+    public ResponseEntity<ApiResponse<Course>> setCourseAsDemo(
+            @PathVariable String courseId,
+            HttpServletRequest request) {
         try {
-            assertModulePermission(request, AdminModule.COURSES, AdminPermissionAction.CREATE);
-            Course demo = demoCourseSeedService.seedDemoCourse();
+            assertModulePermission(request, AdminModule.COURSES, AdminPermissionAction.UPDATE);
+            Course demo = courseService.setCourseAsDemo(courseId);
             return ResponseEntity.ok(new ApiResponse<>(200, demo));
+        } catch (com.prwatech.common.exception.NotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiResponse<>(500, null));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }
     }
     

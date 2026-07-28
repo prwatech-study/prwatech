@@ -421,7 +421,31 @@ public class CourseService {
     public Course getDemoCourseOrThrow() {
         return findDemoCourse()
                 .orElseThrow(() -> new NotFoundException(
-                        "No demo course configured. Seed one via POST /skillama/admin/courses/seed-demo-course."));
+                        "No demo course configured. Set one via PUT /skillama/api/admin/courses/{courseId}/set-demo."));
+    }
+
+    /**
+     * Marks an EXISTING course as the public demo (reusing its real curriculum,
+     * images and practical scripts). Only one demo at a time; the course is made
+     * public + active so anonymous visitors can reach it.
+     */
+    @Transactional
+    public Course setCourseAsDemo(String courseId) {
+        Course target = courseRepository.findById(courseId)
+                .orElseThrow(() -> new NotFoundException("Course not found: " + courseId));
+        courseRepository.findByIsDemoTrue().ifPresent(prev -> {
+            if (!prev.getId().equals(courseId)) {
+                prev.setIsDemo(Boolean.FALSE);
+                courseRepository.save(prev);
+            }
+        });
+        target.setIsDemo(Boolean.TRUE);
+        target.setIsPublic(Boolean.TRUE);
+        if (target.getActive() == null) {
+            target.setActive(Boolean.TRUE);
+        }
+        target.setUpdatedAt(IndiaTime.now());
+        return courseRepository.save(target);
     }
 
     // --- GUEST COURSE MANAGEMENT ---

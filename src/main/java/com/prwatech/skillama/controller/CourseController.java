@@ -36,6 +36,10 @@ public class CourseController {
     @Value("${skillama.app.public-url:https://skillama.co.in}")
     private String publicAppUrl;
 
+    /** Max modules exposed in the public demo curriculum (0 = no limit). */
+    @Value("${skillama.demo.max-modules:3}")
+    private int demoMaxModules;
+
     @PostMapping
     public ResponseEntity<Course> create(@RequestBody Course course) {
         return ResponseEntity.ok(courseService.create(course));
@@ -126,8 +130,13 @@ public class CourseController {
     @GetMapping("/demo/curriculum")
     public ResponseEntity<List<CourseCurriculum>> getDemoCourseCurriculum() {
         Course demo = courseService.getDemoCourseOrThrow();
-        return ResponseEntity.ok(
-                courseService.getCurriculumByCourseIdOrdered(demo.getId(), false, false));
+        List<CourseCurriculum> curriculum =
+                courseService.getCurriculumByCourseIdOrdered(demo.getId(), false, false);
+        // Keep the demo short: reuse the real course but expose only the first N modules.
+        if (curriculum != null && demoMaxModules > 0 && curriculum.size() > demoMaxModules) {
+            curriculum = new java.util.ArrayList<>(curriculum.subList(0, demoMaxModules));
+        }
+        return ResponseEntity.ok(curriculum);
     }
 
     /**

@@ -232,6 +232,9 @@ public class AiUsageService {
             usedUsd = aiUsageEventRepository
                     .findByCourseIdAndCreatedAtBetween(courseId, start, end)
                     .stream()
+                    // Count only anonymous/guest (demo) spend — the same course may
+                    // also be used by logged-in learners, who must not affect the cap.
+                    .filter(e -> e.getUserId() == null || e.getUserId().isBlank())
                     .mapToDouble(AiUsageEvent::getCostUsd)
                     .sum();
         }
