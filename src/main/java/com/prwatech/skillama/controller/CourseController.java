@@ -36,8 +36,8 @@ public class CourseController {
     @Value("${skillama.app.public-url:https://skillama.co.in}")
     private String publicAppUrl;
 
-    /** Max modules exposed in the public demo curriculum (0 = no limit). */
-    @Value("${skillama.demo.max-modules:3}")
+    /** Max modules exposed in the public demo curriculum (0 = no limit / all topics). */
+    @Value("${skillama.demo.max-modules:0}")
     private int demoMaxModules;
 
     @PostMapping
