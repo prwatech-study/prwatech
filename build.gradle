@@ -9,6 +9,11 @@ group = 'com'
 version = '0.0.1-SNAPSHOT'
 sourceCompatibility = '17'
 
+// Spring Boot 2.7.9 pins Lombok 1.18.26, which fails annotation processing on
+// JDK 21 ("JCTree$JCImport ... qualid"). 1.18.30+ supports JDK 21. Pinning this
+// lets the build run on JDK 17 or 21 without any machine-specific JDK override.
+ext['lombok.version'] = '1.18.34'
+
 springBoot {
 	mainClass = 'com.prwatech.PrwatechApplication'
 }
