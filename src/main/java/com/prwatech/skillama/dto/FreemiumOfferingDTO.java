@@ -16,8 +16,7 @@ public class FreemiumOfferingDTO {
     private List<String> baseModules;
     private List<String> modulesWithReferral;
     private String referralBonusModule;
-    private int queryLimit;
-    private int referralQueryBonus;
-    private int queryLimitWithReferral;
+    /** Permanent USD wallet reward the REFERRER earns per successful referral signup. */
+    private double referrerRewardUsd;
     private boolean courseSelectionAtSignup;
 }

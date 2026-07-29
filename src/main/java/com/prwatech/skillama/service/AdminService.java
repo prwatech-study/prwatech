@@ -874,8 +874,6 @@ public class AdminService {
                     .orElse(null);
         }
 
-        QueryCreditsDTO queryCredits = freemiumService.getQueryCredits(user);
-
         return UserAdminProfileDTO.builder()
                 .userId(user.getId())
                 .name(user.getName())
@@ -887,8 +885,6 @@ public class AdminService {
                 .createdAt(user.getCreatedAt())
                 .lastLoginAt(user.getLastLoginAt())
                 .loginCount(loginCount)
-                .queryCreditsUsed(queryCredits.getUsed())
-                .queryCreditsLimit(queryCredits.getLimit())
                 .enabledModules(user.getEnabledModules())
                 .referralCode(user.getReferralCode())
                 .referredBy(user.getReferredBy())

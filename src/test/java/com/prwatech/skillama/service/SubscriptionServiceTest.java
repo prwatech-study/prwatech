@@ -65,7 +65,7 @@ class SubscriptionServiceTest {
     private SubscriptionPlan pulsePlan() {
         return SubscriptionPlan.builder()
                 .code("PULSE").displayName("Pulse").priceInr(999).walletInr(1500.0)
-                .queryCreditsLimit(null).enabledModules(List.of("ai-tutor"))
+                .enabledModules(List.of("ai-tutor"))
                 .sortOrder(1).active(true).planTier(User.PlanTier.PAID)
                 .build();
     }
@@ -73,7 +73,7 @@ class SubscriptionServiceTest {
     private SubscriptionPlan sparkPlan() {
         return SubscriptionPlan.builder()
                 .code("SPARK").displayName("Spark").priceInr(0).walletInr(null)
-                .queryCreditsLimit(30).enabledModules(List.of("basics"))
+                .enabledModules(List.of("basics"))
                 .sortOrder(0).active(true).planTier(User.PlanTier.FREEMIUM)
                 .build();
     }
@@ -241,7 +241,6 @@ class SubscriptionServiceTest {
         assertEquals("PULSE", user.getSubscriptionPlanCode());
         assertEquals(User.PlanTier.PAID, user.getPlanTier());
         assertEquals(UserSubscription.SubscriptionStatus.ACTIVE.name(), user.getSubscriptionStatus());
-        assertNull(user.getQueryCreditsLimit());       // unlimited for paid plan
         // wallet 1500 INR / 80 = 18.75 USD
         assertEquals(18.75, user.getAiWalletLimitUsd());
         assertEquals(0.0, user.getAiCostUsdThisPeriod());

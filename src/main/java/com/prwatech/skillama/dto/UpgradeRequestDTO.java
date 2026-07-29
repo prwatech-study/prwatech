@@ -19,8 +19,6 @@ public class UpgradeRequestDTO {
     private String courseId;
     private String courseName;
     private User.PlanTier planTier;
-    private Integer queryCreditsUsed;
-    private Integer queryCreditsLimit;
     private String message;
     private UpgradeRequest.RequestStatus status;
     private String notes;

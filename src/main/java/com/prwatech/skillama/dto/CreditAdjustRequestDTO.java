@@ -2,11 +2,15 @@ package com.prwatech.skillama.dto;
 
 import lombok.Data;
 
+/**
+ * Admin AI-wallet adjustment request. Values are USD — the dollar wallet is the only
+ * consumption limit (the legacy query-count allowance no longer exists).
+ */
 @Data
 public class CreditAdjustRequestDTO {
-    /** Positive increases total allowance; negative reduces it (not below used count) */
-    private Integer delta;
-    /** Optional: set absolute limit instead of delta on limit */
-    private Integer newLimit;
+    /** Positive tops the wallet up; negative reduces it (never below $0). */
+    private Double deltaUsd;
+    /** Optional: set an absolute wallet base in USD instead of applying a delta. */
+    private Double newLimitUsd;
     private String reason;
 }

@@ -16,6 +16,8 @@ public class AiBudgetDTO {
     private Double usedInr;
     private Double limitInr;
     private Double remainingInr;
+    /** Permanent referral reward (USD) included in limitUsd — lets the UI show "base + bonus". */
+    private Double referralBonusUsd;
     private Boolean unlimited;
     private Boolean limitReached;
 }

@@ -192,9 +192,6 @@ public class UserProfileService {
 
         FeatureAccessDTO features = buildFeatureAccess(profile, user);
         ProgressSummaryDTO progress = buildProgressSummary(profile, curriculum, targetCourseId);
-        QueryCreditsDTO queryCredits = user != null && !freemiumService.isLegacyUser(user)
-                ? freemiumService.getQueryCredits(user)
-                : null;
         AiBudgetDTO aiBudget = user != null ? freemiumService.getAiBudgetForUser(user) : null;
 
         // Public demo course: fully unlocked for anyone (no login), but capped by a
@@ -218,7 +215,6 @@ public class UserProfileService {
                 .modules(modules)
                 .features(features)
                 .progress(progress)
-                .queryCredits(queryCredits)
                 .aiBudget(aiBudget)
                 .build();
     }
@@ -635,12 +631,13 @@ public class UserProfileService {
                     .build();
         }
 
-        int remaining = freemiumService.remainingQueries(user);
-        boolean limitReached = remaining <= 0;
+        // Query counts are no longer metered — the dollar AI wallet is the only limit,
+        // so there is no finite "questions remaining" to report for logged-in learners.
+        boolean limitReached = !aiUsageService.isWithinBudget(user);
         return FeatureAccessDTO.ChatFeatureDTO.builder()
                 .enabled(!limitReached && freemiumService.hasModule(user, "Ai-Tutor"))
                 .accessible(!limitReached && freemiumService.hasModule(user, "Ai-Tutor"))
-                .questionsRemaining(remaining)
+                .questionsRemaining(null)
                 .limitReached(limitReached)
                 .build();
     }

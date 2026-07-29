@@ -335,12 +335,6 @@ public class UserProfileController {
         try {
             String userId = extractUserIdFromRequest(request);
             return ResponseEntity.ok(freemiumService.consumeQuery(userId, body));
-        } catch (com.prwatech.skillama.exception.QueryCreditLimitException e) {
-            return ResponseEntity.status(429).body(Map.of(
-                    "status", "error",
-                    "message", e.getMessage(),
-                    "queryCreditsUsed", e.getQueryCreditsUsed(),
-                    "queryCreditsLimit", e.getQueryCreditsLimit()));
         } catch (com.prwatech.skillama.exception.AiBudgetLimitException e) {
             return ResponseEntity.status(429).body(Map.of(
                     "status", "error",

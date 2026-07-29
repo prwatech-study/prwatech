@@ -27,8 +27,6 @@ public class UpgradeRequest {
     private String courseId;
     private String courseName;
     private User.PlanTier planTier;
-    private Integer queryCreditsUsed;
-    private Integer queryCreditsLimit;
     private String message;
 
     @Indexed

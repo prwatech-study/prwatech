@@ -60,7 +60,7 @@ class UpgradeRequestServiceTest {
 
     private User freemiumUser() {
         return User.builder().id("u1").name("Asha").email("asha@x.com").phone("+919876543210")
-                .planTier(User.PlanTier.FREEMIUM).queryCreditsUsed(30).queryCreditsLimit(50).build();
+                .planTier(User.PlanTier.FREEMIUM).build();
     }
 
     @Test
@@ -80,8 +80,7 @@ class UpgradeRequestServiceTest {
         assertEquals(UpgradeRequest.RequestStatus.NEW, dto.getStatus());
         assertEquals("PROFILE", dto.getSource());           // default source
         assertEquals("asha@x.com", dto.getUserEmail());
-        assertEquals(30, dto.getQueryCreditsUsed());        // snapshot from user
-        assertEquals(50, dto.getQueryCreditsLimit());
+        assertEquals(User.PlanTier.FREEMIUM, dto.getPlanTier());  // snapshot from user
         verify(notificationSettingsService).sendTeamNotification(any(), any(), any());
     }
 

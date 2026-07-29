@@ -20,7 +20,10 @@ public class SubscriptionPlanDTO {
     private String description;
     private Double priceInr;
     private Double walletInr;
-    private Integer queryCreditsLimit;
+    /**
+     * True when this plan grants an unmetered AI wallet — ENTERPRISE, or a PAID plan with no
+     * wallet allocation. Wallet-derived; no longer tied to a query-count allowance.
+     */
     private Boolean unlimitedQueries;
     private List<String> enabledModules;
     private Integer sortOrder;

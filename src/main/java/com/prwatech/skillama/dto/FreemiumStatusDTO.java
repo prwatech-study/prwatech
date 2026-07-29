@@ -20,9 +20,13 @@ public class FreemiumStatusDTO {
     private Boolean emailVerified;
     private String referralCode;
     private String referredBy;
-    private Integer queryCreditsUsed;
-    private Integer queryCreditsLimit;
-    /** True for PAID, ENTERPRISE, and legacy (planTier null) accounts with unlimited AI queries. */
+    /** Permanent referrer reward (USD) stacked on top of this user's AI wallet base. */
+    private Double referralBonusUsd;
+    /**
+     * True when this user's AI wallet is not metered at all — staff, ENTERPRISE, legacy
+     * (planTier null), and legacy PAID accounts without a wallet. Mirrors the wallet
+     * enforcement in AiUsageService; it is no longer derived from a query count.
+     */
     private Boolean unlimitedQueries;
     private List<String> enabledModules;
     private AiBudgetDTO aiBudget;

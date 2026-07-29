@@ -33,11 +33,6 @@ public class SubscriptionPlan {
      */
     private Double walletInr;
 
-    /**
-     * Query credit cap. Null means unlimited (paid plans).
-     */
-    private Integer queryCreditsLimit;
-
     @Builder.Default
     private List<String> enabledModules = new ArrayList<>();
 

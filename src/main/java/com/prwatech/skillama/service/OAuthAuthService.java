@@ -134,8 +134,6 @@ public class OAuthAuthService {
         user.setEmailVerified(true);
         user.setRole(User.UserRole.USER);
         user.setPlanTier(User.PlanTier.FREEMIUM);
-        user.setQueryCreditsUsed(0);
-        user.setQueryCreditsLimit(FreemiumService.FREEMIUM_QUERY_LIMIT);
         user.setEnabledModules(new ArrayList<>(FreemiumService.FREEMIUM_BASE_MODULES));
         user.setReferralCode(FreemiumService.generateReferralCode());
         user.setAuthProvider(User.AuthProvider.EMAIL);
@@ -195,8 +193,6 @@ public class OAuthAuthService {
         if (user.getPlanTier() == null || user.getPlanTier() == User.PlanTier.FREEMIUM) {
             if (user.getPlanTier() == null) {
                 user.setPlanTier(User.PlanTier.FREEMIUM);
-                user.setQueryCreditsUsed(0);
-                user.setQueryCreditsLimit(FreemiumService.FREEMIUM_QUERY_LIMIT);
                 user.setEnabledModules(new ArrayList<>(FreemiumService.FREEMIUM_BASE_MODULES));
                 if (user.getReferralCode() == null) {
                     user.setReferralCode(FreemiumService.generateReferralCode());
@@ -273,8 +269,6 @@ public class OAuthAuthService {
         user.setEmailVerified(true);
         user.setRole(User.UserRole.USER);
         user.setPlanTier(User.PlanTier.FREEMIUM);
-        user.setQueryCreditsUsed(0);
-        user.setQueryCreditsLimit(FreemiumService.FREEMIUM_QUERY_LIMIT);
         user.setEnabledModules(new ArrayList<>(FreemiumService.FREEMIUM_BASE_MODULES));
         user.setReferralCode(FreemiumService.generateReferralCode());
         user.setOnboardingCompleted(false);

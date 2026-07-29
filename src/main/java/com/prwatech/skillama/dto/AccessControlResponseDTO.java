@@ -29,7 +29,6 @@ public class AccessControlResponseDTO {
     private List<ModuleAccessDTO> modules;
     private FeatureAccessDTO features;
     private ProgressSummaryDTO progress;
-    private QueryCreditsDTO queryCredits;
     private AiBudgetDTO aiBudget;
 }
 

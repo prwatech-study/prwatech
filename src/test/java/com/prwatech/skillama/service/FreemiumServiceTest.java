@@ -1,20 +1,18 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.common.configuration.PasswordEncode;
+import com.prwatech.common.exception.ForbiddenException;
 import com.prwatech.skillama.dto.AiBudgetDTO;
 import com.prwatech.skillama.dto.ConsumeQueryRequestDTO;
 import com.prwatech.skillama.dto.CreditAdjustRequestDTO;
-import com.prwatech.skillama.dto.CreditAdjustmentLogDTO;
 import com.prwatech.skillama.dto.FreemiumOfferingDTO;
 import com.prwatech.skillama.dto.FreemiumStatusDTO;
-import com.prwatech.skillama.dto.QueryCreditsDTO;
-import com.prwatech.skillama.exception.QueryCreditLimitException;
+import com.prwatech.skillama.dto.WalletAdjustResultDTO;
+import com.prwatech.skillama.exception.AiBudgetLimitException;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
-import com.prwatech.skillama.model.CreditAdjustmentLog;
 import com.prwatech.skillama.model.QueryActivityLog;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.CourseRepository;
-import com.prwatech.skillama.repository.CreditAdjustmentLogRepository;
 import com.prwatech.skillama.repository.QueryActivityLogRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,7 +46,6 @@ class FreemiumServiceTest {
     @Mock private QueryActivityLogRepository queryActivityLogRepository;
     @Mock private PasswordEncode passwordEncode;
     @Mock private UserCourseAccessService userCourseAccessService;
-    @Mock private CreditAdjustmentLogRepository creditAdjustmentLogRepository;
     @Mock private UserContactService userContactService;
     @Mock private AiUsageService aiUsageService;
 
@@ -56,15 +54,14 @@ class FreemiumServiceTest {
     @BeforeEach
     void setUp() {
         service = new FreemiumService(userRepository, courseRepository, queryActivityLogRepository,
-                passwordEncode, userCourseAccessService, creditAdjustmentLogRepository,
-                userContactService, aiUsageService);
+                passwordEncode, userCourseAccessService, userContactService, aiUsageService);
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(aiUsageService.getAiBudget(any())).thenReturn(AiBudgetDTO.builder().build());
     }
 
     private User freemiumUser() {
         return User.builder().id("u1").email("u@x.com").planTier(User.PlanTier.FREEMIUM)
-                .queryCreditsUsed(0).queryCreditsLimit(FreemiumService.FREEMIUM_QUERY_LIMIT).build();
+                .emailVerified(true).referralBonusUsd(0.0).build();
     }
 
     // ---------- static validation ----------
@@ -101,12 +98,11 @@ class FreemiumServiceTest {
     // ---------- public offering ----------
 
     @Test
-    void publicOfferingExposesLimitsAndBonus() {
+    void publicOfferingExposesReferrerRewardAndModules() {
         FreemiumOfferingDTO dto = service.getPublicOffering();
-        assertEquals(FreemiumService.FREEMIUM_QUERY_LIMIT, dto.getQueryLimit());
-        assertEquals(FreemiumService.REFERRAL_QUERY_BONUS, dto.getReferralQueryBonus());
-        assertEquals(FreemiumService.FREEMIUM_QUERY_LIMIT + FreemiumService.REFERRAL_QUERY_BONUS,
-                dto.getQueryLimitWithReferral());
+        assertEquals(FreemiumService.REFERRER_REWARD_USD, dto.getReferrerRewardUsd());
+        assertEquals(0.25, dto.getReferrerRewardUsd());
+        assertTrue(dto.getBaseModules().containsAll(FreemiumService.FREEMIUM_BASE_MODULES));
     }
 
     // ---------- unlimited / module gating ----------
@@ -134,77 +130,95 @@ class FreemiumServiceTest {
     }
 
     @Test
-    void remainingQueriesForFreemiumAndUnlimited() {
+    void hasUnlimitedWalletDelegatesToAiUsageService() {
         User u = freemiumUser();
-        u.setQueryCreditsUsed(45);
-        assertEquals(5, service.remainingQueries(u));
-        assertEquals(Integer.MAX_VALUE,
-                service.remainingQueries(User.builder().planTier(User.PlanTier.PAID).build()));
+        when(aiUsageService.isUnlimitedForBudget(u)).thenReturn(true);
+        assertTrue(service.hasUnlimitedWallet(u));
     }
 
-    @Test
-    void getQueryCreditsUnlimitedHasNullLimit() {
-        QueryCreditsDTO dto = service.getQueryCredits(User.builder()
-                .planTier(User.PlanTier.PAID).queryCreditsUsed(3).build());
-        assertNull(dto.getLimit());
-    }
-
-    // ---------- consumeQuery (credit enforcement) ----------
+    // ---------- consumeQuery (wallet is the only enforcement) ----------
 
     @Test
-    void consumeQueryIncrementsUsedForFreemium() {
+    void consumeQueryEnforcesOnlyTheDollarWallet() {
         User u = freemiumUser();
-        u.setQueryCreditsUsed(10);
         when(userRepository.findById("u1")).thenReturn(Optional.of(u));
 
-        FreemiumStatusDTO dto = service.consumeQuery("u1", new ConsumeQueryRequestDTO());
+        service.consumeQuery("u1", new ConsumeQueryRequestDTO());
 
-        assertEquals(11, u.getQueryCreditsUsed());
-        assertEquals(11, dto.getQueryCreditsUsed());
         verify(aiUsageService).assertWithinBudget(u);
         verify(queryActivityLogRepository).save(any(QueryActivityLog.class));
+        // No query-count mutation of the user record any more
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
-    void consumeQueryThrowsWhenLimitReached() {
+    void consumeQueryPropagatesBudgetLimitAndDoesNotLogActivity() {
         User u = freemiumUser();
-        u.setQueryCreditsUsed(FreemiumService.FREEMIUM_QUERY_LIMIT); // 50/50
         when(userRepository.findById("u1")).thenReturn(Optional.of(u));
+        doThrow(new AiBudgetLimitException("AI budget limit reached", 0.75, 0.75))
+                .when(aiUsageService).assertWithinBudget(u);
 
-        QueryCreditLimitException ex = assertThrows(QueryCreditLimitException.class,
+        assertThrows(AiBudgetLimitException.class,
                 () -> service.consumeQuery("u1", new ConsumeQueryRequestDTO()));
-        assertEquals(FreemiumService.FREEMIUM_QUERY_LIMIT, ex.getQueryCreditsLimit());
-        // No activity logged and no increment on rejection
         verify(queryActivityLogRepository, never()).save(any());
-        assertEquals(FreemiumService.FREEMIUM_QUERY_LIMIT, u.getQueryCreditsUsed());
     }
 
     @Test
-    void consumeQueryUnlimitedDoesNotIncrementButStillLogs() {
+    void consumeQueryUnlimitedUserStillLogs() {
         User u = User.builder().id("u1").planTier(User.PlanTier.PAID).build();
         when(userRepository.findById("u1")).thenReturn(Optional.of(u));
 
         service.consumeQuery("u1", new ConsumeQueryRequestDTO());
 
         verify(aiUsageService).assertWithinBudget(u);
-        verify(userRepository, never()).save(any()); // no credit mutation for unlimited
         verify(queryActivityLogRepository).save(any(QueryActivityLog.class));
     }
 
-    // ---------- referral ----------
+    // ---------- referral: the REFERRER is rewarded, not the referee ----------
 
     @Test
-    void applyReferralGrantsBonusLimitAndModules() {
+    void applyReferralRewardsTheReferrerWithQuarterDollar() {
         User u = freemiumUser();
         when(userRepository.findById("u1")).thenReturn(Optional.of(u));
-        User referrer = User.builder().id("ref").email("r@x.com").referralCode("SKILL-REF").build();
+        User referrer = User.builder().id("ref").email("r@x.com").referralCode("SKILL-REF")
+                .referralBonusUsd(0.0).build();
         when(userRepository.findByReferralCode("SKILL-REF")).thenReturn(Optional.of(referrer));
 
         FreemiumStatusDTO dto = service.applyReferral("u1", "skill-ref");
 
         assertEquals("SKILL-REF", u.getReferredBy());
-        assertEquals(FreemiumService.FREEMIUM_QUERY_LIMIT + FreemiumService.REFERRAL_QUERY_BONUS,
-                dto.getQueryCreditsLimit());
+        // Referrer earns the reward...
+        assertEquals(0.25, referrer.getReferralBonusUsd());
+        verify(userRepository).save(referrer);
+        // ...the referee gets nothing.
+        assertEquals(0.0, u.getReferralBonusUsd());
+        assertEquals(0.0, dto.getReferralBonusUsd());
+    }
+
+    @Test
+    void referrerRewardStacksWithoutLimitAcrossRepeatReferrals() {
+        User u = freemiumUser();
+        when(userRepository.findById("u1")).thenReturn(Optional.of(u));
+        User referrer = User.builder().id("ref").email("r@x.com").referralCode("SKILL-REF")
+                .referralBonusUsd(1.50).build(); // already referred 6 people
+        when(userRepository.findByReferralCode("SKILL-REF")).thenReturn(Optional.of(referrer));
+
+        service.applyReferral("u1", "SKILL-REF");
+
+        assertEquals(1.75, referrer.getReferralBonusUsd());
+    }
+
+    @Test
+    void referrerRewardTreatsNullBonusAsZero() {
+        User u = freemiumUser();
+        when(userRepository.findById("u1")).thenReturn(Optional.of(u));
+        User referrer = User.builder().id("ref").email("r@x.com").referralCode("SKILL-REF").build();
+        referrer.setReferralBonusUsd(null);
+        when(userRepository.findByReferralCode("SKILL-REF")).thenReturn(Optional.of(referrer));
+
+        service.applyReferral("u1", "SKILL-REF");
+
+        assertEquals(0.25, referrer.getReferralBonusUsd());
     }
 
     @Test
@@ -224,12 +238,37 @@ class FreemiumServiceTest {
     }
 
     @Test
-    void applyReferralRejectsOwnCode() {
+    void applyReferralRejectsOwnCodeAndPaysNothing() {
         User u = freemiumUser();
         u.setReferralCode("SKILL-SELF");
         when(userRepository.findById("u1")).thenReturn(Optional.of(u));
         when(userRepository.findByReferralCode("SKILL-SELF")).thenReturn(Optional.of(u));
+
         assertThrows(IllegalArgumentException.class, () -> service.applyReferral("u1", "SKILL-SELF"));
+
+        assertEquals(0.0, u.getReferralBonusUsd());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    // ---------- referral code sharing requires a verified email ----------
+
+    @Test
+    void getReferralCodeRejectsUnverifiedEmail() {
+        User u = freemiumUser();
+        u.setEmailVerified(false);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(u));
+        assertThrows(ForbiddenException.class, () -> service.getReferralCode("u1"));
+
+        u.setEmailVerified(null);
+        assertThrows(ForbiddenException.class, () -> service.getReferralCode("u1"));
+    }
+
+    @Test
+    void getReferralCodeGeneratesForVerifiedUser() {
+        User u = freemiumUser();
+        when(userRepository.findById("u1")).thenReturn(Optional.of(u));
+        String code = service.getReferralCode("u1");
+        assertTrue(code.startsWith("SKILL-"));
     }
 
     // ---------- updateUserPlan ----------
@@ -240,7 +279,7 @@ class FreemiumServiceTest {
     }
 
     @Test
-    void updateUserPlanToPaidGrantsUnlimitedAndPremiumModules() {
+    void updateUserPlanToPaidGrantsPremiumModules() {
         User u = freemiumUser();
         u.setPhone("+919876543210");
         when(userRepository.findById("u1")).thenReturn(Optional.of(u));
@@ -248,70 +287,106 @@ class FreemiumServiceTest {
         FreemiumStatusDTO dto = service.updateUserPlan("u1", User.PlanTier.PAID);
 
         assertEquals(User.PlanTier.PAID, u.getPlanTier());
-        assertNull(u.getQueryCreditsLimit());
-        assertTrue(dto.getUnlimitedQueries());
         assertTrue(u.getEnabledModules().containsAll(FreemiumService.PREMIUM_MODULES));
+        // unlimitedQueries now mirrors wallet enforcement, not a query count
+        assertFalse(dto.getUnlimitedQueries());
     }
 
-    // ---------- adjustQueryCredits ----------
+    // ---------- adjustWalletBalance (USD) ----------
 
     @Test
-    void adjustCreditsRequiresReason() {
+    void adjustWalletRequiresReason() {
         CreditAdjustRequestDTO req = new CreditAdjustRequestDTO();
-        req.setDelta(100);
-        assertThrows(IllegalArgumentException.class, () -> service.adjustQueryCredits("u1", req, "admin"));
+        req.setDeltaUsd(2.0);
+        assertThrows(IllegalArgumentException.class, () -> service.adjustWalletBalance("u1", req, "admin"));
     }
 
     @Test
-    void adjustCreditsRejectsUnlimitedUser() {
-        User u = User.builder().id("u1").planTier(User.PlanTier.PAID).build();
+    void adjustWalletRejectsUnmeteredUser() {
+        User u = User.builder().id("u1").planTier(User.PlanTier.ENTERPRISE).build();
         when(userRepository.findById("u1")).thenReturn(Optional.of(u));
-        when(userRepository.findById("admin")).thenReturn(Optional.of(User.builder().id("admin").email("a@x.com").build()));
+        when(userRepository.findById("admin"))
+                .thenReturn(Optional.of(User.builder().id("admin").email("a@x.com").build()));
+        when(aiUsageService.isUnlimitedForBudget(u)).thenReturn(true);
         CreditAdjustRequestDTO req = new CreditAdjustRequestDTO();
-        req.setDelta(50);
+        req.setDeltaUsd(5.0);
         req.setReason("bonus");
-        assertThrows(IllegalStateException.class, () -> service.adjustQueryCredits("u1", req, "admin"));
+
+        assertThrows(IllegalStateException.class, () -> service.adjustWalletBalance("u1", req, "admin"));
     }
 
     @Test
-    void adjustCreditsPositiveDeltaRaisesLimitPreservingUsed() {
+    void adjustWalletPositiveDeltaTopsUpAndPersists() {
         User u = freemiumUser();
-        u.setQueryCreditsUsed(29);
-        u.setQueryCreditsLimit(50);
+        u.setReferralBonusUsd(0.25);
         when(userRepository.findById("u1")).thenReturn(Optional.of(u));
-        when(userRepository.findById("admin")).thenReturn(Optional.of(User.builder().id("admin").email("a@x.com").build()));
-        when(creditAdjustmentLogRepository.save(any(CreditAdjustmentLog.class))).thenAnswer(inv -> {
-            CreditAdjustmentLog l = inv.getArgument(0);
-            l.setId("log1");
-            return l;
-        });
+        when(userRepository.findById("admin"))
+                .thenReturn(Optional.of(User.builder().id("admin").email("a@x.com").build()));
+        when(aiUsageService.isUnlimitedForBudget(u)).thenReturn(false);
+        when(aiUsageService.resolveWalletBaseUsd(u)).thenReturn(0.50);
         CreditAdjustRequestDTO req = new CreditAdjustRequestDTO();
-        req.setDelta(100);
+        req.setDeltaUsd(2.0);
         req.setReason("promo");
 
-        CreditAdjustmentLogDTO dto = service.adjustQueryCredits("u1", req, "admin");
+        WalletAdjustResultDTO dto = service.adjustWalletBalance("u1", req, "admin");
 
-        assertEquals(150, u.getQueryCreditsLimit()); // 50 + 100
-        assertEquals(29, u.getQueryCreditsUsed());   // used preserved
-        assertEquals(29, dto.getBalanceAfterUsed());
-        assertEquals(150, dto.getLimitAfter());
+        assertEquals(2.50, u.getAiWalletLimitUsd()); // 0.50 + 2.00 persisted on the user
+        verify(userRepository).save(u);
+        assertEquals(0.50, dto.getWalletBeforeUsd());
+        assertEquals(2.50, dto.getWalletAfterUsd());
+        assertEquals(2.0, dto.getDeltaUsd());
+        // referral bonus untouched and stacked on top for enforcement
+        assertEquals(0.25, u.getReferralBonusUsd());
+        assertEquals(0.25, dto.getReferralBonusUsd());
+        assertEquals(2.75, dto.getEffectiveLimitUsd());
+        assertEquals("promo", dto.getReason());
     }
 
     @Test
-    void adjustCreditsNewLimitNeverBelowUsed() {
+    void adjustWalletNegativeDeltaNeverGoesBelowZero() {
         User u = freemiumUser();
-        u.setQueryCreditsUsed(40);
-        u.setQueryCreditsLimit(50);
         when(userRepository.findById("u1")).thenReturn(Optional.of(u));
-        when(userRepository.findById("admin")).thenReturn(Optional.of(User.builder().id("admin").email("a@x.com").build()));
-        when(creditAdjustmentLogRepository.save(any(CreditAdjustmentLog.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findById("admin"))
+                .thenReturn(Optional.of(User.builder().id("admin").email("a@x.com").build()));
+        when(aiUsageService.resolveWalletBaseUsd(u)).thenReturn(0.50);
         CreditAdjustRequestDTO req = new CreditAdjustRequestDTO();
-        req.setNewLimit(10); // below used 40
-        req.setReason("reduce");
+        req.setDeltaUsd(-10.0);
+        req.setReason("clawback");
 
-        service.adjustQueryCredits("u1", req, "admin");
+        WalletAdjustResultDTO dto = service.adjustWalletBalance("u1", req, "admin");
 
-        assertEquals(40, u.getQueryCreditsLimit()); // clamped to used
+        assertEquals(0.0, u.getAiWalletLimitUsd());
+        assertEquals(0.0, dto.getWalletAfterUsd());
+    }
+
+    @Test
+    void adjustWalletNewLimitSetsAbsoluteBase() {
+        User u = freemiumUser();
+        when(userRepository.findById("u1")).thenReturn(Optional.of(u));
+        when(userRepository.findById("admin"))
+                .thenReturn(Optional.of(User.builder().id("admin").email("a@x.com").build()));
+        when(aiUsageService.resolveWalletBaseUsd(u)).thenReturn(0.50);
+        CreditAdjustRequestDTO req = new CreditAdjustRequestDTO();
+        req.setNewLimitUsd(7.5);
+        req.setReason("manual override");
+
+        WalletAdjustResultDTO dto = service.adjustWalletBalance("u1", req, "admin");
+
+        assertEquals(7.5, u.getAiWalletLimitUsd());
+        assertEquals(7.5, dto.getWalletAfterUsd());
+    }
+
+    @Test
+    void adjustWalletMissingAdminThrowsNotFound() {
+        User u = freemiumUser();
+        when(userRepository.findById("u1")).thenReturn(Optional.of(u));
+        when(userRepository.findById("ghostAdmin")).thenReturn(Optional.empty());
+        CreditAdjustRequestDTO req = new CreditAdjustRequestDTO();
+        req.setDeltaUsd(1.0);
+        req.setReason("x");
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.adjustWalletBalance("u1", req, "ghostAdmin"));
     }
 
     @Test

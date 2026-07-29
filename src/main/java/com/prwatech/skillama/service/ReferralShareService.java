@@ -1,11 +1,15 @@
 package com.prwatech.skillama.service;
 
+import com.prwatech.common.exception.ForbiddenException;
 import com.prwatech.skillama.dto.ReferralShareConfigDTO;
 import com.prwatech.skillama.dto.UpdateReferralShareConfigDTO;
+import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.PlatformReferralShare;
 import com.prwatech.skillama.model.ReferralShareEvent;
+import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.PlatformReferralShareRepository;
 import com.prwatech.skillama.repository.ReferralShareEventRepository;
+import com.prwatech.skillama.repository.SkillamaUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -26,6 +30,7 @@ public class ReferralShareService {
 
     private final PlatformReferralShareRepository configRepository;
     private final ReferralShareEventRepository shareEventRepository;
+    private final SkillamaUserRepository userRepository;
     private final FreemiumService freemiumService;
 
     @Value("${skillama.app.public-url:https://skillama.co.in}")
@@ -58,6 +63,11 @@ public class ReferralShareService {
     }
 
     public Map<String, Object> getSharePayload(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+            throw new ForbiddenException("Verify your email before viewing your referral code");
+        }
         String code = freemiumService.getReferralCode(userId);
         String link = buildReferralLink(code);
         ReferralShareConfigDTO config = getPublicConfig();

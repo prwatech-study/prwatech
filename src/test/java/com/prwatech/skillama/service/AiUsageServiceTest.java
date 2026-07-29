@@ -130,6 +130,78 @@ class AiUsageServiceTest {
         assertThrows(AiBudgetLimitException.class, () -> service.assertWithinBudget(paid));
     }
 
+    // ---------- referral bonus stacks on top of whichever base applies ----------
+
+    @Test
+    void freemiumReferralBonusAddsToPlatformBudget() {
+        // $0.50 platform freemium budget + $0.25 referrer reward = $0.75 effective
+        User u = freemium(0.60);
+        u.setReferralBonusUsd(0.25);
+        service.assertWithinBudget(u); // 0.60 < 0.75 → no throw
+        assertTrue(service.isWithinBudget(u));
+
+        AiBudgetDTO dto = service.getAiBudget(u);
+        assertEquals(0.75, dto.getLimitUsd());
+        assertEquals(0.25, dto.getReferralBonusUsd());
+        assertEquals(0.15, dto.getRemainingUsd());
+        assertFalse(dto.getLimitReached());
+    }
+
+    @Test
+    void freemiumWithReferralBonusStillBlocksOnceCombinedLimitReached() {
+        User u = freemium(0.75);
+        u.setReferralBonusUsd(0.25);
+        AiBudgetLimitException ex = assertThrows(AiBudgetLimitException.class,
+                () -> service.assertWithinBudget(u));
+        assertEquals(0.75, ex.getAiCostLimitUsd());
+    }
+
+    @Test
+    void walletOverrideAndReferralBonusAddTogether() {
+        // aiWalletLimitUsd override ($18.75) + referral bonus ($0.50) = $19.25
+        User paid = User.builder().id("p").role(User.UserRole.USER).planTier(User.PlanTier.PAID)
+                .aiWalletLimitUsd(18.75).referralBonusUsd(0.50)
+                .aiCostPeriodStart(IndiaTime.now()).aiCostUsdThisPeriod(19.0).build();
+
+        service.assertWithinBudget(paid); // 19.00 < 19.25 → no throw
+        AiBudgetDTO dto = service.getAiBudget(paid);
+        assertEquals(19.25, dto.getLimitUsd());
+        assertEquals(0.50, dto.getReferralBonusUsd());
+        assertEquals(0.25, dto.getRemainingUsd());
+
+        // Without the bonus the same spend would already be over the wallet.
+        paid.setReferralBonusUsd(0.0);
+        assertThrows(AiBudgetLimitException.class, () -> service.assertWithinBudget(paid));
+    }
+
+    @Test
+    void nullReferralBonusIsTreatedAsZero() {
+        User u = freemium(0.2);
+        u.setReferralBonusUsd(null);
+        AiBudgetDTO dto = service.getAiBudget(u);
+        assertEquals(0.5, dto.getLimitUsd());
+        assertEquals(0.0, dto.getReferralBonusUsd());
+    }
+
+    // ---------- wallet base resolution (used by admin wallet adjustments) ----------
+
+    @Test
+    void resolveWalletBaseUsdExcludesReferralBonus() {
+        User u = freemium(0.0);
+        u.setReferralBonusUsd(1.25);
+        assertEquals(0.5, service.resolveWalletBaseUsd(u)); // platform freemium budget only
+
+        u.setAiWalletLimitUsd(9.0);
+        assertEquals(9.0, service.resolveWalletBaseUsd(u)); // wallet override wins as the base
+    }
+
+    @Test
+    void isUnlimitedForBudgetIsPubliclyQueryable() {
+        assertTrue(service.isUnlimitedForBudget(
+                User.builder().id("e").role(User.UserRole.USER).planTier(User.PlanTier.ENTERPRISE).build()));
+        assertFalse(service.isUnlimitedForBudget(freemium(0.0)));
+    }
+
     // ---------- getAiBudget ----------
 
     @Test

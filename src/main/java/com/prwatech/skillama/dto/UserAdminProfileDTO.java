@@ -26,8 +26,6 @@ public class UserAdminProfileDTO {
     private LocalDateTime createdAt;
     private LocalDateTime lastLoginAt;
     private int loginCount;
-    private Integer queryCreditsUsed;
-    private Integer queryCreditsLimit;
     private List<String> enabledModules;
     private String referralCode;
     private String referredBy;

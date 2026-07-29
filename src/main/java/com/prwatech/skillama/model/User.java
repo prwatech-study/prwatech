@@ -38,9 +38,6 @@ public class User {
     @Indexed(unique = true, sparse = true)
     private String referralCode;
     private String referredBy;
-    @Builder.Default
-    private Integer queryCreditsUsed = 0;
-    private Integer queryCreditsLimit;
 
     /** Accumulated Bedrock cost for the current calendar month (USD). */
     @Builder.Default
@@ -61,6 +58,13 @@ public class User {
      * Null = use platform freemium budget (Spark) or unlimited (ENTERPRISE / legacy PAID).
      */
     private Double aiWalletLimitUsd;
+
+    /**
+     * Permanent referral reward (USD) added on top of the effective AI wallet base.
+     * Earned by the REFERRER each time someone signs up with their code — stacks without limit.
+     */
+    @Builder.Default
+    private Double referralBonusUsd = 0.0;
 
     @Builder.Default
     private List<String> enabledModules = new ArrayList<>();

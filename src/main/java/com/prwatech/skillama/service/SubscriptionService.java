@@ -59,10 +59,9 @@ public class SubscriptionService {
                 SubscriptionPlan.builder()
                         .code(PLAN_SPARK)
                         .displayName("Spark")
-                        .description("Free tier with limited AI wallet and query credits.")
+                        .description("Free tier with a limited AI wallet.")
                         .priceInr(0)
                         .walletInr(null)
-                        .queryCreditsLimit(FreemiumService.FREEMIUM_QUERY_LIMIT)
                         .enabledModules(freemiumModules)
                         .sortOrder(0)
                         .active(true)
@@ -74,7 +73,6 @@ public class SubscriptionService {
                         .description("Entry paid plan — pay ₹999, get ₹1,500 AI wallet each month.")
                         .priceInr(999)
                         .walletInr(1500.0)
-                        .queryCreditsLimit(null)
                         .enabledModules(premiumModules)
                         .sortOrder(1)
                         .active(true)
@@ -86,7 +84,6 @@ public class SubscriptionService {
                         .description("Mid tier — pay ₹4,999, get ₹7,500 AI wallet each month.")
                         .priceInr(4999)
                         .walletInr(7500.0)
-                        .queryCreditsLimit(null)
                         .enabledModules(premiumModules)
                         .sortOrder(2)
                         .active(true)
@@ -98,7 +95,6 @@ public class SubscriptionService {
                         .description("Top tier — pay ₹9,999, get ₹15,000 AI wallet each month.")
                         .priceInr(9999)
                         .walletInr(15000.0)
-                        .queryCreditsLimit(null)
                         .enabledModules(premiumModules)
                         .sortOrder(3)
                         .active(true)
@@ -272,11 +268,6 @@ public class SubscriptionService {
                 plan.getEnabledModules() != null && !plan.getEnabledModules().isEmpty()
                         ? plan.getEnabledModules()
                         : FreemiumService.PREMIUM_MODULES));
-        if (plan.getQueryCreditsLimit() == null) {
-            user.setQueryCreditsLimit(null);
-        } else {
-            user.setQueryCreditsLimit(plan.getQueryCreditsLimit());
-        }
 
         if (plan.getWalletInr() != null && plan.getWalletInr() > 0) {
             double rate = usdInrExchangeRateService.getUsdToInrRate();
@@ -321,14 +312,17 @@ public class SubscriptionService {
     }
 
     private SubscriptionPlanDTO toPlanDto(SubscriptionPlan plan) {
-        boolean unlimitedQueries = plan.getQueryCreditsLimit() == null;
+        // Wallet-derived: a plan is unmetered only for ENTERPRISE, or PAID with no wallet
+        // allocation — mirroring AiUsageService.isUnlimitedForBudget at the plan level.
+        boolean unlimitedQueries = plan.getPlanTier() == User.PlanTier.ENTERPRISE
+                || (plan.getPlanTier() == User.PlanTier.PAID
+                        && (plan.getWalletInr() == null || plan.getWalletInr() <= 0));
         return SubscriptionPlanDTO.builder()
                 .code(plan.getCode())
                 .displayName(plan.getDisplayName())
                 .description(plan.getDescription())
                 .priceInr(plan.getPriceInr())
                 .walletInr(plan.getWalletInr())
-                .queryCreditsLimit(plan.getQueryCreditsLimit())
                 .unlimitedQueries(unlimitedQueries)
                 .enabledModules(plan.getEnabledModules())
                 .sortOrder(plan.getSortOrder())

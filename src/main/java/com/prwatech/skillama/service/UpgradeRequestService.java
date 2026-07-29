@@ -52,12 +52,6 @@ public class UpgradeRequestService {
                 .planTier(request != null && request.getPlanTier() != null
                         ? request.getPlanTier()
                         : user.getPlanTier())
-                .queryCreditsUsed(request != null && request.getQueryCreditsUsed() != null
-                        ? request.getQueryCreditsUsed()
-                        : user.getQueryCreditsUsed())
-                .queryCreditsLimit(request != null && request.getQueryCreditsLimit() != null
-                        ? request.getQueryCreditsLimit()
-                        : user.getQueryCreditsLimit())
                 .message(request != null ? request.getMessage() : null)
                 .status(UpgradeRequest.RequestStatus.NEW)
                 .createdAt(IndiaTime.now())
@@ -77,7 +71,6 @@ public class UpgradeRequestService {
                 + "Phone: " + (user.getPhone() != null ? user.getPhone() : "—") + "\n"
                 + "Source: " + entry.getSource() + "\n"
                 + "Course: " + (entry.getCourseName() != null ? entry.getCourseName() : "—") + "\n"
-                + "Credits: " + entry.getQueryCreditsUsed() + " / " + entry.getQueryCreditsLimit() + "\n"
                 + "Request ID: " + entry.getId() + "\n"
                 + "Contact: " + platformConfigService.getUpgradeContactEmail() + "\n";
         try {
@@ -130,8 +123,6 @@ public class UpgradeRequestService {
                 .courseId(r.getCourseId())
                 .courseName(r.getCourseName())
                 .planTier(r.getPlanTier())
-                .queryCreditsUsed(r.getQueryCreditsUsed())
-                .queryCreditsLimit(r.getQueryCreditsLimit())
                 .message(r.getMessage())
                 .status(r.getStatus())
                 .notes(r.getNotes())

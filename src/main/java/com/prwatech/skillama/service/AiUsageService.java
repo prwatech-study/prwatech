@@ -259,6 +259,7 @@ public class AiUsageService {
             return AiBudgetDTO.builder()
                     .unlimited(true)
                     .limitReached(false)
+                    .referralBonusUsd(user != null ? round(referralBonusUsd(user)) : null)
                     .build();
         }
         resetPeriodIfNeeded(user);
@@ -272,6 +273,7 @@ public class AiUsageService {
                 .usedInr(round(usedUsd * rate))
                 .limitInr(round(limitUsd * rate))
                 .remainingInr(round(remainingUsd * rate))
+                .referralBonusUsd(round(referralBonusUsd(user)))
                 .unlimited(false)
                 .limitReached(usedUsd >= limitUsd)
                 .build();
@@ -454,7 +456,7 @@ public class AiUsageService {
      * Spark / freemium uses platform freemiumMonthlyBudgetUsdPerUser.
      * ENTERPRISE, admin roles, legacy null tier, and legacy PAID without a wallet stay unlimited.
      */
-    private boolean isUnlimitedForBudget(User user) {
+    public boolean isUnlimitedForBudget(User user) {
         if (user.getEffectiveRole() == User.UserRole.ADMIN
                 || user.getEffectiveRole() == User.UserRole.OWNER) {
             return true;
@@ -474,10 +476,24 @@ public class AiUsageService {
     }
 
     private double resolveBudgetLimitUsd(User user, PlatformAiSettings settings) {
-        if (user.getAiWalletLimitUsd() != null && user.getAiWalletLimitUsd() > 0) {
-            return user.getAiWalletLimitUsd();
-        }
-        return settings.getFreemiumMonthlyBudgetUsdPerUser();
+        double base = (user.getAiWalletLimitUsd() != null && user.getAiWalletLimitUsd() > 0)
+                ? user.getAiWalletLimitUsd() : settings.getFreemiumMonthlyBudgetUsdPerUser();
+        double bonus = referralBonusUsd(user);
+        return base + bonus;
+    }
+
+    /**
+     * Effective wallet BASE in USD, excluding the referral bonus — the paid-plan wallet when set,
+     * otherwise the platform freemium per-user budget. Used by admin wallet adjustments.
+     */
+    public double resolveWalletBaseUsd(User user) {
+        PlatformAiSettings settings = loadSettings();
+        return (user.getAiWalletLimitUsd() != null && user.getAiWalletLimitUsd() > 0)
+                ? user.getAiWalletLimitUsd() : settings.getFreemiumMonthlyBudgetUsdPerUser();
+    }
+
+    private double referralBonusUsd(User user) {
+        return user.getReferralBonusUsd() != null ? user.getReferralBonusUsd() : 0.0;
     }
 
     /**
