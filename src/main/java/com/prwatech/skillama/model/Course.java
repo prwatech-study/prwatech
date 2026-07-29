@@ -39,6 +39,14 @@ public class Course {
     /** When false, the course is hidden from learners and not available for assignment. Distinct from archive (deletedAt). */
     @Builder.Default
     private Boolean active = Boolean.TRUE;
+    /**
+     * When false, the course is hidden from the registration/signup course picker only —
+     * it remains assignable by admins and fully usable by already-enrolled learners.
+     * Invariant enforced in CourseService: can only be true when active is also true
+     * (a course visible at registration must always be assignable).
+     */
+    @Builder.Default
+    private Boolean registrationEligible = Boolean.TRUE;
     /** When set, course is hidden from learners and admins; only Owner can restore. */
     private java.time.LocalDateTime deletedAt;
     private String deletedBy;

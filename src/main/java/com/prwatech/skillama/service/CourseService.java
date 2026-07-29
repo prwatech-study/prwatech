@@ -52,6 +52,18 @@ public class CourseService {
         return isActive(course) && !Boolean.FALSE.equals(course.getActive());
     }
 
+    /**
+     * A course can only be registrationEligible while it is active — registration
+     * visibility is a subset of assignability, never the reverse. Called from every
+     * create/update path so the invalid combination (active=false, registrationEligible=true)
+     * can never be persisted, regardless of what the caller submitted.
+     */
+    private static void normalizeRegistrationEligibility(Course course) {
+        if (Boolean.FALSE.equals(course.getActive())) {
+            course.setRegistrationEligible(Boolean.FALSE);
+        }
+    }
+
     private static Criteria activeCourseCriteria() {
         return new Criteria().orOperator(
                 Criteria.where("deletedAt").is(null),
@@ -67,6 +79,10 @@ public class CourseService {
         if (course.getActive() == null) {
             course.setActive(Boolean.TRUE);
         }
+        if (course.getRegistrationEligible() == null) {
+            course.setRegistrationEligible(Boolean.TRUE);
+        }
+        normalizeRegistrationEligibility(course);
         return courseRepository.save(course);
     }
 
@@ -131,6 +147,10 @@ public class CourseService {
             if (updated.getActive() != null) {
                 existing.setActive(updated.getActive());
             }
+            if (updated.getRegistrationEligible() != null) {
+                existing.setRegistrationEligible(updated.getRegistrationEligible());
+            }
+            normalizeRegistrationEligibility(existing);
             existing.setUpdatedAt(IndiaTime.now());
             return courseRepository.save(existing);
         }).orElse(null);
