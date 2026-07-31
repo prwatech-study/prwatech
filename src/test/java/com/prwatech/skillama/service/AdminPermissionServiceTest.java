@@ -243,4 +243,121 @@ class AdminPermissionServiceTest {
         when(userRepository.findById("learner")).thenReturn(Optional.of(learner()));
         assertThrows(IllegalArgumentException.class, () -> service.getAdminUserPermissions("learner"));
     }
+
+    // ---------- TESTER role ----------
+
+    @Test
+    void testerOnlyEverGrantedCoursesOrCurriculum() {
+        User tester = testerWithGrants(
+                AdminModulePermission.builder().module(AdminModule.COURSES)
+                        .canRead(true).canCreate(true).canUpdate(true).canDelete(true).build(),
+                AdminModulePermission.builder().module(AdminModule.CURRICULUM)
+                        .canRead(true).canCreate(true).canUpdate(true).canDelete(true).build());
+
+        assertTrue(service.hasPermission(tester, AdminModule.COURSES, AdminPermissionAction.CREATE));
+        assertTrue(service.hasPermission(tester, AdminModule.CURRICULUM, AdminPermissionAction.UPDATE));
+    }
+
+    @Test
+    void testerDeniedOnNonAllowedModuleEvenIfSomehowGranted() {
+        // Defense in depth: a bad/legacy grant for a non-Courses/Curriculum module must never work for TESTER.
+        User tester = testerWithGrants(
+                AdminModulePermission.builder().module(AdminModule.USERS)
+                        .canRead(true).canCreate(true).canUpdate(true).canDelete(true).build());
+
+        assertFalse(service.hasPermission(tester, AdminModule.USERS, AdminPermissionAction.READ));
+        assertFalse(service.hasPermission(tester, AdminModule.DASHBOARD, AdminPermissionAction.READ));
+        assertFalse(service.hasPermission(tester, AdminModule.ANALYTICS, AdminPermissionAction.READ));
+    }
+
+    @Test
+    void testerWithNoGrantAtAllHasNoAccess() {
+        User tester = testerWithGrants();
+        assertFalse(service.hasPermission(tester, AdminModule.COURSES, AdminPermissionAction.READ));
+        assertFalse(service.hasPermission(tester, AdminModule.CURRICULUM, AdminPermissionAction.READ));
+    }
+
+    @Test
+    void testerNeverUsesLegacyFullAccess() {
+        // TESTER must always need an explicit grant — no implicit full-access default like legacy ADMIN.
+        assertFalse(service.usesLegacyFullAccess(testerWithGrants()));
+    }
+
+    @Test
+    void requirePermissionAllowsTesterWithGrant() {
+        User tester = testerWithGrants(
+                AdminModulePermission.builder().module(AdminModule.CURRICULUM).canRead(true).canUpdate(true).build());
+        when(userRepository.findById("tester")).thenReturn(Optional.of(tester));
+        service.requirePermission("tester", AdminModule.CURRICULUM, AdminPermissionAction.UPDATE); // no throw
+    }
+
+    @Test
+    void requirePermissionRejectsTesterWithoutGrant() {
+        User tester = testerWithGrants();
+        when(userRepository.findById("tester")).thenReturn(Optional.of(tester));
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.requirePermission("tester", AdminModule.COURSES, AdminPermissionAction.READ));
+        assertTrue(ex.getMessage().contains("Insufficient permission"));
+    }
+
+    @Test
+    void requirePermissionRejectsTesterOnAdminOnlyModule() {
+        User tester = testerWithGrants(
+                AdminModulePermission.builder().module(AdminModule.USERS)
+                        .canRead(true).canCreate(true).canUpdate(true).canDelete(true).build());
+        when(userRepository.findById("tester")).thenReturn(Optional.of(tester));
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.requirePermission("tester", AdminModule.USERS, AdminPermissionAction.READ));
+        assertTrue(ex.getMessage().contains("Insufficient permission"));
+    }
+
+    @Test
+    void resolveEffectivePermissionsForTesterOnlyReflectsAllowedModules() {
+        User tester = testerWithGrants(
+                AdminModulePermission.builder().module(AdminModule.COURSES).canRead(true).build(),
+                // Even if a USERS grant were ever persisted, it must not surface as effective access.
+                AdminModulePermission.builder().module(AdminModule.USERS).canRead(true).build());
+        List<AdminModulePermissionDTO> perms = service.resolveEffectivePermissions(tester);
+
+        AdminModulePermissionDTO courses = perms.stream()
+                .filter(p -> p.getModule().equals(AdminModule.COURSES.name())).findFirst().orElseThrow();
+        assertTrue(courses.isCanRead());
+
+        AdminModulePermissionDTO users = perms.stream()
+                .filter(p -> p.getModule().equals(AdminModule.USERS.name())).findFirst().orElseThrow();
+        assertFalse(users.isCanRead());
+
+        AdminModulePermissionDTO dashboard = perms.stream()
+                .filter(p -> p.getModule().equals(AdminModule.DASHBOARD.name())).findFirst().orElseThrow();
+        assertFalse(dashboard.isCanRead()); // unlike ADMIN, TESTER never gets forced dashboard read
+    }
+
+    @Test
+    void updatePermissionsForTesterSilentlyDropsNonAllowedModules() {
+        when(userRepository.findById("owner")).thenReturn(Optional.of(owner()));
+        User target = User.builder().id("target").role(User.UserRole.TESTER)
+                .adminModulePermissions(new ArrayList<>()).build();
+        when(userRepository.findById("target")).thenReturn(Optional.of(target));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdateAdminPermissionsRequestDTO body = new UpdateAdminPermissionsRequestDTO();
+        body.setPermissions(List.of(
+                AdminModulePermissionDTO.builder().module("CURRICULUM").canRead(true).canUpdate(true).build(),
+                // Owner-mistake or malicious payload: USERS must never stick for a TESTER.
+                AdminModulePermissionDTO.builder().module("USERS").canRead(true).canDelete(true).build()));
+
+        service.updateAdminUserPermissions("target", body, "owner");
+
+        List<AdminModulePermission> saved = target.getAdminModulePermissions();
+        assertEquals(1, saved.size());
+        assertEquals(AdminModule.CURRICULUM, saved.get(0).getModule());
+    }
+
+    @Test
+    void listAdminUsersForOwnerIncludesTesters() {
+        when(userRepository.findAll()).thenReturn(List.of(legacyAdmin(), testerWithGrants(), learner(), owner()));
+        List<AdminUserPermissionsDTO> result = service.listAdminUsersForOwner();
+        assertEquals(2, result.size()); // admin + tester, learner and owner excluded
+        assertTrue(result.stream().anyMatch(u -> "TESTER".equals(u.getRole())));
+    }
 }
