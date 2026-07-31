@@ -28,7 +28,7 @@ public class User {
     private GenderEnum gender;
 
     @Indexed
-    private UserRole role; // USER, ADMIN, OWNER (defaults to USER)
+    private UserRole role; // USER, ADMIN, OWNER, TESTER (defaults to USER)
 
     private PlanTier planTier;
     private String phone;
@@ -103,7 +103,7 @@ public class User {
     }
 
     public enum UserRole {
-        USER, ADMIN, OWNER
+        USER, ADMIN, OWNER, TESTER
     }
 
     /** Null/missing role in Mongo is treated as learner (USER). */

@@ -182,7 +182,9 @@ public class CourseCurriculumController {
             }
             String email = jwtUtils.extractUsername(header.substring(7));
             User user = userService.findByEmail(email).orElse(null);
-            if (user == null || (user.getRole() != User.UserRole.ADMIN && user.getRole() != User.UserRole.OWNER)) {
+            if (user == null || (user.getRole() != User.UserRole.ADMIN
+                    && user.getRole() != User.UserRole.OWNER
+                    && user.getRole() != User.UserRole.TESTER)) {
                 return Optional.empty();
             }
             return Optional.of(user.getId());
@@ -195,7 +197,9 @@ public class CourseCurriculumController {
         String userId = skillamaAuthSupport.resolveUserIdFromRequest(request);
         User user = userService.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        if (user.getRole() != User.UserRole.ADMIN && user.getRole() != User.UserRole.OWNER) {
+        if (user.getRole() != User.UserRole.ADMIN
+                && user.getRole() != User.UserRole.OWNER
+                && user.getRole() != User.UserRole.TESTER) {
             throw new RuntimeException("Admin access required");
         }
         return userId;

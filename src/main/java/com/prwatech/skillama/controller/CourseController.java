@@ -283,7 +283,9 @@ public class CourseController {
         try {
             String email = jwtUtils.extractUsername(authHeader.substring(7));
             return userService.findByEmail(email)
-                    .map(user -> user.getRole() == User.UserRole.ADMIN || user.getRole() == User.UserRole.OWNER)
+                    .map(user -> user.getRole() == User.UserRole.ADMIN
+                            || user.getRole() == User.UserRole.OWNER
+                            || user.getRole() == User.UserRole.TESTER)
                     .orElse(false);
         } catch (Exception e) {
             return false;

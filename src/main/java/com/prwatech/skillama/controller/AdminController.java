@@ -79,6 +79,7 @@ public class AdminController {
     private final UserProfileService userProfileService;
     private final ProgressReconciliationService progressReconciliationService;
     private final SkillamaAuthSupport skillamaAuthSupport;
+    private final com.prwatech.skillama.service.DoubtService doubtService;
 
     // ========== Authentication & Authorization ==========
     
@@ -1301,6 +1302,27 @@ public class AdminController {
             assertModulePermission(request, AdminModule.CHAT_MONITOR, AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     userProfileService.listAdminChatInteractions(page, size, userId, courseId, email)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * Monitor AI Mentor doubts (question, latest AI answer, course, status, time).
+     */
+    @GetMapping("/ai-mentor-doubts")
+    public ResponseEntity<ApiResponse<Page<AdminAiMentorDoubtDTO>>> listAiMentorDoubts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) String courseId,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) com.prwatech.skillama.model.DoubtStatus status,
+            HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.AI_MENTOR_DOUBTS, AdminPermissionAction.READ);
+            return ResponseEntity.ok(new ApiResponse<>(200,
+                    doubtService.listAdminDoubts(page, size, userId, courseId, email, status)));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }

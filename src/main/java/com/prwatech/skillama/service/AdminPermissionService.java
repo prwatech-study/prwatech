@@ -44,6 +44,23 @@ public class AdminPermissionService {
         if (user.getRole() == User.UserRole.OWNER) {
             return fullAccessDtoList();
         }
+        if (user.getRole() == User.UserRole.TESTER) {
+            Map<AdminModule, AdminModulePermissionDTO> testerMap = new EnumMap<>(AdminModule.class);
+            for (AdminModule module : AdminModule.values()) {
+                testerMap.put(module, emptyPermissionDto(module));
+            }
+            List<AdminModulePermission> grants = user.getAdminModulePermissions();
+            if (grants != null) {
+                for (AdminModulePermission grant : grants) {
+                    if (grant == null || grant.getModule() == null
+                            || !TESTER_ALLOWED_MODULES.contains(grant.getModule())) {
+                        continue;
+                    }
+                    testerMap.put(grant.getModule(), toDto(grant));
+                }
+            }
+            return new ArrayList<>(testerMap.values());
+        }
         if (user.getRole() != User.UserRole.ADMIN) {
             return List.of();
         }
@@ -66,12 +83,31 @@ public class AdminPermissionService {
         return new ArrayList<>(map.values());
     }
 
+    /** Modules a TESTER can ever be granted, regardless of what's stored on the user. */
+    private static final java.util.Set<AdminModule> TESTER_ALLOWED_MODULES =
+            java.util.EnumSet.of(AdminModule.COURSES, AdminModule.CURRICULUM);
+
     public boolean hasPermission(User user, AdminModule module, AdminPermissionAction action) {
         if (user == null) {
             return false;
         }
         if (user.getRole() == User.UserRole.OWNER) {
             return true;
+        }
+        if (user.getRole() == User.UserRole.TESTER) {
+            if (!TESTER_ALLOWED_MODULES.contains(module)) {
+                return false;
+            }
+            AdminModulePermission grant = findGrant(user, module);
+            if (grant == null) {
+                return false;
+            }
+            return switch (action) {
+                case READ -> grant.isCanRead();
+                case CREATE -> grant.isCanCreate();
+                case UPDATE -> grant.isCanUpdate();
+                case DELETE -> grant.isCanDelete();
+            };
         }
         if (user.getRole() != User.UserRole.ADMIN) {
             return false;
@@ -97,7 +133,9 @@ public class AdminPermissionService {
     public void requirePermission(String userId, AdminModule module, AdminPermissionAction action) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        if (user.getRole() != User.UserRole.ADMIN && user.getRole() != User.UserRole.OWNER) {
+        if (user.getRole() != User.UserRole.ADMIN
+                && user.getRole() != User.UserRole.OWNER
+                && user.getRole() != User.UserRole.TESTER) {
             throw new RuntimeException("Admin access required");
         }
         if (!hasPermission(user, module, action)) {
@@ -117,7 +155,7 @@ public class AdminPermissionService {
 
     public List<AdminUserPermissionsDTO> listAdminUsersForOwner() {
         return userRepository.findAll().stream()
-                .filter(u -> u.getRole() == User.UserRole.ADMIN)
+                .filter(u -> u.getRole() == User.UserRole.ADMIN || u.getRole() == User.UserRole.TESTER)
                 .map(this::toAdminUserPermissionsDto)
                 .collect(Collectors.toList());
     }
@@ -125,8 +163,8 @@ public class AdminPermissionService {
     public AdminUserPermissionsDTO getAdminUserPermissions(String targetUserId) {
         User user = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        if (user.getRole() != User.UserRole.ADMIN) {
-            throw new IllegalArgumentException("Permissions can only be managed for ADMIN users");
+        if (user.getRole() != User.UserRole.ADMIN && user.getRole() != User.UserRole.TESTER) {
+            throw new IllegalArgumentException("Permissions can only be managed for ADMIN or TESTER users");
         }
         return toAdminUserPermissionsDto(user);
     }
@@ -139,10 +177,15 @@ public class AdminPermissionService {
         requireOwner(ownerUserId);
         User user = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        if (user.getRole() != User.UserRole.ADMIN) {
-            throw new IllegalArgumentException("Permissions can only be assigned to ADMIN users");
+        if (user.getRole() != User.UserRole.ADMIN && user.getRole() != User.UserRole.TESTER) {
+            throw new IllegalArgumentException("Permissions can only be assigned to ADMIN or TESTER users");
         }
         List<AdminModulePermission> normalized = normalizeIncoming(body != null ? body.getPermissions() : null);
+        if (user.getRole() == User.UserRole.TESTER) {
+            normalized = normalized.stream()
+                    .filter(p -> TESTER_ALLOWED_MODULES.contains(p.getModule()))
+                    .collect(Collectors.toList());
+        }
         user.setAdminModulePermissions(normalized);
         user.setUpdatedAt(IndiaTime.now());
         user.setUpdatedBy(ownerUserId);
@@ -273,6 +316,8 @@ public class AdminPermissionService {
             case SUPPORT -> "Support";
             case CHAT_MONITOR -> "AI chat monitor";
             case AI_USAGE -> "Money usage (AI usage)";
+            case TESTER_EVALUATIONS -> "Tester evaluations";
+            case AI_MENTOR_DOUBTS -> "AI Mentor doubts";
         };
     }
 }

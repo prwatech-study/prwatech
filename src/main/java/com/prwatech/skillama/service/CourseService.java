@@ -242,6 +242,7 @@ public class CourseService {
     // When fetching modules for a course, sort by 'order' field
     public List<CourseCurriculum> getCurriculumByCourseIdOrdered(String courseId) {
         List<CourseCurriculum> curriculum = curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
+        backfillSubmoduleIds(curriculum);
         applyPracticalScriptIntegrityWarnings(curriculum);
         return curriculum;
     }
@@ -253,6 +254,7 @@ public class CourseService {
 
     public List<CourseCurriculum> getCurriculumByCourseIdOrdered(String courseId, boolean guestAccess, boolean forAdmin) {
         List<CourseCurriculum> curriculum = curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
+        backfillSubmoduleIds(curriculum);
         if (forAdmin) {
             applyPracticalScriptIntegrityWarnings(curriculum);
             return curriculum;
@@ -531,12 +533,38 @@ public class CourseService {
         return findPublicCourses().stream().findFirst();
     }
 
+    /** Mints a stable id for any submodule that predates the id field, persisting the backfill. */
+    private void backfillSubmoduleIds(List<CourseCurriculum> curriculum) {
+        if (curriculum == null) {
+            return;
+        }
+        for (CourseCurriculum module : curriculum) {
+            List<CourseCurriculum.Submodule> subs = module.getSubmodules();
+            if (subs == null || subs.isEmpty()) {
+                continue;
+            }
+            boolean changed = false;
+            for (CourseCurriculum.Submodule sub : subs) {
+                if (!org.springframework.util.StringUtils.hasText(sub.getId())) {
+                    sub.setId(java.util.UUID.randomUUID().toString());
+                    changed = true;
+                }
+            }
+            if (changed) {
+                curriculumRepository.save(module);
+            }
+        }
+    }
+
     // --- SUBMODULE MANAGEMENT ---
     public CourseCurriculum addSubmodule(String moduleId, CourseCurriculum.Submodule submodule) {
         return curriculumRepository.findById(moduleId).map(module -> {
             validatePracticalSubmoduleScript(submodule);
             if (submodule.getEnabled() == null) {
                 submodule.setEnabled(true);
+            }
+            if (!org.springframework.util.StringUtils.hasText(submodule.getId())) {
+                submodule.setId(java.util.UUID.randomUUID().toString());
             }
             List<CourseCurriculum.Submodule> list = module.getSubmodules();
             if (list == null) list = new java.util.ArrayList<>();
@@ -552,6 +580,12 @@ public class CourseService {
             validatePracticalSubmoduleScript(updatedSubmodule);
             List<CourseCurriculum.Submodule> list = module.getSubmodules();
             if (list != null && submoduleIdx >= 0 && submoduleIdx < list.size()) {
+                // Id is server-owned and immutable — always carry forward the existing one (or mint it if this
+                // submodule predates the id field), regardless of what the update request body contains.
+                String existingId = list.get(submoduleIdx).getId();
+                updatedSubmodule.setId(org.springframework.util.StringUtils.hasText(existingId)
+                        ? existingId
+                        : java.util.UUID.randomUUID().toString());
                 list.set(submoduleIdx, updatedSubmodule);
                 module.setSubmodules(list);
                 module.setUpdatedAt(IndiaTime.now());

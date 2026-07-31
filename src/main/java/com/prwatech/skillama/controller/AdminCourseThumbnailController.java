@@ -307,8 +307,10 @@ public class AdminCourseThumbnailController {
         String userId = extractUserIdFromRequest(request);
         User user = userService.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        if (user.getRole() != User.UserRole.ADMIN && user.getRole() != User.UserRole.OWNER) {
-            throw new RuntimeException("Access denied. ADMIN or OWNER role required.");
+        if (user.getRole() != User.UserRole.ADMIN
+                && user.getRole() != User.UserRole.OWNER
+                && user.getRole() != User.UserRole.TESTER) {
+            throw new RuntimeException("Access denied. ADMIN, OWNER, or TESTER role required.");
         }
         return userId;
     }

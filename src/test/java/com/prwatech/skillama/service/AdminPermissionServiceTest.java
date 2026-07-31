@@ -59,6 +59,11 @@ class AdminPermissionServiceTest {
                 .adminModulePermissions(new ArrayList<>()).build();
     }
 
+    private User testerWithGrants(AdminModulePermission... grants) {
+        return User.builder().id("tester").role(User.UserRole.TESTER)
+                .adminModulePermissions(new ArrayList<>(List.of(grants))).build();
+    }
+
     // ---------- usesLegacyFullAccess ----------
 
     @Test

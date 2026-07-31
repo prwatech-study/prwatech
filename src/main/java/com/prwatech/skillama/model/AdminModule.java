@@ -20,5 +20,7 @@ public enum AdminModule {
     SETTINGS_NOTIFICATIONS,
     SUPPORT,
     CHAT_MONITOR,
-    AI_USAGE
+    AI_USAGE,
+    TESTER_EVALUATIONS,
+    AI_MENTOR_DOUBTS
 }

@@ -25,9 +25,12 @@ public class UserCourseAccessService {
     private final UserCourseProgressRepository progressRepository;
     private final SkillamaUserRepository userRepository;
 
+    /** Also true for TESTER — testers need full course-view access to exercise the player, same as admin/owner. */
     public boolean isAdminOrOwner(String userId) {
         return userRepository.findById(userId)
-                .map(u -> u.getRole() == User.UserRole.ADMIN || u.getRole() == User.UserRole.OWNER)
+                .map(u -> u.getRole() == User.UserRole.ADMIN
+                        || u.getRole() == User.UserRole.OWNER
+                        || u.getRole() == User.UserRole.TESTER)
                 .orElse(false);
     }
 

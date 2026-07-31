@@ -99,12 +99,24 @@ public class AdminService {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         
-        if (user.getRole() != User.UserRole.ADMIN && user.getRole() != User.UserRole.OWNER) {
+        if (user.getRole() != User.UserRole.ADMIN
+                && user.getRole() != User.UserRole.OWNER
+                && user.getRole() != User.UserRole.TESTER) {
             return AdminAccessDTO.builder()
                 .hasAccess(false)
                 .role(user.getRole() != null ? user.getRole().name() : "USER")
                 .permissions(new ArrayList<>())
                 .modulePermissions(new ArrayList<>())
+                .legacyFullAccess(false)
+                .build();
+        }
+
+        if (user.getRole() == User.UserRole.TESTER) {
+            return AdminAccessDTO.builder()
+                .hasAccess(true)
+                .role(user.getRole().name())
+                .permissions(getPermissions(user.getRole()))
+                .modulePermissions(adminPermissionService.resolveEffectivePermissions(user))
                 .legacyFullAccess(false)
                 .build();
         }
@@ -1017,8 +1029,10 @@ public class AdminService {
                 "CREATE_COURSE", "MANAGE_COURSES", "MANAGE_CURRICULUM",
                 "ASSIGN_COURSES", "VIEW_ANALYTICS", "SYSTEM_SETTINGS"
             ));
+        } else if (role == User.UserRole.TESTER) {
+            permissions.addAll(Arrays.asList("CREATE_COURSE", "MANAGE_COURSES", "MANAGE_CURRICULUM"));
         }
-        
+
         return permissions;
     }
 }

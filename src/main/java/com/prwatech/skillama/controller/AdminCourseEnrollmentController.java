@@ -8,6 +8,7 @@ import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserCourseEnrollment;
 import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.UserCourseEnrollmentRepository;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.service.UserCourseService;
 import com.prwatech.skillama.service.UserService;
 import io.swagger.annotations.ApiImplicitParam;
@@ -19,24 +20,27 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Admin controller for course enrollment management
- * Note: In production, add @PreAuthorize("hasRole('ADMIN')") or similar security
+ * Admin controller for course enrollment management.
+ * Restricted to ADMIN, OWNER, and TESTER — these endpoints can bulk-enroll every
+ * user into every course, so they must never be reachable without a role check.
  */
 @RestController
 @RequestMapping("/skillama/api/admin/courses")
 @RequiredArgsConstructor
 public class AdminCourseEnrollmentController {
-    
+
     private final UserCourseService userCourseService;
     private final UserService userService;
     private final CourseRepository courseRepository;
     private final UserCourseEnrollmentRepository enrollmentRepository;
+    private final SkillamaAuthSupport skillamaAuthSupport;
     
     /**
      * Enroll a specific user to a specific course (Admin)
@@ -62,7 +66,13 @@ public class AdminCourseEnrollmentController {
     public ResponseEntity<ApiResponse<UserCourseEnrollment>> enrollUserToCourse(
             @PathVariable String courseId,
             @PathVariable String userId,
-            @RequestParam(required = false) UserCourseEnrollment.EnrollmentType enrollmentType) {
+            @RequestParam(required = false) UserCourseEnrollment.EnrollmentType enrollmentType,
+            HttpServletRequest request) {
+        try {
+            verifyAccess(request);
+        } catch (RuntimeException e) {
+            return accessDeniedResponse(e);
+        }
         try {
             UserCourseEnrollment enrollment = userCourseService.enrollUserToCourse(
                 userId, 
@@ -102,7 +112,13 @@ public class AdminCourseEnrollmentController {
     @PostMapping("/{courseId}/enroll-all")
     public ResponseEntity<ApiResponse<Map<String, Object>>> enrollAllUsersToCourse(
             @PathVariable String courseId,
-            @RequestParam(required = false) UserCourseEnrollment.EnrollmentType enrollmentType) {
+            @RequestParam(required = false) UserCourseEnrollment.EnrollmentType enrollmentType,
+            HttpServletRequest request) {
+        try {
+            verifyAccess(request);
+        } catch (RuntimeException e) {
+            return accessDeniedResponse(e);
+        }
         try {
             // Verify course exists
             Course course = courseRepository.findById(courseId)
@@ -176,7 +192,13 @@ public class AdminCourseEnrollmentController {
     @PostMapping("/enroll-all/{userId}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> enrollUserToAllCourses(
             @PathVariable String userId,
-            @RequestParam(required = false) UserCourseEnrollment.EnrollmentType enrollmentType) {
+            @RequestParam(required = false) UserCourseEnrollment.EnrollmentType enrollmentType,
+            HttpServletRequest request) {
+        try {
+            verifyAccess(request);
+        } catch (RuntimeException e) {
+            return accessDeniedResponse(e);
+        }
         try {
             // Verify user exists
             User user = userService.findById(userId)
@@ -249,7 +271,13 @@ public class AdminCourseEnrollmentController {
     })
     @PostMapping("/enroll-all-to-all")
     public ResponseEntity<ApiResponse<Map<String, Object>>> enrollAllUsersToAllCourses(
-            @RequestParam(required = false) UserCourseEnrollment.EnrollmentType enrollmentType) {
+            @RequestParam(required = false) UserCourseEnrollment.EnrollmentType enrollmentType,
+            HttpServletRequest request) {
+        try {
+            verifyAccess(request);
+        } catch (RuntimeException e) {
+            return accessDeniedResponse(e);
+        }
         try {
             // Get all users and courses (using a large page size to get all)
             List<User> allUsers = userService.findAll(0, 10000, "createdAt", false).getContent();
@@ -315,7 +343,12 @@ public class AdminCourseEnrollmentController {
                     paramType = Constants.AUTH_PARAM_TYPE)
     })
     @GetMapping("/enrollments/stats")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getEnrollmentStats() {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getEnrollmentStats(HttpServletRequest request) {
+        try {
+            verifyAccess(request);
+        } catch (RuntimeException e) {
+            return accessDeniedResponse(e);
+        }
         try {
             long totalEnrollments = enrollmentRepository.count();
             long activeEnrollments = enrollmentRepository
@@ -334,6 +367,25 @@ public class AdminCourseEnrollmentController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiResponse<>(400, null));
         }
+    }
+
+    private void verifyAccess(HttpServletRequest request) {
+        String userId = skillamaAuthSupport.resolveUserIdFromRequest(request);
+        User user = userService.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        if (user.getRole() != User.UserRole.ADMIN
+                && user.getRole() != User.UserRole.OWNER
+                && user.getRole() != User.UserRole.TESTER) {
+            throw new RuntimeException("Access denied. ADMIN, OWNER, or TESTER role required.");
+        }
+    }
+
+    private <T> ResponseEntity<ApiResponse<T>> accessDeniedResponse(RuntimeException e) {
+        String msg = e.getMessage() != null ? e.getMessage() : "";
+        if (msg.contains("Access denied")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+        }
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
     }
 }
 

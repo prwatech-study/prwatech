@@ -35,6 +35,8 @@ public class CourseCurriculum {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Submodule {
+        /** Stable identifier, immutable once set — labels/order can change, this can't. Backfilled lazily for pre-existing submodules. */
+        private String id;
         private String label;
         private String imagePath;
         @JsonProperty("isPracticalRequired")
