@@ -46,6 +46,7 @@ public class AdminAuditService {
     public static final String AI_EXAM_VIEW = "AI_EXAM_VIEW";
     public static final String AI_EXAM_RECOMMENDATIONS_VIEW = "AI_EXAM_RECOMMENDATIONS_VIEW";
     public static final String MODULE_QUIZ_MONITOR_VIEW = "MODULE_QUIZ_MONITOR_VIEW";
+    public static final String CODE_ASSIST_MONITOR_VIEW = "CODE_ASSIST_MONITOR_VIEW";
 
     private final AdminAuditLogRepository auditLogRepository;
     private final SkillamaUserRepository userRepository;

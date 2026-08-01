@@ -82,6 +82,7 @@ public class AdminController {
     private final com.prwatech.skillama.service.DoubtService doubtService;
     private final com.prwatech.skillama.service.ExamService examService;
     private final com.prwatech.skillama.service.ModuleQuizService moduleQuizService;
+    private final com.prwatech.skillama.service.CodeAssistService codeAssistService;
 
     // ========== Authentication & Authorization ==========
     
@@ -1465,6 +1466,32 @@ public class AdminController {
                             + ", courseId=" + courseId + ", email=" + email + ")", null);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     examService.listAdminRecommendations(page, size, userId, courseId, email)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * Monitor Debug / Code Execution interactions across all learners (code, output,
+     * corrected code, AI explanation, time) — previously untracked at the content level.
+     */
+    @GetMapping("/code-assist-interactions")
+    public ResponseEntity<ApiResponse<Page<com.prwatech.skillama.dto.AdminCodeAssistInteractionDTO>>> listCodeAssistInteractions(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) String courseId,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) com.prwatech.skillama.model.CodeAssistFeature feature,
+            HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.CODE_ASSIST_MONITOR, AdminPermissionAction.READ);
+            adminAuditService.log(extractUserIdFromRequest(request), AdminAuditService.CODE_ASSIST_MONITOR_VIEW,
+                    "CODE_ASSIST_INTERACTIONS", null,
+                    "Viewed Debug/Code Execution interactions (page=" + page + ", userId=" + userId
+                            + ", courseId=" + courseId + ", email=" + email + ", feature=" + feature + ")", null);
+            return ResponseEntity.ok(new ApiResponse<>(200,
+                    codeAssistService.listAdminInteractions(page, size, userId, courseId, email, feature)));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }

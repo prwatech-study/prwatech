@@ -1,0 +1,189 @@
+package com.prwatech.skillama.service;
+
+import com.prwatech.common.exception.NotFoundException;
+import com.prwatech.skillama.dto.AdminCodeAssistInteractionDTO;
+import com.prwatech.skillama.dto.AiUsageRecordRequestDTO;
+import com.prwatech.skillama.dto.CodeAssistRequestDTO;
+import com.prwatech.skillama.dto.CodeAssistResponseDTO;
+import com.prwatech.skillama.dto.GeneratedCodeAssistDTO;
+import com.prwatech.skillama.dto.ProxiedAudioDTO;
+import com.prwatech.skillama.model.Course;
+import com.prwatech.skillama.model.CodeAssistFeature;
+import com.prwatech.skillama.model.CodeAssistInteraction;
+import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.repository.CodeAssistInteractionRepository;
+import com.prwatech.skillama.repository.CourseRepository;
+import com.prwatech.skillama.repository.SkillamaUserRepository;
+import com.prwatech.skillama.util.IndiaTime;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * Debug / Code Execution — server-mediated so the backend can persist what learners
+ * submit and what the AI returns (previously this call went straight from the browser
+ * to ai-tutor, so there was zero content-level admin visibility into these two features,
+ * unlike Chat/AI Mentor/AI Exam which already route through the backend).
+ */
+@Service
+@RequiredArgsConstructor
+public class CodeAssistService {
+
+    private final CodeAssistInteractionRepository interactionRepository;
+    private final CourseRepository courseRepository;
+    private final SkillamaUserRepository userRepository;
+    private final SkillamaAiClient skillamaAiClient;
+    private final AiUsageService aiUsageService;
+
+    public CodeAssistResponseDTO runDebug(String userId, CodeAssistRequestDTO request) {
+        return run(CodeAssistFeature.DEBUG, userId, request);
+    }
+
+    public CodeAssistResponseDTO runCodeExecution(String userId, CodeAssistRequestDTO request) {
+        return run(CodeAssistFeature.CODE_EXECUTION, userId, request);
+    }
+
+    private CodeAssistResponseDTO run(CodeAssistFeature feature, String userId, CodeAssistRequestDTO request) {
+        if (request == null || request.getCode() == null || request.getCode().isBlank()) {
+            throw new IllegalArgumentException("code is required");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        aiUsageService.assertWithinBudget(user);
+
+        String courseName = request.getCourseId() != null
+                ? courseRepository.findById(request.getCourseId()).map(Course::getName).orElse("Python")
+                : "Python";
+
+        GeneratedCodeAssistDTO generated = skillamaAiClient.runCodeAssist(request.getCode(), courseName);
+
+        CodeAssistInteraction interaction = CodeAssistInteraction.builder()
+                .userId(userId)
+                .courseId(request.getCourseId())
+                .feature(feature)
+                .code(request.getCode())
+                .codeOutput(generated.getCodeOutput())
+                .correctedCode(generated.getCorrectedCode())
+                .responseText(generated.getResponseText())
+                .audioUrl(generated.getAudioUrl())
+                .modelId(generated.getModelId())
+                .inputTokens(generated.getInputTokens())
+                .outputTokens(generated.getOutputTokens())
+                .totalTokens(generated.getTotalTokens())
+                .createdAt(IndiaTime.now())
+                .build();
+        interaction = interactionRepository.save(interaction);
+
+        aiUsageService.recordUsage(AiUsageRecordRequestDTO.builder()
+                .userId(userId)
+                .endpoint(feature == CodeAssistFeature.DEBUG ? "debug_assist" : "code_execution_assist")
+                .courseId(request.getCourseId())
+                .modelId(generated.getModelId())
+                .inputTokens(generated.getInputTokens())
+                .outputTokens(generated.getOutputTokens())
+                .totalTokens(generated.getTotalTokens())
+                .build());
+
+        return CodeAssistResponseDTO.builder()
+                .interactionId(interaction.getId())
+                .codeOutput(generated.getCodeOutput())
+                .correctedCode(generated.getCorrectedCode())
+                .responseText(generated.getResponseText())
+                .hasAudio(generated.getAudioUrl() != null && !generated.getAudioUrl().isBlank())
+                .subtitlePath(generated.getSubtitlePath())
+                .build();
+    }
+
+    /**
+     * Proxies an interaction's spoken-explanation audio — the raw ai-tutor URL never
+     * reaches the client (see SkillamaAiClient#fetchAudioBytes), only the authenticated,
+     * ownership-checked audio bytes.
+     */
+    public ProxiedAudioDTO getInteractionAudio(String userId, String interactionId) {
+        CodeAssistInteraction interaction = interactionRepository.findById(interactionId)
+                .orElseThrow(() -> new NotFoundException("Interaction not found"));
+        if (userId == null || !userId.equals(interaction.getUserId())) {
+            throw new NotFoundException("Interaction not found");
+        }
+        if (interaction.getAudioUrl() == null || interaction.getAudioUrl().isBlank()) {
+            throw new NotFoundException("No audio available for this interaction");
+        }
+        return skillamaAiClient.fetchAudioBytes(interaction.getAudioUrl());
+    }
+
+    /** Admin monitor: paginated Debug/Code Execution interactions across all learners. */
+    public Page<AdminCodeAssistInteractionDTO> listAdminInteractions(
+            int page, int size, String userId, String courseId, String email, CodeAssistFeature feature) {
+        int limit = Math.min(Math.max(size, 1), 100);
+        int pageNum = Math.max(page, 0);
+
+        String emailFilter = email != null ? email.trim().toLowerCase() : null;
+        Set<String> allowedUserIds = null;
+        if (emailFilter != null && !emailFilter.isBlank()) {
+            allowedUserIds = userRepository.findAll().stream()
+                    .filter(u -> u.getEmail() != null && u.getEmail().toLowerCase().contains(emailFilter))
+                    .map(User::getId)
+                    .collect(Collectors.toSet());
+            if (allowedUserIds.isEmpty()) {
+                return new PageImpl<>(List.of(), PageRequest.of(pageNum, limit), 0);
+            }
+        }
+
+        Map<String, User> userCache = new HashMap<>();
+        Map<String, String> courseNameCache = new HashMap<>();
+        Set<String> allowedUserIdsFinal = allowedUserIds;
+
+        List<AdminCodeAssistInteractionDTO> rows = interactionRepository.findAll().stream()
+                .filter(i -> userId == null || userId.isBlank() || userId.equals(i.getUserId()))
+                .filter(i -> courseId == null || courseId.isBlank() || courseId.equals(i.getCourseId()))
+                .filter(i -> feature == null || feature == i.getFeature())
+                .filter(i -> allowedUserIdsFinal == null
+                        || (i.getUserId() != null && allowedUserIdsFinal.contains(i.getUserId())))
+                .map(i -> {
+                    User user = i.getUserId() != null
+                            ? userCache.computeIfAbsent(i.getUserId(), id -> userRepository.findById(id).orElse(null))
+                            : null;
+                    String courseName = i.getCourseId() != null
+                            ? courseNameCache.computeIfAbsent(i.getCourseId(),
+                                    cid -> courseRepository.findById(cid).map(Course::getName).orElse(null))
+                            : null;
+                    return AdminCodeAssistInteractionDTO.builder()
+                            .id(i.getId())
+                            .userId(i.getUserId())
+                            .userName(user != null ? user.getName() : null)
+                            .userEmail(user != null ? user.getEmail() : null)
+                            .courseId(i.getCourseId())
+                            .courseName(courseName)
+                            .feature(i.getFeature())
+                            .code(i.getCode())
+                            .codeOutput(i.getCodeOutput())
+                            .correctedCode(i.getCorrectedCode())
+                            .responseText(i.getResponseText())
+                            .hasAudio(i.getAudioUrl() != null && !i.getAudioUrl().isBlank())
+                            .createdAt(i.getCreatedAt())
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        rows.sort(Comparator.comparing(
+                AdminCodeAssistInteractionDTO::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())));
+
+        int total = rows.size();
+        int from = pageNum * limit;
+        if (from >= total) {
+            return new PageImpl<>(List.of(), PageRequest.of(pageNum, limit), total);
+        }
+        int to = Math.min(from + limit, total);
+        return new PageImpl<>(rows.subList(from, to), PageRequest.of(pageNum, limit), total);
+    }
+}

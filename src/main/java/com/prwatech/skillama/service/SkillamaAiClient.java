@@ -3,6 +3,7 @@ package com.prwatech.skillama.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prwatech.skillama.dto.ExamRecommendationResponseDTO;
+import com.prwatech.skillama.dto.GeneratedCodeAssistDTO;
 import com.prwatech.skillama.dto.GeneratedImageDTO;
 import com.prwatech.skillama.dto.GeneratedQuizDTO;
 import com.prwatech.skillama.dto.ModuleQuizQuestionDTO;
@@ -364,6 +365,69 @@ public class SkillamaAiClient {
      * any other way (logs, a DB export, a shared link) could otherwise play it forever
      * with no login required.
      */
+    /**
+     * Runs the Debug/Code Execution AI call server-side. Both the Debug tab's "explain my
+     * code" step and the Code Execution tab's "run" step hit the same ai-tutor endpoint —
+     * the caller distinguishes them only for its own persistence/tracking, not in this call.
+     * Previously this request was made directly from the browser to ai-tutor, so the backend
+     * never saw the code, output, or explanation (see CodeAssistService for the tracking gap
+     * this closes). Timeout is generous since code execution can be slow.
+     *
+     * <p><b>ai-tutor (Flask) contract — POST {aiBaseUrl}/generate_output</b>
+     * <pre>
+     * Request JSON:  { "code": String, "course": String }
+     * Response JSON: { "code_output": String, "corrected_code": String, "response_text": String,
+     *                  "audio_url": String, "subtitle_path": String, "model_id": String,
+     *                  "usage": { "inputTokens": int, "outputTokens": int, "totalTokens": int },
+     *                  "error": String  // optional; present on failure
+     *                }
+     * </pre>
+     */
+    public GeneratedCodeAssistDTO runCodeAssist(String code, String course) {
+        String url = resolveBaseUrl() + "/generate_output";
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("code", code != null ? code : "");
+        body.put("course", course != null ? course : "");
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+        ResponseEntity<String> response;
+        try {
+            response = restTemplate.exchange(url, org.springframework.http.HttpMethod.POST, entity, String.class);
+        } catch (org.springframework.web.client.RestClientException e) {
+            throw new IllegalStateException("code assist request to " + url + " failed: " + e.getMessage(), e);
+        }
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new IllegalStateException("AI code assist service returned " + response.getStatusCode());
+        }
+        try {
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode data = root.has("data") ? root.path("data") : root;
+            if (data.hasNonNull("error")) {
+                throw new IllegalStateException("AI code assist service error: " + data.path("error").asText());
+            }
+            JsonNode usage = data.path("usage");
+            return GeneratedCodeAssistDTO.builder()
+                    .codeOutput(data.path("code_output").asText(null))
+                    .correctedCode(data.path("corrected_code").asText(null))
+                    .responseText(data.path("response_text").asText(null))
+                    .audioUrl(data.path("audio_url").asText(null))
+                    .subtitlePath(data.path("subtitle_path").asText(null))
+                    .modelId(data.path("model_id").asText(null))
+                    .inputTokens(usage.path("inputTokens").asInt(0))
+                    .outputTokens(usage.path("outputTokens").asInt(0))
+                    .totalTokens(usage.path("totalTokens").asInt(0))
+                    .build();
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to parse AI code assist service response", e);
+        }
+    }
+
     public ProxiedAudioDTO fetchAudioBytes(String audioUrl) {
         if (audioUrl == null || audioUrl.isBlank()) {
             throw new IllegalArgumentException("audioUrl is required");
