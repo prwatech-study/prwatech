@@ -62,6 +62,7 @@ public class DoubtService {
                     .id(UUID.randomUUID().toString())
                     .sender(Doubt.Sender.AI)
                     .content(request.getAnswer())
+                    .audioUrl(request.getAnswerAudioUrl())
                     .timestamp(now)
                     .build());
         }
@@ -106,6 +107,7 @@ public class DoubtService {
                     .id(UUID.randomUUID().toString())
                     .sender(Doubt.Sender.AI)
                     .content(request.getAnswer())
+                    .audioUrl(request.getAnswerAudioUrl())
                     .nudgeType(request.getNudgeType())
                     .timestamp(now)
                     .build());
@@ -258,6 +260,7 @@ public class DoubtService {
                                 .id(m.getId())
                                 .sender(m.getSender() != null ? m.getSender().name() : null)
                                 .content(m.getContent())
+                                .audioUrl(m.getAudioUrl())
                                 .nudgeType(m.getNudgeType())
                                 .helpful(m.getHelpful())
                                 .timestamp(m.getTimestamp())

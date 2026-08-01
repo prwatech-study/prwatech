@@ -59,6 +59,9 @@ public class Doubt {
         private Sender sender;
         private String content;
 
+        /** AI's spoken answer audio URL — null for user messages and text-only answers. */
+        private String audioUrl;
+
         /**
          * Which nudge produced this message — e.g. EXPLAIN_MORE, EXPLAIN_LIKE_BEGINNER,
          * REAL_LIFE_EXAMPLE, REGENERATE. Null for the original question/first answer

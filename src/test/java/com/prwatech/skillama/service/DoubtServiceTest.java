@@ -25,6 +25,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,6 +48,7 @@ class DoubtServiceTest {
         request.setLessonId("lesson-1");
         request.setQuestion("What is a DataFrame?");
         request.setAnswer("A DataFrame is a 2D labeled data structure.");
+        request.setAnswerAudioUrl("https://cdn.example.com/answer-1.mp3");
 
         when(doubtRepository.save(any(Doubt.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -56,6 +58,8 @@ class DoubtServiceTest {
         assertEquals("course-1", response.getCourseId());
         assertEquals(2, response.getMessages().size());
         assertEquals("USER", response.getMessages().get(0).getSender());
+        assertEquals("https://cdn.example.com/answer-1.mp3", response.getMessages().get(1).getAudioUrl());
+        assertNull(response.getMessages().get(0).getAudioUrl());
         assertEquals("What is a DataFrame?", response.getMessages().get(0).getContent());
         assertEquals("AI", response.getMessages().get(1).getSender());
     }
@@ -77,12 +81,14 @@ class DoubtServiceTest {
         DoubtFollowUpRequestDTO request = new DoubtFollowUpRequestDTO();
         request.setNudgeType("EXPLAIN_MORE");
         request.setAnswer("Here is a more detailed explanation.");
+        request.setAnswerAudioUrl("https://cdn.example.com/answer-2.mp3");
 
         DoubtResponseDTO response = doubtService.addFollowUp("user-1", "doubt-1", request);
 
         assertEquals(4, response.getMessages().size());
         assertEquals("EXPLAIN_MORE", response.getMessages().get(2).getNudgeType());
         assertEquals("Here is a more detailed explanation.", response.getMessages().get(3).getContent());
+        assertEquals("https://cdn.example.com/answer-2.mp3", response.getMessages().get(3).getAudioUrl());
     }
 
     @Test

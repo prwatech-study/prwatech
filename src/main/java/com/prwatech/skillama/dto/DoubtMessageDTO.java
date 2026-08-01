@@ -17,6 +17,7 @@ public class DoubtMessageDTO {
     private String id;
     private String sender;
     private String content;
+    private String audioUrl;
     private String nudgeType;
     private Boolean helpful;
     private LocalDateTime timestamp;

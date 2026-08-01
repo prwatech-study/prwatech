@@ -13,4 +13,5 @@ public class DoubtFollowUpRequestDTO {
     private String nudgeType;
     private String question;
     private String answer;
+    private String answerAudioUrl;
 }

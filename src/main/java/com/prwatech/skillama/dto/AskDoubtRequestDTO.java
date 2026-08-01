@@ -14,4 +14,5 @@ public class AskDoubtRequestDTO {
     private String lessonId;
     private String question;
     private String answer;
+    private String answerAudioUrl;
 }
