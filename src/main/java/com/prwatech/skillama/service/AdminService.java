@@ -321,7 +321,33 @@ public class AdminService {
         request.setRole(User.UserRole.USER);
         return updateUser(userId, request, updatedBy);
     }
-    
+
+    @Transactional
+    public UserDTO promoteUserToTester(String userId, String updatedBy) {
+        requireAdminOrOwner(updatedBy);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (user.getRole() != User.UserRole.USER) {
+            throw new IllegalArgumentException("Only USER accounts can be promoted to Tester");
+        }
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setRole(User.UserRole.TESTER);
+        return updateUser(userId, request, updatedBy);
+    }
+
+    @Transactional
+    public UserDTO demoteTesterToUser(String userId, String updatedBy) {
+        requireAdminOrOwner(updatedBy);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (user.getRole() != User.UserRole.TESTER) {
+            throw new IllegalArgumentException("User is not a Tester");
+        }
+        UpdateUserRequest request = new UpdateUserRequest();
+        request.setRole(User.UserRole.USER);
+        return updateUser(userId, request, updatedBy);
+    }
+
     @Transactional
     public void deleteUser(String userId, String deletedBy, boolean hardDelete, String reason) {
         if (hardDelete) {

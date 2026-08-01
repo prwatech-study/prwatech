@@ -283,7 +283,7 @@ public class SkillamaAiClient {
 
         Map<String, Object> body = new HashMap<>();
         body.put("query", prompt);
-        body.put("python_topic", "General " + courseName);
+        body.put("topic", "General " + courseName);
         body.put("prev_topic_list", new ArrayList<>());
         body.put("course", courseName);
 

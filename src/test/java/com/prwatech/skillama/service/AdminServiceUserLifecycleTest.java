@@ -204,4 +204,53 @@ class AdminServiceUserLifecycleTest {
                 () -> service.updateUser("owner2", req, "owner"));
         assertTrue(ex.getMessage().contains("Cannot change OWNER role"));
     }
+
+    // ---------- promoteUserToTester / demoteTesterToUser ----------
+
+    @Test
+    void adminCanPromoteUserToTester() {
+        when(userRepository.findById("admin")).thenReturn(Optional.of(admin()));
+        User target = learner("target");
+        when(userRepository.findById("target")).thenReturn(Optional.of(target));
+
+        UserDTO dto = service.promoteUserToTester("target", "admin");
+
+        assertEquals(User.UserRole.TESTER, dto.getRole());
+    }
+
+    @Test
+    void learnerCannotPromoteAnotherUserToTester() {
+        when(userRepository.findById("learner")).thenReturn(Optional.of(learner("learner")));
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.promoteUserToTester("target", "learner"));
+        assertTrue(ex.getMessage().contains("Admin access required"));
+    }
+
+    @Test
+    void promoteToTesterRejectsNonUserTarget() {
+        when(userRepository.findById("admin")).thenReturn(Optional.of(admin()));
+        when(userRepository.findById("target")).thenReturn(Optional.of(
+                User.builder().id("target").email("t@x.com").role(User.UserRole.ADMIN).build()));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.promoteUserToTester("target", "admin"));
+    }
+
+    @Test
+    void adminCanDemoteTesterToUser() {
+        when(userRepository.findById("admin")).thenReturn(Optional.of(admin()));
+        User target = User.builder().id("target").email("t@x.com").role(User.UserRole.TESTER).active(true).build();
+        when(userRepository.findById("target")).thenReturn(Optional.of(target));
+
+        UserDTO dto = service.demoteTesterToUser("target", "admin");
+
+        assertEquals(User.UserRole.USER, dto.getRole());
+    }
+
+    @Test
+    void demoteFromTesterRejectsNonTesterTarget() {
+        when(userRepository.findById("admin")).thenReturn(Optional.of(admin()));
+        when(userRepository.findById("target")).thenReturn(Optional.of(learner("target")));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.demoteTesterToUser("target", "admin"));
+    }
 }

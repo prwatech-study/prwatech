@@ -424,6 +424,64 @@ public class AdminController {
         }
     }
 
+    @PutMapping("/users/{userId}/promote-to-tester")
+    public ResponseEntity<ApiResponse<UserDTO>> promoteUserToTester(
+            @PathVariable String userId,
+            HttpServletRequest httpRequest) {
+        try {
+            String updatedBy = extractUserIdFromRequest(httpRequest);
+            UserDTO user = adminService.promoteUserToTester(userId, updatedBy);
+            return ResponseEntity.ok(new ApiResponse<>(200, user));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(404, null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(400, null));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null
+                    && (e.getMessage().contains("Only OWNER") || e.getMessage().contains("Admin access")
+                            || e.getMessage().contains("Owner access"))) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PutMapping("/users/{userId}/demote-from-tester")
+    public ResponseEntity<ApiResponse<UserDTO>> demoteTesterToUser(
+            @PathVariable String userId,
+            HttpServletRequest httpRequest) {
+        try {
+            String updatedBy = extractUserIdFromRequest(httpRequest);
+            UserDTO user = adminService.demoteTesterToUser(userId, updatedBy);
+            return ResponseEntity.ok(new ApiResponse<>(200, user));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>(404, null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(400, null));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null
+                    && (e.getMessage().contains("Only OWNER") || e.getMessage().contains("Admin access")
+                            || e.getMessage().contains("Owner access"))) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponse<>(401, null));
+        }
+    }
+
     @PutMapping("/users/{userId}/demote-from-admin")
     public ResponseEntity<ApiResponse<UserDTO>> demoteAdminToUser(
             @PathVariable String userId,
