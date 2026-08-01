@@ -12,6 +12,7 @@ public enum AdminModule {
     ASSIGNMENTS,
     FEEDBACK,
     UPGRADE_REQUESTS,
+    ENTERPRISE_LEADS,
     AUDIT_LOGS,
     ANALYTICS,
     FREEMIUM,
