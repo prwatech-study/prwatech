@@ -1,27 +1,29 @@
 package com.prwatech.skillama.dto;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
+import com.prwatech.skillama.model.ExamDifficulty;
+import com.prwatech.skillama.model.ExamType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
+import java.time.LocalDateTime;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@JsonInclude(JsonInclude.Include.NON_NULL)
-public class ModuleQuizAttemptResultDTO {
+public class ExamAttemptSummaryDTO {
     private String attemptId;
-    private Integer attemptNumber;
+    private String courseId;
+    private String moduleId;
+    private String topic;
+    private ExamDifficulty difficulty;
+    private ExamType examType;
     private Integer score;
     private Integer maxScore;
     private Double percentage;
-    private Boolean passed;
-    private Integer passingPercentage;
     private Integer timeSpentSeconds;
     private Boolean overTimeLimit;
-    private List<ModuleQuizAnswerResultDTO> answers;
+    private LocalDateTime submittedAt;
 }

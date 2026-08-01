@@ -2,7 +2,11 @@ package com.prwatech.skillama.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.prwatech.skillama.dto.ExamRecommendationResponseDTO;
 import com.prwatech.skillama.dto.GeneratedImageDTO;
+import com.prwatech.skillama.dto.GeneratedQuizDTO;
+import com.prwatech.skillama.dto.ModuleQuizQuestionDTO;
+import com.prwatech.skillama.model.ExamDifficulty;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,7 +17,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -158,6 +164,194 @@ public class SkillamaAiClient {
             throw e;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to parse AI thumbnail service response", e);
+        }
+    }
+
+    /**
+     * Generates quiz/exam questions server-side. Blocking call. This is the ONLY place
+     * questions + their answer key should ever be requested from the AI service — the
+     * answer key must never round-trip through the browser (that was the integrity hole
+     * in the original client-orchestrated Module Quiz flow). Shared by both Module Quiz
+     * and AI Exam generation.
+     *
+     * <p><b>ai-tutor (Flask) contract — POST {aiBaseUrl}/generate_quiz</b>
+     * <pre>
+     * Request JSON:  { "module_name": String, "topics": [String], "num_questions": int,
+     *                  "difficulty": String (optional) }
+     * Response JSON: { "quiz_title": String,
+     *                  "questions": [ { "id": int, "question": String,
+     *                                   "options": [ {"key": String, "text": String} ],
+     *                                   "correctKey": String, "explanation": String } ],
+     *                  "model_id": String,
+     *                  "usage": { "inputTokens": int, "outputTokens": int, "totalTokens": int },
+     *                  "error": String  // optional; present on failure
+     *                }
+     * </pre>
+     */
+    public GeneratedQuizDTO generateQuizQuestions(
+            String moduleName, List<String> topics, int numQuestions, String difficulty) {
+        String url = resolveBaseUrl() + "/generate_quiz";
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("module_name", moduleName != null ? moduleName : "");
+        body.put("topics", topics != null ? topics : new ArrayList<>());
+        body.put("num_questions", numQuestions);
+        if (difficulty != null) {
+            body.put("difficulty", difficulty);
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+        ResponseEntity<String> response;
+        try {
+            response = restTemplate.postForEntity(url, entity, String.class);
+        } catch (org.springframework.web.client.RestClientException e) {
+            throw new IllegalStateException("quiz generation request to " + url + " failed: " + e.getMessage(), e);
+        }
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new IllegalStateException("AI quiz service returned " + response.getStatusCode());
+        }
+        try {
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode data = root.has("data") ? root.path("data") : root;
+            if (data.hasNonNull("error")) {
+                throw new IllegalStateException("AI quiz service error: " + data.path("error").asText());
+            }
+
+            List<ModuleQuizQuestionDTO> questions = new ArrayList<>();
+            for (JsonNode q : data.path("questions")) {
+                questions.add(objectMapper.treeToValue(q, ModuleQuizQuestionDTO.class));
+            }
+
+            JsonNode usage = data.path("usage");
+            return GeneratedQuizDTO.builder()
+                    .quizTitle(data.path("quiz_title").asText(null))
+                    .questions(questions)
+                    .modelId(data.path("model_id").asText(null))
+                    .inputTokens(usage.path("inputTokens").asInt(0))
+                    .outputTokens(usage.path("outputTokens").asInt(0))
+                    .totalTokens(usage.path("totalTokens").asInt(0))
+                    .build();
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to parse AI quiz service response", e);
+        }
+    }
+
+    private static final java.util.regex.Pattern DIFFICULTY_LINE =
+            java.util.regex.Pattern.compile("(?i)DIFFICULTY:\\s*(\\w+)");
+    private static final java.util.regex.Pattern TOPIC_LINE =
+            java.util.regex.Pattern.compile("(?i)TOPIC:\\s*(.+)");
+    private static final java.util.regex.Pattern REASONING_LINE =
+            java.util.regex.Pattern.compile("(?i)REASONING:\\s*(.+)");
+    private static final java.util.regex.Pattern MINUTES_LINE =
+            java.util.regex.Pattern.compile("(?i)ESTIMATED_MINUTES:\\s*(\\d+)");
+    private static final java.util.regex.Pattern SCORE_LINE =
+            java.util.regex.Pattern.compile("(?i)EXPECTED_SCORE:\\s*(\\d+)");
+
+    /**
+     * Best-effort "AI Recommended Test" — there is no dedicated recommendation endpoint
+     * on the ai-tutor service, so this reuses the generic {@code handle_query} endpoint
+     * with a structured-reply prompt and parses the response defensively. Every field
+     * falls back to a safe default if the model doesn't follow the requested format —
+     * this call must never fail the exam-center page just because parsing came up short.
+     */
+    public ExamRecommendationResponseDTO getExamRecommendation(
+            String courseName, Double completionPercent, Double avgQuizScorePercent) {
+        String url = resolveBaseUrl() + "/handle_query";
+
+        String progressLine = completionPercent != null
+                ? "Their course completion is " + Math.round(completionPercent) + "%. "
+                : "Their course completion is not yet known. ";
+        String scoreLine = avgQuizScorePercent != null
+                ? "Their average quiz score so far is " + Math.round(avgQuizScorePercent) + "%. "
+                : "They have no quiz history yet. ";
+
+        String prompt = "You are recommending a practice exam for a student learning " + courseName + ". "
+                + progressLine + scoreLine
+                + "Reply with EXACTLY this format, one field per line, no extra commentary:\n"
+                + "DIFFICULTY: <Beginner|Intermediate|Advanced|Expert>\n"
+                + "TOPIC: <a specific topic within " + courseName + ">\n"
+                + "REASONING: <one short sentence>\n"
+                + "ESTIMATED_MINUTES: <integer>\n"
+                + "EXPECTED_SCORE: <integer percent>";
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("query", prompt);
+        body.put("python_topic", "General " + courseName);
+        body.put("prev_topic_list", new ArrayList<>());
+        body.put("course", courseName);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+        String responseText = "";
+        String modelId = null;
+        int inputTokens = 0;
+        int outputTokens = 0;
+        int totalTokens = 0;
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode root = objectMapper.readTree(response.getBody());
+                JsonNode data = root.has("data") ? root.path("data") : root;
+                responseText = data.path("response_text").asText("");
+                modelId = data.path("model_id").asText(null);
+                JsonNode usage = data.path("usage");
+                inputTokens = usage.path("inputTokens").asInt(0);
+                outputTokens = usage.path("outputTokens").asInt(0);
+                totalTokens = usage.path("totalTokens").asInt(0);
+            }
+        } catch (Exception e) {
+            log.warn("Exam recommendation call failed; falling back to defaults", e);
+        }
+
+        ExamDifficulty difficulty = parseDifficulty(responseText);
+        String topic = extractGroup(TOPIC_LINE, responseText);
+        String reasoning = extractGroup(REASONING_LINE, responseText);
+        Integer estimatedMinutes = parseInt(extractGroup(MINUTES_LINE, responseText));
+        Integer expectedScore = parseInt(extractGroup(SCORE_LINE, responseText));
+
+        return ExamRecommendationResponseDTO.builder()
+                .difficulty(difficulty != null ? difficulty : ExamDifficulty.INTERMEDIATE)
+                .topic(topic != null ? topic : "General " + courseName)
+                .reasoning(reasoning != null ? reasoning
+                        : "Based on your current progress, this level should be a good challenge.")
+                .estimatedMinutes(estimatedMinutes != null ? estimatedMinutes : 15)
+                .expectedScorePercent(expectedScore != null ? expectedScore : 75)
+                .modelId(modelId)
+                .inputTokens(inputTokens)
+                .outputTokens(outputTokens)
+                .totalTokens(totalTokens)
+                .build();
+    }
+
+    private ExamDifficulty parseDifficulty(String text) {
+        String raw = extractGroup(DIFFICULTY_LINE, text);
+        if (raw == null) return null;
+        try {
+            return ExamDifficulty.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private String extractGroup(java.util.regex.Pattern pattern, String text) {
+        if (text == null) return null;
+        java.util.regex.Matcher matcher = pattern.matcher(text);
+        return matcher.find() ? matcher.group(1).trim() : null;
+    }
+
+    private Integer parseInt(String value) {
+        if (value == null) return null;
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 }

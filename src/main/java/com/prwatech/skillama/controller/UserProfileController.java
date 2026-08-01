@@ -219,8 +219,17 @@ public class UserProfileController {
         try {
             return ResponseEntity.ok(moduleQuizService.createSession(
                     profilingSessionId(sessionId, userId), userId, request));
+        } catch (com.prwatech.skillama.exception.AiBudgetLimitException e) {
+            return ResponseEntity.status(429).body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage(),
+                    "aiBudgetLimitReached", true,
+                    "aiCostUsedUsd", e.getAiCostUsedUsd(),
+                    "aiCostLimitUsd", e.getAiCostLimitUsd()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(502).body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
 

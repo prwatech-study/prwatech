@@ -1,15 +1,18 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.skillama.dto.*;
+import com.prwatech.skillama.exception.AiBudgetLimitException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.ModuleQuizAttempt;
 import com.prwatech.skillama.model.ModuleQuizSession;
+import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserProfile;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.ModuleQuizAttemptRepository;
 import com.prwatech.skillama.repository.ModuleQuizSessionRepository;
+import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserProfileRepository;
 import com.prwatech.skillama.util.IndiaTime;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -30,23 +34,46 @@ public class ModuleQuizService {
     /** After this many failed attempts the learner may skip ahead with quiz still pending. */
     public static final int MIN_ATTEMPTS_BEFORE_SKIP = 2;
     private static final int SESSION_EXPIRY_HOURS = 2;
+    private static final int NUM_QUESTIONS = 5;
+    /** Server-enforced exam clock for a 5-question module quiz. */
+    private static final int TIME_LIMIT_SECONDS = 600;
 
     private final ModuleQuizSessionRepository sessionRepository;
     private final ModuleQuizAttemptRepository attemptRepository;
     private final UserProfileRepository userProfileRepository;
     private final CourseRepository courseRepository;
     private final CourseCurriculumRepository curriculumRepository;
+    private final SkillamaAiClient skillamaAiClient;
+    private final AiUsageService aiUsageService;
+    private final SkillamaUserRepository userRepository;
 
+    /**
+     * Generates questions server-side (the client never supplies questions or an answer
+     * key — see {@link SkillamaAiClient#generateQuizQuestions}) and opens a session with
+     * a server-owned clock (startedAt/timeLimitSeconds), so neither the questions'
+     * answer key nor the exam timer can be tampered with from the browser.
+     */
     public CreateModuleQuizSessionResponseDTO createSession(
             String profilingSessionId, String userId, CreateModuleQuizSessionRequestDTO request) {
 
         validateSessionRequest(request);
         assertQuizEligible(profilingSessionId, userId, request.getCourseId(), request.getModuleName());
 
+        User user = StringUtils.hasText(userId) ? userRepository.findById(userId).orElse(null) : null;
+        if (user != null) {
+            aiUsageService.assertWithinBudget(user);
+        }
+
+        GeneratedQuizDTO generated = skillamaAiClient.generateQuizQuestions(
+                request.getModuleName(), request.getTopics(), NUM_QUESTIONS, null);
+        if (generated.getQuestions() == null || generated.getQuestions().isEmpty()) {
+            throw new IllegalStateException("AI did not return any quiz questions");
+        }
+
         String quizSessionId = "quiz-" + UUID.randomUUID();
         LocalDateTime now = IndiaTime.now();
 
-        List<ModuleQuizSession.QuizQuestion> questions = request.getQuestions().stream()
+        List<ModuleQuizSession.QuizQuestion> questions = generated.getQuestions().stream()
                 .map(this::toSessionQuestion)
                 .collect(Collectors.toList());
 
@@ -56,15 +83,29 @@ public class ModuleQuizService {
                 .guestSessionId(userId == null ? profilingSessionId : null)
                 .courseId(request.getCourseId())
                 .moduleName(request.getModuleName())
-                .quizTitle(StringUtils.hasText(request.getQuizTitle())
-                        ? request.getQuizTitle()
+                .quizTitle(StringUtils.hasText(generated.getQuizTitle())
+                        ? generated.getQuizTitle()
                         : "Module Quiz: " + request.getModuleName())
                 .questions(questions)
                 .createdAt(now)
+                .startedAt(now)
+                .timeLimitSeconds(TIME_LIMIT_SECONDS)
                 .expiresAt(now.plusHours(SESSION_EXPIRY_HOURS))
                 .build();
 
         sessionRepository.save(session);
+
+        if (user != null) {
+            aiUsageService.recordUsage(AiUsageRecordRequestDTO.builder()
+                    .userId(userId)
+                    .endpoint("generate_module_quiz")
+                    .courseId(request.getCourseId())
+                    .modelId(generated.getModelId())
+                    .inputTokens(generated.getInputTokens())
+                    .outputTokens(generated.getOutputTokens())
+                    .totalTokens(generated.getTotalTokens())
+                    .build());
+        }
 
         List<ModuleQuizQuestionDTO> clientQuestions = questions.stream()
                 .map(this::toClientQuestion)
@@ -75,6 +116,7 @@ public class ModuleQuizService {
                 .quizTitle(session.getQuizTitle())
                 .questions(clientQuestions)
                 .totalQuestions(clientQuestions.size())
+                .timeLimitSeconds(TIME_LIMIT_SECONDS)
                 .build();
     }
 
@@ -132,6 +174,13 @@ public class ModuleQuizService {
         double percentage = maxScore > 0 ? (score * 100.0) / maxScore : 0.0;
         boolean passed = percentage >= PASSING_PERCENTAGE;
 
+        LocalDateTime submittedAt = IndiaTime.now();
+        Integer timeSpentSeconds = session.getStartedAt() != null
+                ? (int) Duration.between(session.getStartedAt(), submittedAt).getSeconds()
+                : null;
+        Boolean overTimeLimit = session.getTimeLimitSeconds() != null && timeSpentSeconds != null
+                && timeSpentSeconds > session.getTimeLimitSeconds();
+
         ModuleQuizAttempt attempt = ModuleQuizAttempt.builder()
                 .userId(userId)
                 .guestSessionId(userId == null ? profilingSessionId : null)
@@ -144,8 +193,9 @@ public class ModuleQuizService {
                 .percentage(percentage)
                 .passed(passed)
                 .answers(answerRecords)
-                .timeSpentSeconds(request.getTimeSpentSeconds())
-                .submittedAt(IndiaTime.now())
+                .timeSpentSeconds(timeSpentSeconds)
+                .overTimeLimit(overTimeLimit)
+                .submittedAt(submittedAt)
                 .build();
 
         attempt = attemptRepository.save(attempt);
@@ -162,6 +212,8 @@ public class ModuleQuizService {
                 .percentage(percentage)
                 .passed(passed)
                 .passingPercentage(PASSING_PERCENTAGE)
+                .timeSpentSeconds(timeSpentSeconds)
+                .overTimeLimit(overTimeLimit)
                 .answers(answerResults)
                 .build();
     }
@@ -447,20 +499,6 @@ public class ModuleQuizService {
         }
         if (!StringUtils.hasText(request.getModuleName())) {
             throw new IllegalArgumentException("moduleName is required");
-        }
-        if (request.getQuestions() == null || request.getQuestions().isEmpty()) {
-            throw new IllegalArgumentException("questions are required");
-        }
-        for (ModuleQuizQuestionDTO q : request.getQuestions()) {
-            if (q.getId() == null || !StringUtils.hasText(q.getQuestion())) {
-                throw new IllegalArgumentException("Each question must have id and question text");
-            }
-            if (q.getOptions() == null || q.getOptions().size() < 2) {
-                throw new IllegalArgumentException("Each question must have at least 2 options");
-            }
-            if (!StringUtils.hasText(q.getCorrectKey())) {
-                throw new IllegalArgumentException("Each question must have correctKey");
-            }
         }
     }
 

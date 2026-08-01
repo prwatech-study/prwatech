@@ -22,5 +22,6 @@ public enum AdminModule {
     CHAT_MONITOR,
     AI_USAGE,
     TESTER_EVALUATIONS,
-    AI_MENTOR_DOUBTS
+    AI_MENTOR_DOUBTS,
+    AI_EXAMS
 }

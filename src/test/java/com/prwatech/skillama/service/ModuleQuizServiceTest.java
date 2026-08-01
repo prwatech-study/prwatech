@@ -2,18 +2,22 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.skillama.dto.CreateModuleQuizSessionRequestDTO;
 import com.prwatech.skillama.dto.CreateModuleQuizSessionResponseDTO;
+import com.prwatech.skillama.dto.GeneratedQuizDTO;
 import com.prwatech.skillama.dto.ModuleQuizAttemptResultDTO;
 import com.prwatech.skillama.dto.ModuleQuizOptionDTO;
 import com.prwatech.skillama.dto.ModuleQuizQuestionDTO;
 import com.prwatech.skillama.dto.SubmitModuleQuizAttemptRequestDTO;
+import com.prwatech.skillama.exception.AiBudgetLimitException;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.ModuleQuizAttempt;
 import com.prwatech.skillama.model.ModuleQuizSession;
+import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserProfile;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.ModuleQuizAttemptRepository;
 import com.prwatech.skillama.repository.ModuleQuizSessionRepository;
+import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserProfileRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +39,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,6 +56,9 @@ class ModuleQuizServiceTest {
     @Mock private UserProfileRepository userProfileRepository;
     @Mock private CourseRepository courseRepository;
     @Mock private CourseCurriculumRepository curriculumRepository;
+    @Mock private SkillamaAiClient skillamaAiClient;
+    @Mock private AiUsageService aiUsageService;
+    @Mock private SkillamaUserRepository userRepository;
 
     private ModuleQuizService service;
 
@@ -58,7 +69,8 @@ class ModuleQuizServiceTest {
     @BeforeEach
     void setUp() {
         service = new ModuleQuizService(sessionRepository, attemptRepository,
-                userProfileRepository, courseRepository, curriculumRepository);
+                userProfileRepository, courseRepository, curriculumRepository,
+                skillamaAiClient, aiUsageService, userRepository);
         when(sessionRepository.save(any(ModuleQuizSession.class))).thenAnswer(inv -> inv.getArgument(0));
         when(attemptRepository.save(any(ModuleQuizAttempt.class))).thenAnswer(inv -> {
             ModuleQuizAttempt a = inv.getArgument(0);
@@ -66,6 +78,9 @@ class ModuleQuizServiceTest {
             return a;
         });
         when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findById(USER)).thenReturn(Optional.of(User.builder().id(USER).build()));
+        when(skillamaAiClient.generateQuizQuestions(anyString(), anyList(), anyInt(), isNull()))
+                .thenReturn(generatedQuiz());
     }
 
     // ---------- fixtures ----------
@@ -81,10 +96,21 @@ class ModuleQuizServiceTest {
                 .build();
     }
 
+    private GeneratedQuizDTO generatedQuiz() {
+        return GeneratedQuizDTO.builder()
+                .quizTitle("Module Quiz: " + MODULE)
+                .questions(new ArrayList<>(List.of(question(1, "A"), question(2, "B"))))
+                .modelId("test-model")
+                .inputTokens(10)
+                .outputTokens(20)
+                .totalTokens(30)
+                .build();
+    }
+
     private CreateModuleQuizSessionRequestDTO validCreateRequest() {
         return CreateModuleQuizSessionRequestDTO.builder()
                 .courseId(COURSE).moduleName(MODULE)
-                .questions(new ArrayList<>(List.of(question(1, "A"), question(2, "B"))))
+                .topics(new ArrayList<>(List.of("Variables", "Loops")))
                 .build();
     }
 
@@ -111,10 +137,16 @@ class ModuleQuizServiceTest {
     }
 
     private ModuleQuizSession sessionFor(String sessionId, String owner) {
+        return sessionFor(sessionId, owner, LocalDateTime.now());
+    }
+
+    private ModuleQuizSession sessionFor(String sessionId, String owner, LocalDateTime startedAt) {
         return ModuleQuizSession.builder()
                 .quizSessionId(sessionId).userId(owner)
                 .courseId(COURSE).moduleName(MODULE)
                 .expiresAt(LocalDateTime.now().plusHours(1))
+                .startedAt(startedAt)
+                .timeLimitSeconds(600)
                 .questions(new ArrayList<>(List.of(
                         ModuleQuizSession.QuizQuestion.builder().id(1).question("Q1").correctKey("A")
                                 .options(List.of(ModuleQuizSession.QuizOption.builder().key("A").text("a").build(),
@@ -147,24 +179,15 @@ class ModuleQuizServiceTest {
     }
 
     @Test
-    void createSessionRejectsEmptyQuestions() {
-        CreateModuleQuizSessionRequestDTO r = validCreateRequest();
-        r.setQuestions(new ArrayList<>());
-        assertThrows(IllegalArgumentException.class, () -> service.createSession(null, USER, r));
-    }
+    void createSessionThrowsWhenAiReturnsNoQuestions() {
+        when(userProfileRepository.findByUserId(USER)).thenReturn(Optional.of(eligibleProfile()));
+        when(curriculumRepository.findByCourseIdOrderByOrderAsc(COURSE))
+                .thenReturn(List.of(moduleWithOneCompletedLecture()));
+        when(skillamaAiClient.generateQuizQuestions(anyString(), anyList(), anyInt(), isNull()))
+                .thenReturn(GeneratedQuizDTO.builder().questions(new ArrayList<>()).build());
 
-    @Test
-    void createSessionRejectsQuestionWithFewerThanTwoOptions() {
-        CreateModuleQuizSessionRequestDTO r = validCreateRequest();
-        r.getQuestions().get(0).setOptions(List.of(ModuleQuizOptionDTO.builder().key("A").text("only").build()));
-        assertThrows(IllegalArgumentException.class, () -> service.createSession(null, USER, r));
-    }
-
-    @Test
-    void createSessionRejectsQuestionMissingCorrectKey() {
-        CreateModuleQuizSessionRequestDTO r = validCreateRequest();
-        r.getQuestions().get(0).setCorrectKey(null);
-        assertThrows(IllegalArgumentException.class, () -> service.createSession(null, USER, r));
+        assertThrows(IllegalStateException.class,
+                () -> service.createSession(null, USER, validCreateRequest()));
     }
 
     // ---------- createSession eligibility ----------
@@ -198,6 +221,19 @@ class ModuleQuizServiceTest {
     }
 
     @Test
+    void createSessionRejectsWhenAiBudgetExhausted() {
+        when(userProfileRepository.findByUserId(USER)).thenReturn(Optional.of(eligibleProfile()));
+        when(curriculumRepository.findByCourseIdOrderByOrderAsc(COURSE))
+                .thenReturn(List.of(moduleWithOneCompletedLecture()));
+        org.mockito.Mockito.doThrow(new AiBudgetLimitException("limit reached", 5.0, 5.0))
+                .when(aiUsageService).assertWithinBudget(any(User.class));
+
+        assertThrows(AiBudgetLimitException.class,
+                () -> service.createSession(null, USER, validCreateRequest()));
+        verify(skillamaAiClient, never()).generateQuizQuestions(anyString(), anyList(), anyInt(), any());
+    }
+
+    @Test
     void createSessionSuccessHidesCorrectKeyAndReturnsQuestions() {
         when(userProfileRepository.findByUserId(USER)).thenReturn(Optional.of(eligibleProfile()));
         when(curriculumRepository.findByCourseIdOrderByOrderAsc(COURSE))
@@ -207,9 +243,11 @@ class ModuleQuizServiceTest {
 
         assertTrue(res.getSessionId().startsWith("quiz-"));
         assertEquals(2, res.getTotalQuestions());
+        assertEquals(600, res.getTimeLimitSeconds());
         // Client questions must NOT leak the answer key.
         assertNull(res.getQuestions().get(0).getCorrectKey());
         verify(sessionRepository).save(any(ModuleQuizSession.class));
+        verify(aiUsageService).recordUsage(any());
     }
 
     @Test
@@ -221,6 +259,8 @@ class ModuleQuizServiceTest {
 
         CreateModuleQuizSessionResponseDTO res = service.createSession("guest-1", null, validCreateRequest());
         assertEquals(2, res.getTotalQuestions());
+        // Guests aren't wallet-metered — budget is never even checked.
+        verify(aiUsageService, never()).assertWithinBudget(any());
     }
 
     // ---------- submitAttempt ----------
@@ -283,8 +323,29 @@ class ModuleQuizServiceTest {
         assertEquals(100.0, result.getPercentage());
         assertTrue(result.getPassed());
         assertEquals(1, result.getAttemptNumber());
+        // Elapsed time is server-computed, never trusted from the client (which no
+        // longer even has a field to supply it — SubmitModuleQuizAttemptRequestDTO
+        // has no timeSpentSeconds).
+        assertTrue(result.getTimeSpentSeconds() != null && result.getTimeSpentSeconds() >= 0);
+        assertFalse(result.getOverTimeLimit());
         // Passing quiz records completion on profile.
         verify(userProfileRepository).save(any(UserProfile.class));
+    }
+
+    @Test
+    void submitAttemptFlagsOverTimeLimit() {
+        ModuleQuizSession session = sessionFor("quiz-1", USER, LocalDateTime.now().minusSeconds(700));
+        when(sessionRepository.findByQuizSessionId("quiz-1")).thenReturn(Optional.of(session));
+        when(attemptRepository.countByUserIdAndCourseIdAndModuleName(USER, COURSE, MODULE)).thenReturn(0);
+        when(userProfileRepository.findByUserId(USER)).thenReturn(Optional.of(eligibleProfile()));
+
+        SubmitModuleQuizAttemptRequestDTO r = SubmitModuleQuizAttemptRequestDTO.builder()
+                .sessionId("quiz-1").answers(Map.of("1", "A", "2", "B")).build();
+
+        ModuleQuizAttemptResultDTO result = service.submitAttempt(null, USER, r);
+
+        assertTrue(result.getTimeSpentSeconds() >= 700);
+        assertTrue(result.getOverTimeLimit());
     }
 
     @Test

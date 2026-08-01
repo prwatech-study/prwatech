@@ -7,6 +7,10 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+/**
+ * Starts a module quiz. Questions are generated server-side (backend calls the
+ * AI service directly) — the client never supplies questions or an answer key.
+ */
 @Data
 @Builder
 @NoArgsConstructor
@@ -14,6 +18,5 @@ import java.util.List;
 public class CreateModuleQuizSessionRequestDTO {
     private String courseId;
     private String moduleName;
-    private String quizTitle;
-    private List<ModuleQuizQuestionDTO> questions;
+    private List<String> topics;
 }

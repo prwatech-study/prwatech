@@ -1,6 +1,7 @@
 package com.prwatech.skillama.dto;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
+import com.prwatech.skillama.model.ExamDifficulty;
+import com.prwatech.skillama.model.ExamType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,11 +13,12 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@JsonInclude(JsonInclude.Include.NON_NULL)
-public class CreateModuleQuizSessionResponseDTO {
-    private String sessionId;
-    private String quizTitle;
+public class StartExamResponseDTO {
+    private String examSessionId;
+    private String examTitle;
     private List<ModuleQuizQuestionDTO> questions;
     private Integer totalQuestions;
     private Integer timeLimitSeconds;
+    private ExamDifficulty difficulty;
+    private ExamType examType;
 }

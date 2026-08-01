@@ -41,6 +41,10 @@ public class ModuleQuizSession {
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
 
+    /** Server-owned exam clock — elapsed time is always computed from this, never from the client. */
+    private LocalDateTime startedAt;
+    private Integer timeLimitSeconds;
+
     @Getter
     @Setter
     @Builder

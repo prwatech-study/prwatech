@@ -80,6 +80,7 @@ public class AdminController {
     private final ProgressReconciliationService progressReconciliationService;
     private final SkillamaAuthSupport skillamaAuthSupport;
     private final com.prwatech.skillama.service.DoubtService doubtService;
+    private final com.prwatech.skillama.service.ExamService examService;
 
     // ========== Authentication & Authorization ==========
     
@@ -1323,6 +1324,26 @@ public class AdminController {
             assertModulePermission(request, AdminModule.AI_MENTOR_DOUBTS, AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     doubtService.listAdminDoubts(page, size, userId, courseId, email, status)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * Monitor AI Exam attempts (score, difficulty, exam type, course, time).
+     */
+    @GetMapping("/ai-exams")
+    public ResponseEntity<ApiResponse<Page<AdminExamAttemptDTO>>> listAiExamAttempts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) String courseId,
+            @RequestParam(required = false) String email,
+            HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.AI_EXAMS, AdminPermissionAction.READ);
+            return ResponseEntity.ok(new ApiResponse<>(200,
+                    examService.listAdminAttempts(page, size, userId, courseId, email)));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }

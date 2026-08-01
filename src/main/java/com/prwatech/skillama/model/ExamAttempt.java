@@ -1,6 +1,10 @@
 package com.prwatech.skillama.model;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -9,13 +13,14 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+/** A graded AI Exam submission. Pure self-assessment — no progression side effects. */
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Document(collection = "module_quiz_attempts")
-public class ModuleQuizAttempt {
+@Document(collection = "exam_attempts")
+public class ExamAttempt {
 
     @Id
     private String id;
@@ -24,21 +29,19 @@ public class ModuleQuizAttempt {
     private String userId;
 
     @Indexed
-    private String guestSessionId;
-
-    @Indexed
     private String courseId;
 
-    private String moduleName;
+    private String moduleId;
+    private String topic;
+    private ExamDifficulty difficulty;
+    private ExamType examType;
 
     @Indexed
-    private String quizSessionId;
+    private String examSessionId;
 
-    private Integer attemptNumber;
     private Integer score;
     private Integer maxScore;
     private Double percentage;
-    private Boolean passed;
 
     @Builder.Default
     private List<AnswerRecord> answers = new ArrayList<>();
@@ -60,6 +63,6 @@ public class ModuleQuizAttempt {
         private String correctKey;
         private Boolean isCorrect;
         private String explanation;
-        private List<ModuleQuizSession.QuizOption> options;
+        private List<ExamSession.ExamOption> options;
     }
 }
