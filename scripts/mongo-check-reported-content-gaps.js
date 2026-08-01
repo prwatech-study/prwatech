@@ -5,8 +5,9 @@
  * state, to confirm whether "content skipping" is a data issue (disabled/empty fields) rather
  * than a code defect.
  *
- * Usage:
+ * Usage (run from the prwatech repo root):
  *   source scripts/_lib/read-skillama-mongo-uri.sh
+ *   _read_skillama_mongo_uri
  *   mongosh "$SKILLAMA_MONGO_URI" --quiet --file scripts/mongo-check-reported-content-gaps.js
  */
 
