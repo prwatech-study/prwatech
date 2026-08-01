@@ -16,9 +16,11 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,9 +36,30 @@ import java.util.Map;
 @Slf4j
 public class SkillamaAiClient {
 
+    private static final int AI_CONNECT_TIMEOUT_MS = 5_000;
+    private static final int AI_READ_TIMEOUT_MS = 60_000;
+
     private final AiUsageService aiUsageService;
     private final ObjectMapper objectMapper;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = buildRestTemplate();
+
+    private static RestTemplate buildRestTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(AI_CONNECT_TIMEOUT_MS);
+        factory.setReadTimeout(AI_READ_TIMEOUT_MS);
+        return new RestTemplate(factory);
+    }
+
+    private static boolean isTimeout(Throwable e) {
+        Throwable cause = e;
+        while (cause != null) {
+            if (cause instanceof SocketTimeoutException) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
+    }
 
     @Value("${skillama.ai.base-url:https://ai.prwatech.com}")
     private String aiBaseUrl;
@@ -211,10 +234,15 @@ public class SkillamaAiClient {
         try {
             response = restTemplate.postForEntity(url, entity, String.class);
         } catch (org.springframework.web.client.RestClientException e) {
-            throw new IllegalStateException("quiz generation request to " + url + " failed: " + e.getMessage(), e);
+            log.error("Quiz generation request to {} failed", url, e);
+            String message = isTimeout(e)
+                    ? "The quiz is taking longer than expected to generate. Please try again in a moment."
+                    : "We couldn't generate the quiz right now. Please try again in a moment.";
+            throw new IllegalStateException(message, e);
         }
         if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-            throw new IllegalStateException("AI quiz service returned " + response.getStatusCode());
+            log.error("AI quiz service returned {} for {}", response.getStatusCode(), url);
+            throw new IllegalStateException("We couldn't generate the quiz right now. Please try again in a moment.");
         }
         try {
             JsonNode root = objectMapper.readTree(response.getBody());
