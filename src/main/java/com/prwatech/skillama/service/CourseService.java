@@ -387,12 +387,25 @@ public class CourseService {
         if (s == null) {
             return;
         }
-        if (s.isPracticalRequired() && !StringUtils.hasText(s.getScriptText())) {
+        // Disabled submodules vanish from the learner-facing curriculum with no trace (see
+        // filterCurriculumForLearner) — this only ever surfaces here for the admin (unfiltered)
+        // view, so an admin reviewing a module can see why a topic silently doesn't play.
+        if (!isSubmoduleEnabled(s)) {
+            s.setContentIntegrityIssueCode("SUBMODULE_DISABLED");
+            s.setContentIntegrityIssueMessage(
+                    "This lecture is disabled and hidden from learners — it will not appear in the "
+                            + "course player. If this wasn't intentional, re-enable it in the curriculum editor.");
+        } else if (s.isPracticalRequired() && !StringUtils.hasText(s.getScriptText())) {
             s.setContentIntegrityIssueCode("PRACTICAL_SCRIPT_MISSING");
             s.setContentIntegrityIssueMessage(
                     "This practical session is missing required narration text (scriptText). "
                             + "Audio cannot be generated until an administrator adds the script for this topic. "
                             + "Please use “Report an issue” so our team can fix it — your feedback helps everyone.");
+        } else if (!StringUtils.hasText(s.getImagePath())) {
+            s.setContentIntegrityIssueCode("IMAGE_MISSING");
+            s.setContentIntegrityIssueMessage(
+                    "This lecture has no generated slide image yet. An administrator needs to generate "
+                            + "and commit an image for this topic (curriculum image editor) before it displays correctly.");
         } else {
             s.setContentIntegrityIssueCode(null);
             s.setContentIntegrityIssueMessage(null);
