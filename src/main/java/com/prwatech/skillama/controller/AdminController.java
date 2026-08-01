@@ -1790,10 +1790,27 @@ public class AdminController {
     public ResponseEntity<ApiResponse<Page<SalesLead>>> listSalesLeads(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) SalesLead.LeadStatus status,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request);
-            return ResponseEntity.ok(new ApiResponse<>(200, salesLeadService.listLeads(page, size)));
+            assertModulePermission(request, AdminModule.ENTERPRISE_LEADS, AdminPermissionAction.READ);
+            return ResponseEntity.ok(new ApiResponse<>(200, salesLeadService.listLeads(page, size, status)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PatchMapping("/leads/sales-interest/{leadId}")
+    public ResponseEntity<ApiResponse<SalesLead>> updateSalesLead(
+            @PathVariable String leadId,
+            @RequestBody UpdateSalesLeadDTO body,
+            HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.ENTERPRISE_LEADS, AdminPermissionAction.UPDATE);
+            String adminId = extractUserIdFromRequest(request);
+            return ResponseEntity.ok(new ApiResponse<>(200, salesLeadService.update(leadId, body, adminId)));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }

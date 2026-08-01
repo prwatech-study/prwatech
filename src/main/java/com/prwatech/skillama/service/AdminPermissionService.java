@@ -307,6 +307,7 @@ public class AdminPermissionService {
             case ASSIGNMENTS -> "Assignments";
             case FEEDBACK -> "Feedback";
             case UPGRADE_REQUESTS -> "Upgrade requests";
+            case ENTERPRISE_LEADS -> "Enterprise requests";
             case AUDIT_LOGS -> "Audit logs";
             case ANALYTICS -> "Analytics";
             case FREEMIUM -> "Freemium";
