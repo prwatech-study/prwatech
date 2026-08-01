@@ -5,6 +5,7 @@ import com.prwatech.skillama.dto.AskDoubtRequestDTO;
 import com.prwatech.skillama.dto.DoubtFeedbackRequestDTO;
 import com.prwatech.skillama.dto.DoubtFollowUpRequestDTO;
 import com.prwatech.skillama.dto.DoubtResponseDTO;
+import com.prwatech.skillama.dto.ProxiedAudioDTO;
 import com.prwatech.skillama.model.Doubt;
 import com.prwatech.skillama.model.DoubtStatus;
 import com.prwatech.skillama.repository.CourseRepository;
@@ -24,6 +25,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -37,6 +39,7 @@ class DoubtServiceTest {
     @Mock private DoubtRepository doubtRepository;
     @Mock private SkillamaUserRepository userRepository;
     @Mock private CourseRepository courseRepository;
+    @Mock private SkillamaAiClient skillamaAiClient;
 
     @InjectMocks private DoubtService doubtService;
 
@@ -58,8 +61,8 @@ class DoubtServiceTest {
         assertEquals("course-1", response.getCourseId());
         assertEquals(2, response.getMessages().size());
         assertEquals("USER", response.getMessages().get(0).getSender());
-        assertEquals("https://cdn.example.com/answer-1.mp3", response.getMessages().get(1).getAudioUrl());
-        assertNull(response.getMessages().get(0).getAudioUrl());
+        assertTrue(response.getMessages().get(1).getHasAudio());
+        assertFalse(response.getMessages().get(0).getHasAudio());
         assertEquals("What is a DataFrame?", response.getMessages().get(0).getContent());
         assertEquals("AI", response.getMessages().get(1).getSender());
     }
@@ -88,7 +91,43 @@ class DoubtServiceTest {
         assertEquals(4, response.getMessages().size());
         assertEquals("EXPLAIN_MORE", response.getMessages().get(2).getNudgeType());
         assertEquals("Here is a more detailed explanation.", response.getMessages().get(3).getContent());
-        assertEquals("https://cdn.example.com/answer-2.mp3", response.getMessages().get(3).getAudioUrl());
+        assertTrue(response.getMessages().get(3).getHasAudio());
+    }
+
+    // ---------- getMessageAudio ----------
+
+    @Test
+    void getMessageAudio_proxiesBytesWithoutExposingRawUrl() {
+        Doubt doubt = existingDoubt("doubt-1", "user-1");
+        String messageId = doubt.getMessages().get(1).getId();
+        doubt.getMessages().get(1).setAudioUrl("https://ai.prwatech.com/get_audio/answer.mp3");
+        when(doubtRepository.findById("doubt-1")).thenReturn(Optional.of(doubt));
+        when(skillamaAiClient.fetchAudioBytes("https://ai.prwatech.com/get_audio/answer.mp3"))
+                .thenReturn(ProxiedAudioDTO.builder().data(new byte[]{1, 2, 3}).contentType("audio/mpeg").build());
+
+        ProxiedAudioDTO audio = doubtService.getMessageAudio("user-1", "doubt-1", messageId);
+
+        assertEquals("audio/mpeg", audio.getContentType());
+        assertEquals(3, audio.getData().length);
+    }
+
+    @Test
+    void getMessageAudio_throwsWhenMessageHasNoAudio() {
+        Doubt doubt = existingDoubt("doubt-1", "user-1");
+        String messageId = doubt.getMessages().get(0).getId(); // user message, no audio
+        when(doubtRepository.findById("doubt-1")).thenReturn(Optional.of(doubt));
+
+        assertThrows(NotFoundException.class,
+                () -> doubtService.getMessageAudio("user-1", "doubt-1", messageId));
+    }
+
+    @Test
+    void getMessageAudio_rejectsWrongOwner() {
+        Doubt doubt = existingDoubt("doubt-1", "someone-else");
+        when(doubtRepository.findById("doubt-1")).thenReturn(Optional.of(doubt));
+
+        assertThrows(NotFoundException.class,
+                () -> doubtService.getMessageAudio("user-1", "doubt-1", "any-message-id"));
     }
 
     @Test

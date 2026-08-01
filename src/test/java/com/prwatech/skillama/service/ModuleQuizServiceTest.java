@@ -82,7 +82,7 @@ class ModuleQuizServiceTest {
         });
         when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(inv -> inv.getArgument(0));
         when(userRepository.findById(USER)).thenReturn(Optional.of(User.builder().id(USER).build()));
-        when(skillamaAiClient.generateQuizQuestions(anyString(), anyList(), anyInt(), isNull()))
+        when(skillamaAiClient.generateQuizQuestions(anyString(), anyString(), anyList(), anyInt(), isNull()))
                 .thenReturn(generatedQuiz());
     }
 
@@ -186,7 +186,7 @@ class ModuleQuizServiceTest {
         when(userProfileRepository.findByUserId(USER)).thenReturn(Optional.of(eligibleProfile()));
         when(curriculumRepository.findByCourseIdOrderByOrderAsc(COURSE))
                 .thenReturn(List.of(moduleWithOneCompletedLecture()));
-        when(skillamaAiClient.generateQuizQuestions(anyString(), anyList(), anyInt(), isNull()))
+        when(skillamaAiClient.generateQuizQuestions(anyString(), anyString(), anyList(), anyInt(), isNull()))
                 .thenReturn(GeneratedQuizDTO.builder().questions(new ArrayList<>()).build());
 
         assertThrows(IllegalStateException.class,
@@ -233,7 +233,7 @@ class ModuleQuizServiceTest {
 
         assertThrows(AiBudgetLimitException.class,
                 () -> service.createSession(null, USER, validCreateRequest()));
-        verify(skillamaAiClient, never()).generateQuizQuestions(anyString(), anyList(), anyInt(), any());
+        verify(skillamaAiClient, never()).generateQuizQuestions(anyString(), anyString(), anyList(), anyInt(), any());
     }
 
     @Test

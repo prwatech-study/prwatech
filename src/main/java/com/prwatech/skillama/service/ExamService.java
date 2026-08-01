@@ -92,7 +92,7 @@ public class ExamService {
         int timeLimitSeconds = numQuestions * SECONDS_PER_QUESTION;
 
         GeneratedQuizDTO generated = skillamaAiClient.generateQuizQuestions(
-                topicHint, topics, numQuestions,
+                courseName, topicHint, topics, numQuestions,
                 request.getDifficulty() != null ? request.getDifficulty().name().toLowerCase() : null);
         if (generated.getQuestions() == null || generated.getQuestions().isEmpty()) {
             throw new IllegalStateException("AI did not return any exam questions");

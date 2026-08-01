@@ -42,6 +42,7 @@ public class UserProfileService {
     private final UserCourseService userCourseService;
     private final ModuleQuizService moduleQuizService;
     private final AiUsageService aiUsageService;
+    private final SkillamaAiClient skillamaAiClient;
     
     // ========== Session Management ==========
     
@@ -870,7 +871,9 @@ public class UserProfileService {
     // ========== Chat Tracking ==========
 
     /**
-     * Paginated chat history for the current session/user (lightweight — no audio URLs).
+     * Paginated chat history for the current session/user. Never includes the raw
+     * (unauthenticated, permanent) ai-tutor audio URL — only a hasAudio flag; fetch
+     * playback via {@link #getChatInteractionAudio}.
      */
     public List<ChatHistoryItemDTO> getChatHistory(
             String sessionId, String userId, String courseId, int page, int size) {
@@ -896,13 +899,32 @@ public class UserProfileService {
                         .id(c.getId())
                         .question(c.getQuestion())
                         .answer(c.getAnswer())
-                        .answerAudioUrl(c.getAudioUrl())
+                        .hasAudio(c.getAudioUrl() != null && !c.getAudioUrl().isBlank())
                         .timestamp(c.getTimestamp())
                         .lectureContext(c.getLectureContext())
                         .courseId(c.getCourseId())
                         .questionType(c.getQuestionType())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Proxies a chat interaction's spoken-answer audio — the raw ai-tutor URL is fetched
+     * here and never handed to the client (see {@link SkillamaAiClient#fetchAudioBytes}).
+     */
+    public ProxiedAudioDTO getChatInteractionAudio(String sessionId, String userId, String interactionId) {
+        UserProfile profile = resolveProfileForRead(sessionId, userId)
+                .orElseThrow(() -> new NotFoundException("Chat history not found"));
+        List<UserProfile.ChatInteraction> interactions =
+                profile.getChatInteractions() != null ? profile.getChatInteractions() : List.of();
+        UserProfile.ChatInteraction interaction = interactions.stream()
+                .filter(c -> interactionId.equals(c.getId()))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Chat interaction not found"));
+        if (interaction.getAudioUrl() == null || interaction.getAudioUrl().isBlank()) {
+            throw new NotFoundException("No audio available for this interaction");
+        }
+        return skillamaAiClient.fetchAudioBytes(interaction.getAudioUrl());
     }
 
     /**
@@ -973,7 +995,7 @@ public class UserProfileService {
                         .courseName(courseName)
                         .question(chat.getQuestion())
                         .answer(chat.getAnswer())
-                        .answerAudioUrl(chat.getAudioUrl())
+                        .hasAudio(chat.getAudioUrl() != null && !chat.getAudioUrl().isBlank())
                         .lectureContext(chat.getLectureContext())
                         .questionType(chat.getQuestionType())
                         .timestamp(chat.getTimestamp())

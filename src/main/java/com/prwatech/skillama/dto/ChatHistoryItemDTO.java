@@ -18,7 +18,8 @@ public class ChatHistoryItemDTO {
     private String id;
     private String question;
     private String answer;
-    private String answerAudioUrl;
+    /** True when a spoken answer exists — fetch it via the interaction audio endpoint, never a raw URL. */
+    private Boolean hasAudio;
     private LocalDateTime timestamp;
     private String lectureContext;
     private String courseId;

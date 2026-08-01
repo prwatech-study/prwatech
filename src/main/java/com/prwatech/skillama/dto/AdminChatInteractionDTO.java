@@ -25,7 +25,8 @@ public class AdminChatInteractionDTO {
     private String courseName;
     private String question;
     private String answer;
-    private String answerAudioUrl;
+    /** True when a spoken answer exists — never the raw (unauthenticated, permanent) ai-tutor URL. */
+    private Boolean hasAudio;
     private String lectureContext;
     private String questionType;
     private LocalDateTime timestamp;

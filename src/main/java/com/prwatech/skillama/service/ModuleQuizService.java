@@ -67,8 +67,12 @@ public class ModuleQuizService {
             aiUsageService.assertWithinBudget(user);
         }
 
+        String courseName = courseRepository.findById(request.getCourseId())
+                .map(Course::getName)
+                .orElse("this course");
+
         GeneratedQuizDTO generated = skillamaAiClient.generateQuizQuestions(
-                request.getModuleName(), request.getTopics(), NUM_QUESTIONS, null);
+                courseName, request.getModuleName(), request.getTopics(), NUM_QUESTIONS, null);
         if (generated.getQuestions() == null || generated.getQuestions().isEmpty()) {
             throw new IllegalStateException("AI did not return any quiz questions");
         }

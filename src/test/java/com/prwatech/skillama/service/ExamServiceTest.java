@@ -84,7 +84,7 @@ class ExamServiceTest {
             a.setId("attempt1");
             return a;
         });
-        when(skillamaAiClient.generateQuizQuestions(anyString(), anyList(), anyInt(), any()))
+        when(skillamaAiClient.generateQuizQuestions(anyString(), anyString(), anyList(), anyInt(), any()))
                 .thenReturn(generatedQuiz());
     }
 
@@ -161,7 +161,7 @@ class ExamServiceTest {
 
     @Test
     void startExamThrowsWhenAiReturnsNoQuestions() {
-        when(skillamaAiClient.generateQuizQuestions(anyString(), anyList(), anyInt(), any()))
+        when(skillamaAiClient.generateQuizQuestions(anyString(), anyString(), anyList(), anyInt(), any()))
                 .thenReturn(GeneratedQuizDTO.builder().questions(new ArrayList<>()).build());
         assertThrows(IllegalStateException.class, () -> service.startExam(USER, practiceRequest()));
     }
@@ -172,7 +172,7 @@ class ExamServiceTest {
                 .when(aiUsageService).assertWithinBudget(any(User.class));
 
         assertThrows(AiBudgetLimitException.class, () -> service.startExam(USER, practiceRequest()));
-        verify(skillamaAiClient, never()).generateQuizQuestions(anyString(), anyList(), anyInt(), any());
+        verify(skillamaAiClient, never()).generateQuizQuestions(anyString(), anyString(), anyList(), anyInt(), any());
     }
 
     @Test

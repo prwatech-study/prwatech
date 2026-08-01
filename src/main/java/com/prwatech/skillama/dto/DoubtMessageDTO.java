@@ -17,7 +17,8 @@ public class DoubtMessageDTO {
     private String id;
     private String sender;
     private String content;
-    private String audioUrl;
+    /** True when an audio answer exists — fetch it via the message audio endpoint, never a raw URL. */
+    private Boolean hasAudio;
     private String nudgeType;
     private Boolean helpful;
     private LocalDateTime timestamp;

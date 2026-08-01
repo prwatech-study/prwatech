@@ -6,6 +6,7 @@ import com.prwatech.skillama.dto.ExamRecommendationResponseDTO;
 import com.prwatech.skillama.dto.GeneratedImageDTO;
 import com.prwatech.skillama.dto.GeneratedQuizDTO;
 import com.prwatech.skillama.dto.ModuleQuizQuestionDTO;
+import com.prwatech.skillama.dto.ProxiedAudioDTO;
 import com.prwatech.skillama.model.ExamDifficulty;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -176,8 +177,8 @@ public class SkillamaAiClient {
      *
      * <p><b>ai-tutor (Flask) contract — POST {aiBaseUrl}/generate_quiz</b>
      * <pre>
-     * Request JSON:  { "module_name": String, "topics": [String], "num_questions": int,
-     *                  "difficulty": String (optional) }
+     * Request JSON:  { "course": String, "module_name": String, "topics": [String],
+     *                  "num_questions": int, "difficulty": String (optional) }
      * Response JSON: { "quiz_title": String,
      *                  "questions": [ { "id": int, "question": String,
      *                                   "options": [ {"key": String, "text": String} ],
@@ -189,10 +190,11 @@ public class SkillamaAiClient {
      * </pre>
      */
     public GeneratedQuizDTO generateQuizQuestions(
-            String moduleName, List<String> topics, int numQuestions, String difficulty) {
+            String course, String moduleName, List<String> topics, int numQuestions, String difficulty) {
         String url = resolveBaseUrl() + "/generate_quiz";
 
         Map<String, Object> body = new HashMap<>();
+        body.put("course", course != null ? course : "");
         body.put("module_name", moduleName != null ? moduleName : "");
         body.put("topics", topics != null ? topics : new ArrayList<>());
         body.put("num_questions", numQuestions);
@@ -353,5 +355,34 @@ public class SkillamaAiClient {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /**
+     * Fetches spoken-answer audio bytes server-side so callers can proxy playback to an
+     * authenticated, ownership-checked client instead of ever handing out the underlying
+     * ai-tutor URL — that URL is unauthenticated and permanent, so anyone who obtained it
+     * any other way (logs, a DB export, a shared link) could otherwise play it forever
+     * with no login required.
+     */
+    public ProxiedAudioDTO fetchAudioBytes(String audioUrl) {
+        if (audioUrl == null || audioUrl.isBlank()) {
+            throw new IllegalArgumentException("audioUrl is required");
+        }
+        ResponseEntity<byte[]> response;
+        try {
+            response = restTemplate.getForEntity(audioUrl, byte[].class);
+        } catch (org.springframework.web.client.RestClientException e) {
+            throw new IllegalStateException("audio fetch failed: " + e.getMessage(), e);
+        }
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new IllegalStateException("AI audio service returned " + response.getStatusCode());
+        }
+        String contentType = response.getHeaders().getContentType() != null
+                ? response.getHeaders().getContentType().toString()
+                : "audio/mpeg";
+        return ProxiedAudioDTO.builder()
+                .data(response.getBody())
+                .contentType(contentType)
+                .build();
     }
 }

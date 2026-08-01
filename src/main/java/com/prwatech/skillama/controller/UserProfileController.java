@@ -312,7 +312,32 @@ public class UserProfileController {
                 userProfileService.getChatHistory(
                         profilingSessionId(sessionId, userId), userId, courseId, page, size));
     }
-    
+
+    /**
+     * Proxies a chat interaction's spoken-answer audio bytes — the raw ai-tutor URL never
+     * reaches the client, only the audio itself, after a session/user ownership check.
+     */
+    @GetMapping("/chat/history/{interactionId}/audio")
+    public ResponseEntity<?> getChatInteractionAudio(
+            @PathVariable String interactionId, HttpServletRequest httpRequest) {
+        String sessionId = getSessionIdFromRequest(httpRequest);
+        String userId = getUserIdFromRequest(httpRequest);
+        if (sessionId == null && userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        try {
+            com.prwatech.skillama.dto.ProxiedAudioDTO audio = userProfileService.getChatInteractionAudio(
+                    profilingSessionId(sessionId, userId), userId, interactionId);
+            return ResponseEntity.ok()
+                    .contentType(org.springframework.http.MediaType.parseMediaType(audio.getContentType()))
+                    .body(audio.getData());
+        } catch (com.prwatech.common.exception.NotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(502).body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
     /**
      * Track chat question/answer
      */

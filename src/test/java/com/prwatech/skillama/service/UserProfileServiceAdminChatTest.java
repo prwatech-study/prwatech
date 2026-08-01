@@ -1,6 +1,8 @@
 package com.prwatech.skillama.service;
 
+import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.dto.AdminChatInteractionDTO;
+import com.prwatech.skillama.dto.ProxiedAudioDTO;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserProfile;
@@ -22,6 +24,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -36,6 +40,7 @@ class UserProfileServiceAdminChatTest {
     @Mock private SkillamaUserRepository userRepository;
     @Mock private MongoTemplate skillamaMongoTemplate;
     @Mock private UserCourseService userCourseService;
+    @Mock private SkillamaAiClient skillamaAiClient;
 
     @InjectMocks private UserProfileService userProfileService;
 
@@ -82,6 +87,58 @@ class UserProfileServiceAdminChatTest {
 
         assertEquals(2, page.getTotalElements());
         assertTrue(page.getContent().get(0).getQuestion().contains("Java"));
+    }
+
+    @Test
+    void listAdminChatInteractions_neverExposesRawAudioUrlOnlyHasAudioFlag() {
+        when(userProfileRepository.findAll()).thenReturn(List.of(profile));
+        when(userRepository.findById("u1")).thenReturn(Optional.of(
+                User.builder().id("u1").name("Ada").email("ada@skillama.co.in").build()));
+
+        Page<AdminChatInteractionDTO> page =
+                userProfileService.listAdminChatInteractions(0, 20, null, "c1", null);
+
+        // c1's interaction was built without an audioUrl.
+        assertFalse(page.getContent().get(0).getHasAudio());
+    }
+
+    @Test
+    void getChatInteractionAudio_proxiesBytesWithoutExposingRawUrl() {
+        UserProfile withAudio = UserProfile.builder()
+                .userId("u1")
+                .isGuest(false)
+                .chatInteractions(List.of(
+                        UserProfile.ChatInteraction.builder()
+                                .id("chat-1").courseId("c1")
+                                .question("What is Python?").answer("A language")
+                                .audioUrl("https://ai.prwatech.com/get_audio/answer.mp3")
+                                .timestamp(LocalDateTime.of(2026, 6, 1, 10, 0))
+                                .build()))
+                .build();
+        when(userProfileRepository.findByUserId("u1")).thenReturn(Optional.of(withAudio));
+        when(skillamaAiClient.fetchAudioBytes("https://ai.prwatech.com/get_audio/answer.mp3"))
+                .thenReturn(ProxiedAudioDTO.builder().data(new byte[]{1, 2, 3}).contentType("audio/mpeg").build());
+
+        ProxiedAudioDTO audio = userProfileService.getChatInteractionAudio(null, "u1", "chat-1");
+
+        assertEquals("audio/mpeg", audio.getContentType());
+        assertEquals(3, audio.getData().length);
+    }
+
+    @Test
+    void getChatInteractionAudio_throwsWhenInteractionHasNoAudio() {
+        when(userProfileRepository.findByUserId("u1")).thenReturn(Optional.of(profile));
+
+        assertThrows(NotFoundException.class,
+                () -> userProfileService.getChatInteractionAudio(null, "u1", "chat-c1-" + "What is Python?".hashCode()));
+    }
+
+    @Test
+    void getChatInteractionAudio_throwsWhenProfileNotFound() {
+        when(userProfileRepository.findByUserId("someone-else")).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class,
+                () -> userProfileService.getChatInteractionAudio(null, "someone-else", "chat-1"));
     }
 
     private static UserProfile.ChatInteraction chat(

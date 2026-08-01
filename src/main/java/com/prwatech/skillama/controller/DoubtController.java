@@ -1,14 +1,17 @@
 package com.prwatech.skillama.controller;
 
+import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.dto.AskDoubtRequestDTO;
 import com.prwatech.skillama.dto.DoubtFeedbackRequestDTO;
 import com.prwatech.skillama.dto.DoubtFollowUpRequestDTO;
 import com.prwatech.skillama.dto.DoubtResponseDTO;
 import com.prwatech.skillama.dto.DoubtStatusUpdateRequestDTO;
+import com.prwatech.skillama.dto.ProxiedAudioDTO;
 import com.prwatech.skillama.service.DoubtService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -115,6 +118,33 @@ public class DoubtController {
                     doubtService.updateStatus(userId, doubtId, request != null ? request.getStatus() : null));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Proxies a message's spoken-answer audio bytes — the raw ai-tutor URL never reaches
+     * the client, only the audio itself, after an ownership check.
+     */
+    @GetMapping("/doubts/{doubtId}/messages/{messageId}/audio")
+    public ResponseEntity<?> getMessageAudio(
+            @PathVariable String doubtId,
+            @PathVariable String messageId,
+            HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        try {
+            ProxiedAudioDTO audio = doubtService.getMessageAudio(userId, doubtId, messageId);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(audio.getContentType()))
+                    .body(audio.getData());
+        } catch (NotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(502).body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
 

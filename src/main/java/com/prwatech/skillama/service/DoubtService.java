@@ -7,6 +7,7 @@ import com.prwatech.skillama.dto.DoubtFeedbackRequestDTO;
 import com.prwatech.skillama.dto.DoubtFollowUpRequestDTO;
 import com.prwatech.skillama.dto.DoubtMessageDTO;
 import com.prwatech.skillama.dto.DoubtResponseDTO;
+import com.prwatech.skillama.dto.ProxiedAudioDTO;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.Doubt;
 import com.prwatech.skillama.model.DoubtStatus;
@@ -39,6 +40,7 @@ public class DoubtService {
     private final DoubtRepository doubtRepository;
     private final SkillamaUserRepository userRepository;
     private final CourseRepository courseRepository;
+    private final SkillamaAiClient skillamaAiClient;
 
     @Transactional
     public DoubtResponseDTO askDoubt(String userId, AskDoubtRequestDTO request) {
@@ -165,6 +167,22 @@ public class DoubtService {
         return toResponseDto(requireOwnedDoubt(userId, doubtId));
     }
 
+    /**
+     * Proxies a message's spoken-answer audio — the raw ai-tutor URL is fetched here and
+     * never handed to the client (see {@link SkillamaAiClient#fetchAudioBytes}).
+     */
+    public ProxiedAudioDTO getMessageAudio(String userId, String doubtId, String messageId) {
+        Doubt doubt = requireOwnedDoubt(userId, doubtId);
+        Doubt.DoubtMessage message = doubt.getMessages().stream()
+                .filter(m -> messageId.equals(m.getId()))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Message not found"));
+        if (message.getAudioUrl() == null || message.getAudioUrl().isBlank()) {
+            throw new NotFoundException("No audio available for this message");
+        }
+        return skillamaAiClient.fetchAudioBytes(message.getAudioUrl());
+    }
+
     /** Admin monitor: paginated AI Mentor doubts across all learners. */
     public Page<AdminAiMentorDoubtDTO> listAdminDoubts(
             int page, int size, String userId, String courseId, String email, DoubtStatus status) {
@@ -260,7 +278,7 @@ public class DoubtService {
                                 .id(m.getId())
                                 .sender(m.getSender() != null ? m.getSender().name() : null)
                                 .content(m.getContent())
-                                .audioUrl(m.getAudioUrl())
+                                .hasAudio(m.getAudioUrl() != null && !m.getAudioUrl().isBlank())
                                 .nudgeType(m.getNudgeType())
                                 .helpful(m.getHelpful())
                                 .timestamp(m.getTimestamp())
