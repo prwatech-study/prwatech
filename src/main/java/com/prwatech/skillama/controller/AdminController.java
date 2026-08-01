@@ -81,6 +81,7 @@ public class AdminController {
     private final SkillamaAuthSupport skillamaAuthSupport;
     private final com.prwatech.skillama.service.DoubtService doubtService;
     private final com.prwatech.skillama.service.ExamService examService;
+    private final com.prwatech.skillama.service.ModuleQuizService moduleQuizService;
 
     // ========== Authentication & Authorization ==========
     
@@ -1344,6 +1345,48 @@ public class AdminController {
             assertModulePermission(request, AdminModule.AI_EXAMS, AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     examService.listAdminAttempts(page, size, userId, courseId, email)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * Monitor Module Quiz attempts across all learners (score, pass/fail, module, course, time).
+     */
+    @GetMapping("/module-quiz-attempts")
+    public ResponseEntity<ApiResponse<Page<AdminModuleQuizAttemptDTO>>> listModuleQuizAttempts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) String courseId,
+            @RequestParam(required = false) String moduleName,
+            @RequestParam(required = false) String email,
+            HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.MODULE_QUIZ_MONITOR, AdminPermissionAction.READ);
+            return ResponseEntity.ok(new ApiResponse<>(200,
+                    moduleQuizService.listAdminAttempts(page, size, userId, courseId, moduleName, email)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * Monitor "AI Recommended Test" suggestions across all learners (same permission as AI Exam
+     * attempts — it's a sub-view of the same feature, not a separate module).
+     */
+    @GetMapping("/ai-exam-recommendations")
+    public ResponseEntity<ApiResponse<Page<AdminExamRecommendationDTO>>> listAiExamRecommendations(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) String courseId,
+            @RequestParam(required = false) String email,
+            HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.AI_EXAMS, AdminPermissionAction.READ);
+            return ResponseEntity.ok(new ApiResponse<>(200,
+                    examService.listAdminRecommendations(page, size, userId, courseId, email)));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }

@@ -23,5 +23,6 @@ public enum AdminModule {
     AI_USAGE,
     TESTER_EVALUATIONS,
     AI_MENTOR_DOUBTS,
-    AI_EXAMS
+    AI_EXAMS,
+    MODULE_QUIZ_MONITOR
 }

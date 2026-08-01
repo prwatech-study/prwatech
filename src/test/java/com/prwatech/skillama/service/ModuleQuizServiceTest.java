@@ -1,5 +1,6 @@
 package com.prwatech.skillama.service;
 
+import com.prwatech.skillama.dto.AdminModuleQuizAttemptDTO;
 import com.prwatech.skillama.dto.CreateModuleQuizSessionRequestDTO;
 import com.prwatech.skillama.dto.CreateModuleQuizSessionResponseDTO;
 import com.prwatech.skillama.dto.GeneratedQuizDTO;
@@ -8,6 +9,7 @@ import com.prwatech.skillama.dto.ModuleQuizOptionDTO;
 import com.prwatech.skillama.dto.ModuleQuizQuestionDTO;
 import com.prwatech.skillama.dto.SubmitModuleQuizAttemptRequestDTO;
 import com.prwatech.skillama.exception.AiBudgetLimitException;
+import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.ModuleQuizAttempt;
 import com.prwatech.skillama.model.ModuleQuizSession;
@@ -26,6 +28,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.domain.Page;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -442,5 +445,51 @@ class ModuleQuizServiceTest {
         assertTrue(service.canUnlockPastModuleQuiz(p, COURSE, "Other"));  // skipped
         assertFalse(service.canUnlockPastModuleQuiz(p, COURSE, "Unseen"));
         assertEquals(9, service.getBestQuizScore(p, COURSE, MODULE));
+    }
+
+    // ---------- listAdminAttempts ----------
+
+    @Test
+    void listAdminAttempts_excludesGuestsAndIncludesUserDetails() {
+        ModuleQuizAttempt userAttempt = ModuleQuizAttempt.builder()
+                .id("a1").userId(USER).courseId(COURSE).moduleName(MODULE)
+                .score(4).maxScore(5).percentage(80.0).passed(true)
+                .submittedAt(LocalDateTime.of(2026, 6, 1, 10, 0))
+                .build();
+        ModuleQuizAttempt guestAttempt = ModuleQuizAttempt.builder()
+                .id("a2").guestSessionId("guest-1").courseId(COURSE).moduleName(MODULE)
+                .score(1).maxScore(5).percentage(20.0).passed(false)
+                .submittedAt(LocalDateTime.of(2026, 6, 2, 10, 0))
+                .build();
+        when(attemptRepository.findAll()).thenReturn(List.of(userAttempt, guestAttempt));
+        when(userRepository.findById(USER)).thenReturn(Optional.of(
+                User.builder().id(USER).name("Ada").email("ada@skillama.co.in").build()));
+        when(courseRepository.findById(COURSE)).thenReturn(Optional.of(
+                Course.builder().id(COURSE).name("Python Basics").build()));
+
+        Page<AdminModuleQuizAttemptDTO> result = service.listAdminAttempts(0, 20, null, null, null, null);
+
+        assertEquals(1, result.getTotalElements());
+        AdminModuleQuizAttemptDTO row = result.getContent().get(0);
+        assertEquals("a1", row.getAttemptId());
+        assertEquals("Ada", row.getUserName());
+        assertEquals("Python Basics", row.getCourseName());
+    }
+
+    @Test
+    void listAdminAttempts_filtersByModuleName() {
+        ModuleQuizAttempt match = ModuleQuizAttempt.builder()
+                .id("a1").userId(USER).courseId(COURSE).moduleName(MODULE)
+                .submittedAt(LocalDateTime.of(2026, 6, 1, 10, 0)).build();
+        ModuleQuizAttempt other = ModuleQuizAttempt.builder()
+                .id("a2").userId(USER).courseId(COURSE).moduleName("Other Module")
+                .submittedAt(LocalDateTime.of(2026, 6, 2, 10, 0)).build();
+        when(attemptRepository.findAll()).thenReturn(List.of(match, other));
+        when(userRepository.findById(USER)).thenReturn(Optional.of(User.builder().id(USER).build()));
+
+        Page<AdminModuleQuizAttemptDTO> result = service.listAdminAttempts(0, 20, null, null, MODULE, null);
+
+        assertEquals(1, result.getTotalElements());
+        assertEquals("a1", result.getContent().get(0).getAttemptId());
     }
 }

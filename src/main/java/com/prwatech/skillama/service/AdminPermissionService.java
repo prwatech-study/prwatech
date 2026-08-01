@@ -319,6 +319,7 @@ public class AdminPermissionService {
             case TESTER_EVALUATIONS -> "Tester evaluations";
             case AI_MENTOR_DOUBTS -> "AI Mentor doubts";
             case AI_EXAMS -> "AI Exam attempts";
+            case MODULE_QUIZ_MONITOR -> "Module Quiz monitor";
         };
     }
 }

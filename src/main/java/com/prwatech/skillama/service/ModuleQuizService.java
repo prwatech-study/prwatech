@@ -17,6 +17,9 @@ import com.prwatech.skillama.repository.UserProfileRepository;
 import com.prwatech.skillama.util.IndiaTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -284,6 +287,72 @@ public class ModuleQuizService {
                 .orElse(attempt.getCourseId() != null ? attempt.getCourseId() : "Unknown course");
         detail.setCourseName(courseName);
         return detail;
+    }
+
+    /** Admin monitor: paginated Module Quiz attempts across all learners (guests excluded). */
+    public Page<AdminModuleQuizAttemptDTO> listAdminAttempts(
+            int page, int size, String userId, String courseId, String moduleName, String email) {
+        int limit = Math.min(Math.max(size, 1), 100);
+        int pageNum = Math.max(page, 0);
+
+        String emailFilter = email != null ? email.trim().toLowerCase() : null;
+        Set<String> allowedUserIds = null;
+        if (emailFilter != null && !emailFilter.isBlank()) {
+            allowedUserIds = userRepository.findAll().stream()
+                    .filter(u -> u.getEmail() != null && u.getEmail().toLowerCase().contains(emailFilter))
+                    .map(User::getId)
+                    .collect(Collectors.toSet());
+            if (allowedUserIds.isEmpty()) {
+                return new PageImpl<>(List.of(), PageRequest.of(pageNum, limit), 0);
+            }
+        }
+
+        Map<String, User> userCache = new HashMap<>();
+        Map<String, String> courseNameCache = new HashMap<>();
+        Set<String> allowedUserIdsFinal = allowedUserIds;
+
+        List<AdminModuleQuizAttemptDTO> rows = attemptRepository.findAll().stream()
+                .filter(a -> a.getUserId() != null) // guests have no stable identity to review
+                .filter(a -> userId == null || userId.isBlank() || userId.equals(a.getUserId()))
+                .filter(a -> courseId == null || courseId.isBlank() || courseId.equals(a.getCourseId()))
+                .filter(a -> moduleName == null || moduleName.isBlank() || moduleName.equals(a.getModuleName()))
+                .filter(a -> allowedUserIdsFinal == null || allowedUserIdsFinal.contains(a.getUserId()))
+                .map(a -> {
+                    User user = userCache.computeIfAbsent(a.getUserId(), id -> userRepository.findById(id).orElse(null));
+                    String courseName = a.getCourseId() != null
+                            ? courseNameCache.computeIfAbsent(a.getCourseId(),
+                                    cid -> courseRepository.findById(cid).map(Course::getName).orElse(null))
+                            : null;
+                    return AdminModuleQuizAttemptDTO.builder()
+                            .attemptId(a.getId())
+                            .userId(a.getUserId())
+                            .userName(user != null ? user.getName() : null)
+                            .userEmail(user != null ? user.getEmail() : null)
+                            .courseId(a.getCourseId())
+                            .courseName(courseName)
+                            .moduleName(a.getModuleName())
+                            .attemptNumber(a.getAttemptNumber())
+                            .score(a.getScore())
+                            .maxScore(a.getMaxScore())
+                            .percentage(a.getPercentage())
+                            .passed(a.getPassed())
+                            .timeSpentSeconds(a.getTimeSpentSeconds())
+                            .overTimeLimit(a.getOverTimeLimit())
+                            .submittedAt(a.getSubmittedAt())
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        rows.sort(Comparator.comparing(
+                AdminModuleQuizAttemptDTO::getSubmittedAt, Comparator.nullsLast(Comparator.reverseOrder())));
+
+        int total = rows.size();
+        int from = pageNum * limit;
+        if (from >= total) {
+            return new PageImpl<>(List.of(), PageRequest.of(pageNum, limit), total);
+        }
+        int to = Math.min(from + limit, total);
+        return new PageImpl<>(rows.subList(from, to), PageRequest.of(pageNum, limit), total);
     }
 
     public boolean hasPassedModuleQuiz(UserProfile profile, String courseId, String moduleName) {

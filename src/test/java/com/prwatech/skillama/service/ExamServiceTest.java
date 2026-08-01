@@ -1,6 +1,7 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.skillama.dto.AdminExamAttemptDTO;
+import com.prwatech.skillama.dto.AdminExamRecommendationDTO;
 import com.prwatech.skillama.dto.ExamAttemptResultDTO;
 import com.prwatech.skillama.dto.ExamRecommendationResponseDTO;
 import com.prwatech.skillama.dto.GeneratedQuizDTO;
@@ -14,11 +15,13 @@ import com.prwatech.skillama.exception.AiBudgetLimitException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.ExamAttempt;
 import com.prwatech.skillama.model.ExamDifficulty;
+import com.prwatech.skillama.model.ExamRecommendationLog;
 import com.prwatech.skillama.model.ExamSession;
 import com.prwatech.skillama.model.ExamType;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.ExamAttemptRepository;
+import com.prwatech.skillama.repository.ExamRecommendationLogRepository;
 import com.prwatech.skillama.repository.ExamSessionRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +63,7 @@ class ExamServiceTest {
     @Mock private AiUsageService aiUsageService;
     @Mock private SkillamaUserRepository userRepository;
     @Mock private ModuleQuizService moduleQuizService;
+    @Mock private ExamRecommendationLogRepository recommendationLogRepository;
 
     private ExamService service;
 
@@ -69,7 +73,8 @@ class ExamServiceTest {
     @BeforeEach
     void setUp() {
         service = new ExamService(sessionRepository, attemptRepository, courseRepository,
-                skillamaAiClient, aiUsageService, userRepository, moduleQuizService);
+                skillamaAiClient, aiUsageService, userRepository, moduleQuizService,
+                recommendationLogRepository);
 
         when(userRepository.findById(USER)).thenReturn(Optional.of(User.builder().id(USER).build()));
         when(courseRepository.findById(COURSE)).thenReturn(Optional.of(Course.builder().id(COURSE).name("Python").build()));
@@ -282,6 +287,49 @@ class ExamServiceTest {
         assertEquals("Loops", res.getTopic());
         verify(skillamaAiClient).getExamRecommendation("Python", null, 70.0);
         verify(aiUsageService).recordUsage(any());
+        verify(recommendationLogRepository).save(any(ExamRecommendationLog.class));
+    }
+
+    // ---------- listAdminRecommendations ----------
+
+    @Test
+    void listAdminRecommendationsFiltersByCourseAndIncludesUserDetails() {
+        ExamRecommendationLog log = ExamRecommendationLog.builder()
+                .id("r1").userId(USER).courseId(COURSE)
+                .difficulty(ExamDifficulty.ADVANCED).topic("Recursion")
+                .reasoning("high scores").estimatedMinutes(20).expectedScorePercent(85)
+                .createdAt(LocalDateTime.of(2026, 6, 1, 10, 0))
+                .build();
+        when(recommendationLogRepository.findAll()).thenReturn(List.of(log));
+        when(userRepository.findById(USER)).thenReturn(Optional.of(
+                User.builder().id(USER).name("Ada").email("ada@skillama.co.in").build()));
+
+        Page<AdminExamRecommendationDTO> page = service.listAdminRecommendations(0, 20, null, COURSE, null);
+
+        assertEquals(1, page.getTotalElements());
+        AdminExamRecommendationDTO row = page.getContent().get(0);
+        assertEquals("Ada", row.getUserName());
+        assertEquals("Python", row.getCourseName());
+        assertEquals("Recursion", row.getTopic());
+        assertEquals(ExamDifficulty.ADVANCED, row.getDifficulty());
+    }
+
+    @Test
+    void listAdminRecommendationsFiltersByEmail() {
+        ExamRecommendationLog log = ExamRecommendationLog.builder()
+                .id("r1").userId(USER).courseId(COURSE).build();
+        when(recommendationLogRepository.findAll()).thenReturn(List.of(log));
+        when(userRepository.findAll()).thenReturn(List.of(
+                User.builder().id(USER).email("ada@skillama.co.in").build(),
+                User.builder().id("someone-else").email("bob@skillama.co.in").build()));
+
+        Page<AdminExamRecommendationDTO> noMatch =
+                service.listAdminRecommendations(0, 20, null, null, "bob@");
+        assertEquals(0, noMatch.getTotalElements());
+
+        Page<AdminExamRecommendationDTO> match =
+                service.listAdminRecommendations(0, 20, null, null, "ada@");
+        assertEquals(1, match.getTotalElements());
     }
 
     // ---------- listAdminAttempts ----------

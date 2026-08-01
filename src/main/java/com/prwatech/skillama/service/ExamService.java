@@ -1,6 +1,7 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.skillama.dto.AdminExamAttemptDTO;
+import com.prwatech.skillama.dto.AdminExamRecommendationDTO;
 import com.prwatech.skillama.dto.AiUsageRecordRequestDTO;
 import com.prwatech.skillama.dto.ExamAnswerResultDTO;
 import com.prwatech.skillama.dto.ExamAttemptResultDTO;
@@ -16,11 +17,13 @@ import com.prwatech.skillama.dto.SubmitExamAttemptRequestDTO;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.ExamAttempt;
 import com.prwatech.skillama.model.ExamDifficulty;
+import com.prwatech.skillama.model.ExamRecommendationLog;
 import com.prwatech.skillama.model.ExamSession;
 import com.prwatech.skillama.model.ExamType;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.ExamAttemptRepository;
+import com.prwatech.skillama.repository.ExamRecommendationLogRepository;
 import com.prwatech.skillama.repository.ExamSessionRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.util.IndiaTime;
@@ -66,6 +69,7 @@ public class ExamService {
     private final AiUsageService aiUsageService;
     private final SkillamaUserRepository userRepository;
     private final ModuleQuizService moduleQuizService;
+    private final ExamRecommendationLogRepository recommendationLogRepository;
 
     public StartExamResponseDTO startExam(String userId, StartExamRequestDTO request) {
         validateStartRequest(request);
@@ -277,6 +281,19 @@ public class ExamService {
                 .totalTokens(recommendation.getTotalTokens())
                 .build());
 
+        // Persisted so a recommendation can be reviewed after the fact, not just billed.
+        recommendationLogRepository.save(ExamRecommendationLog.builder()
+                .userId(userId)
+                .courseId(courseId)
+                .difficulty(recommendation.getDifficulty())
+                .topic(recommendation.getTopic())
+                .reasoning(recommendation.getReasoning())
+                .estimatedMinutes(recommendation.getEstimatedMinutes())
+                .expectedScorePercent(recommendation.getExpectedScorePercent())
+                .modelId(recommendation.getModelId())
+                .createdAt(IndiaTime.now())
+                .build());
+
         return recommendation;
     }
 
@@ -338,6 +355,70 @@ public class ExamService {
 
         rows.sort(Comparator.comparing(
                 AdminExamAttemptDTO::getSubmittedAt, Comparator.nullsLast(Comparator.reverseOrder())));
+
+        int total = rows.size();
+        int from = pageNum * limit;
+        if (from >= total) {
+            return new PageImpl<>(List.of(), PageRequest.of(pageNum, limit), total);
+        }
+        int to = Math.min(from + limit, total);
+        return new PageImpl<>(rows.subList(from, to), PageRequest.of(pageNum, limit), total);
+    }
+
+    /** Admin monitor: paginated "AI Recommended Test" suggestions across all learners. */
+    public Page<AdminExamRecommendationDTO> listAdminRecommendations(
+            int page, int size, String userId, String courseId, String email) {
+        int limit = Math.min(Math.max(size, 1), 100);
+        int pageNum = Math.max(page, 0);
+
+        String emailFilter = email != null ? email.trim().toLowerCase() : null;
+        Set<String> allowedUserIds = null;
+        if (emailFilter != null && !emailFilter.isBlank()) {
+            allowedUserIds = userRepository.findAll().stream()
+                    .filter(u -> u.getEmail() != null && u.getEmail().toLowerCase().contains(emailFilter))
+                    .map(User::getId)
+                    .collect(Collectors.toSet());
+            if (allowedUserIds.isEmpty()) {
+                return new PageImpl<>(List.of(), PageRequest.of(pageNum, limit), 0);
+            }
+        }
+
+        Map<String, User> userCache = new HashMap<>();
+        Map<String, String> courseNameCache = new HashMap<>();
+        Set<String> allowedUserIdsFinal = allowedUserIds;
+
+        List<AdminExamRecommendationDTO> rows = recommendationLogRepository.findAll().stream()
+                .filter(r -> userId == null || userId.isBlank() || userId.equals(r.getUserId()))
+                .filter(r -> courseId == null || courseId.isBlank() || courseId.equals(r.getCourseId()))
+                .filter(r -> allowedUserIdsFinal == null
+                        || (r.getUserId() != null && allowedUserIdsFinal.contains(r.getUserId())))
+                .map(r -> {
+                    User user = r.getUserId() != null
+                            ? userCache.computeIfAbsent(r.getUserId(), id -> userRepository.findById(id).orElse(null))
+                            : null;
+                    String courseName = r.getCourseId() != null
+                            ? courseNameCache.computeIfAbsent(r.getCourseId(),
+                                    cid -> courseRepository.findById(cid).map(Course::getName).orElse(null))
+                            : null;
+                    return AdminExamRecommendationDTO.builder()
+                            .id(r.getId())
+                            .userId(r.getUserId())
+                            .userName(user != null ? user.getName() : null)
+                            .userEmail(user != null ? user.getEmail() : null)
+                            .courseId(r.getCourseId())
+                            .courseName(courseName)
+                            .difficulty(r.getDifficulty())
+                            .topic(r.getTopic())
+                            .reasoning(r.getReasoning())
+                            .estimatedMinutes(r.getEstimatedMinutes())
+                            .expectedScorePercent(r.getExpectedScorePercent())
+                            .createdAt(r.getCreatedAt())
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        rows.sort(Comparator.comparing(
+                AdminExamRecommendationDTO::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())));
 
         int total = rows.size();
         int from = pageNum * limit;
