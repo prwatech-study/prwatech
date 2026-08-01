@@ -39,6 +39,14 @@ public class AdminAuditService {
     public static final String CURRICULUM_SUBMODULE_UPDATE = "CURRICULUM_SUBMODULE_UPDATE";
     public static final String CURRICULUM_SUBMODULE_DELETE = "CURRICULUM_SUBMODULE_DELETE";
 
+    // Content-view reads — these surfaces show real learner conversation/exam content,
+    // so who looked at what is worth a trail, same as any mutation.
+    public static final String CHAT_MONITOR_VIEW = "CHAT_MONITOR_VIEW";
+    public static final String AI_MENTOR_DOUBTS_VIEW = "AI_MENTOR_DOUBTS_VIEW";
+    public static final String AI_EXAM_VIEW = "AI_EXAM_VIEW";
+    public static final String AI_EXAM_RECOMMENDATIONS_VIEW = "AI_EXAM_RECOMMENDATIONS_VIEW";
+    public static final String MODULE_QUIZ_MONITOR_VIEW = "MODULE_QUIZ_MONITOR_VIEW";
+
     private final AdminAuditLogRepository auditLogRepository;
     private final SkillamaUserRepository userRepository;
 

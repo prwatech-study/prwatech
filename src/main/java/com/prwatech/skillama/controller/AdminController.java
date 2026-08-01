@@ -1302,6 +1302,10 @@ public class AdminController {
             HttpServletRequest request) {
         try {
             assertModulePermission(request, AdminModule.CHAT_MONITOR, AdminPermissionAction.READ);
+            adminAuditService.log(extractUserIdFromRequest(request), AdminAuditService.CHAT_MONITOR_VIEW,
+                    "CHAT_INTERACTIONS", null,
+                    "Viewed chat interactions (page=" + page + ", userId=" + userId
+                            + ", courseId=" + courseId + ", email=" + email + ")", null);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     userProfileService.listAdminChatInteractions(page, size, userId, courseId, email)));
         } catch (Exception e) {
@@ -1323,6 +1327,10 @@ public class AdminController {
             HttpServletRequest request) {
         try {
             assertModulePermission(request, AdminModule.AI_MENTOR_DOUBTS, AdminPermissionAction.READ);
+            adminAuditService.log(extractUserIdFromRequest(request), AdminAuditService.AI_MENTOR_DOUBTS_VIEW,
+                    "AI_MENTOR_DOUBTS", null,
+                    "Viewed AI Mentor doubts (page=" + page + ", userId=" + userId
+                            + ", courseId=" + courseId + ", email=" + email + ")", null);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     doubtService.listAdminDoubts(page, size, userId, courseId, email, status)));
         } catch (Exception e) {
@@ -1343,6 +1351,10 @@ public class AdminController {
             HttpServletRequest request) {
         try {
             assertModulePermission(request, AdminModule.AI_EXAMS, AdminPermissionAction.READ);
+            adminAuditService.log(extractUserIdFromRequest(request), AdminAuditService.AI_EXAM_VIEW,
+                    "AI_EXAM_ATTEMPTS", null,
+                    "Viewed AI Exam attempts (page=" + page + ", userId=" + userId
+                            + ", courseId=" + courseId + ", email=" + email + ")", null);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     examService.listAdminAttempts(page, size, userId, courseId, email)));
         } catch (Exception e) {
@@ -1364,6 +1376,10 @@ public class AdminController {
             HttpServletRequest request) {
         try {
             assertModulePermission(request, AdminModule.MODULE_QUIZ_MONITOR, AdminPermissionAction.READ);
+            adminAuditService.log(extractUserIdFromRequest(request), AdminAuditService.MODULE_QUIZ_MONITOR_VIEW,
+                    "MODULE_QUIZ_ATTEMPTS", null,
+                    "Viewed Module Quiz attempts (page=" + page + ", userId=" + userId
+                            + ", courseId=" + courseId + ", moduleName=" + moduleName + ", email=" + email + ")", null);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     moduleQuizService.listAdminAttempts(page, size, userId, courseId, moduleName, email)));
         } catch (Exception e) {
@@ -1385,6 +1401,10 @@ public class AdminController {
             HttpServletRequest request) {
         try {
             assertModulePermission(request, AdminModule.AI_EXAMS, AdminPermissionAction.READ);
+            adminAuditService.log(extractUserIdFromRequest(request), AdminAuditService.AI_EXAM_RECOMMENDATIONS_VIEW,
+                    "AI_EXAM_RECOMMENDATIONS", null,
+                    "Viewed AI Exam recommendations (page=" + page + ", userId=" + userId
+                            + ", courseId=" + courseId + ", email=" + email + ")", null);
             return ResponseEntity.ok(new ApiResponse<>(200,
                     examService.listAdminRecommendations(page, size, userId, courseId, email)));
         } catch (Exception e) {
