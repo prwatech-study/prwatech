@@ -56,9 +56,10 @@ public class ExamService {
 
     private static final int SESSION_EXPIRY_HOURS = 2;
     private static final int SECONDS_PER_QUESTION = 90;
+    private static final int MIN_QUESTIONS = 10;
     private static final Map<ExamDifficulty, Integer> QUESTIONS_BY_DIFFICULTY = Map.of(
-            ExamDifficulty.BEGINNER, 5,
-            ExamDifficulty.INTERMEDIATE, 8,
+            ExamDifficulty.BEGINNER, 10,
+            ExamDifficulty.INTERMEDIATE, 10,
             ExamDifficulty.ADVANCED, 10,
             ExamDifficulty.EXPERT, 12);
 
@@ -88,7 +89,7 @@ public class ExamService {
                 ? List.of(request.getTopic())
                 : new ArrayList<>();
 
-        int numQuestions = QUESTIONS_BY_DIFFICULTY.getOrDefault(request.getDifficulty(), 5);
+        int numQuestions = QUESTIONS_BY_DIFFICULTY.getOrDefault(request.getDifficulty(), MIN_QUESTIONS);
         int timeLimitSeconds = numQuestions * SECONDS_PER_QUESTION;
 
         GeneratedQuizDTO generated = skillamaAiClient.generateQuizQuestions(
