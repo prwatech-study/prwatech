@@ -2,6 +2,7 @@ package com.prwatech.skillama.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.prwatech.skillama.dto.ExamFeedbackResponseDTO;
 import com.prwatech.skillama.dto.ExamRecommendationResponseDTO;
 import com.prwatech.skillama.dto.GeneratedCodeAssistDTO;
 import com.prwatech.skillama.dto.GeneratedImageDTO;
@@ -282,6 +283,10 @@ public class SkillamaAiClient {
             java.util.regex.Pattern.compile("(?i)ESTIMATED_MINUTES:\\s*(\\d+)");
     private static final java.util.regex.Pattern SCORE_LINE =
             java.util.regex.Pattern.compile("(?i)EXPECTED_SCORE:\\s*(\\d+)");
+    private static final java.util.regex.Pattern OVERALL_LINE =
+            java.util.regex.Pattern.compile("(?i)OVERALL:\\s*(.+)");
+    private static final java.util.regex.Pattern RECOMMENDATION_LINE =
+            java.util.regex.Pattern.compile("(?i)RECOMMENDATION:\\s*(.+)");
 
     /**
      * Best-effort "AI Recommended Test" — there is no dedicated recommendation endpoint
@@ -354,6 +359,76 @@ public class SkillamaAiClient {
                         : "Based on your current progress, this level should be a good challenge.")
                 .estimatedMinutes(estimatedMinutes != null ? estimatedMinutes : 15)
                 .expectedScorePercent(expectedScore != null ? expectedScore : 75)
+                .modelId(modelId)
+                .inputTokens(inputTokens)
+                .outputTokens(outputTokens)
+                .totalTokens(totalTokens)
+                .build();
+    }
+
+    /**
+     * Best-effort AI feedback on a just-graded exam attempt. Same free-text-prompt
+     * pattern as {@link #getExamRecommendation}: never throws — any failure falls
+     * back to a generic, still-useful message so a flaky AI call never blocks a
+     * submission that has already been graded.
+     */
+    public ExamFeedbackResponseDTO getExamFeedback(
+            String courseName, String topicOrModule, int score, int maxScore,
+            double percentage, List<String> wrongTopics) {
+        String url = resolveBaseUrl() + "/handle_query";
+
+        String missedLine = wrongTopics != null && !wrongTopics.isEmpty()
+                ? "They missed questions on: " + String.join(", ", wrongTopics) + ". "
+                : "They answered every question correctly. ";
+
+        String prompt = "A student just finished an exam on " + topicOrModule + " in " + courseName + ". "
+                + "They scored " + score + "/" + maxScore + " (" + Math.round(percentage) + "%). "
+                + missedLine
+                + "Write encouraging, constructive feedback. Never call the student weak, bad, or "
+                + "failing at anything — phrase any gap as an area to focus on next, not a shortcoming. "
+                + "Reply with EXACTLY this format, one field per line, no extra commentary:\n"
+                + "OVERALL: <one short sentence on their overall performance>\n"
+                + "RECOMMENDATION: <one short sentence recommending what to focus on next>";
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("query", prompt);
+        body.put("topic", topicOrModule);
+        body.put("prev_topic_list", new ArrayList<>());
+        body.put("course", courseName);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+        String responseText = "";
+        String modelId = null;
+        int inputTokens = 0;
+        int outputTokens = 0;
+        int totalTokens = 0;
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                JsonNode root = objectMapper.readTree(response.getBody());
+                JsonNode data = root.has("data") ? root.path("data") : root;
+                responseText = data.path("response_text").asText("");
+                modelId = data.path("model_id").asText(null);
+                JsonNode usage = data.path("usage");
+                inputTokens = usage.path("inputTokens").asInt(0);
+                outputTokens = usage.path("outputTokens").asInt(0);
+                totalTokens = usage.path("totalTokens").asInt(0);
+            }
+        } catch (Exception e) {
+            log.warn("Exam feedback call failed; falling back to a generic message", e);
+        }
+
+        String overall = extractGroup(OVERALL_LINE, responseText);
+        String recommendation = extractGroup(RECOMMENDATION_LINE, responseText);
+
+        return ExamFeedbackResponseDTO.builder()
+                .overallFeedback(overall != null ? overall
+                        : "You scored " + Math.round(percentage) + "% on " + topicOrModule + ".")
+                .recommendationText(recommendation != null ? recommendation
+                        : "Review the topics you missed and try again.")
                 .modelId(modelId)
                 .inputTokens(inputTokens)
                 .outputTokens(outputTokens)

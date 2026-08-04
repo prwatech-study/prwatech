@@ -16,6 +16,8 @@ public class ExamAttemptResultDTO {
     private Integer score;
     private Integer maxScore;
     private Double percentage;
+    private Boolean passed;
+    private Integer passingPercentage;
     private Integer timeSpentSeconds;
     private Boolean overTimeLimit;
     private List<ExamAnswerResultDTO> answers;

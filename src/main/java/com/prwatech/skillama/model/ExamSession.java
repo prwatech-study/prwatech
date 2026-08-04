@@ -44,6 +44,11 @@ public class ExamSession {
     private String moduleId;
     private String topic;
 
+    /** Real FK to CourseCurriculum, set only when the picker resolved a real module. */
+    private String curriculumModuleId;
+    /** Real FK to CourseCurriculum.Submodule, set only when the picker resolved a real submodule. */
+    private String submoduleId;
+
     private ExamDifficulty difficulty;
     private ExamType examType;
     private String examTitle;

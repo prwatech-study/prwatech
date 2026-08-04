@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -74,6 +75,20 @@ public class ExamController {
         }
         List<?> attempts = examService.listMyAttempts(userId, courseId);
         return ResponseEntity.ok(attempts);
+    }
+
+    @GetMapping("/attempts/{attemptId}/dashboard")
+    public ResponseEntity<?> getResultDashboard(
+            @PathVariable String attemptId, HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        try {
+            return ResponseEntity.ok(examService.getResultDashboard(userId, attemptId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
     }
 
     @GetMapping("/recommendation")
