@@ -40,6 +40,7 @@ class CourseServiceTest {
         s.setEnabled(true);
         s.setPracticalRequired(true);
         s.setDatasetId(datasetId);
+        s.setOrder(1);
         return s;
     }
 
@@ -127,11 +128,12 @@ class CourseServiceTest {
     }
 
     // Regression test for a real production incident: the admin "edit submodule" form (label/
-    // scriptText/image/enabled only) PUTs a Submodule body with no datasetId. updateSubmodule()
-    // used to do list.set(idx, updatedSubmodule) wholesale, preserving only `id` — so saving an
-    // unrelated edit on a practical-exercise submodule silently detached its uploaded dataset.
+    // scriptText/image/enabled only) PUTs a Submodule body with no datasetId (or order — this
+    // form has no reordering UI). updateSubmodule() used to do list.set(idx, updatedSubmodule)
+    // wholesale, preserving only `id` — so saving an unrelated edit on a submodule silently
+    // detached its uploaded dataset AND reset its position within the module.
     @Test
-    void updateSubmodule_datasetIdOmittedFromRequest_preservesExistingDataset() {
+    void updateSubmodule_datasetIdAndOrderOmittedFromRequest_preservesBoth() {
         CourseCurriculum existing = CourseCurriculum.builder()
                 .id("module-1")
                 .moduleName("Operators in Python")
@@ -142,7 +144,7 @@ class CourseServiceTest {
         when(curriculumRepository.save(any(CourseCurriculum.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // Exactly what the edit-submodule form sends: label/scriptText/isPracticalRequired/imagePath/enabled,
-        // no datasetId, no image-gen counters.
+        // no datasetId, no image-gen counters, no order.
         CourseCurriculum.Submodule update = new CourseCurriculum.Submodule();
         update.setLabel("Practical: Analyze Sales Data with Pandas");
         update.setScriptText("Updated instructions.");
@@ -153,6 +155,7 @@ class CourseServiceTest {
 
         CourseCurriculum.Submodule sub = result.getSubmodules().get(0);
         assertEquals("s1", sub.getId());
+        assertEquals(1, sub.getOrder());
         assertEquals("ds_89c6aa51cd8b", sub.getDatasetId());
         assertEquals("Updated instructions.", sub.getScriptText());
     }
