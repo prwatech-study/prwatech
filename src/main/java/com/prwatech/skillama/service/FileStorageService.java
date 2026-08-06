@@ -125,5 +125,27 @@ public interface FileStorageService {
      * on the issue report.
      */
     String uploadSupportAttachment(MultipartFile file) throws IOException;
+
+    /**
+     * Uploads a practical exercise's CSV dataset to the dedicated datasets S3 bucket. Unlike
+     * the other upload methods this returns a bare storage key, not a public URL — the datasets
+     * bucket must never be reachable by a direct link; every read goes through
+     * {@link #downloadCsvDataset(String)}.
+     */
+    String uploadCsvDataset(MultipartFile file, String courseId, String moduleId, int submoduleIdx, String datasetId) throws IOException;
+
+    /**
+     * Fetches a CSV dataset's raw bytes from the datasets bucket by its storage key.
+     */
+    byte[] downloadCsvDataset(String storageKey) throws IOException;
+
+    /**
+     * Validates a CSV dataset upload: non-empty, at most 1MB, .csv extension/content-type,
+     * valid UTF-8, and structurally consistent (header + at least one data row, matching
+     * column counts).
+     *
+     * @throws com.prwatech.skillama.exception.InvalidDatasetException if any check fails
+     */
+    void validateCsvDatasetFile(MultipartFile file);
 }
 

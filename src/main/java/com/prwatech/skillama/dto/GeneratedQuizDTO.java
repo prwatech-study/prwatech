@@ -12,7 +12,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class GeneratedQuizDTO {
+public class GeneratedQuizDTO implements AiGenerationUsage {
     private String quizTitle;
     private List<ModuleQuizQuestionDTO> questions;
     private String modelId;

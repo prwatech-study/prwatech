@@ -51,9 +51,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -66,7 +69,6 @@ class ExamServiceTest {
     @Mock private ExamAttemptRepository attemptRepository;
     @Mock private CourseRepository courseRepository;
     @Mock private SkillamaAiClient skillamaAiClient;
-    @Mock private AiUsageService aiUsageService;
     @Mock private SkillamaUserRepository userRepository;
     @Mock private ModuleQuizService moduleQuizService;
     @Mock private ExamRecommendationLogRepository recommendationLogRepository;
@@ -80,7 +82,7 @@ class ExamServiceTest {
     @BeforeEach
     void setUp() {
         service = new ExamService(sessionRepository, attemptRepository, courseRepository,
-                skillamaAiClient, aiUsageService, userRepository, moduleQuizService,
+                skillamaAiClient, userRepository, moduleQuizService,
                 recommendationLogRepository, curriculumRepository);
 
         when(userRepository.findById(USER)).thenReturn(Optional.of(User.builder().id(USER).build()));
@@ -91,8 +93,18 @@ class ExamServiceTest {
             a.setId("attempt1");
             return a;
         });
-        when(skillamaAiClient.generateQuizQuestions(anyString(), anyString(), anyList(), anyInt(), any()))
+        when(skillamaAiClient.generateQuizQuestions(
+                        any(), anyString(), anyString(), anyString(), anyString(), anyList(), anyInt(), any()))
                 .thenReturn(generatedQuiz());
+        // Default so tests that don't care about feedback content still get a real (non-null)
+        // DTO back — matches what SkillamaAiClient always returns in practice (never null).
+        when(skillamaAiClient.getExamFeedback(
+                        any(), anyString(), anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyList()))
+                .thenReturn(ExamFeedbackResponseDTO.builder()
+                        .overallFeedback("Default feedback.")
+                        .recommendationText("Default recommendation.")
+                        .modelId("test-model").inputTokens(1).outputTokens(2).totalTokens(3)
+                        .build());
     }
 
     private ModuleQuizQuestionDTO question(int id, String correctKey) {
@@ -168,18 +180,23 @@ class ExamServiceTest {
 
     @Test
     void startExamThrowsWhenAiReturnsNoQuestions() {
-        when(skillamaAiClient.generateQuizQuestions(anyString(), anyString(), anyList(), anyInt(), any()))
+        when(skillamaAiClient.generateQuizQuestions(
+                        any(), anyString(), anyString(), anyString(), anyString(), anyList(), anyInt(), any()))
                 .thenReturn(GeneratedQuizDTO.builder().questions(new ArrayList<>()).build());
         assertThrows(IllegalStateException.class, () -> service.startExam(USER, practiceRequest()));
     }
 
     @Test
     void startExamRejectsWhenBudgetExhausted() {
-        org.mockito.Mockito.doThrow(new AiBudgetLimitException("limit reached", 5.0, 5.0))
-                .when(aiUsageService).assertWithinBudget(any(User.class));
+        // The budget-check now lives inside SkillamaAiClient's metered call wrapper — since
+        // the client is mocked here, simulate the exhausted-budget outcome the same way the
+        // real wrapper would surface it to this caller.
+        when(skillamaAiClient.generateQuizQuestions(
+                        any(), anyString(), anyString(), anyString(), anyString(), anyList(), anyInt(), any()))
+                .thenThrow(new AiBudgetLimitException("limit reached", 5.0, 5.0));
 
         assertThrows(AiBudgetLimitException.class, () -> service.startExam(USER, practiceRequest()));
-        verify(skillamaAiClient, never()).generateQuizQuestions(anyString(), anyString(), anyList(), anyInt(), any());
+        verify(sessionRepository, never()).save(any(ExamSession.class));
     }
 
     @Test
@@ -194,7 +211,6 @@ class ExamServiceTest {
         assertNull(res.getQuestions().get(0).getCorrectKey());
         assertEquals(10 * 90, res.getTimeLimitSeconds()); // ADVANCED -> 10 questions * 90s
         verify(sessionRepository).save(any(ExamSession.class));
-        verify(aiUsageService).recordUsage(any());
     }
 
     // ---------- submitAttempt ----------
@@ -280,7 +296,7 @@ class ExamServiceTest {
         when(moduleQuizService.getAttempts(null, USER, COURSE, null)).thenReturn(List.of(
                 ModuleQuizAttemptSummaryDTO.builder().percentage(80.0).build(),
                 ModuleQuizAttemptSummaryDTO.builder().percentage(60.0).build()));
-        when(skillamaAiClient.getExamRecommendation(anyString(), any(), any())).thenReturn(
+        when(skillamaAiClient.getExamRecommendation(any(), anyString(), anyString(), any(), any())).thenReturn(
                 ExamRecommendationResponseDTO.builder()
                         .difficulty(ExamDifficulty.INTERMEDIATE)
                         .topic("Loops").reasoning("steady progress")
@@ -292,8 +308,7 @@ class ExamServiceTest {
 
         assertEquals(ExamDifficulty.INTERMEDIATE, res.getDifficulty());
         assertEquals("Loops", res.getTopic());
-        verify(skillamaAiClient).getExamRecommendation("Python", null, 70.0);
-        verify(aiUsageService).recordUsage(any());
+        verify(skillamaAiClient).getExamRecommendation(any(User.class), eq(COURSE), eq("Python"), isNull(), eq(70.0));
         verify(recommendationLogRepository).save(any(ExamRecommendationLog.class));
     }
 
@@ -579,13 +594,99 @@ class ExamServiceTest {
         assertEquals("Focus on edge cases next.", dashboard.getRecommendationText());
     }
 
+    // ---------- getProgressOverview ----------
+
+    @Test
+    void getProgressOverviewRejectsMissingCourseId() {
+        assertThrows(IllegalArgumentException.class, () -> service.getProgressOverview(USER, null));
+    }
+
+    @Test
+    void getProgressOverviewReturnsZeroedResultWhenNoAttemptsYet() {
+        when(attemptRepository.findByUserIdAndCourseIdOrderBySubmittedAtDesc(USER, COURSE)).thenReturn(List.of());
+
+        var overview = service.getProgressOverview(USER, COURSE);
+
+        assertEquals(0, overview.getTotalAttempts());
+        assertTrue(overview.getScoreTrend().isEmpty());
+        assertTrue(overview.getExamTypeBreakdown().isEmpty());
+        assertTrue(overview.getFocusAreas().isEmpty());
+        assertEquals(ModuleQuizService.PASSING_PERCENTAGE, overview.getPassingPercentage());
+    }
+
+    @Test
+    void getProgressOverviewComputesAverageBestAndPassRate() {
+        ExamAttempt a1 = attemptOf("a1", 90.0, ExamType.PRACTICE, ExamDifficulty.BEGINNER, null, null);
+        ExamAttempt a2 = attemptOf("a2", 40.0, ExamType.PRACTICE, ExamDifficulty.BEGINNER, null, null);
+        when(attemptRepository.findByUserIdAndCourseIdOrderBySubmittedAtDesc(USER, COURSE))
+                .thenReturn(List.of(a1, a2));
+
+        var overview = service.getProgressOverview(USER, COURSE);
+
+        assertEquals(2, overview.getTotalAttempts());
+        assertEquals(65.0, overview.getAveragePercentage());
+        assertEquals(90.0, overview.getBestPercentage());
+        assertEquals(50.0, overview.getPassRate()); // only a1 (90%) clears the 70% passing threshold
+    }
+
+    @Test
+    void getProgressOverviewScoreTrendIsChronologicalOldestFirst() {
+        ExamAttempt newer = attemptOf("a1", 90.0, ExamType.PRACTICE, ExamDifficulty.BEGINNER, null, null);
+        newer.setSubmittedAt(LocalDateTime.of(2026, 6, 2, 10, 0));
+        ExamAttempt older = attemptOf("a2", 40.0, ExamType.PRACTICE, ExamDifficulty.BEGINNER, null, null);
+        older.setSubmittedAt(LocalDateTime.of(2026, 6, 1, 10, 0));
+        // Repository returns newest-first — the overview must still trend oldest-first for charting.
+        when(attemptRepository.findByUserIdAndCourseIdOrderBySubmittedAtDesc(USER, COURSE))
+                .thenReturn(List.of(newer, older));
+
+        var overview = service.getProgressOverview(USER, COURSE);
+
+        assertEquals("a2", overview.getScoreTrend().get(0).getAttemptId());
+        assertEquals("a1", overview.getScoreTrend().get(1).getAttemptId());
+    }
+
+    @Test
+    void getProgressOverviewExamTypeBreakdownGroupsByType() {
+        ExamAttempt p1 = attemptOf("a1", 90.0, ExamType.PRACTICE, ExamDifficulty.BEGINNER, null, null);
+        ExamAttempt p2 = attemptOf("a2", 70.0, ExamType.PRACTICE, ExamDifficulty.BEGINNER, null, null);
+        ExamAttempt t1 = attemptOf("a3", 50.0, ExamType.TOPIC_WISE, ExamDifficulty.BEGINNER, "Loops", null);
+        when(attemptRepository.findByUserIdAndCourseIdOrderBySubmittedAtDesc(USER, COURSE))
+                .thenReturn(List.of(p1, p2, t1));
+        when(curriculumRepository.findByCourseIdOrderByOrderAsc(COURSE)).thenReturn(List.of());
+
+        var overview = service.getProgressOverview(USER, COURSE);
+
+        var practiceStat = overview.getExamTypeBreakdown().stream()
+                .filter(s -> s.getExamType() == ExamType.PRACTICE).findFirst().orElseThrow();
+        assertEquals(2, practiceStat.getAttemptCount());
+        assertEquals(80.0, practiceStat.getAveragePercentage());
+        var topicStat = overview.getExamTypeBreakdown().stream()
+                .filter(s -> s.getExamType() == ExamType.TOPIC_WISE).findFirst().orElseThrow();
+        assertEquals(1, topicStat.getAttemptCount());
+    }
+
+    @Test
+    void getProgressOverviewIncludesFocusAreasFromTopicWiseAttempts() {
+        ExamAttempt t1 = attemptOf("a1", 40.0, ExamType.TOPIC_WISE, ExamDifficulty.BEGINNER, "Recursion", null);
+        when(attemptRepository.findByUserIdAndCourseIdOrderBySubmittedAtDesc(USER, COURSE))
+                .thenReturn(List.of(t1));
+        when(curriculumRepository.findByCourseIdOrderByOrderAsc(COURSE)).thenReturn(List.of());
+
+        var overview = service.getProgressOverview(USER, COURSE);
+
+        assertEquals(1, overview.getFocusAreas().size());
+        assertEquals("Recursion", overview.getFocusAreas().get(0).getLabel());
+        assertTrue(overview.getFocusAreas().get(0).getFocusArea());
+    }
+
     // ---------- submitAttempt AI feedback ----------
 
     @Test
     void submitAttemptStoresAiFeedbackAndNeverBlocksOnFailure() {
         ExamSession session = sessionFor("exam-1", USER, LocalDateTime.now());
         when(sessionRepository.findByExamSessionId("exam-1")).thenReturn(Optional.of(session));
-        when(skillamaAiClient.getExamFeedback(anyString(), anyString(), anyInt(), anyInt(), any(Double.class), anyList()))
+        when(skillamaAiClient.getExamFeedback(
+                        any(), anyString(), anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyList()))
                 .thenThrow(new RuntimeException("ai-tutor unavailable"));
 
         SubmitExamAttemptRequestDTO r = SubmitExamAttemptRequestDTO.builder()
@@ -601,7 +702,8 @@ class ExamServiceTest {
     void submitAttemptRecordsAiUsageWhenFeedbackSucceeds() {
         ExamSession session = sessionFor("exam-1", USER, LocalDateTime.now());
         when(sessionRepository.findByExamSessionId("exam-1")).thenReturn(Optional.of(session));
-        when(skillamaAiClient.getExamFeedback(anyString(), anyString(), anyInt(), anyInt(), any(Double.class), anyList()))
+        when(skillamaAiClient.getExamFeedback(
+                        any(), anyString(), anyString(), anyString(), anyInt(), anyInt(), anyDouble(), anyList()))
                 .thenReturn(ExamFeedbackResponseDTO.builder()
                         .overallFeedback("Nicely done.")
                         .recommendationText("Try harder questions next.")

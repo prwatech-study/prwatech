@@ -1195,35 +1195,38 @@ public class AdminController {
     }
 
     /**
-     * Shortcut: move user to paid (premium) plan for demos.
+     * Shortcut: move user to paid (premium) plan for demos. OWNER only.
      */
     @PostMapping("/users/{userId}/plan/premium")
     public ResponseEntity<ApiResponse<FreemiumStatusDTO>> upgradeUserToPremium(
             @PathVariable String userId,
             HttpServletRequest httpRequest) {
         try {
-            assertModulePermission(httpRequest, AdminModule.FREEMIUM, AdminPermissionAction.UPDATE);
             String adminId = extractUserIdFromRequest(httpRequest);
+            adminPermissionService.requireOwner(adminId);
             FreemiumStatusDTO status = freemiumService.updateUserPlan(userId, User.PlanTier.PAID);
             adminAuditService.log(adminId, AdminAuditService.PLAN_UPDATE, "USER", userId,
                     "Removed freemium — upgraded to PAID", null);
             return ResponseEntity.ok(new ApiResponse<>(200, status));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
+            if (isOwnerForbidden(e)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }
     }
 
-    /** Adjusts the learner's AI wallet in USD — the dollar wallet is the only consumption limit. */
+    /** Adjusts the learner's AI wallet in USD — the dollar wallet is the only consumption limit. OWNER only. */
     @PostMapping("/users/{userId}/credits/adjust")
     public ResponseEntity<ApiResponse<WalletAdjustResultDTO>> adjustUserCredits(
             @PathVariable String userId,
             @RequestBody CreditAdjustRequestDTO body,
             HttpServletRequest httpRequest) {
         try {
-            assertModulePermission(httpRequest, AdminModule.FREEMIUM, AdminPermissionAction.UPDATE);
             String adminId = extractUserIdFromRequest(httpRequest);
+            adminPermissionService.requireOwner(adminId);
             WalletAdjustResultDTO result = freemiumService.adjustWalletBalance(userId, body, adminId);
             adminAuditService.log(adminId, AdminAuditService.CREDIT_ADJUST, "USER", userId,
                     "AI wallet adjust deltaUsd=" + result.getDeltaUsd()
@@ -1236,7 +1239,10 @@ public class AdminController {
             return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
+            if (isOwnerForbidden(e)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }
     }

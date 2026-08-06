@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class GeneratedCodeAssistDTO {
+public class GeneratedCodeAssistDTO implements AiGenerationUsage {
     private String codeOutput;
     private String correctedCode;
     private String responseText;

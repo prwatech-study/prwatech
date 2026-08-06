@@ -45,6 +45,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -60,7 +62,6 @@ class ModuleQuizServiceTest {
     @Mock private CourseRepository courseRepository;
     @Mock private CourseCurriculumRepository curriculumRepository;
     @Mock private SkillamaAiClient skillamaAiClient;
-    @Mock private AiUsageService aiUsageService;
     @Mock private SkillamaUserRepository userRepository;
 
     private ModuleQuizService service;
@@ -73,7 +74,7 @@ class ModuleQuizServiceTest {
     void setUp() {
         service = new ModuleQuizService(sessionRepository, attemptRepository,
                 userProfileRepository, courseRepository, curriculumRepository,
-                skillamaAiClient, aiUsageService, userRepository);
+                skillamaAiClient, userRepository);
         when(sessionRepository.save(any(ModuleQuizSession.class))).thenAnswer(inv -> inv.getArgument(0));
         when(attemptRepository.save(any(ModuleQuizAttempt.class))).thenAnswer(inv -> {
             ModuleQuizAttempt a = inv.getArgument(0);
@@ -82,7 +83,8 @@ class ModuleQuizServiceTest {
         });
         when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(inv -> inv.getArgument(0));
         when(userRepository.findById(USER)).thenReturn(Optional.of(User.builder().id(USER).build()));
-        when(skillamaAiClient.generateQuizQuestions(anyString(), anyString(), anyList(), anyInt(), isNull()))
+        when(skillamaAiClient.generateQuizQuestions(
+                        any(), anyString(), anyString(), anyString(), anyString(), anyList(), anyInt(), isNull()))
                 .thenReturn(generatedQuiz());
     }
 
@@ -186,7 +188,8 @@ class ModuleQuizServiceTest {
         when(userProfileRepository.findByUserId(USER)).thenReturn(Optional.of(eligibleProfile()));
         when(curriculumRepository.findByCourseIdOrderByOrderAsc(COURSE))
                 .thenReturn(List.of(moduleWithOneCompletedLecture()));
-        when(skillamaAiClient.generateQuizQuestions(anyString(), anyString(), anyList(), anyInt(), isNull()))
+        when(skillamaAiClient.generateQuizQuestions(
+                        any(), anyString(), anyString(), anyString(), anyString(), anyList(), anyInt(), isNull()))
                 .thenReturn(GeneratedQuizDTO.builder().questions(new ArrayList<>()).build());
 
         assertThrows(IllegalStateException.class,
@@ -228,12 +231,16 @@ class ModuleQuizServiceTest {
         when(userProfileRepository.findByUserId(USER)).thenReturn(Optional.of(eligibleProfile()));
         when(curriculumRepository.findByCourseIdOrderByOrderAsc(COURSE))
                 .thenReturn(List.of(moduleWithOneCompletedLecture()));
-        org.mockito.Mockito.doThrow(new AiBudgetLimitException("limit reached", 5.0, 5.0))
-                .when(aiUsageService).assertWithinBudget(any(User.class));
+        // The budget-check now lives inside SkillamaAiClient's metered call wrapper — since
+        // the client is mocked here, simulate the exhausted-budget outcome the same way the
+        // real wrapper would surface it to this caller.
+        when(skillamaAiClient.generateQuizQuestions(
+                        any(), anyString(), anyString(), anyString(), anyString(), anyList(), anyInt(), isNull()))
+                .thenThrow(new AiBudgetLimitException("limit reached", 5.0, 5.0));
 
         assertThrows(AiBudgetLimitException.class,
                 () -> service.createSession(null, USER, validCreateRequest()));
-        verify(skillamaAiClient, never()).generateQuizQuestions(anyString(), anyString(), anyList(), anyInt(), any());
+        verify(sessionRepository, never()).save(any(ModuleQuizSession.class));
     }
 
     @Test
@@ -250,7 +257,12 @@ class ModuleQuizServiceTest {
         // Client questions must NOT leak the answer key.
         assertNull(res.getQuestions().get(0).getCorrectKey());
         verify(sessionRepository).save(any(ModuleQuizSession.class));
-        verify(aiUsageService).recordUsage(any());
+        // The budget-check/recordUsage pair now lives inside SkillamaAiClient's metered call
+        // wrapper (exercised in SkillamaAiClient's own tests) — this verifies ModuleQuizService
+        // correctly resolves and forwards the real user so that wrapper applies to them.
+        verify(skillamaAiClient).generateQuizQuestions(
+                argThat(u -> u != null && USER.equals(u.getId())), eq("generate_module_quiz"), eq(COURSE),
+                anyString(), anyString(), anyList(), anyInt(), isNull());
     }
 
     @Test
@@ -262,8 +274,10 @@ class ModuleQuizServiceTest {
 
         CreateModuleQuizSessionResponseDTO res = service.createSession("guest-1", null, validCreateRequest());
         assertEquals(2, res.getTotalQuestions());
-        // Guests aren't wallet-metered — budget is never even checked.
-        verify(aiUsageService, never()).assertWithinBudget(any());
+        // Guests aren't wallet-metered — SkillamaAiClient's metered wrapper skips the budget
+        // check/recordUsage pair entirely when user is null, so ModuleQuizService must pass null.
+        verify(skillamaAiClient).generateQuizQuestions(
+                isNull(), eq("generate_module_quiz"), eq(COURSE), anyString(), anyString(), anyList(), anyInt(), isNull());
     }
 
     // ---------- submitAttempt ----------

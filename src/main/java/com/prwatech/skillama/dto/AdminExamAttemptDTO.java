@@ -31,4 +31,8 @@ public class AdminExamAttemptDTO {
     private Integer timeSpentSeconds;
     private Boolean overTimeLimit;
     private LocalDateTime submittedAt;
+    private Boolean passed;
+    /** AI-generated at submission — surfaced here so admins can spot-check quality without querying Mongo directly. */
+    private String overallFeedback;
+    private String recommendationText;
 }

@@ -2,6 +2,7 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.dto.*;
+import com.prwatech.skillama.exception.GuestChatLimitException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.User;
@@ -10,6 +11,7 @@ import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserProfileRepository;
+import com.prwatech.skillama.util.PiiRedactor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -1026,6 +1028,67 @@ public class UserProfileService {
         return Optional.empty();
     }
     
+    private static final String DEFAULT_CHAT_COURSE_NAME = "Python";
+
+    /**
+     * Answers a chat question server-side (budget-gated for logged-in users; guests are
+     * capped by MAX_GUEST_QUESTIONS instead, checked BEFORE the AI call runs) and persists
+     * the interaction in one call. Previously this ran directly from the browser to
+     * ai-tutor, then separately told the backend to persist a client-supplied answer via
+     * {@link #trackChat} — see that method's remaining use for the (deferred) audio path.
+     */
+    public ChatAskResponseDTO askChat(String sessionId, String userId, ChatAskRequestDTO request) {
+        if (request == null || request.getQuery() == null || request.getQuery().isBlank()) {
+            throw new IllegalArgumentException("query is required");
+        }
+
+        UserProfile profile = getOrCreateProfile(sessionId, userId);
+        if (profile.getIsGuest() && profile.getTotalQuestionsAsked() >= MAX_GUEST_QUESTIONS) {
+            throw new GuestChatLimitException("Chat limit reached. Please login to continue.");
+        }
+
+        User user = userId != null ? userRepository.findById(userId).orElse(null) : null;
+
+        String courseName = request.getCourse() != null && !request.getCourse().isBlank()
+                ? request.getCourse()
+                : DEFAULT_CHAT_COURSE_NAME;
+        String topic = request.getTopic() != null && !request.getTopic().isBlank()
+                ? request.getTopic()
+                : "General " + courseName;
+        String query = PiiRedactor.redact(request.getQuery());
+
+        // user is nullable here (guests) — SkillamaAiClient's metered wrapper skips the
+        // budget-check/recordUsage pair entirely when null, matching guests being governed
+        // by MAX_GUEST_QUESTIONS above instead of the AI wallet.
+        AiQueryReplyDTO reply = skillamaAiClient.answerQuery(
+                user, "chat_ask", request.getCourseId(),
+                query, topic, courseName, request.getPrevTopicList(), request.getLastAiReply());
+
+        String answer = PiiRedactor.redact(reply.getResponseText() != null ? reply.getResponseText() : "");
+
+        UserProfile.ChatInteraction interaction = UserProfile.ChatInteraction.builder()
+                .id(UUID.randomUUID().toString())
+                .question(query)
+                .answer(answer)
+                .audioUrl(reply.getAudioUrl())
+                .timestamp(IndiaTime.now())
+                .lectureContext(request.getLectureContext())
+                .courseId(request.getCourseId())
+                .questionType(request.getQuestionType() != null ? request.getQuestionType() : "text")
+                .build();
+        profile.getChatInteractions().add(interaction);
+        profile.setTotalQuestionsAsked(profile.getTotalQuestionsAsked() + 1);
+        profile.setLastActivityAt(IndiaTime.now());
+        profile.setUpdatedAt(IndiaTime.now());
+        userProfileRepository.save(profile);
+
+        return ChatAskResponseDTO.builder()
+                .responseText(answer)
+                .audioUrl(reply.getAudioUrl())
+                .subtitlePath(reply.getSubtitlePath())
+                .build();
+    }
+
     /**
      * Track chat question/answer
      */

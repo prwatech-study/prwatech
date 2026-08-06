@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ExamFeedbackResponseDTO {
+public class ExamFeedbackResponseDTO implements AiGenerationUsage {
     private String overallFeedback;
     private String recommendationText;
 

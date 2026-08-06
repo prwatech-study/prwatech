@@ -2,6 +2,7 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.dto.AdminAiMentorDoubtDTO;
+import com.prwatech.skillama.dto.AiQueryReplyDTO;
 import com.prwatech.skillama.dto.AskDoubtRequestDTO;
 import com.prwatech.skillama.dto.DoubtFeedbackRequestDTO;
 import com.prwatech.skillama.dto.DoubtFollowUpRequestDTO;
@@ -16,6 +17,7 @@ import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.DoubtRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.util.IndiaTime;
+import com.prwatech.skillama.util.PiiRedactor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -37,6 +39,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DoubtService {
 
+    private static final String DEFAULT_COURSE_NAME = "Python";
+
     private final DoubtRepository doubtRepository;
     private final SkillamaUserRepository userRepository;
     private final CourseRepository courseRepository;
@@ -51,20 +55,33 @@ public class DoubtService {
             throw new IllegalArgumentException("courseId is required");
         }
 
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        String courseName = courseRepository.findById(request.getCourseId())
+                .map(Course::getName)
+                .orElse(DEFAULT_COURSE_NAME);
+        String question = PiiRedactor.redact(request.getQuestion());
+
+        AiQueryReplyDTO reply = skillamaAiClient.answerQuery(
+                user, "ai_mentor_ask", request.getCourseId(),
+                question, "General " + courseName, courseName, List.of(), null);
+
         var now = IndiaTime.now();
         List<Doubt.DoubtMessage> messages = new ArrayList<>();
         messages.add(Doubt.DoubtMessage.builder()
                 .id(UUID.randomUUID().toString())
                 .sender(Doubt.Sender.USER)
-                .content(request.getQuestion())
+                .content(question)
                 .timestamp(now)
                 .build());
-        if (request.getAnswer() != null && !request.getAnswer().isBlank()) {
+        String answer = PiiRedactor.redact(reply.getResponseText() != null ? reply.getResponseText() : "");
+        if (!answer.isBlank()) {
             messages.add(Doubt.DoubtMessage.builder()
                     .id(UUID.randomUUID().toString())
                     .sender(Doubt.Sender.AI)
-                    .content(request.getAnswer())
-                    .audioUrl(request.getAnswerAudioUrl())
+                    .content(answer)
+                    .audioUrl(reply.getAudioUrl())
                     .timestamp(now)
                     .build());
         }
@@ -92,11 +109,24 @@ public class DoubtService {
             throw new IllegalArgumentException("question or nudgeType is required");
         }
 
-        var now = IndiaTime.now();
-        String userContent = request.getQuestion() != null && !request.getQuestion().isBlank()
-                ? request.getQuestion()
-                : request.getNudgeType();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
+        String courseName = doubt.getCourseId() != null
+                ? courseRepository.findById(doubt.getCourseId()).map(Course::getName).orElse(DEFAULT_COURSE_NAME)
+                : DEFAULT_COURSE_NAME;
+        String userContent = request.getQuestion() != null && !request.getQuestion().isBlank()
+                ? PiiRedactor.redact(request.getQuestion())
+                : request.getNudgeType();
+        String queryText = request.getQuery() != null && !request.getQuery().isBlank()
+                ? request.getQuery()
+                : userContent;
+
+        AiQueryReplyDTO reply = skillamaAiClient.answerQuery(
+                user, "ai_mentor_follow_up", doubt.getCourseId(),
+                queryText, "General " + courseName, courseName, List.of(), null);
+
+        var now = IndiaTime.now();
         doubt.getMessages().add(Doubt.DoubtMessage.builder()
                 .id(UUID.randomUUID().toString())
                 .sender(Doubt.Sender.USER)
@@ -104,12 +134,13 @@ public class DoubtService {
                 .nudgeType(request.getNudgeType())
                 .timestamp(now)
                 .build());
-        if (request.getAnswer() != null && !request.getAnswer().isBlank()) {
+        String answer = PiiRedactor.redact(reply.getResponseText() != null ? reply.getResponseText() : "");
+        if (!answer.isBlank()) {
             doubt.getMessages().add(Doubt.DoubtMessage.builder()
                     .id(UUID.randomUUID().toString())
                     .sender(Doubt.Sender.AI)
-                    .content(request.getAnswer())
-                    .audioUrl(request.getAnswerAudioUrl())
+                    .content(answer)
+                    .audioUrl(reply.getAudioUrl())
                     .nudgeType(request.getNudgeType())
                     .timestamp(now)
                     .build());

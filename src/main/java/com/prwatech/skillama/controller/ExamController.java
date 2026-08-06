@@ -77,6 +77,20 @@ public class ExamController {
         return ResponseEntity.ok(attempts);
     }
 
+    @GetMapping("/progress")
+    public ResponseEntity<?> getProgressOverview(
+            @RequestParam String courseId, HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        try {
+            return ResponseEntity.ok(examService.getProgressOverview(userId, courseId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
     @GetMapping("/attempts/{attemptId}/dashboard")
     public ResponseEntity<?> getResultDashboard(
             @PathVariable String attemptId, HttpServletRequest httpRequest) {

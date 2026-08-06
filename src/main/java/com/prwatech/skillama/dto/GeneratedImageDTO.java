@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class GeneratedImageDTO {
+public class GeneratedImageDTO implements AiGenerationUsage {
     private String imageBase64;
     private String contentType;
     private String diagramType;

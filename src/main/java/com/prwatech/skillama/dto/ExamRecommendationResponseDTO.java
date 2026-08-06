@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ExamRecommendationResponseDTO {
+public class ExamRecommendationResponseDTO implements AiGenerationUsage {
     private ExamDifficulty difficulty;
     private String topic;
     private String reasoning;

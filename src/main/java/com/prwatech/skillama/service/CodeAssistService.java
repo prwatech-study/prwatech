@@ -2,7 +2,6 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.dto.AdminCodeAssistInteractionDTO;
-import com.prwatech.skillama.dto.AiUsageRecordRequestDTO;
 import com.prwatech.skillama.dto.CodeAssistRequestDTO;
 import com.prwatech.skillama.dto.CodeAssistResponseDTO;
 import com.prwatech.skillama.dto.GeneratedCodeAssistDTO;
@@ -16,6 +15,7 @@ import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.util.IndiaTime;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -36,13 +36,14 @@ import java.util.stream.Collectors;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CodeAssistService {
 
     private final CodeAssistInteractionRepository interactionRepository;
     private final CourseRepository courseRepository;
     private final SkillamaUserRepository userRepository;
     private final SkillamaAiClient skillamaAiClient;
-    private final AiUsageService aiUsageService;
+    private final PracticalSandboxService practicalSandboxService;
 
     public CodeAssistResponseDTO runDebug(String userId, CodeAssistRequestDTO request) {
         return run(CodeAssistFeature.DEBUG, userId, request);
@@ -59,13 +60,39 @@ public class CodeAssistService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
-        aiUsageService.assertWithinBudget(user);
 
         String courseName = request.getCourseId() != null
                 ? courseRepository.findById(request.getCourseId()).map(Course::getName).orElse("Python")
                 : "Python";
 
-        GeneratedCodeAssistDTO generated = skillamaAiClient.runCodeAssist(request.getCode(), courseName);
+        String endpoint = feature == CodeAssistFeature.DEBUG ? "debug_assist" : "code_execution_assist";
+
+        // Python courses: actually run the code in the sandbox and hand ai-tutor the real
+        // result instead of letting it hallucinate one. Every other language is untouched —
+        // there's no sandbox for them yet, so they keep today's AI-simulated behavior exactly
+        // as before.
+        String realOutput = null;
+        String realError = null;
+        if (isPythonCourse(courseName)) {
+            try {
+                PracticalSandboxService.SandboxResult sandboxResult =
+                        practicalSandboxService.executeAdHoc(request.getCode());
+                if (sandboxResult.isOk()) {
+                    realOutput = sandboxResult.getStdout() != null ? sandboxResult.getStdout() : "";
+                } else if ("rejected".equals(sandboxResult.getStatus())) {
+                    realError = "Blocked: " + String.join("; ", sandboxResult.getViolations());
+                } else {
+                    realError = sandboxResult.getError() != null ? sandboxResult.getError() : "Execution failed";
+                }
+            } catch (Exception e) {
+                // Sandbox unavailable — degrade to the existing AI-simulated behavior rather
+                // than failing a widely-used feature over an infra hiccup.
+                log.warn("Real sandbox execution unavailable, falling back to AI-simulated output", e);
+            }
+        }
+
+        GeneratedCodeAssistDTO generated = skillamaAiClient.runCodeAssist(
+                user, endpoint, request.getCourseId(), request.getCode(), courseName, realOutput, realError);
 
         CodeAssistInteraction interaction = CodeAssistInteraction.builder()
                 .userId(userId)
@@ -84,16 +111,6 @@ public class CodeAssistService {
                 .build();
         interaction = interactionRepository.save(interaction);
 
-        aiUsageService.recordUsage(AiUsageRecordRequestDTO.builder()
-                .userId(userId)
-                .endpoint(feature == CodeAssistFeature.DEBUG ? "debug_assist" : "code_execution_assist")
-                .courseId(request.getCourseId())
-                .modelId(generated.getModelId())
-                .inputTokens(generated.getInputTokens())
-                .outputTokens(generated.getOutputTokens())
-                .totalTokens(generated.getTotalTokens())
-                .build());
-
         return CodeAssistResponseDTO.builder()
                 .interactionId(interaction.getId())
                 .codeOutput(generated.getCodeOutput())
@@ -102,6 +119,13 @@ public class CodeAssistService {
                 .hasAudio(generated.getAudioUrl() != null && !generated.getAudioUrl().isBlank())
                 .subtitlePath(generated.getSubtitlePath())
                 .build();
+    }
+
+    /** Same free-text course-name heuristic ai-tutor's own prompt already relies on ({@code "You
+     * are a {course} interpreter"}) — there is no structured language field on Course, only this
+     * display name. */
+    private boolean isPythonCourse(String courseName) {
+        return courseName != null && courseName.toLowerCase().contains("python");
     }
 
     /**

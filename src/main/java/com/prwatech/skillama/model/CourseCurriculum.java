@@ -45,6 +45,9 @@ public class CourseCurriculum {
         private Integer order; // Order of the submodule within the module
         private Boolean enabled;
 
+        /** Links this submodule to a {@code practical_datasets} row — one CSV per exercise. */
+        private String datasetId;
+
         // AI image generation daily-cap tracking (server-side, exploit-proof).
         // Counter resets when the stored date no longer matches "today" (India time).
         private Integer imageGenCountToday;

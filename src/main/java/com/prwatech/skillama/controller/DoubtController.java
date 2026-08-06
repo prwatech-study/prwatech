@@ -1,6 +1,7 @@
 package com.prwatech.skillama.controller;
 
 import com.prwatech.common.exception.NotFoundException;
+import com.prwatech.skillama.exception.AiBudgetLimitException;
 import com.prwatech.skillama.dto.AskDoubtRequestDTO;
 import com.prwatech.skillama.dto.DoubtFeedbackRequestDTO;
 import com.prwatech.skillama.dto.DoubtFollowUpRequestDTO;
@@ -47,8 +48,12 @@ public class DoubtController {
         }
         try {
             return ResponseEntity.ok(doubtService.askDoubt(userId, request));
+        } catch (AiBudgetLimitException e) {
+            return budgetLimitResponse(e);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(502).body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
 
@@ -83,8 +88,12 @@ public class DoubtController {
         }
         try {
             return ResponseEntity.ok(doubtService.addFollowUp(userId, doubtId, request));
+        } catch (AiBudgetLimitException e) {
+            return budgetLimitResponse(e);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(502).body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
 
@@ -163,5 +172,14 @@ public class DoubtController {
     private ResponseEntity<Map<String, Object>> unauthorized() {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("status", "error", "message", "Unauthorized"));
+    }
+
+    private ResponseEntity<Map<String, Object>> budgetLimitResponse(AiBudgetLimitException e) {
+        return ResponseEntity.status(429).body(Map.of(
+                "status", "error",
+                "message", e.getMessage(),
+                "aiBudgetLimitReached", true,
+                "aiCostUsedUsd", e.getAiCostUsedUsd(),
+                "aiCostLimitUsd", e.getAiCostLimitUsd()));
     }
 }

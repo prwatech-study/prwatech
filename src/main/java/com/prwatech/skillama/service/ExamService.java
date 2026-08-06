@@ -2,15 +2,17 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.skillama.dto.AdminExamAttemptDTO;
 import com.prwatech.skillama.dto.AdminExamRecommendationDTO;
-import com.prwatech.skillama.dto.AiUsageRecordRequestDTO;
 import com.prwatech.skillama.dto.ExamAnswerResultDTO;
 import com.prwatech.skillama.dto.ExamAttemptResultDTO;
 import com.prwatech.skillama.dto.ExamAttemptSummaryDTO;
 import com.prwatech.skillama.dto.ExamFeedbackResponseDTO;
+import com.prwatech.skillama.dto.ExamProgressOverviewDTO;
 import com.prwatech.skillama.dto.ExamRecommendationResponseDTO;
 import com.prwatech.skillama.dto.ExamResultDashboardDTO;
+import com.prwatech.skillama.dto.ExamTypeStatDTO;
 import com.prwatech.skillama.dto.FocusAreaDTO;
 import com.prwatech.skillama.dto.RankStandingDTO;
+import com.prwatech.skillama.dto.ScoreTrendPointDTO;
 import com.prwatech.skillama.dto.GeneratedQuizDTO;
 import com.prwatech.skillama.dto.ModuleQuizAttemptSummaryDTO;
 import com.prwatech.skillama.dto.ModuleQuizOptionDTO;
@@ -77,7 +79,6 @@ public class ExamService {
     private final ExamAttemptRepository attemptRepository;
     private final CourseRepository courseRepository;
     private final SkillamaAiClient skillamaAiClient;
-    private final AiUsageService aiUsageService;
     private final SkillamaUserRepository userRepository;
     private final ModuleQuizService moduleQuizService;
     private final ExamRecommendationLogRepository recommendationLogRepository;
@@ -88,7 +89,6 @@ public class ExamService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
-        aiUsageService.assertWithinBudget(user);
 
         String courseName = courseRepository.findById(request.getCourseId())
                 .map(Course::getName)
@@ -104,6 +104,7 @@ public class ExamService {
         int timeLimitSeconds = numQuestions * SECONDS_PER_QUESTION;
 
         GeneratedQuizDTO generated = skillamaAiClient.generateQuizQuestions(
+                user, "generate_exam", request.getCourseId(),
                 courseName, topicHint, topics, numQuestions,
                 request.getDifficulty() != null ? request.getDifficulty().name().toLowerCase() : null);
         if (generated.getQuestions() == null || generated.getQuestions().isEmpty()) {
@@ -138,16 +139,6 @@ public class ExamService {
                 .build();
 
         sessionRepository.save(session);
-
-        aiUsageService.recordUsage(AiUsageRecordRequestDTO.builder()
-                .userId(userId)
-                .endpoint("generate_exam")
-                .courseId(request.getCourseId())
-                .modelId(generated.getModelId())
-                .inputTokens(generated.getInputTokens())
-                .outputTokens(generated.getOutputTokens())
-                .totalTokens(generated.getTotalTokens())
-                .build());
 
         List<ModuleQuizQuestionDTO> clientQuestions = questions.stream()
                 .map(this::toClientQuestion)
@@ -244,20 +235,11 @@ public class ExamService {
         ExamFeedbackResponseDTO feedback;
         try {
             User user = userRepository.findById(userId).orElse(null);
-            if (user != null) {
-                aiUsageService.assertWithinBudget(user);
-            }
+            // user is nullable here (guests) — SkillamaAiClient's metered wrapper skips the
+            // budget-check/recordUsage pair entirely when null. A budget-limit exception
+            // still lands in the catch below same as any other failure (best-effort only).
             feedback = skillamaAiClient.getExamFeedback(
-                    courseName, topicOrModule, score, maxScore, percentage, wrongTopics);
-            aiUsageService.recordUsage(AiUsageRecordRequestDTO.builder()
-                    .userId(userId)
-                    .endpoint("ai_exam_feedback")
-                    .courseId(session.getCourseId())
-                    .modelId(feedback.getModelId())
-                    .inputTokens(feedback.getInputTokens())
-                    .outputTokens(feedback.getOutputTokens())
-                    .totalTokens(feedback.getTotalTokens())
-                    .build());
+                    user, session.getCourseId(), courseName, topicOrModule, score, maxScore, percentage, wrongTopics);
         } catch (Exception e) {
             // Best-effort only — feedback must never block a submission from being graded/saved.
             feedback = ExamFeedbackResponseDTO.builder()
@@ -318,7 +300,6 @@ public class ExamService {
     public ExamRecommendationResponseDTO getRecommendation(String userId, String courseId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
-        aiUsageService.assertWithinBudget(user);
 
         String courseName = courseRepository.findById(courseId).map(Course::getName).orElse("this course");
 
@@ -328,17 +309,7 @@ public class ExamService {
                 : quizAttempts.stream().mapToDouble(ModuleQuizAttemptSummaryDTO::getPercentage).average().orElse(0.0);
 
         ExamRecommendationResponseDTO recommendation =
-                skillamaAiClient.getExamRecommendation(courseName, null, avgQuizScore);
-
-        aiUsageService.recordUsage(AiUsageRecordRequestDTO.builder()
-                .userId(userId)
-                .endpoint("ai_exam_recommendation")
-                .courseId(courseId)
-                .modelId(recommendation.getModelId())
-                .inputTokens(recommendation.getInputTokens())
-                .outputTokens(recommendation.getOutputTokens())
-                .totalTokens(recommendation.getTotalTokens())
-                .build());
+                skillamaAiClient.getExamRecommendation(user, courseId, courseName, null, avgQuizScore);
 
         // Persisted so a recommendation can be reviewed after the fact, not just billed.
         recommendationLogRepository.save(ExamRecommendationLog.builder()
@@ -399,6 +370,82 @@ public class ExamService {
                 .rank(computeCohortStanding(attempt))
                 .focusAreas(computeFocusAreas(userId, attempt.getCourseId()))
                 .retakeOptions(buildRetakeOptions(attempt))
+                .build();
+    }
+
+    /**
+     * Cross-attempt "how am I doing overall" view for one course — trend line,
+     * exam-type breakdown, and the same focus-area computation used by the
+     * single-attempt dashboard. Zeroes/empty lists (never fabricated data) when
+     * the learner has no attempts yet for this course.
+     */
+    public ExamProgressOverviewDTO getProgressOverview(String userId, String courseId) {
+        if (!StringUtils.hasText(courseId)) {
+            throw new IllegalArgumentException("courseId is required");
+        }
+        String courseName = courseRepository.findById(courseId).map(Course::getName).orElse(null);
+        List<ExamAttempt> attempts = attemptRepository.findByUserIdAndCourseIdOrderBySubmittedAtDesc(userId, courseId);
+
+        if (attempts.isEmpty()) {
+            return ExamProgressOverviewDTO.builder()
+                    .courseId(courseId)
+                    .courseName(courseName)
+                    .totalAttempts(0)
+                    .passingPercentage(ModuleQuizService.PASSING_PERCENTAGE)
+                    .scoreTrend(new ArrayList<>())
+                    .examTypeBreakdown(new ArrayList<>())
+                    .focusAreas(new ArrayList<>())
+                    .build();
+        }
+
+        List<Double> percentages = attempts.stream()
+                .map(ExamAttempt::getPercentage)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toList());
+        double average = percentages.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+        double best = percentages.stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
+        long passedCount = percentages.stream().filter(p -> p >= ModuleQuizService.PASSING_PERCENTAGE).count();
+        double passRate = (passedCount * 100.0) / percentages.size();
+
+        List<ScoreTrendPointDTO> scoreTrend = attempts.stream()
+                .sorted(Comparator.comparing(
+                        ExamAttempt::getSubmittedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(a -> ScoreTrendPointDTO.builder()
+                        .attemptId(a.getId())
+                        .submittedAt(a.getSubmittedAt())
+                        .percentage(a.getPercentage())
+                        .examType(a.getExamType())
+                        .build())
+                .collect(Collectors.toList());
+
+        List<ExamTypeStatDTO> examTypeBreakdown = attempts.stream()
+                .filter(a -> a.getExamType() != null)
+                .collect(Collectors.groupingBy(ExamAttempt::getExamType))
+                .entrySet().stream()
+                .map(entry -> ExamTypeStatDTO.builder()
+                        .examType(entry.getKey())
+                        .attemptCount(entry.getValue().size())
+                        .averagePercentage(entry.getValue().stream()
+                                .map(ExamAttempt::getPercentage)
+                                .filter(java.util.Objects::nonNull)
+                                .mapToDouble(Double::doubleValue)
+                                .average()
+                                .orElse(0.0))
+                        .build())
+                .sorted(Comparator.comparing(dto -> dto.getExamType().name()))
+                .collect(Collectors.toList());
+
+        return ExamProgressOverviewDTO.builder()
+                .courseId(courseId)
+                .courseName(courseName)
+                .totalAttempts(attempts.size())
+                .averagePercentage(average)
+                .passRate(passRate)
+                .bestPercentage(best)
+                .passingPercentage(ModuleQuizService.PASSING_PERCENTAGE)
+                .scoreTrend(scoreTrend)
+                .examTypeBreakdown(examTypeBreakdown)
+                .focusAreas(computeFocusAreas(userId, courseId))
                 .build();
     }
 
@@ -662,6 +709,9 @@ public class ExamService {
                             .timeSpentSeconds(a.getTimeSpentSeconds())
                             .overTimeLimit(a.getOverTimeLimit())
                             .submittedAt(a.getSubmittedAt())
+                            .passed(a.getPercentage() != null && a.getPercentage() >= ModuleQuizService.PASSING_PERCENTAGE)
+                            .overallFeedback(a.getOverallFeedback())
+                            .recommendationText(a.getRecommendationText())
                             .build();
                 })
                 .collect(Collectors.toList());

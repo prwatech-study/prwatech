@@ -1,6 +1,7 @@
 package com.prwatech.skillama.service.impl;
 
 import com.prwatech.skillama.config.S3Config;
+import com.prwatech.skillama.exception.InvalidDatasetException;
 import com.prwatech.skillama.service.FileStorageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,10 +11,16 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -81,7 +88,15 @@ public class FileStorageServiceImpl implements FileStorageService {
 
     @Value("${aws.s3.support-attachments-bucket-name:skillama-support-attachments}")
     private String supportAttachmentsBucketName;
-    
+
+    @Value("${aws.s3.practical-datasets-bucket-name:skillama-practical-datasets}")
+    private String practicalDatasetsBucketName;
+
+    private static final long MAX_DATASET_FILE_SIZE = 1024 * 1024; // 1 MB
+    private static final List<String> ALLOWED_DATASET_CONTENT_TYPES = Arrays.asList(
+        "text/csv", "application/csv", "application/vnd.ms-excel", "text/plain"
+    );
+
     @Autowired
     private S3Client s3Client;
     
@@ -639,6 +654,104 @@ public class FileStorageServiceImpl implements FileStorageService {
             List<String> allowedExtensions = Arrays.asList("jpg", "jpeg", "png", "gif", "webp");
             if (!allowedExtensions.contains(extension)) {
                 throw new IllegalArgumentException("Invalid file extension. Only JPG, PNG, GIF, and WebP are allowed.");
+            }
+        }
+    }
+
+    @Override
+    public String uploadCsvDataset(MultipartFile file, String courseId, String moduleId, int submoduleIdx, String datasetId) throws IOException {
+        String s3Key = String.format("practical-datasets/%s/%s/%02d/%s.csv", courseId, moduleId, submoduleIdx + 1, datasetId);
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(practicalDatasetsBucketName)
+                .key(s3Key)
+                .contentType("text/csv")
+                .build();
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(file.getBytes()));
+            return s3Key;
+        } catch (S3Exception e) {
+            throw new IOException("Failed to upload dataset to S3: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public byte[] downloadCsvDataset(String storageKey) throws IOException {
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(practicalDatasetsBucketName)
+                .key(storageKey)
+                .build();
+            return s3Client.getObjectAsBytes(getObjectRequest).asByteArray();
+        } catch (S3Exception e) {
+            throw new IOException("Failed to fetch dataset from S3: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void validateCsvDatasetFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new InvalidDatasetException("File is empty");
+        }
+        if (file.getSize() > MAX_DATASET_FILE_SIZE) {
+            throw new InvalidDatasetException("File exceeds the 1 MB limit");
+        }
+
+        String originalFilename = file.getOriginalFilename();
+        String extension = (originalFilename != null && originalFilename.contains("."))
+            ? originalFilename.substring(originalFilename.lastIndexOf(".") + 1).toLowerCase()
+            : "";
+        if (!"csv".equals(extension)) {
+            throw new InvalidDatasetException("Only .csv files are supported");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType != null && !ALLOWED_DATASET_CONTENT_TYPES.contains(contentType.toLowerCase())) {
+            throw new InvalidDatasetException("Unsupported content type: " + contentType);
+        }
+
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new InvalidDatasetException("Could not read the uploaded file");
+        }
+
+        String text;
+        try {
+            CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT);
+            text = decoder.decode(ByteBuffer.wrap(bytes)).toString();
+        } catch (CharacterCodingException e) {
+            throw new InvalidDatasetException("File is not valid UTF-8 text");
+        }
+
+        validateCsvStructure(text);
+    }
+
+    /**
+     * Lightweight structural sanity check (header + at least one row, consistent column count
+     * per row) — a naive comma split, not a full RFC 4180 parser, so a quoted field containing a
+     * comma can misfire; enough to catch empty/truncated/garbage uploads without a new dependency.
+     */
+    private void validateCsvStructure(String text) {
+        String[] lines = text.split("\\r?\\n");
+        List<String> nonBlankLines = new java.util.ArrayList<>();
+        for (String line : lines) {
+            if (!line.isBlank()) {
+                nonBlankLines.add(line);
+            }
+        }
+        if (nonBlankLines.size() < 2) {
+            throw new InvalidDatasetException("CSV must contain a header row and at least one data row");
+        }
+        int columnCount = nonBlankLines.get(0).split(",", -1).length;
+        if (columnCount < 1) {
+            throw new InvalidDatasetException("CSV header row is empty");
+        }
+        for (String line : nonBlankLines) {
+            if (line.split(",", -1).length != columnCount) {
+                throw new InvalidDatasetException("CSV rows have inconsistent column counts");
             }
         }
     }

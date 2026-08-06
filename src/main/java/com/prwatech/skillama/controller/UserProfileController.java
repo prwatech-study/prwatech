@@ -339,16 +339,46 @@ public class UserProfileController {
     }
 
     /**
+     * Answers + persists a chat question in one call (text mode only for now — voice
+     * recording still uses the older {@link #trackChat} + browser-direct-to-ai-tutor path).
+     */
+    @PostMapping("/chat/ask")
+    public ResponseEntity<?> askChat(
+            @RequestBody ChatAskRequestDTO request,
+            HttpServletRequest httpRequest) {
+        String sessionId = getSessionIdFromRequest(httpRequest);
+        String userId = getUserIdFromRequest(httpRequest);
+        try {
+            return ResponseEntity.ok(userProfileService.askChat(
+                    profilingSessionId(sessionId, userId), userId, request));
+        } catch (com.prwatech.skillama.exception.AiBudgetLimitException e) {
+            return ResponseEntity.status(429).body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage(),
+                    "aiBudgetLimitReached", true,
+                    "aiCostUsedUsd", e.getAiCostUsedUsd(),
+                    "aiCostLimitUsd", e.getAiCostLimitUsd()));
+        } catch (com.prwatech.skillama.exception.GuestChatLimitException e) {
+            return ResponseEntity.status(429).body(Map.of(
+                    "status", "error", "message", e.getMessage(), "guestChatLimitReached", true));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(502).body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    /**
      * Track chat question/answer
      */
     @PostMapping("/chat/track")
     public ResponseEntity<Map<String, Object>> trackChat(
             @RequestBody TrackChatRequestDTO request,
             HttpServletRequest httpRequest) {
-        
+
         String sessionId = getSessionIdFromRequest(httpRequest);
         String userId = getUserIdFromRequest(httpRequest);
-        
+
         Map<String, Object> result = userProfileService.trackChat(
                 profilingSessionId(sessionId, userId), userId, request);
         return ResponseEntity.ok(result);

@@ -31,6 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,7 +43,7 @@ class CodeAssistServiceTest {
     @Mock private CourseRepository courseRepository;
     @Mock private SkillamaUserRepository userRepository;
     @Mock private SkillamaAiClient skillamaAiClient;
-    @Mock private AiUsageService aiUsageService;
+    @Mock private PracticalSandboxService practicalSandboxService;
 
     @InjectMocks private CodeAssistService codeAssistService;
 
@@ -74,7 +76,14 @@ class CodeAssistServiceTest {
         when(userRepository.findById("user-1")).thenReturn(Optional.of(existingUser("user-1")));
         when(courseRepository.findById("course-1"))
                 .thenReturn(Optional.of(Course.builder().id("course-1").name("Python Basics").build()));
-        when(skillamaAiClient.runCodeAssist("print(1)", "Python Basics"))
+        // "Python Basics" matches the Python-course real-execution path; sandbox integration
+        // itself isn't under test here, so simulate it being unavailable — CodeAssistService
+        // degrades gracefully and calls ai-tutor with no real_output/real_error, same as before.
+        when(practicalSandboxService.executeAdHoc(anyString()))
+                .thenThrow(new IllegalStateException("sandbox not under test here"));
+        when(skillamaAiClient.runCodeAssist(
+                        any(User.class), eq("debug_assist"), eq("course-1"), eq("print(1)"), eq("Python Basics"),
+                        isNull(), isNull()))
                 .thenReturn(generated("https://ai.prwatech.com/get_audio/explain.mp3"));
         when(interactionRepository.save(any(CodeAssistInteraction.class)))
                 .thenAnswer(inv -> {
@@ -95,21 +104,23 @@ class CodeAssistServiceTest {
         assertEquals("Your code runs fine.", response.getResponseText());
         assertTrue(response.getHasAudio());
 
-        verify(aiUsageService).assertWithinBudget(any(User.class));
-
         ArgumentCaptor<CodeAssistInteraction> captor = ArgumentCaptor.forClass(CodeAssistInteraction.class);
         verify(interactionRepository).save(captor.capture());
         assertEquals(CodeAssistFeature.DEBUG, captor.getValue().getFeature());
         assertEquals("print(1)", captor.getValue().getCode());
         assertEquals("https://ai.prwatech.com/get_audio/explain.mp3", captor.getValue().getAudioUrl());
-
-        verify(aiUsageService).recordUsage(any());
     }
 
     @Test
     void runCodeExecution_noAudioInResponse_hasAudioFalse() {
         when(userRepository.findById("user-1")).thenReturn(Optional.of(existingUser("user-1")));
-        when(skillamaAiClient.runCodeAssist(anyString(), anyString())).thenReturn(generated(null));
+        // No courseId set -> courseName defaults to "Python", so this also hits the real-
+        // execution path; same graceful-fallback simulation as the test above.
+        when(practicalSandboxService.executeAdHoc(anyString()))
+                .thenThrow(new IllegalStateException("sandbox not under test here"));
+        when(skillamaAiClient.runCodeAssist(
+                        any(User.class), anyString(), any(), anyString(), anyString(), isNull(), isNull()))
+                .thenReturn(generated(null));
         when(interactionRepository.save(any(CodeAssistInteraction.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 

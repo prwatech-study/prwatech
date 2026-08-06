@@ -660,6 +660,28 @@ public class CourseService {
     }
 
     /**
+     * Links a submodule to its practical-exercise CSV dataset (or clears it when {@code datasetId} is null).
+     * @param moduleId The module ID
+     * @param submoduleIdx The submodule index
+     * @param datasetId The dataset ID to link, or null to unlink
+     * @return The updated module, or null if not found
+     */
+    public CourseCurriculum updateSubmoduleDatasetId(String moduleId, int submoduleIdx, String datasetId) {
+        return curriculumRepository.findById(moduleId).map(module -> {
+            List<CourseCurriculum.Submodule> list = module.getSubmodules();
+            if (list != null && submoduleIdx >= 0 && submoduleIdx < list.size()) {
+                CourseCurriculum.Submodule submodule = list.get(submoduleIdx);
+                submodule.setDatasetId(datasetId);
+                list.set(submoduleIdx, submodule);
+                module.setSubmodules(list);
+                module.setUpdatedAt(IndiaTime.now());
+                return curriculumRepository.save(module);
+            }
+            return module;
+        }).orElse(null);
+    }
+
+    /**
      * How many AI image generations this submodule has used TODAY (India time).
      * Returns 0 when the stored date is not today (the daily counter has rolled over).
      */

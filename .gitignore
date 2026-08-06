@@ -41,3 +41,16 @@ backups/
 
 # Machine-specific Gradle config (e.g. org.gradle.java.home) must stay local.
 gradle.properties
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfstate.*.backup
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store

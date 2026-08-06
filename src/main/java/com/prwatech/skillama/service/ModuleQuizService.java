@@ -47,7 +47,6 @@ public class ModuleQuizService {
     private final CourseRepository courseRepository;
     private final CourseCurriculumRepository curriculumRepository;
     private final SkillamaAiClient skillamaAiClient;
-    private final AiUsageService aiUsageService;
     private final SkillamaUserRepository userRepository;
 
     /**
@@ -63,15 +62,15 @@ public class ModuleQuizService {
         assertQuizEligible(profilingSessionId, userId, request.getCourseId(), request.getModuleName());
 
         User user = StringUtils.hasText(userId) ? userRepository.findById(userId).orElse(null) : null;
-        if (user != null) {
-            aiUsageService.assertWithinBudget(user);
-        }
 
         String courseName = courseRepository.findById(request.getCourseId())
                 .map(Course::getName)
                 .orElse("this course");
 
+        // user is nullable here (guests) — SkillamaAiClient's metered wrapper skips the
+        // budget-check/recordUsage pair entirely when null.
         GeneratedQuizDTO generated = skillamaAiClient.generateQuizQuestions(
+                user, "generate_module_quiz", request.getCourseId(),
                 courseName, request.getModuleName(), request.getTopics(), NUM_QUESTIONS, null);
         if (generated.getQuestions() == null || generated.getQuestions().isEmpty()) {
             throw new IllegalStateException("AI did not return any quiz questions");
@@ -101,18 +100,6 @@ public class ModuleQuizService {
                 .build();
 
         sessionRepository.save(session);
-
-        if (user != null) {
-            aiUsageService.recordUsage(AiUsageRecordRequestDTO.builder()
-                    .userId(userId)
-                    .endpoint("generate_module_quiz")
-                    .courseId(request.getCourseId())
-                    .modelId(generated.getModelId())
-                    .inputTokens(generated.getInputTokens())
-                    .outputTokens(generated.getOutputTokens())
-                    .totalTokens(generated.getTotalTokens())
-                    .build());
-        }
 
         List<ModuleQuizQuestionDTO> clientQuestions = questions.stream()
                 .map(this::toClientQuestion)

@@ -1,6 +1,7 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.common.exception.NotFoundException;
+import com.prwatech.skillama.dto.AiQueryReplyDTO;
 import com.prwatech.skillama.dto.AskDoubtRequestDTO;
 import com.prwatech.skillama.dto.DoubtFeedbackRequestDTO;
 import com.prwatech.skillama.dto.DoubtFollowUpRequestDTO;
@@ -8,10 +9,10 @@ import com.prwatech.skillama.dto.DoubtResponseDTO;
 import com.prwatech.skillama.dto.ProxiedAudioDTO;
 import com.prwatech.skillama.model.Doubt;
 import com.prwatech.skillama.model.DoubtStatus;
+import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.DoubtRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -27,10 +28,13 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,10 +54,16 @@ class DoubtServiceTest {
         request.setModuleId("module-1");
         request.setLessonId("lesson-1");
         request.setQuestion("What is a DataFrame?");
-        request.setAnswer("A DataFrame is a 2D labeled data structure.");
-        request.setAnswerAudioUrl("https://cdn.example.com/answer-1.mp3");
 
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(existingUser("user-1")));
         when(doubtRepository.save(any(Doubt.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(skillamaAiClient.answerQuery(
+                        any(User.class), eq("ai_mentor_ask"), eq("course-1"),
+                        eq("What is a DataFrame?"), anyString(), anyString(), anyList(), isNull()))
+                .thenReturn(AiQueryReplyDTO.builder()
+                        .responseText("A DataFrame is a 2D labeled data structure.")
+                        .audioUrl("https://cdn.example.com/answer-1.mp3")
+                        .build());
 
         DoubtResponseDTO response = doubtService.askDoubt("user-1", request);
 
@@ -80,11 +90,18 @@ class DoubtServiceTest {
         Doubt doubt = existingDoubt("doubt-1", "user-1");
         when(doubtRepository.findById("doubt-1")).thenReturn(Optional.of(doubt));
         when(doubtRepository.save(any(Doubt.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(existingUser("user-1")));
+        when(skillamaAiClient.answerQuery(
+                        any(User.class), eq("ai_mentor_follow_up"), eq("course-1"),
+                        anyString(), anyString(), anyString(), anyList(), isNull()))
+                .thenReturn(AiQueryReplyDTO.builder()
+                        .responseText("Here is a more detailed explanation.")
+                        .audioUrl("https://cdn.example.com/answer-2.mp3")
+                        .build());
 
         DoubtFollowUpRequestDTO request = new DoubtFollowUpRequestDTO();
         request.setNudgeType("EXPLAIN_MORE");
-        request.setAnswer("Here is a more detailed explanation.");
-        request.setAnswerAudioUrl("https://cdn.example.com/answer-2.mp3");
+        request.setQuery("Explain this in more detail.");
 
         DoubtResponseDTO response = doubtService.addFollowUp("user-1", "doubt-1", request);
 
@@ -202,6 +219,14 @@ class DoubtServiceTest {
         when(doubtRepository.findById("doubt-1")).thenReturn(Optional.of(doubt));
 
         assertThrows(NotFoundException.class, () -> doubtService.getDoubt("user-1", "doubt-1"));
+    }
+
+    private static User existingUser(String id) {
+        User user = new User();
+        user.setId(id);
+        user.setEmail("learner@example.com");
+        user.setName("Learner One");
+        return user;
     }
 
     private static Doubt existingDoubt(String id, String userId) {
