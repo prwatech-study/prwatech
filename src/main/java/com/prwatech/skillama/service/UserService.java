@@ -265,4 +265,12 @@ public class UserService {
                 .loggedInAt(now)
                 .build());
     }
+
+    /** Bumps tokenVersion so the token that was just logged out from stops passing auth checks. */
+    public void logout(User user) {
+        int version = user.getTokenVersion() != null ? user.getTokenVersion() : 0;
+        user.setTokenVersion(version + 1);
+        user.setUpdatedAt(IndiaTime.now());
+        userRepository.save(user);
+    }
 }

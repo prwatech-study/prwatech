@@ -26,16 +26,24 @@ public class SkillamaAuthSupport {
 
         String jwtToken = requestTokenHeader.substring(7).trim();
         String email;
+        int tokenVersion;
         try {
             email = jwtUtils.extractUsername(jwtToken);
+            tokenVersion = jwtUtils.extractTokenVersion(jwtToken);
         } catch (ExpiredJwtException e) {
             throw new SkillamaAuthException("Session expired. Please sign in again.");
         } catch (JwtException e) {
             throw new SkillamaAuthException("Session expired. Please sign in again.");
         }
 
-        return userService.findByEmailForAuth(email)
-                .map(User::getId)
+        User user = userService.findByEmailForAuth(email)
                 .orElseThrow(() -> new SkillamaAuthException("Account not found. Please sign in again."));
+
+        int currentVersion = user.getTokenVersion() != null ? user.getTokenVersion() : 0;
+        if (tokenVersion < currentVersion) {
+            throw new SkillamaAuthException("Session expired. Please sign in again.");
+        }
+
+        return user.getId();
     }
 }

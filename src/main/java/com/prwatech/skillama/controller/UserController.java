@@ -76,7 +76,7 @@ public class UserController {
             if (userService.validatePassword(loginRequest.getPassword(), user.getPassword())) {
                 userService.recordLogin(user);
                 UserDetails userDetails = new UserDetails(user.getEmail());
-                Map<String, String> tokens = jwtUtils.generateToken(userDetails);
+                Map<String, String> tokens = jwtUtils.generateToken(userDetails, user.getTokenVersion());
                 String accessToken = tokens.get("accessToken");
                 
                 LoginResponseDTO response = UserMapper.toLoginResponse(user, accessToken, onboardingService);
@@ -151,7 +151,7 @@ public class UserController {
             User user = freemiumService.registerFreemiumUser(request);
             userService.recordLogin(user);
             UserDetails userDetails = new UserDetails(user.getEmail());
-            String accessToken = jwtUtils.generateToken(userDetails).get("accessToken");
+            String accessToken = jwtUtils.generateToken(userDetails, user.getTokenVersion()).get("accessToken");
             LoginResponseDTO response = UserMapper.toLoginResponse(user, accessToken, onboardingService);
             return ResponseEntity.ok(response);
         } catch (IllegalStateException e) {
@@ -216,7 +216,7 @@ public class UserController {
                         "message", "Account is not activated"));
             }
             userService.recordLogin(user);
-            String accessToken = jwtUtils.generateToken(new UserDetails(user.getEmail())).get("accessToken");
+            String accessToken = jwtUtils.generateToken(new UserDetails(user.getEmail()), user.getTokenVersion()).get("accessToken");
             return ResponseEntity.ok(UserMapper.toLoginResponse(user, accessToken, onboardingService));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(409).body(Map.of("status", "error", "message", e.getMessage()));
@@ -244,7 +244,7 @@ public class UserController {
                 return ResponseEntity.status(403).body(Map.of("status", "error", "message", "Account is not activated"));
             }
             userService.recordLogin(user);
-            String accessToken = jwtUtils.generateToken(new UserDetails(user.getEmail())).get("accessToken");
+            String accessToken = jwtUtils.generateToken(new UserDetails(user.getEmail()), user.getTokenVersion()).get("accessToken");
             return ResponseEntity.ok(UserMapper.toLoginResponse(user, accessToken, onboardingService));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
@@ -334,6 +334,27 @@ public class UserController {
                 return ResponseEntity.status(403).build();
             }
             return ResponseEntity.ok(UserMapper.toSessionDto(user, onboardingService));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(404).build();
+        } catch (SkillamaAuthException e) {
+            return ResponseEntity.status(401).build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(401).build();
+        }
+    }
+
+    /**
+     * Revokes the calling token server-side (bumps tokenVersion) so it fails auth on any
+     * future request, rather than remaining valid until its natural ~180-day expiry.
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            User user = userService.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+            userService.logout(user);
+            return ResponseEntity.ok(Map.of("status", "success"));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(404).build();
         } catch (SkillamaAuthException e) {

@@ -21,9 +21,15 @@ public class WevMvcConfiguration implements WebMvcConfigurer {
     "classpath:/static/", "classpath:/public/"
   };
 
+  private final JwtUtils jwtUtils;
+
+  public WevMvcConfiguration(JwtUtils jwtUtils) {
+    this.jwtUtils = jwtUtils;
+  }
+
   @Bean
   public AuthInterceptor authenticationInterceptor() {
-    return new AuthInterceptor(new JwtUtils());
+    return new AuthInterceptor(jwtUtils);
   }
 
   @Override

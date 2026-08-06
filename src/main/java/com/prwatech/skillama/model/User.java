@@ -84,6 +84,14 @@ public class User {
     private String createdBy;
     private String updatedBy;
 
+    /**
+     * Bumped on logout; embedded in each minted JWT as the {@code tv} claim.
+     * A request whose token carries an older version than this is a token that was
+     * logged out from — used to make logout actually revoke server-side.
+     */
+    @Builder.Default
+    private Integer tokenVersion = 0;
+
     /** Learner LMS UI theme: classic | aurora */
     private String lmsThemePreference;
 
