@@ -101,7 +101,9 @@ class UserControllerSessionConflictTest {
                         .content("{\"email\":\"learner@skillama.co.in\",\"password\":\"correct-pass\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value("conflict"))
-                .andExpect(jsonPath("$.lastLoginAt").exists());
+                // Regression: must be an ISO string (new Date(x) on the frontend), not the raw
+                // LocalDateTime — this app's ObjectMapper serializes that as a component array.
+                .andExpect(jsonPath("$.lastLoginAt").value(LAST_LOGIN.toString()));
 
         verify(userService, never()).startNewSession(any());
         verify(jwtUtils, never()).generateToken(any(), any());

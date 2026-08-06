@@ -103,7 +103,9 @@ public class UserController {
         Map<String, Object> body = new HashMap<>();
         body.put("status", "conflict");
         body.put("message", "You're already logged in on another device.");
-        body.put("lastLoginAt", user.getLastLoginAt());
+        // .toString() (ISO-8601), not the raw LocalDateTime: this app's ObjectMapper serializes
+        // LocalDateTime as a [year,month,day,...] component array, which JS Date can't parse.
+        body.put("lastLoginAt", user.getLastLoginAt() != null ? user.getLastLoginAt().toString() : null);
         return ResponseEntity.status(409).body(body);
     }
 
