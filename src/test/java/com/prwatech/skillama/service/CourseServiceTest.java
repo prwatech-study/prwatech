@@ -35,6 +35,14 @@ class CourseServiceTest {
         return s;
     }
 
+    private static CourseCurriculum.Submodule practicalSubmodule(String id, String label, String datasetId) {
+        CourseCurriculum.Submodule s = submodule(id, label);
+        s.setEnabled(true);
+        s.setPracticalRequired(true);
+        s.setDatasetId(datasetId);
+        return s;
+    }
+
     // Regression test for a real production incident: the admin "edit module" form only ever
     // sends {moduleName, title, order} — it never includes submodules. updateModule() used to
     // unconditionally overwrite submodules with whatever the caller sent, which meant every
@@ -80,5 +88,41 @@ class CourseServiceTest {
 
         assertEquals(2, result.getSubmodules().size());
         assertEquals("New Topic", result.getSubmodules().get(0).getLabel());
+    }
+
+    // Regression test for a real production bug: the learner-facing curriculum view
+    // (GET /courses/{id}/curriculum, non-admin) rebuilds each submodule field-by-field and used to
+    // drop `id` and `datasetId`, so a submodule with a dataset attached via the practical-exercise
+    // upload flow showed up as datasetId: null for every learner, even though it was persisted correctly.
+    @Test
+    void filterCurriculumForLearner_preservesIdAndDatasetId() {
+        CourseCurriculum module = CourseCurriculum.builder()
+                .id("module-1")
+                .courseId("course-1")
+                .moduleName("Operators in Python")
+                .submodules(List.of(practicalSubmodule("s1", "Practical: Analyze Sales Data", "dataset-1")))
+                .build();
+
+        List<CourseCurriculum> result = courseService().filterCurriculumForLearner(List.of(module));
+
+        CourseCurriculum.Submodule sub = result.get(0).getSubmodules().get(0);
+        assertEquals("s1", sub.getId());
+        assertEquals("dataset-1", sub.getDatasetId());
+    }
+
+    @Test
+    void applyGuestScriptRestrictions_preservesIdAndDatasetId() {
+        CourseCurriculum module = CourseCurriculum.builder()
+                .id("module-1")
+                .courseId("course-1")
+                .moduleName("Operators in Python")
+                .submodules(List.of(practicalSubmodule("s1", "Practical: Analyze Sales Data", "dataset-1")))
+                .build();
+
+        List<CourseCurriculum> result = CourseService.applyGuestScriptRestrictions(List.of(module));
+
+        CourseCurriculum.Submodule sub = result.get(0).getSubmodules().get(0);
+        assertEquals("s1", sub.getId());
+        assertEquals("dataset-1", sub.getDatasetId());
     }
 }

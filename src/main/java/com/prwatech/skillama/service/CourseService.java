@@ -300,11 +300,13 @@ public class CourseService {
                     continue;
                 }
                 CourseCurriculum.Submodule copy = new CourseCurriculum.Submodule();
+                copy.setId(sub.getId());
                 copy.setLabel(sub.getLabel());
                 copy.setImagePath(sub.getImagePath());
                 copy.setPracticalRequired(sub.isPracticalRequired());
                 copy.setOrder(sub.getOrder());
                 copy.setEnabled(sub.getEnabled());
+                copy.setDatasetId(sub.getDatasetId());
                 if (!firstLectureScriptRetained) {
                     copy.setScriptText(sub.getScriptText());
                     firstLectureScriptRetained = true;
@@ -361,6 +363,7 @@ public class CourseService {
 
     private static CourseCurriculum.Submodule copySubmoduleForLearner(CourseCurriculum.Submodule submodule) {
         CourseCurriculum.Submodule copy = new CourseCurriculum.Submodule();
+        copy.setId(submodule.getId());
         copy.setLabel(submodule.getLabel());
         copy.setImagePath(submodule.getImagePath());
         copy.setPracticalRequired(submodule.isPracticalRequired());
@@ -368,6 +371,7 @@ public class CourseService {
         // Narration / TTS (e.g. text_to_audio) needs the script; learners must receive the same text admins store.
         copy.setScriptText(submodule.getScriptText());
         copy.setEnabled(submodule.getEnabled());
+        copy.setDatasetId(submodule.getDatasetId());
         return copy;
     }
 
@@ -418,7 +422,7 @@ public class CourseService {
         }
     }
 
-    private List<CourseCurriculum> filterCurriculumForLearner(List<CourseCurriculum> modules) {
+    List<CourseCurriculum> filterCurriculumForLearner(List<CourseCurriculum> modules) {
         if (modules == null) {
             return List.of();
         }
