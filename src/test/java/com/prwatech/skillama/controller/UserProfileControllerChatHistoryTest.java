@@ -4,6 +4,7 @@ import com.prwatech.authentication.security.JwtUtils;
 import com.prwatech.common.Constants;
 import com.prwatech.skillama.dto.ChatHistoryItemDTO;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.service.CourseShareService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.AiUsageService;
 import com.prwatech.skillama.service.LmsThemeService;
@@ -43,6 +44,7 @@ class UserProfileControllerChatHistoryTest {
     @Mock private UserService userService;
     @Mock private FreemiumService freemiumService;
     @Mock private ReferralShareService referralShareService;
+    @Mock private CourseShareService courseShareService;
     @Mock private UpgradeRequestService upgradeRequestService;
     @Mock private LmsThemeService lmsThemeService;
     @Mock private ProgressReconciliationService progressReconciliationService;
@@ -60,6 +62,7 @@ class UserProfileControllerChatHistoryTest {
                 userService,
                 freemiumService,
                 referralShareService,
+                courseShareService,
                 upgradeRequestService,
                 lmsThemeService,
                 progressReconciliationService,

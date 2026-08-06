@@ -5,6 +5,7 @@ import com.prwatech.common.Constants;
 import com.prwatech.skillama.dto.AccessControlResponseDTO;
 import com.prwatech.skillama.dto.ReconcileProgressRequestDTO;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.service.CourseShareService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.AiUsageService;
 import com.prwatech.skillama.service.LmsThemeService;
@@ -44,6 +45,7 @@ class UserProfileControllerAccessControlTest {
     @Mock private UserService userService;
     @Mock private FreemiumService freemiumService;
     @Mock private ReferralShareService referralShareService;
+    @Mock private CourseShareService courseShareService;
     @Mock private UpgradeRequestService upgradeRequestService;
     @Mock private LmsThemeService lmsThemeService;
     @Mock private ProgressReconciliationService progressReconciliationService;
@@ -66,6 +68,7 @@ class UserProfileControllerAccessControlTest {
                 userService,
                 freemiumService,
                 referralShareService,
+                courseShareService,
                 upgradeRequestService,
                 lmsThemeService,
                 progressReconciliationService,

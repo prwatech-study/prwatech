@@ -6,6 +6,7 @@ import com.prwatech.common.Constants;
 import com.prwatech.skillama.dto.CreateModuleQuizSessionResponseDTO;
 import com.prwatech.skillama.dto.ModuleQuizAttemptResultDTO;
 import com.prwatech.skillama.service.AiUsageService;
+import com.prwatech.skillama.service.CourseShareService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.LmsThemeService;
 import com.prwatech.skillama.service.ModuleQuizService;
@@ -49,6 +50,7 @@ class UserProfileControllerModuleQuizTest {
     @Mock private UserService userService;
     @Mock private FreemiumService freemiumService;
     @Mock private ReferralShareService referralShareService;
+    @Mock private CourseShareService courseShareService;
     @Mock private UpgradeRequestService upgradeRequestService;
     @Mock private LmsThemeService lmsThemeService;
     @Mock private ProgressReconciliationService progressReconciliationService;
@@ -63,7 +65,7 @@ class UserProfileControllerModuleQuizTest {
     void setUp() {
         UserProfileController controller = new UserProfileController(
                 userProfileService, userService, freemiumService, referralShareService,
-                upgradeRequestService, lmsThemeService, progressReconciliationService,
+                courseShareService, upgradeRequestService, lmsThemeService, progressReconciliationService,
                 moduleQuizService, jwtUtils, skillamaAuthSupport, aiUsageService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
