@@ -44,6 +44,7 @@ public class CodeAssistService {
     private final SkillamaUserRepository userRepository;
     private final SkillamaAiClient skillamaAiClient;
     private final PracticalSandboxService practicalSandboxService;
+    private final PracticalDatasetService practicalDatasetService;
 
     public CodeAssistResponseDTO runDebug(String userId, CodeAssistRequestDTO request) {
         return run(CodeAssistFeature.DEBUG, userId, request);
@@ -75,8 +76,7 @@ public class CodeAssistService {
         String realError = null;
         if (isPythonCourse(courseName)) {
             try {
-                PracticalSandboxService.SandboxResult sandboxResult =
-                        practicalSandboxService.executeAdHoc(request.getCode());
+                PracticalSandboxService.SandboxResult sandboxResult = resolveSandboxResult(userId, request);
                 if (sandboxResult.isOk()) {
                     realOutput = sandboxResult.getStdout() != null ? sandboxResult.getStdout() : "";
                 } else if ("rejected".equals(sandboxResult.getStatus())) {
@@ -130,6 +130,30 @@ public class CodeAssistService {
      * display name. */
     private boolean isPythonCourse(String courseName) {
         return courseName != null && courseName.toLowerCase().contains("python");
+    }
+
+    /**
+     * When the frontend sends a datasetId (the learner is on a lesson with a practical dataset
+     * attached), resolves it — ownership-checked, same as the Practical Exercise tab — and runs
+     * against it, so code that does e.g. {@code pd.read_csv('sales.csv')} directly actually
+     * works instead of always hitting FileNotFoundError. Falls back to plain ad-hoc execution
+     * (still real, just without file access) if the dataset can't be resolved for any reason —
+     * a bad/stale datasetId shouldn't break Debug/Execute entirely, only lose the file access.
+     */
+    private PracticalSandboxService.SandboxResult resolveSandboxResult(String userId, CodeAssistRequestDTO request) {
+        String datasetId = request.getDatasetId();
+        if (datasetId != null && !datasetId.isBlank()) {
+            try {
+                PracticalDatasetService.ExecutionContext ctx =
+                        practicalDatasetService.resolveForExecution(userId, datasetId);
+                return practicalSandboxService.executeWithDataset(
+                        datasetId, ctx.storageKey(), ctx.displayName(), request.getCode());
+            } catch (Exception e) {
+                log.warn("Could not resolve datasetId={} for code-assist, falling back to ad-hoc execution",
+                        datasetId, e);
+            }
+        }
+        return practicalSandboxService.executeAdHoc(request.getCode());
     }
 
     /**

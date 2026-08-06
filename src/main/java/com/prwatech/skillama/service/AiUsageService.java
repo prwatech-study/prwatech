@@ -3,6 +3,7 @@ package com.prwatech.skillama.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prwatech.skillama.dto.AiBudgetDTO;
+import com.prwatech.skillama.dto.AiUsageModuleBreakdownDTO;
 import com.prwatech.skillama.dto.AiUsagePlatformSummaryDTO;
 import com.prwatech.skillama.dto.AiUsageRecordRequestDTO;
 import com.prwatech.skillama.dto.AiUsageSettingsDTO;
@@ -43,6 +44,26 @@ public class AiUsageService {
 
     private static final double DEFAULT_PLATFORM_BUDGET_USD = 1000.0;
     private static final double DEFAULT_FREEMIUM_BUDGET_USD = 0.50;
+
+    /**
+     * Coarse, user-facing module a raw {@code endpoint} belongs to, for the learner-facing
+     * "which module used my credits" breakdown. Endpoints not listed here (e.g. admin-only
+     * generate_image/generate_thumbnail) fall back to "Other" rather than being dropped.
+     */
+    private static final Map<String, String> ENDPOINT_MODULE_MAP = Map.ofEntries(
+            Map.entry("debug_assist", "Debug"),
+            Map.entry("code_execution_assist", "Code Execution"),
+            Map.entry("generate_practical_code", "Code Execution"),
+            Map.entry("practice_code_generation", "Code Execution"),
+            Map.entry("chat_ask", "Ai-Tutor"),
+            Map.entry("ai_mentor_ask", "Ai-Tutor"),
+            Map.entry("ai_mentor_follow_up", "Ai-Tutor"),
+            Map.entry("generate_module_quiz", "Ai-Tutor"),
+            Map.entry("generate_exam", "Ai-Tutor"),
+            Map.entry("ai_exam_recommendation", "Ai-Tutor"),
+            Map.entry("ai_exam_feedback", "Ai-Tutor"),
+            Map.entry("lecture_generation", "Lecture Generation")
+    );
 
     private final AiUsageEventRepository aiUsageEventRepository;
     private final PlatformAiSettingsRepository platformAiSettingsRepository;
@@ -424,6 +445,62 @@ public class AiUsageService {
                 .costInr(costInr)
                 .aiBudget(getAiBudget(user))
                 .byEndpoint(breakdown)
+                .build();
+    }
+
+    /**
+     * Learner-facing "which module used my AI credits" breakdown for the user's CURRENT
+     * billing period (same period boundary as {@link #getAiBudget}, so the sum of
+     * {@code byModule[].costUsd} matches the "used" figure shown in the credits badge).
+     * Read-only, like getAiBudget: resetPeriodIfNeeded is applied in-memory to pick the
+     * right window but is not persisted (persistence happens on the next recordUsage call).
+     */
+    public AiUsageModuleBreakdownDTO getUserModuleBreakdown(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        resetPeriodIfNeeded(user);
+
+        LocalDateTime start = user.getAiCostPeriodStart() != null
+                ? user.getAiCostPeriodStart()
+                : IndiaTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime end = IndiaTime.now();
+
+        List<AiUsageEvent> events = aiUsageEventRepository
+                .findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(userId, start, end);
+
+        Map<String, AiUsageModuleBreakdownDTO.ModuleUsageDTO> byModule = new HashMap<>();
+        for (AiUsageEvent event : events) {
+            String module = ENDPOINT_MODULE_MAP.getOrDefault(event.getEndpoint(), "Other");
+            AiUsageModuleBreakdownDTO.ModuleUsageDTO existing = byModule.get(module);
+            if (existing == null) {
+                byModule.put(module, AiUsageModuleBreakdownDTO.ModuleUsageDTO.builder()
+                        .module(module)
+                        .costUsd(event.getCostUsd())
+                        .callCount(1)
+                        .build());
+            } else {
+                existing.setCostUsd(round(existing.getCostUsd() + event.getCostUsd()));
+                existing.setCallCount(existing.getCallCount() + 1);
+            }
+        }
+
+        double rate = liveUsdToInrRate();
+        double totalCostUsd = round(byModule.values().stream()
+                .mapToDouble(AiUsageModuleBreakdownDTO.ModuleUsageDTO::getCostUsd).sum());
+
+        List<AiUsageModuleBreakdownDTO.ModuleUsageDTO> breakdown = new ArrayList<>(byModule.values());
+        for (AiUsageModuleBreakdownDTO.ModuleUsageDTO m : breakdown) {
+            m.setCostUsd(round(m.getCostUsd()));
+            m.setCostInr(round(m.getCostUsd() * rate));
+            m.setPercentOfTotal(totalCostUsd > 0 ? round((m.getCostUsd() / totalCostUsd) * 100.0) : 0.0);
+        }
+        breakdown.sort(Comparator.comparing(AiUsageModuleBreakdownDTO.ModuleUsageDTO::getCostUsd).reversed());
+
+        return AiUsageModuleBreakdownDTO.builder()
+                .periodStart(start)
+                .totalCostUsd(totalCostUsd)
+                .totalCostInr(round(totalCostUsd * rate))
+                .byModule(breakdown)
                 .build();
     }
 

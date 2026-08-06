@@ -48,7 +48,7 @@ public class PracticalExecutionService {
                 user, ctx.courseId(), datasetId, ctx.displayName(), columns, task);
 
         PracticalSandboxService.SandboxResult sandboxResult =
-                sandboxService.executeWithDataset(datasetId, ctx.storageKey(), generated.getCode());
+                sandboxService.executeWithDataset(datasetId, ctx.storageKey(), ctx.displayName(), generated.getCode());
 
         LocalDateTime finishedAt = IndiaTime.now();
         logRepository.save(PracticalExecutionLog.builder()

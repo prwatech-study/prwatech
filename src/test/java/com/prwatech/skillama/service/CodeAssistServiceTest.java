@@ -44,6 +44,7 @@ class CodeAssistServiceTest {
     @Mock private SkillamaUserRepository userRepository;
     @Mock private SkillamaAiClient skillamaAiClient;
     @Mock private PracticalSandboxService practicalSandboxService;
+    @Mock private PracticalDatasetService practicalDatasetService;
 
     @InjectMocks private CodeAssistService codeAssistService;
 

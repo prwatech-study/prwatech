@@ -413,6 +413,15 @@ public class UserProfileController {
         }
     }
 
+    @GetMapping("/ai-usage/breakdown")
+    public ResponseEntity<?> getAiUsageBreakdown(HttpServletRequest request) {
+        String userId = extractUserIdFromRequest(request);
+        if (userId == null) {
+            return ResponseEntity.status(401).body(Map.of("status", "error", "message", "Unauthorized"));
+        }
+        return ResponseEntity.ok(aiUsageService.getUserModuleBreakdown(userId));
+    }
+
     @PostMapping("/ai-usage/record")
     public ResponseEntity<Map<String, Object>> recordAiUsage(
             @RequestBody AiUsageRecordRequestDTO body,

@@ -6,12 +6,17 @@ Contract with the caller (prwatech):
     event = {
         "dataset_id": "ds_xxxxxxxxxxxx",  # optional — omitted entirely for ad-hoc mode below
         "storage_key": "practical-datasets/<courseId>/<moduleId>/<idx>/<datasetId>.csv",  # optional
+        "dataset_filename": "sales.csv",  # optional — the learner-facing display name
         "code": "<AI-generated or learner-authored Python source>",
     }
 
 Two modes, both handled by the same function:
   - Practical-exercise mode: both dataset_id and storage_key present. The dataset is fetched and
-    exposed to the code as `df`, a pandas DataFrame.
+    exposed to the code two ways: as `df`, a pandas DataFrame, and — if dataset_filename is also
+    given — as an actual ephemeral file at /tmp/<dataset_filename>, so code that calls
+    pd.read_csv('<that exact name>') directly also works, not just code written to expect `df`
+    already in scope. That file lives only in this invocation's /tmp (itself wiped whenever the
+    execution environment is recycled) — S3 remains the only place this data is ever stored.
   - Ad-hoc mode (the general Debug/Code-Execution feature, Python courses only): storage_key
     omitted. No S3 fetch happens at all; `df` is not defined in the exec namespace — code that
     references it gets a plain NameError, same as any other undefined name.
@@ -93,6 +98,27 @@ class ImportGuard(ast.NodeVisitor):
         self.generic_visit(node)
 
 
+def strip_markdown_fence(code: str) -> str:
+    """
+    Strips a wrapping ```python ... ``` (or bare ``` ... ```) markdown fence, if the whole
+    submission is wrapped in one. Both code sources hit this: learners very commonly paste code
+    copied from some other AI chat/doc without noticing the fence came along, and while
+    ai-tutor's own generation already strips its own output, this is a second, independent
+    safety net at the one point both learner-typed and AI-generated code funnel through — a
+    literal ``` line is never valid Python, so a submission wrapped in one always fails the AST
+    parse below with a misleading "syntax error" otherwise.
+    """
+    stripped = code.strip()
+    if not stripped.startswith("```"):
+        return code
+    lines = stripped.split("\n")
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines)
+
+
 def validate(code: str) -> list:
     """Returns a list of violation strings; empty means the code passed."""
     try:
@@ -158,7 +184,8 @@ def build_sandbox_globals(dataframe, plt_module):
 def handler(event, context):
     dataset_id = event.get("dataset_id", "unknown")
     storage_key = event.get("storage_key")
-    code = event["code"]
+    dataset_filename = event.get("dataset_filename")
+    code = strip_markdown_fence(event["code"])
 
     violations = validate(code)
     if violations:
@@ -170,6 +197,7 @@ def handler(event, context):
     import matplotlib.pyplot as plt
 
     df = None
+    temp_file_path = None
     if storage_key:
         try:
             csv_bytes = s3.get_object(Bucket=DATASET_BUCKET, Key=storage_key)["Body"].read()
@@ -183,31 +211,50 @@ def handler(event, context):
         except Exception as exc:
             return {"status": "error", "error": f"could not parse dataset as CSV: {exc}"}
 
+        if dataset_filename:
+            # os.path.basename strips any directory components a caller might sneak into the
+            # display name (defense in depth — prwatech already validates this at upload time),
+            # so this can only ever land inside /tmp, never escape it.
+            safe_name = os.path.basename(dataset_filename)
+            temp_file_path = os.path.join("/tmp", safe_name)
+            with open(temp_file_path, "wb") as f:
+                f.write(csv_bytes)
+            # So a relative pd.read_csv('<safe_name>') in the learner/AI code resolves here —
+            # code that already expects `df` to just be in scope is unaffected either way.
+            os.chdir("/tmp")
+
     sandbox_globals = build_sandbox_globals(df, plt)
     stdout_capture = io.StringIO()
 
     try:
-        with redirect_stdout(stdout_capture):
-            compiled = compile(ast.parse(code, mode="exec"), "<learner_code>", "exec")
-            exec(compiled, sandbox_globals)
-    except Exception as exc:
+        try:
+            with redirect_stdout(stdout_capture):
+                compiled = compile(ast.parse(code, mode="exec"), "<learner_code>", "exec")
+                exec(compiled, sandbox_globals)
+        except Exception as exc:
+            return {
+                "status": "error",
+                "error": f"{type(exc).__name__}: {exc}",
+                "stdout": stdout_capture.getvalue(),
+            }
+
+        figures = []
+        for fignum in plt.get_fignums():
+            buf = io.BytesIO()
+            plt.figure(fignum).savefig(buf, format="png", bbox_inches="tight")
+            figures.append(base64.b64encode(buf.getvalue()).decode("ascii"))
+        plt.close("all")
+
+        result = sandbox_globals.get("result")
         return {
-            "status": "error",
-            "error": f"{type(exc).__name__}: {exc}",
+            "status": "ok",
             "stdout": stdout_capture.getvalue(),
+            "result": repr(result) if result is not None else None,
+            "figures": figures,
         }
-
-    figures = []
-    for fignum in plt.get_fignums():
-        buf = io.BytesIO()
-        plt.figure(fignum).savefig(buf, format="png", bbox_inches="tight")
-        figures.append(base64.b64encode(buf.getvalue()).decode("ascii"))
-    plt.close("all")
-
-    result = sandbox_globals.get("result")
-    return {
-        "status": "ok",
-        "stdout": stdout_capture.getvalue(),
-        "result": repr(result) if result is not None else None,
-        "figures": figures,
-    }
+    finally:
+        # Lambda execution environments can be reused warm across invocations — without this,
+        # a leftover file here could theoretically be visible to a later invocation on the same
+        # container for a different course/learner. Removed regardless of success or failure.
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.remove(temp_file_path)

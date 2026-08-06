@@ -34,23 +34,31 @@ public class PracticalSandboxService {
     @Value("${aws.lambda.practical-sandbox-function-name:skillama-practical-sandbox-python}")
     private String sandboxFunctionName;
 
-    /** Practical-exercise mode: code runs against the dataset at storageKey, exposed as `df`. */
-    public SandboxResult executeWithDataset(String datasetId, String storageKey, String code) {
-        return invoke(datasetId, storageKey, code);
+    /**
+     * Practical-exercise mode: code runs against the dataset at storageKey, exposed both as
+     * `df` and — since datasetName is passed here too — as an ephemeral /tmp/&lt;datasetName&gt;
+     * file, so code that calls pd.read_csv('&lt;that exact name&gt;') directly also works. That
+     * file exists only inside the Lambda invocation; S3 remains the only permanent copy.
+     */
+    public SandboxResult executeWithDataset(String datasetId, String storageKey, String datasetName, String code) {
+        return invoke(datasetId, storageKey, datasetName, code);
     }
 
     /** Ad-hoc mode: no dataset — the general Debug/Code-Execution feature, Python courses only. */
     public SandboxResult executeAdHoc(String code) {
-        return invoke(null, null, code);
+        return invoke(null, null, null, code);
     }
 
-    private SandboxResult invoke(String datasetId, String storageKey, String code) {
+    private SandboxResult invoke(String datasetId, String storageKey, String datasetName, String code) {
         Map<String, Object> payload = new HashMap<>();
         if (datasetId != null) {
             payload.put("dataset_id", datasetId);
         }
         if (storageKey != null) {
             payload.put("storage_key", storageKey);
+        }
+        if (datasetName != null) {
+            payload.put("dataset_filename", datasetName);
         }
         payload.put("code", code);
 
