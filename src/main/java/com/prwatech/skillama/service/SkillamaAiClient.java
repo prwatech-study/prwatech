@@ -659,14 +659,20 @@ public class SkillamaAiClient {
      *                   (Python courses only — see CodeAssistService); null otherwise, in which
      *                   case ai-tutor falls back to its own hallucinated "execution" as before.
      * @param realError  real sandbox error, mutually exclusive with realOutput
+     * @param datasetFilename the exact filename the sandbox actually wrote the attached dataset
+     *                        under (e.g. "sales.csv"), when this run had a dataset attached;
+     *                        null otherwise. Lets ai-tutor correct a learner's hardcoded-but-wrong
+     *                        filename in a FileNotFoundError instead of guessing at one.
      */
     public GeneratedCodeAssistDTO runCodeAssist(
             User user, String endpoint, String courseId, String code, String course,
-            String realOutput, String realError) {
-        return meteredCall(user, endpoint, courseId, () -> runCodeAssistRaw(code, course, realOutput, realError));
+            String realOutput, String realError, String datasetFilename) {
+        return meteredCall(user, endpoint, courseId,
+                () -> runCodeAssistRaw(code, course, realOutput, realError, datasetFilename));
     }
 
-    private GeneratedCodeAssistDTO runCodeAssistRaw(String code, String course, String realOutput, String realError) {
+    private GeneratedCodeAssistDTO runCodeAssistRaw(
+            String code, String course, String realOutput, String realError, String datasetFilename) {
         String url = resolveBaseUrl() + "/generate_output";
 
         Map<String, Object> body = new HashMap<>();
@@ -677,6 +683,9 @@ public class SkillamaAiClient {
         }
         if (realError != null) {
             body.put("real_error", realError);
+        }
+        if (datasetFilename != null) {
+            body.put("dataset_filename", datasetFilename);
         }
 
         HttpHeaders headers = buildHeaders();

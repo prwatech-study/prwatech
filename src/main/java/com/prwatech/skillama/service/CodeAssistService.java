@@ -74,9 +74,12 @@ public class CodeAssistService {
         // as before.
         String realOutput = null;
         String realError = null;
+        String datasetFilename = null;
         if (isPythonCourse(courseName)) {
             try {
-                PracticalSandboxService.SandboxResult sandboxResult = resolveSandboxResult(userId, request);
+                SandboxRunResult run = resolveSandboxResult(userId, request);
+                PracticalSandboxService.SandboxResult sandboxResult = run.result();
+                datasetFilename = run.datasetFilename();
                 if (sandboxResult.isOk()) {
                     realOutput = sandboxResult.getStdout() != null ? sandboxResult.getStdout() : "";
                 } else if ("rejected".equals(sandboxResult.getStatus())) {
@@ -96,7 +99,8 @@ public class CodeAssistService {
         }
 
         GeneratedCodeAssistDTO generated = skillamaAiClient.runCodeAssist(
-                user, endpoint, request.getCourseId(), request.getCode(), courseName, realOutput, realError);
+                user, endpoint, request.getCourseId(), request.getCode(), courseName,
+                realOutput, realError, datasetFilename);
 
         CodeAssistInteraction interaction = CodeAssistInteraction.builder()
                 .userId(userId)
@@ -140,21 +144,25 @@ public class CodeAssistService {
      * (still real, just without file access) if the dataset can't be resolved for any reason —
      * a bad/stale datasetId shouldn't break Debug/Execute entirely, only lose the file access.
      */
-    private PracticalSandboxService.SandboxResult resolveSandboxResult(String userId, CodeAssistRequestDTO request) {
+    private SandboxRunResult resolveSandboxResult(String userId, CodeAssistRequestDTO request) {
         String datasetId = request.getDatasetId();
         if (datasetId != null && !datasetId.isBlank()) {
             try {
                 PracticalDatasetService.ExecutionContext ctx =
                         practicalDatasetService.resolveForExecution(userId, datasetId);
-                return practicalSandboxService.executeWithDataset(
+                PracticalSandboxService.SandboxResult result = practicalSandboxService.executeWithDataset(
                         datasetId, ctx.storageKey(), ctx.displayName(), request.getCode());
+                return new SandboxRunResult(result, ctx.displayName());
             } catch (Exception e) {
                 log.warn("Could not resolve datasetId={} for code-assist, falling back to ad-hoc execution",
                         datasetId, e);
             }
         }
-        return practicalSandboxService.executeAdHoc(request.getCode());
+        return new SandboxRunResult(practicalSandboxService.executeAdHoc(request.getCode()), null);
     }
+
+    /** @param datasetFilename the real filename the sandbox wrote the dataset under, when one was attached. */
+    private record SandboxRunResult(PracticalSandboxService.SandboxResult result, String datasetFilename) {}
 
     /**
      * Proxies an interaction's spoken-explanation audio — the raw ai-tutor URL never
