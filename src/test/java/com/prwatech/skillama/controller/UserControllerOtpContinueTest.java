@@ -77,7 +77,7 @@ class UserControllerOtpContinueTest {
                 .build();
 
         when(oAuthAuthService.otpContinue(any(OtpContinueRequestDTO.class))).thenReturn(created);
-        when(jwtUtils.generateToken(any())).thenReturn(Map.of("accessToken", "jwt-token"));
+        when(jwtUtils.generateToken(any(), any())).thenReturn(Map.of("accessToken", "jwt-token"));
         when(onboardingService.isOnboardingRequired(created)).thenReturn(true);
 
         mockMvc.perform(post("/skillama/users/auth/otp/continue")

@@ -25,6 +25,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -65,7 +66,9 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody User loginRequest) {
+    public ResponseEntity<?> login(
+            @RequestBody User loginRequest,
+            @RequestParam(defaultValue = "false") boolean forceLogin) {
         Optional<User> userOpt = userService.findByEmail(loginRequest.getEmail());
         if (userOpt.isPresent()) {
             User user = userOpt.get();
@@ -74,17 +77,34 @@ public class UserController {
             }
             // Password comparison: passwords are stored encoded in DB
             if (userService.validatePassword(loginRequest.getPassword(), user.getPassword())) {
+                if (hasConflictingSession(user, forceLogin)) {
+                    return sessionConflictResponse(user);
+                }
                 userService.recordLogin(user);
                 UserDetails userDetails = new UserDetails(user.getEmail());
-                Map<String, String> tokens = jwtUtils.generateToken(userDetails, user.getTokenVersion());
+                int sessionVersion = userService.startNewSession(user.getId());
+                Map<String, String> tokens = jwtUtils.generateToken(userDetails, sessionVersion);
                 String accessToken = tokens.get("accessToken");
-                
+
                 LoginResponseDTO response = UserMapper.toLoginResponse(user, accessToken, onboardingService);
-                
+
                 return ResponseEntity.ok(response);
             }
         }
         return ResponseEntity.status(401).body("Invalid credentials");
+    }
+
+    /** Only a genuinely new login (not a retry with the user's own confirmation) should conflict. */
+    private boolean hasConflictingSession(User user, boolean forceLogin) {
+        return !forceLogin && Boolean.TRUE.equals(user.getSessionActive());
+    }
+
+    private ResponseEntity<?> sessionConflictResponse(User user) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", "conflict");
+        body.put("message", "You're already logged in on another device.");
+        body.put("lastLoginAt", user.getLastLoginAt());
+        return ResponseEntity.status(409).body(body);
     }
 
     @PostMapping("/otp/email/send")
@@ -151,7 +171,8 @@ public class UserController {
             User user = freemiumService.registerFreemiumUser(request);
             userService.recordLogin(user);
             UserDetails userDetails = new UserDetails(user.getEmail());
-            String accessToken = jwtUtils.generateToken(userDetails, user.getTokenVersion()).get("accessToken");
+            int sessionVersion = userService.startNewSession(user.getId());
+            String accessToken = jwtUtils.generateToken(userDetails, sessionVersion).get("accessToken");
             LoginResponseDTO response = UserMapper.toLoginResponse(user, accessToken, onboardingService);
             return ResponseEntity.ok(response);
         } catch (IllegalStateException e) {
@@ -162,23 +183,31 @@ public class UserController {
     }
 
     @PostMapping("/auth/google")
-    public ResponseEntity<?> authGoogle(@RequestBody GoogleAuthRequestDTO request) {
-        return authWithOAuth(() -> oAuthAuthService.authenticateWithGoogle(request));
+    public ResponseEntity<?> authGoogle(
+            @RequestBody GoogleAuthRequestDTO request,
+            @RequestParam(defaultValue = "false") boolean forceLogin) {
+        return authWithOAuth(() -> oAuthAuthService.authenticateWithGoogle(request), forceLogin);
     }
 
     @PostMapping("/auth/apple")
-    public ResponseEntity<?> authApple(@RequestBody AppleAuthRequestDTO request) {
-        return authWithOAuth(() -> oAuthAuthService.authenticateWithApple(request));
+    public ResponseEntity<?> authApple(
+            @RequestBody AppleAuthRequestDTO request,
+            @RequestParam(defaultValue = "false") boolean forceLogin) {
+        return authWithOAuth(() -> oAuthAuthService.authenticateWithApple(request), forceLogin);
     }
 
     @PostMapping("/auth/email/continue")
-    public ResponseEntity<?> emailContinue(@RequestBody EmailContinueRequestDTO request) {
-        return authWithOAuth(() -> oAuthAuthService.emailContinue(request));
+    public ResponseEntity<?> emailContinue(
+            @RequestBody EmailContinueRequestDTO request,
+            @RequestParam(defaultValue = "false") boolean forceLogin) {
+        return authWithOAuth(() -> oAuthAuthService.emailContinue(request), forceLogin);
     }
 
     @PostMapping("/auth/otp/continue")
-    public ResponseEntity<?> otpContinue(@RequestBody OtpContinueRequestDTO request) {
-        return authWithOAuth(() -> oAuthAuthService.otpContinue(request));
+    public ResponseEntity<?> otpContinue(
+            @RequestBody OtpContinueRequestDTO request,
+            @RequestParam(defaultValue = "false") boolean forceLogin) {
+        return authWithOAuth(() -> oAuthAuthService.otpContinue(request), forceLogin);
     }
 
     @PostMapping("/me/onboarding/complete")
@@ -207,7 +236,7 @@ public class UserController {
         }
     }
 
-    private ResponseEntity<?> authWithOAuth(java.util.function.Supplier<User> authenticator) {
+    private ResponseEntity<?> authWithOAuth(java.util.function.Supplier<User> authenticator, boolean forceLogin) {
         try {
             User user = authenticator.get();
             if (!user.isActive()) {
@@ -215,8 +244,12 @@ public class UserController {
                         "status", "error",
                         "message", "Account is not activated"));
             }
+            if (hasConflictingSession(user, forceLogin)) {
+                return sessionConflictResponse(user);
+            }
             userService.recordLogin(user);
-            String accessToken = jwtUtils.generateToken(new UserDetails(user.getEmail()), user.getTokenVersion()).get("accessToken");
+            int sessionVersion = userService.startNewSession(user.getId());
+            String accessToken = jwtUtils.generateToken(new UserDetails(user.getEmail()), sessionVersion).get("accessToken");
             return ResponseEntity.ok(UserMapper.toLoginResponse(user, accessToken, onboardingService));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(409).body(Map.of("status", "error", "message", e.getMessage()));
@@ -226,7 +259,9 @@ public class UserController {
     }
 
     @PostMapping("/login/otp")
-    public ResponseEntity<?> loginWithOtp(@RequestBody OtpLoginRequestDTO request) {
+    public ResponseEntity<?> loginWithOtp(
+            @RequestBody OtpLoginRequestDTO request,
+            @RequestParam(defaultValue = "false") boolean forceLogin) {
         try {
             User user;
             if (request.getVerificationToken() != null && !request.getVerificationToken().isBlank()) {
@@ -243,8 +278,12 @@ public class UserController {
             if (!user.isActive()) {
                 return ResponseEntity.status(403).body(Map.of("status", "error", "message", "Account is not activated"));
             }
+            if (hasConflictingSession(user, forceLogin)) {
+                return sessionConflictResponse(user);
+            }
             userService.recordLogin(user);
-            String accessToken = jwtUtils.generateToken(new UserDetails(user.getEmail()), user.getTokenVersion()).get("accessToken");
+            int sessionVersion = userService.startNewSession(user.getId());
+            String accessToken = jwtUtils.generateToken(new UserDetails(user.getEmail()), sessionVersion).get("accessToken");
             return ResponseEntity.ok(UserMapper.toLoginResponse(user, accessToken, onboardingService));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
@@ -325,7 +364,7 @@ public class UserController {
      * Lightweight authenticated session snapshot (no token in body).
      */
     @GetMapping("/session")
-    public ResponseEntity<UserSessionDTO> getSession(HttpServletRequest request) {
+    public ResponseEntity<?> getSession(HttpServletRequest request) {
         try {
             String userId = extractUserIdFromRequest(request);
             User user = userService.findById(userId)
@@ -337,7 +376,9 @@ public class UserController {
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(404).build();
         } catch (SkillamaAuthException e) {
-            return ResponseEntity.status(401).build();
+            // "reason" lets the frontend's session poller tell "logged out elsewhere" apart
+            // from a plain expired/invalid token, so it can show the right message.
+            return ResponseEntity.status(401).body(Map.of("status", "error", "reason", e.getReason(), "message", e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.status(401).build();
         }
@@ -351,12 +392,8 @@ public class UserController {
     public ResponseEntity<?> logout(HttpServletRequest request) {
         try {
             String userId = extractUserIdFromRequest(request);
-            User user = userService.findById(userId)
-                    .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-            userService.logout(user);
+            userService.logout(userId);
             return ResponseEntity.ok(Map.of("status", "success"));
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.status(404).build();
         } catch (SkillamaAuthException e) {
             return ResponseEntity.status(401).build();
         } catch (RuntimeException e) {

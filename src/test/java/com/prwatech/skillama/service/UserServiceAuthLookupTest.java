@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.mongodb.core.MongoTemplate;
 
 import java.util.Optional;
 
@@ -29,6 +30,7 @@ class UserServiceAuthLookupTest {
     @Mock private PasswordEncode passwordEncode;
     @Mock private NotificationSettingsService notificationSettingsService;
     @Mock private UserContactService userContactService;
+    @Mock private MongoTemplate skillamaMongoTemplate;
 
     private UserService userService;
 
@@ -41,7 +43,8 @@ class UserServiceAuthLookupTest {
                 appContext,
                 passwordEncode,
                 notificationSettingsService,
-                userContactService);
+                userContactService,
+                skillamaMongoTemplate);
         lenient().when(userContactService.normalizeEmail(anyString()))
                 .thenAnswer(inv -> {
                     String email = inv.getArgument(0);

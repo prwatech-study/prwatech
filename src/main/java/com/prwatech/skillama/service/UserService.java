@@ -10,13 +10,18 @@ import com.prwatech.skillama.model.UserLoginEvent;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserLoginEventRepository;
 import com.prwatech.skillama.util.IndiaTime;
-import lombok.AllArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.net.URLEncoder;
@@ -30,10 +35,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
-@AllArgsConstructor
 public class UserService {
     private static final Logger LOGGER = LoggerFactory.getLogger(UserService.class);
-    
+
     private final SkillamaUserRepository userRepository;
     private final UserLoginEventRepository userLoginEventRepository;
     private final EmailServiceImpl emailService;
@@ -41,6 +45,26 @@ public class UserService {
     private final PasswordEncode passwordEncode;
     private final NotificationSettingsService notificationSettingsService;
     private final UserContactService userContactService;
+    private final MongoTemplate skillamaMongoTemplate;
+
+    public UserService(
+            SkillamaUserRepository userRepository,
+            UserLoginEventRepository userLoginEventRepository,
+            EmailServiceImpl emailService,
+            AppContext appContext,
+            PasswordEncode passwordEncode,
+            NotificationSettingsService notificationSettingsService,
+            UserContactService userContactService,
+            @Qualifier("skillamaMongoTemplate") MongoTemplate skillamaMongoTemplate) {
+        this.userRepository = userRepository;
+        this.userLoginEventRepository = userLoginEventRepository;
+        this.emailService = emailService;
+        this.appContext = appContext;
+        this.passwordEncode = passwordEncode;
+        this.notificationSettingsService = notificationSettingsService;
+        this.userContactService = userContactService;
+        this.skillamaMongoTemplate = skillamaMongoTemplate;
+    }
 
     public User register(User user) {
         // Encode password before storing in database
@@ -266,11 +290,26 @@ public class UserService {
                 .build());
     }
 
-    /** Bumps tokenVersion so the token that was just logged out from stops passing auth checks. */
-    public void logout(User user) {
-        int version = user.getTokenVersion() != null ? user.getTokenVersion() : 0;
-        user.setTokenVersion(version + 1);
-        user.setUpdatedAt(IndiaTime.now());
-        userRepository.save(user);
+    /**
+     * Atomically bumps tokenVersion and marks the session active; returns the new version to
+     * embed in the freshly minted JWT. findAndModify (rather than read-then-save) avoids two
+     * near-simultaneous logins landing on the same version number and both staying valid.
+     */
+    public int startNewSession(String userId) {
+        Query query = Query.query(Criteria.where("id").is(userId));
+        Update update = new Update().inc("tokenVersion", 1).set("sessionActive", true);
+        User updated = skillamaMongoTemplate.findAndModify(
+                query, update, FindAndModifyOptions.options().returnNew(true), User.class);
+        return updated != null && updated.getTokenVersion() != null ? updated.getTokenVersion() : 0;
+    }
+
+    /** Bumps tokenVersion and clears sessionActive so the logged-out token stops passing auth checks. */
+    public void logout(String userId) {
+        Query query = Query.query(Criteria.where("id").is(userId));
+        Update update = new Update()
+                .inc("tokenVersion", 1)
+                .set("sessionActive", false)
+                .set("updatedAt", IndiaTime.now());
+        skillamaMongoTemplate.findAndModify(query, update, FindAndModifyOptions.options(), User.class);
     }
 }

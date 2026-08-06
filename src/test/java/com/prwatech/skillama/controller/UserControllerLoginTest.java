@@ -87,7 +87,7 @@ class UserControllerLoginTest {
     void login_validCredentials_returnsToken() throws Exception {
         when(userService.findByEmail("learner@skillama.co.in")).thenReturn(Optional.of(ACTIVE_USER));
         when(userService.validatePassword("correct-pass", "bcrypt-hash")).thenReturn(true);
-        when(jwtUtils.generateToken(any(UserDetails.class)))
+        when(jwtUtils.generateToken(any(UserDetails.class), any()))
                 .thenReturn(Map.of("accessToken", "jwt-access-token"));
 
         mockMvc.perform(post("/skillama/users/login")
@@ -106,7 +106,7 @@ class UserControllerLoginTest {
     void login_deserializesPasswordFromRequestBody() throws Exception {
         when(userService.findByEmail("learner@skillama.co.in")).thenReturn(Optional.of(ACTIVE_USER));
         when(userService.validatePassword("plain-secret", "bcrypt-hash")).thenReturn(true);
-        when(jwtUtils.generateToken(any(UserDetails.class)))
+        when(jwtUtils.generateToken(any(UserDetails.class), any()))
                 .thenReturn(Map.of("accessToken", "jwt-access-token"));
 
         mockMvc.perform(post("/skillama/users/login")

@@ -718,13 +718,14 @@ public class SkillamaAiClient {
 
     /**
      * Generates (but does not execute) Python code for a practical exercise. The AI receives
-     * only {@code dataset_id}/{@code dataset_name}/{@code task} — never a bucket name, storage
-     * path, or credential; the generated code is validated and actually executed by
-     * {@link PracticalSandboxService}, not by ai-tutor or an LLM pretending to run it.
+     * only {@code dataset_id}/{@code dataset_name}/{@code columns}/{@code task} — column *names*
+     * only, never the data itself, and never a bucket name, storage path, or credential; the
+     * generated code is validated and actually executed by {@link PracticalSandboxService}, not
+     * by ai-tutor or an LLM pretending to run it.
      *
      * <p><b>ai-tutor (Flask) contract — POST {aiBaseUrl}/generate_practical_code</b>
      * <pre>
-     * Request JSON:  { "dataset_id": String, "dataset_name": String, "task": String }
+     * Request JSON:  { "dataset_id": String, "dataset_name": String, "columns": [String], "task": String }
      * Response JSON: { "code": String,
      *                  "usage": { "inputTokens": int, "outputTokens": int, "totalTokens": int },
      *                  "error": String  // optional; present on failure
@@ -732,17 +733,19 @@ public class SkillamaAiClient {
      * </pre>
      */
     public GeneratedPracticalCodeDTO generatePracticalCode(
-            User user, String courseId, String datasetId, String datasetName, String task) {
+            User user, String courseId, String datasetId, String datasetName, List<String> columns, String task) {
         return meteredCall(user, "generate_practical_code", courseId,
-                () -> generatePracticalCodeRaw(datasetId, datasetName, task));
+                () -> generatePracticalCodeRaw(datasetId, datasetName, columns, task));
     }
 
-    private GeneratedPracticalCodeDTO generatePracticalCodeRaw(String datasetId, String datasetName, String task) {
+    private GeneratedPracticalCodeDTO generatePracticalCodeRaw(
+            String datasetId, String datasetName, List<String> columns, String task) {
         String url = resolveBaseUrl() + "/generate_practical_code";
 
         Map<String, Object> body = new HashMap<>();
         body.put("dataset_id", datasetId != null ? datasetId : "");
         body.put("dataset_name", datasetName != null ? datasetName : "");
+        body.put("columns", columns != null ? columns : List.of());
         body.put("task", task != null ? task : "");
 
         HttpHeaders headers = buildHeaders();

@@ -85,12 +85,17 @@ public class User {
     private String updatedBy;
 
     /**
-     * Bumped on logout; embedded in each minted JWT as the {@code tv} claim.
-     * A request whose token carries an older version than this is a token that was
-     * logged out from — used to make logout actually revoke server-side.
+     * Bumped on every login and logout; embedded in each minted JWT as the {@code tv} claim.
+     * A request whose token carries an older version than this is a token from a session that
+     * has since been replaced (login elsewhere) or logged out — used to enforce a single active
+     * session per user and to make logout actually revoke server-side.
      */
     @Builder.Default
     private Integer tokenVersion = 0;
+
+    /** True from login until logout; used only to decide whether a new login should conflict. */
+    @Builder.Default
+    private Boolean sessionActive = false;
 
     /** Learner LMS UI theme: classic | aurora */
     private String lmsThemePreference;

@@ -41,7 +41,9 @@ public class SkillamaAuthSupport {
 
         int currentVersion = user.getTokenVersion() != null ? user.getTokenVersion() : 0;
         if (tokenVersion < currentVersion) {
-            throw new SkillamaAuthException("Session expired. Please sign in again.");
+            throw new SkillamaAuthException(
+                    "You've been signed out because this account was signed in elsewhere.",
+                    "SESSION_REVOKED");
         }
 
         return user.getId();

@@ -32,6 +32,7 @@ Deploy as a container image (see Dockerfile) in a Lambda function that:
 
 import ast
 import base64
+import builtins as _real_builtins
 import io
 import logging
 import os
@@ -103,6 +104,23 @@ def validate(code: str) -> list:
     return guard.violations
 
 
+def _restricted_import(name, globals=None, locals=None, fromlist=(), level=0):
+    """
+    Runtime backstop for the `import` statement. The static ImportGuard already rejects
+    disallowed imports before this ever runs — but an *allowed* import (e.g. `import
+    matplotlib.pyplot as plt` written directly in the code, rather than relying on the
+    pre-injected `plt` name) still needs a real __import__ to execute at all, since
+    __builtins__ is otherwise empty. Denies anything ImportGuard would have denied, as a second
+    layer, in case a guard gap ever lets disallowed code through. Delegates to _real_builtins
+    (captured at module load, before any sandboxing) rather than the ambient `__builtins__` name,
+    which inside exec()'d code would just be this same restricted dict — not the real thing.
+    """
+    root = name.split(".")[0]
+    if root not in ALLOWED_MODULES:
+        raise ImportError(f"import '{name}' is not allowed")
+    return _real_builtins.__import__(name, globals, locals, fromlist, level)
+
+
 def build_sandbox_globals(dataframe, plt_module):
     import collections
     import datetime
@@ -113,7 +131,7 @@ def build_sandbox_globals(dataframe, plt_module):
     import pandas
 
     globals_dict = {
-        "__builtins__": {},  # nothing ambient — every name below is explicit
+        "__builtins__": {"__import__": _restricted_import},
         "pd": pandas,
         "np": numpy,
         "math": math,
@@ -122,7 +140,7 @@ def build_sandbox_globals(dataframe, plt_module):
         "datetime": datetime,
         "plt": plt_module,
         # Minimal safe builtins re-added by hand. Notably absent: open, getattr/setattr, exec/eval,
-        # __import__, globals/locals/vars/dir — see BLOCKED_NAMES above.
+        # globals/locals/vars/dir — see BLOCKED_NAMES above. __import__ above is restricted, not absent.
         "len": len, "range": range, "sum": sum, "min": min, "max": max,
         "sorted": sorted, "list": list, "dict": dict, "set": set, "tuple": tuple,
         "str": str, "int": int, "float": float, "bool": bool, "round": round,
