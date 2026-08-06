@@ -545,6 +545,7 @@ public class FreemiumService {
                 .referralCode(user.getReferralCode())
                 .referredBy(user.getReferredBy())
                 .referralBonusUsd(user.getReferralBonusUsd())
+                .credits(user.getCredits())
                 .unlimitedQueries(aiUsageService.isUnlimitedForBudget(user))
                 .enabledModules(user.getEnabledModules())
                 .aiBudget(aiUsageService.getAiBudget(user))

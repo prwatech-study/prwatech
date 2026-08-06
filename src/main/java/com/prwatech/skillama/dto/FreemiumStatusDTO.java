@@ -22,6 +22,8 @@ public class FreemiumStatusDTO {
     private String referredBy;
     /** Permanent referrer reward (USD) stacked on top of this user's AI wallet base. */
     private Double referralBonusUsd;
+    /** Generic reward-credits balance (e.g. earned from course-share rewards); not USD. */
+    private Integer credits;
     /**
      * True when this user's AI wallet is not metered at all — staff, ENTERPRISE, legacy
      * (planTier null), and legacy PAID accounts without a wallet. Mirrors the wallet

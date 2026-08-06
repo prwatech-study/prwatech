@@ -91,7 +91,7 @@ def handler(event, context):
             ["/usr/local/bin/clamscan", "--database", DB_DIR, "--no-summary", "--infected", scan_path],
             capture_output=True,
             text=True,
-            timeout=45,
+            timeout=70,
         )
     except subprocess.TimeoutExpired:
         return {"error": "scan timed out"}

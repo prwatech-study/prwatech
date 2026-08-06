@@ -126,12 +126,11 @@ resource "aws_lambda_function" "clamav_scanner" {
 
   # clamscan needs real headroom to load the ~110MB signature database into memory each cold
   # start (there's no long-lived clamd daemon here, by design — see clamav-scanner/handler.py).
-  memory_size = 1024
-  # 30s wasn't enough for a cold start: downloading the ~110MB DB from S3 (first invocation,
-  # nothing cached in /tmp yet) + loading it into the scan engine + the actual scan can exceed
-  # that. Warm invocations after the first are fast (DB already cached); this headroom is only
-  # needed for the cold-start case.
-  timeout = 60
+  # 1024MB/60s still hit "scan timed out" on a real cold invocation in production — more memory
+  # buys more CPU/network throughput in Lambda, which speeds up both the S3 download and the
+  # engine load, not just the memory ceiling.
+  memory_size = 1536
+  timeout     = 90
 
   vpc_config {
     subnet_ids         = aws_subnet.sandbox_private[*].id

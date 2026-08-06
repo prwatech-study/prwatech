@@ -3,6 +3,7 @@ package com.prwatech.skillama.controller;
 import com.prwatech.authentication.security.JwtUtils;
 import com.prwatech.skillama.dto.*;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.service.CourseShareService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.LmsThemeService;
@@ -32,6 +33,7 @@ public class UserProfileController {
     private final UserService userService;
     private final FreemiumService freemiumService;
     private final ReferralShareService referralShareService;
+    private final CourseShareService courseShareService;
     private final UpgradeRequestService upgradeRequestService;
     private final LmsThemeService lmsThemeService;
     private final ProgressReconciliationService progressReconciliationService;
@@ -490,6 +492,20 @@ public class UserProfileController {
             String userId = extractUserIdFromRequest(request);
             referralShareService.trackShare(userId, body.getChannel());
             return ResponseEntity.ok(Map.of("status", "success"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    /** Records a course share on Instagram/LinkedIn and rewards credits the first time per (user, course, platform). */
+    @PostMapping("/course/share/track")
+    public ResponseEntity<Map<String, Object>> trackCourseShare(
+            @RequestBody CourseShareTrackRequestDTO body,
+            HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            int credits = courseShareService.trackShare(userId, body.getCourseId(), body.getPlatform());
+            return ResponseEntity.ok(Map.of("status", "success", "credits", credits));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         }

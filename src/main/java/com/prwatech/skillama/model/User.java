@@ -66,6 +66,13 @@ public class User {
     @Builder.Default
     private Double referralBonusUsd = 0.0;
 
+    /**
+     * Generic reward-credits counter — earned via actions like sharing a course.
+     * Independent of the AI wallet USD fields above; not currently spendable/redeemable.
+     */
+    @Builder.Default
+    private Integer credits = 0;
+
     @Builder.Default
     private List<String> enabledModules = new ArrayList<>();
 
