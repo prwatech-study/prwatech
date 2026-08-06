@@ -221,14 +221,20 @@ public class CourseService {
 
     public CourseCurriculum updateModule(String moduleId, CourseCurriculum updated) {
         return curriculumRepository.findById(moduleId).map(existing -> {
+            // A caller that omits submodules entirely (e.g. the admin "edit module name/order"
+            // form, which only ever sends {moduleName, title, order}) means "I'm not touching
+            // these," not "delete them all" — only overwrite when submodules were actually
+            // provided. Deleting a submodule is a deliberate act with its own endpoint
+            // (DELETE .../submodule/{idx}); it should never happen as a side effect of renaming
+            // or reordering the module itself.
             if (updated.getSubmodules() != null) {
                 for (CourseCurriculum.Submodule s : updated.getSubmodules()) {
                     validatePracticalSubmoduleScript(s);
                 }
+                existing.setSubmodules(updated.getSubmodules());
             }
             existing.setModuleName(updated.getModuleName());
             existing.setModuleAssetPath(updated.getModuleAssetPath());
-            existing.setSubmodules(updated.getSubmodules());
             existing.setUpdatedBy(updated.getUpdatedBy());
             existing.setUpdatedAt(IndiaTime.now());
             return curriculumRepository.save(existing);
