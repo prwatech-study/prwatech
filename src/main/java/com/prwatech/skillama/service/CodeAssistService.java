@@ -86,8 +86,12 @@ public class CodeAssistService {
                 }
             } catch (Exception e) {
                 // Sandbox unavailable — degrade to the existing AI-simulated behavior rather
-                // than failing a widely-used feature over an infra hiccup.
-                log.warn("Real sandbox execution unavailable, falling back to AI-simulated output", e);
+                // than failing a widely-used feature over an infra hiccup. ERROR, not WARN: this
+                // silently degrades to hallucinated output with no other visible symptom, so it
+                // must not be easy to miss in logs — an AccessDenied here once went unnoticed
+                // through several rounds of testing because this was logged at WARN.
+                log.error("Real sandbox execution unavailable ({}), falling back to AI-simulated output",
+                        e.getClass().getSimpleName(), e);
             }
         }
 

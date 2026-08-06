@@ -44,3 +44,16 @@ resource "aws_lambda_function" "python_sandbox" {
     aws_cloudwatch_log_group.lambda,
   ]
 }
+
+# Grants prwatech's runtime identity permission to invoke this function — mirrors
+# clamav_scanner_invoke in clamav.tf. Missed this originally: PracticalSandboxService has been
+# calling this function since it was built, and every call has been failing with AccessDenied
+# before ever reaching the Lambda (confirmed via zero CloudWatch log streams, ever) — silently,
+# because CodeAssistService catches any sandbox failure and falls back to AI-simulated output.
+resource "aws_lambda_permission" "python_sandbox_invoke" {
+  count         = var.prwatech_invoker_principal_arn != "" ? 1 : 0
+  statement_id  = "AllowPrwatechInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.python_sandbox.function_name
+  principal     = var.prwatech_invoker_principal_arn
+}
