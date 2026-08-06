@@ -663,16 +663,19 @@ public class SkillamaAiClient {
      *                        under (e.g. "sales.csv"), when this run had a dataset attached;
      *                        null otherwise. Lets ai-tutor correct a learner's hardcoded-but-wrong
      *                        filename in a FileNotFoundError instead of guessing at one.
+     * @param datasetColumns  the dataset's real header row, when one was attached; empty otherwise.
+     *                        Lets ai-tutor correct wrong/guessed column names the same way.
      */
     public GeneratedCodeAssistDTO runCodeAssist(
             User user, String endpoint, String courseId, String code, String course,
-            String realOutput, String realError, String datasetFilename) {
+            String realOutput, String realError, String datasetFilename, java.util.List<String> datasetColumns) {
         return meteredCall(user, endpoint, courseId,
-                () -> runCodeAssistRaw(code, course, realOutput, realError, datasetFilename));
+                () -> runCodeAssistRaw(code, course, realOutput, realError, datasetFilename, datasetColumns));
     }
 
     private GeneratedCodeAssistDTO runCodeAssistRaw(
-            String code, String course, String realOutput, String realError, String datasetFilename) {
+            String code, String course, String realOutput, String realError,
+            String datasetFilename, java.util.List<String> datasetColumns) {
         String url = resolveBaseUrl() + "/generate_output";
 
         Map<String, Object> body = new HashMap<>();
@@ -686,6 +689,9 @@ public class SkillamaAiClient {
         }
         if (datasetFilename != null) {
             body.put("dataset_filename", datasetFilename);
+        }
+        if (datasetColumns != null && !datasetColumns.isEmpty()) {
+            body.put("dataset_columns", datasetColumns);
         }
 
         HttpHeaders headers = buildHeaders();

@@ -84,7 +84,7 @@ class CodeAssistServiceTest {
                 .thenThrow(new IllegalStateException("sandbox not under test here"));
         when(skillamaAiClient.runCodeAssist(
                         any(User.class), eq("debug_assist"), eq("course-1"), eq("print(1)"), eq("Python Basics"),
-                        isNull(), isNull(), isNull()))
+                        isNull(), isNull(), isNull(), eq(List.of())))
                 .thenReturn(generated("https://ai.prwatech.com/get_audio/explain.mp3"));
         when(interactionRepository.save(any(CodeAssistInteraction.class)))
                 .thenAnswer(inv -> {
@@ -120,7 +120,8 @@ class CodeAssistServiceTest {
         when(practicalSandboxService.executeAdHoc(anyString()))
                 .thenThrow(new IllegalStateException("sandbox not under test here"));
         when(skillamaAiClient.runCodeAssist(
-                        any(User.class), anyString(), any(), anyString(), anyString(), isNull(), isNull(), isNull()))
+                        any(User.class), anyString(), any(), anyString(), anyString(),
+                        isNull(), isNull(), isNull(), eq(List.of())))
                 .thenReturn(generated(null));
         when(interactionRepository.save(any(CodeAssistInteraction.class)))
                 .thenAnswer(inv -> inv.getArgument(0));

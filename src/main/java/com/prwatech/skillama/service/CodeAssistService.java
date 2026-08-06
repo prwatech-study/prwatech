@@ -75,11 +75,13 @@ public class CodeAssistService {
         String realOutput = null;
         String realError = null;
         String datasetFilename = null;
+        List<String> datasetColumns = List.of();
         if (isPythonCourse(courseName)) {
             try {
                 SandboxRunResult run = resolveSandboxResult(userId, request);
                 PracticalSandboxService.SandboxResult sandboxResult = run.result();
                 datasetFilename = run.datasetFilename();
+                datasetColumns = run.datasetColumns();
                 if (sandboxResult.isOk()) {
                     realOutput = sandboxResult.getStdout() != null ? sandboxResult.getStdout() : "";
                 } else if ("rejected".equals(sandboxResult.getStatus())) {
@@ -100,7 +102,7 @@ public class CodeAssistService {
 
         GeneratedCodeAssistDTO generated = skillamaAiClient.runCodeAssist(
                 user, endpoint, request.getCourseId(), request.getCode(), courseName,
-                realOutput, realError, datasetFilename);
+                realOutput, realError, datasetFilename, datasetColumns);
 
         CodeAssistInteraction interaction = CodeAssistInteraction.builder()
                 .userId(userId)
@@ -152,17 +154,23 @@ public class CodeAssistService {
                         practicalDatasetService.resolveForExecution(userId, datasetId);
                 PracticalSandboxService.SandboxResult result = practicalSandboxService.executeWithDataset(
                         datasetId, ctx.storageKey(), ctx.displayName(), request.getCode());
-                return new SandboxRunResult(result, ctx.displayName());
+                List<String> columns = practicalDatasetService.resolveColumnHint(ctx.storageKey());
+                return new SandboxRunResult(result, ctx.displayName(), columns);
             } catch (Exception e) {
                 log.warn("Could not resolve datasetId={} for code-assist, falling back to ad-hoc execution",
                         datasetId, e);
             }
         }
-        return new SandboxRunResult(practicalSandboxService.executeAdHoc(request.getCode()), null);
+        return new SandboxRunResult(practicalSandboxService.executeAdHoc(request.getCode()), null, List.of());
     }
 
-    /** @param datasetFilename the real filename the sandbox wrote the dataset under, when one was attached. */
-    private record SandboxRunResult(PracticalSandboxService.SandboxResult result, String datasetFilename) {}
+    /**
+     * @param datasetFilename the real filename the sandbox wrote the dataset under, when one was attached.
+     * @param datasetColumns  the dataset's real header row, when one was attached — lets ai-tutor correct
+     *                        wrong/guessed column names the same way it corrects a wrong filename.
+     */
+    private record SandboxRunResult(
+            PracticalSandboxService.SandboxResult result, String datasetFilename, List<String> datasetColumns) {}
 
     /**
      * Proxies an interaction's spoken-explanation audio — the raw ai-tutor URL never

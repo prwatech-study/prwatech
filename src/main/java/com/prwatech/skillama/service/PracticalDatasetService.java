@@ -9,6 +9,7 @@ import com.prwatech.skillama.model.PracticalDataset;
 import com.prwatech.skillama.repository.PracticalDatasetRepository;
 import com.prwatech.skillama.util.IndiaTime;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,6 +18,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -26,6 +28,7 @@ import java.util.UUID;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PracticalDatasetService {
 
     private static final int RETENTION_DAYS = 90;
@@ -144,6 +147,28 @@ public class PracticalDatasetService {
     }
 
     public record ExecutionContext(String courseId, String storageKey, String displayName) {}
+
+    /**
+     * Best-effort column-name hint for the AI — just the header row, never the data itself.
+     * Without this, the AI has to guess column names from wording alone (e.g. "revenue" when the
+     * real columns are units_sold/unit_price, or "Region" when the real header is lowercase
+     * "region"), which produces confidently-wrong code. If this fails for any reason, callers
+     * still proceed; the AI just falls back to guessing, same as before this existed.
+     */
+    public List<String> resolveColumnHint(String storageKey) {
+        try {
+            byte[] bytes = fileStorageService.downloadCsvDataset(storageKey);
+            String text = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+            int newlineIdx = text.indexOf('\n');
+            String headerLine = (newlineIdx >= 0 ? text.substring(0, newlineIdx) : text).strip();
+            return java.util.Arrays.stream(headerLine.split(","))
+                    .map(String::strip)
+                    .collect(java.util.stream.Collectors.toList());
+        } catch (Exception e) {
+            log.warn("Could not read dataset header for column hints; AI will guess column names", e);
+            return List.of();
+        }
+    }
 
     private PracticalDataset activeByDatasetId(String datasetId) {
         PracticalDataset dataset = repository.findByDatasetId(datasetId)
