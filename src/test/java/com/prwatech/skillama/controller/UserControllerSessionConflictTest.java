@@ -29,9 +29,12 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -230,10 +233,109 @@ class UserControllerSessionConflictTest {
                         "You've been signed out because this account was signed in elsewhere.",
                         "SESSION_REVOKED"));
 
-        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .get("/skillama/users/session")
+        mockMvc.perform(get("/skillama/users/session")
                         .header(Constants.AUTH, "Bearer stale-token"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.reason").value("SESSION_REVOKED"));
+    }
+
+    // --- Heartbeat (active-time tracking) ---
+
+    @Test
+    void sessionHeartbeat_activeSession_returnsActiveTrue() throws Exception {
+        when(skillamaAuthSupport.resolveSessionFromRequest(any()))
+                .thenReturn(new SkillamaAuthSupport.ResolvedSession("u1", 4));
+        when(userService.recordHeartbeat("u1", 4)).thenReturn(true);
+
+        mockMvc.perform(post("/skillama/users/session/heartbeat")
+                        .header(Constants.AUTH, "Bearer some-jwt-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(true));
+    }
+
+    @Test
+    void sessionHeartbeat_sessionReplacedElsewhere_returns200WithActiveFalse() throws Exception {
+        // The revocation poll (separate mechanism) is what actually signs the user out —
+        // the heartbeat itself just reports whether this specific login is still the live one.
+        when(skillamaAuthSupport.resolveSessionFromRequest(any()))
+                .thenReturn(new SkillamaAuthSupport.ResolvedSession("u1", 2));
+        when(userService.recordHeartbeat("u1", 2)).thenReturn(false);
+
+        mockMvc.perform(post("/skillama/users/session/heartbeat")
+                        .header(Constants.AUTH, "Bearer stale-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+    }
+
+    @Test
+    void sessionHeartbeat_invalidToken_returns401() throws Exception {
+        when(skillamaAuthSupport.resolveSessionFromRequest(any()))
+                .thenThrow(new SkillamaAuthException("Session expired. Please sign in again."));
+
+        mockMvc.perform(post("/skillama/users/session/heartbeat")
+                        .header(Constants.AUTH, "Bearer bad-token"))
+                .andExpect(status().isUnauthorized());
+
+        verify(userService, never()).recordHeartbeat(any(), anyInt());
+    }
+
+    // --- Active-time aggregation (billing) ---
+
+    @Test
+    void getUserActiveTime_self_returnsSeconds() throws Exception {
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
+        when(userService.findById("u1")).thenReturn(Optional.of(activeSessionUser()));
+        when(userService.getTotalActiveSeconds("u1",
+                LocalDateTime.parse("2026-08-01T00:00:00"), LocalDateTime.parse("2026-09-01T00:00:00")))
+                .thenReturn(3600L);
+
+        mockMvc.perform(get("/skillama/users/u1/active-time")
+                        .param("from", "2026-08-01T00:00:00")
+                        .param("to", "2026-09-01T00:00:00")
+                        .header(Constants.AUTH, "Bearer some-jwt-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeSeconds").value(3600));
+    }
+
+    @Test
+    void getUserActiveTime_otherLearnerRequestingSomeoneElses_returns403() throws Exception {
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("requester-id");
+        when(userService.findById("requester-id")).thenReturn(Optional.of(
+                User.builder().id("requester-id").role(User.UserRole.USER).build()));
+
+        mockMvc.perform(get("/skillama/users/u1/active-time")
+                        .param("from", "2026-08-01T00:00:00")
+                        .param("to", "2026-09-01T00:00:00")
+                        .header(Constants.AUTH, "Bearer some-jwt-token"))
+                .andExpect(status().isForbidden());
+
+        verify(userService, never()).getTotalActiveSeconds(any(), any(), any());
+    }
+
+    @Test
+    void getUserActiveTime_malformedDate_returns400WithoutCallingAggregation() throws Exception {
+        mockMvc.perform(get("/skillama/users/u1/active-time")
+                        .param("from", "not-a-date")
+                        .param("to", "2026-09-01T00:00:00")
+                        .header(Constants.AUTH, "Bearer some-jwt-token"))
+                .andExpect(status().isBadRequest());
+
+        verify(userService, never()).getTotalActiveSeconds(any(), any(), any());
+        verify(skillamaAuthSupport, never()).resolveUserIdFromRequest(any());
+    }
+
+    @Test
+    void getUserActiveTime_adminRequestingAnotherUser_returnsSeconds() throws Exception {
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("admin-id");
+        when(userService.findById("admin-id")).thenReturn(Optional.of(
+                User.builder().id("admin-id").role(User.UserRole.ADMIN).build()));
+        when(userService.getTotalActiveSeconds(eq("u1"), any(), any())).thenReturn(7200L);
+
+        mockMvc.perform(get("/skillama/users/u1/active-time")
+                        .param("from", "2026-08-01T00:00:00")
+                        .param("to", "2026-09-01T00:00:00")
+                        .header(Constants.AUTH, "Bearer admin-jwt-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activeSeconds").value(7200));
     }
 }

@@ -76,9 +76,15 @@ public class CodeAssistService {
         String realError = null;
         String datasetFilename = null;
         List<String> datasetColumns = List.of();
+        // True whenever we got a real verdict back from the sandbox — success, a rejected
+        // (blocked) run, or a genuine execution error all count, since all three are real
+        // signals rather than an ai-tutor guess. Only false for non-Python courses and for
+        // the exception-fallback case below, where nothing real was ever obtained.
+        boolean sandboxVerified = false;
         if (isPythonCourse(courseName)) {
             try {
                 SandboxRunResult run = resolveSandboxResult(userId, request);
+                sandboxVerified = true;
                 PracticalSandboxService.SandboxResult sandboxResult = run.result();
                 datasetFilename = run.datasetFilename();
                 datasetColumns = run.datasetColumns();
@@ -117,6 +123,7 @@ public class CodeAssistService {
                 .inputTokens(generated.getInputTokens())
                 .outputTokens(generated.getOutputTokens())
                 .totalTokens(generated.getTotalTokens())
+                .sandboxVerified(sandboxVerified)
                 .createdAt(IndiaTime.now())
                 .build();
         interaction = interactionRepository.save(interaction);
@@ -128,6 +135,7 @@ public class CodeAssistService {
                 .responseText(generated.getResponseText())
                 .hasAudio(generated.getAudioUrl() != null && !generated.getAudioUrl().isBlank())
                 .subtitlePath(generated.getSubtitlePath())
+                .sandboxVerified(sandboxVerified)
                 .build();
     }
 
@@ -238,6 +246,7 @@ public class CodeAssistService {
                             .correctedCode(i.getCorrectedCode())
                             .responseText(i.getResponseText())
                             .hasAudio(i.getAudioUrl() != null && !i.getAudioUrl().isBlank())
+                            .sandboxVerified(i.getSandboxVerified())
                             .createdAt(i.getCreatedAt())
                             .build();
                 })

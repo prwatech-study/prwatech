@@ -26,5 +26,6 @@ public class AdminCodeAssistInteractionDTO {
     private String correctedCode;
     private String responseText;
     private Boolean hasAudio;
+    private Boolean sandboxVerified;
     private LocalDateTime createdAt;
 }

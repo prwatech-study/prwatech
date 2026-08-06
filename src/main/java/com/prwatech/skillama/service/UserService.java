@@ -7,6 +7,7 @@ import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.notification.NotificationEventType;
 import com.prwatech.skillama.model.UserLoginEvent;
+import com.prwatech.skillama.model.UserSession;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserLoginEventRepository;
 import com.prwatech.skillama.util.IndiaTime;
@@ -26,6 +27,7 @@ import org.springframework.stereotype.Service;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HashMap;
@@ -294,13 +296,25 @@ public class UserService {
      * Atomically bumps tokenVersion and marks the session active; returns the new version to
      * embed in the freshly minted JWT. findAndModify (rather than read-then-save) avoids two
      * near-simultaneous logins landing on the same version number and both staying valid.
+     * Also closes out any still-open UserSession row (a prior login this one is replacing) and
+     * opens a fresh one for active-time tracking.
      */
     public int startNewSession(String userId) {
         Query query = Query.query(Criteria.where("id").is(userId));
         Update update = new Update().inc("tokenVersion", 1).set("sessionActive", true);
         User updated = skillamaMongoTemplate.findAndModify(
                 query, update, FindAndModifyOptions.options().returnNew(true), User.class);
-        return updated != null && updated.getTokenVersion() != null ? updated.getTokenVersion() : 0;
+        int newVersion = updated != null && updated.getTokenVersion() != null ? updated.getTokenVersion() : 0;
+
+        LocalDateTime now = IndiaTime.now();
+        closeOpenSessions(userId, "REPLACED", now);
+        skillamaMongoTemplate.insert(UserSession.builder()
+                .userId(userId)
+                .tokenVersion(newVersion)
+                .startedAt(now)
+                .lastHeartbeatAt(now)
+                .build());
+        return newVersion;
     }
 
     /** Bumps tokenVersion and clears sessionActive so the logged-out token stops passing auth checks. */
@@ -311,5 +325,47 @@ public class UserService {
                 .set("sessionActive", false)
                 .set("updatedAt", IndiaTime.now());
         skillamaMongoTemplate.findAndModify(query, update, FindAndModifyOptions.options(), User.class);
+        closeOpenSessions(userId, "LOGOUT", IndiaTime.now());
+    }
+
+    private void closeOpenSessions(String userId, String endReason, LocalDateTime endedAt) {
+        Query query = Query.query(Criteria.where("userId").is(userId).and("endedAt").isNull());
+        Update update = new Update().set("endedAt", endedAt).set("endReason", endReason);
+        skillamaMongoTemplate.updateMulti(query, update, UserSession.class);
+    }
+
+    /**
+     * Records that the current session's tab was focused and heartbeating just now. No-op
+     * (returns false) if this session was already replaced/logged out — a harmless race between
+     * a closing tab's last heartbeat and a login elsewhere.
+     */
+    public boolean recordHeartbeat(String userId, int tokenVersion) {
+        Query query = Query.query(Criteria.where("userId").is(userId)
+                .and("tokenVersion").is(tokenVersion)
+                .and("endedAt").isNull());
+        Update update = new Update().set("lastHeartbeatAt", IndiaTime.now());
+        return skillamaMongoTemplate.updateFirst(query, update, UserSession.class).getModifiedCount() > 0;
+    }
+
+    /**
+     * Sums active time (lastHeartbeatAt - startedAt) across sessions started in [from, to).
+     * Uses lastHeartbeatAt rather than endedAt so a browser closed without calling /logout
+     * doesn't inflate the total past the last moment it was genuinely open and focused.
+     * Does not clamp a session's time to the [from, to) boundary — a session that starts just
+     * before "to" and continues past it is counted in full, not split across periods.
+     */
+    public long getTotalActiveSeconds(String userId, LocalDateTime from, LocalDateTime to) {
+        Query query = Query.query(Criteria.where("userId").is(userId)
+                .and("startedAt").gte(from).lt(to));
+        long totalSeconds = 0;
+        for (UserSession session : skillamaMongoTemplate.find(query, UserSession.class)) {
+            LocalDateTime end = session.getLastHeartbeatAt() != null
+                    ? session.getLastHeartbeatAt() : session.getStartedAt();
+            long seconds = Duration.between(session.getStartedAt(), end).getSeconds();
+            if (seconds > 0) {
+                totalSeconds += seconds;
+            }
+        }
+        return totalSeconds;
     }
 }

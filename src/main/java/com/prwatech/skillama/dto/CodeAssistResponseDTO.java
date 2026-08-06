@@ -17,4 +17,5 @@ public class CodeAssistResponseDTO {
     private String responseText;
     private Boolean hasAudio;
     private String subtitlePath;
+    private Boolean sandboxVerified;
 }

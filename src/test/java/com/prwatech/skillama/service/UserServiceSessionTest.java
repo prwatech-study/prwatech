@@ -1,9 +1,11 @@
 package com.prwatech.skillama.service;
 
+import com.mongodb.client.result.UpdateResult;
 import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.configuration.PasswordEncode;
 import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.model.UserSession;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserLoginEventRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,9 +19,18 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -104,5 +115,90 @@ class UserServiceSessionTest {
         var updateDoc = updateCaptor.getValue().getUpdateObject();
         assertEquals(1, updateDoc.get("$inc", org.bson.Document.class).get("tokenVersion"));
         assertEquals(false, updateDoc.get("$set", org.bson.Document.class).get("sessionActive"));
+    }
+
+    // --- Active-time tracking (UserSession rows) ---
+
+    @Test
+    void startNewSession_opensANewUserSessionRow() {
+        when(skillamaMongoTemplate.findAndModify(
+                any(Query.class), any(Update.class), any(FindAndModifyOptions.class), eq(User.class)))
+                .thenReturn(User.builder().id("u1").tokenVersion(5).build());
+
+        userService.startNewSession("u1");
+
+        ArgumentCaptor<UserSession> sessionCaptor = ArgumentCaptor.forClass(UserSession.class);
+        verify(skillamaMongoTemplate).insert(sessionCaptor.capture());
+        UserSession opened = sessionCaptor.getValue();
+        assertEquals("u1", opened.getUserId());
+        assertEquals(5, opened.getTokenVersion());
+        assertNotNull(opened.getStartedAt());
+        assertEquals(opened.getStartedAt(), opened.getLastHeartbeatAt());
+        assertNull(opened.getEndedAt());
+    }
+
+    @Test
+    void startNewSession_closesAnyPriorOpenSessionAsReplaced() {
+        when(skillamaMongoTemplate.findAndModify(
+                any(Query.class), any(Update.class), any(FindAndModifyOptions.class), eq(User.class)))
+                .thenReturn(User.builder().id("u1").tokenVersion(2).build());
+
+        userService.startNewSession("u1");
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(skillamaMongoTemplate).updateMulti(
+                any(Query.class), updateCaptor.capture(), eq(UserSession.class));
+        var updateDoc = updateCaptor.getValue().getUpdateObject();
+        assertEquals("REPLACED", updateDoc.get("$set", org.bson.Document.class).get("endReason"));
+        assertNotNull(updateDoc.get("$set", org.bson.Document.class).get("endedAt"));
+    }
+
+    @Test
+    void logout_closesOpenSessionAsLoggedOut() {
+        userService.logout("u1");
+
+        ArgumentCaptor<Update> updateCaptor = ArgumentCaptor.forClass(Update.class);
+        verify(skillamaMongoTemplate).updateMulti(
+                any(Query.class), updateCaptor.capture(), eq(UserSession.class));
+        var updateDoc = updateCaptor.getValue().getUpdateObject();
+        assertEquals("LOGOUT", updateDoc.get("$set", org.bson.Document.class).get("endReason"));
+    }
+
+    @Test
+    void recordHeartbeat_matchingOpenSession_updatesLastHeartbeatAndReturnsTrue() {
+        UpdateResult result = mock(UpdateResult.class);
+        when(result.getModifiedCount()).thenReturn(1L);
+        when(skillamaMongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(UserSession.class)))
+                .thenReturn(result);
+
+        assertTrue(userService.recordHeartbeat("u1", 3));
+    }
+
+    @Test
+    void recordHeartbeat_sessionAlreadyReplacedOrLoggedOut_returnsFalse() {
+        UpdateResult result = mock(UpdateResult.class);
+        lenient().when(result.getModifiedCount()).thenReturn(0L);
+        when(skillamaMongoTemplate.updateFirst(any(Query.class), any(Update.class), eq(UserSession.class)))
+                .thenReturn(result);
+
+        assertFalse(userService.recordHeartbeat("u1", 3));
+    }
+
+    @Test
+    void getTotalActiveSeconds_sumsLastHeartbeatMinusStartedAtAcrossSessions() {
+        LocalDateTime base = LocalDateTime.of(2026, 8, 1, 9, 0, 0);
+        UserSession fifteenMinutes = UserSession.builder()
+                .startedAt(base).lastHeartbeatAt(base.plusMinutes(15)).build();
+        UserSession fiveMinutes = UserSession.builder()
+                .startedAt(base.plusHours(2)).lastHeartbeatAt(base.plusHours(2).plusMinutes(5)).build();
+        // No heartbeat ever recorded past the login instant (e.g. tab closed immediately) — contributes 0.
+        UserSession neverHeartbeat = UserSession.builder()
+                .startedAt(base.plusHours(4)).lastHeartbeatAt(null).build();
+        when(skillamaMongoTemplate.find(any(Query.class), eq(UserSession.class)))
+                .thenReturn(List.of(fifteenMinutes, fiveMinutes, neverHeartbeat));
+
+        long totalSeconds = userService.getTotalActiveSeconds("u1", base.minusDays(1), base.plusDays(1));
+
+        assertEquals(20 * 60, totalSeconds);
     }
 }

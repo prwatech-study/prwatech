@@ -25,6 +25,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -403,6 +404,23 @@ public class UserController {
         }
     }
 
+    /**
+     * Called every ~30s while a tab is open AND focused (never while backgrounded) — this, not
+     * login/logout timestamps, is what active-time billing sums. A 200 with active:false (rather
+     * than an error) means this specific login was replaced/logged out elsewhere in the meantime;
+     * the frontend's separate revocation poll is what actually signs the user out for that.
+     */
+    @PostMapping("/session/heartbeat")
+    public ResponseEntity<?> sessionHeartbeat(HttpServletRequest request) {
+        try {
+            SkillamaAuthSupport.ResolvedSession session = skillamaAuthSupport.resolveSessionFromRequest(request);
+            boolean active = userService.recordHeartbeat(session.userId(), session.tokenVersion());
+            return ResponseEntity.ok(Map.of("active", active));
+        } catch (SkillamaAuthException e) {
+            return ResponseEntity.status(401).build();
+        }
+    }
+
     @GetMapping
     public ResponseEntity<?> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
@@ -450,7 +468,47 @@ public class UserController {
             return ResponseEntity.status(401).build();
         }
     }
-    
+
+    /**
+     * Cumulative active (focused-tab) time in [from, to) — the number billing aggregates on.
+     * Self-or-admin, same as {@link #getUserById}. from/to are ISO-8601 local date-times
+     * (e.g. 2026-08-01T00:00:00), parsed explicitly rather than via @RequestParam LocalDateTime
+     * binding — that depends on this app's MVC formatter registration, which is easy to get
+     * wrong silently; parsing here keeps the endpoint's correctness independent of it.
+     * No vendor/org rollup yet — that needs its own data model.
+     */
+    @GetMapping("/{id}/active-time")
+    public ResponseEntity<?> getUserActiveTime(
+            @PathVariable String id,
+            @RequestParam String from,
+            @RequestParam String to,
+            HttpServletRequest request) {
+        LocalDateTime fromDate;
+        LocalDateTime toDate;
+        try {
+            fromDate = LocalDateTime.parse(from);
+            toDate = LocalDateTime.parse(to);
+        } catch (java.time.format.DateTimeParseException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "from/to must be ISO-8601 local date-times, e.g. 2026-08-01T00:00:00"));
+        }
+        try {
+            String requesterId = extractUserIdFromRequest(request);
+            User requester = userService.findById(requesterId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+            boolean isAdmin = requester.getRole() == User.UserRole.ADMIN
+                    || requester.getRole() == User.UserRole.OWNER;
+            if (!requesterId.equals(id) && !isAdmin) {
+                return ResponseEntity.status(403).build();
+            }
+            long activeSeconds = userService.getTotalActiveSeconds(id, fromDate, toDate);
+            return ResponseEntity.ok(Map.of("userId", id, "activeSeconds", activeSeconds));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(401).build();
+        }
+    }
+
     @PostMapping("/admin/activate")
     public ResponseEntity<?> activateUser(
             @RequestParam String email,

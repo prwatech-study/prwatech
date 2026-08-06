@@ -41,6 +41,9 @@ public class CodeAssistInteraction {
     private String correctedCode;
     private String responseText;
 
+    /** True when {@code codeOutput} came from a real sandbox run/verdict rather than ai-tutor hallucination. */
+    private Boolean sandboxVerified;
+
     /** Spoken-explanation audio URL from ai-tutor — never handed to the client directly, see ProxiedAudioDTO. */
     private String audioUrl;
 

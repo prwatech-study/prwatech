@@ -19,6 +19,13 @@ public class SkillamaAuthSupport {
     private final UserService userService;
 
     public String resolveUserIdFromRequest(HttpServletRequest request) {
+        return resolveSessionFromRequest(request).userId();
+    }
+
+    /** Same choke point as {@link #resolveUserIdFromRequest}, also exposing the request's own
+     * tokenVersion — needed by the heartbeat endpoint to identify which UserSession row is
+     * "this" login, as opposed to some other session the same account had at another time. */
+    public ResolvedSession resolveSessionFromRequest(HttpServletRequest request) {
         final String requestTokenHeader = request.getHeader(Constants.AUTH);
         if (requestTokenHeader == null || !requestTokenHeader.startsWith("Bearer ")) {
             throw new SkillamaAuthException("Session expired. Please sign in again.");
@@ -46,6 +53,9 @@ public class SkillamaAuthSupport {
                     "SESSION_REVOKED");
         }
 
-        return user.getId();
+        return new ResolvedSession(user.getId(), tokenVersion);
+    }
+
+    public record ResolvedSession(String userId, int tokenVersion) {
     }
 }
