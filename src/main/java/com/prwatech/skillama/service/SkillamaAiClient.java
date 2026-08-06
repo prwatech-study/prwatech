@@ -867,26 +867,41 @@ public class SkillamaAiClient {
      *
      * <p><b>ai-tutor (Flask) contract — POST {aiBaseUrl}/generate_code</b>
      * <pre>
-     * Request JSON:  { "query": String, "code_instruction": String, "course": String }
+     * Request JSON:  { "query": String, "code_instruction": String, "course": String,
+     *                  "dataset_filename": String, "dataset_columns": [String] }  // last two optional
      * Response JSON: { "code_result": String, "audio_url": String, "subtitle_path": String,
      *                  "usage": { "inputTokens": int, "outputTokens": int, "totalTokens": int },
      *                  "error": String  // optional; present on failure
      *                }
      * </pre>
+     *
+     * @param datasetFilename the real filename of the dataset attached to this lesson, when one
+     *                        is; null otherwise. Without this, generated code guesses a filename
+     *                        (and it always guesses wrong for the actual uploaded file).
+     * @param datasetColumns  that dataset's real header row, when one is attached; empty otherwise.
      */
     public GeneratedPracticeCodeDTO generatePracticeCode(
-            User user, String courseId, String query, String codeInstruction, String course) {
+            User user, String courseId, String query, String codeInstruction, String course,
+            String datasetFilename, java.util.List<String> datasetColumns) {
         return meteredCall(user, "practice_code_generation", courseId,
-                () -> generatePracticeCodeRaw(query, codeInstruction, course));
+                () -> generatePracticeCodeRaw(query, codeInstruction, course, datasetFilename, datasetColumns));
     }
 
-    private GeneratedPracticeCodeDTO generatePracticeCodeRaw(String query, String codeInstruction, String course) {
+    private GeneratedPracticeCodeDTO generatePracticeCodeRaw(
+            String query, String codeInstruction, String course,
+            String datasetFilename, java.util.List<String> datasetColumns) {
         String url = resolveBaseUrl() + "/generate_code";
 
         Map<String, Object> body = new HashMap<>();
         body.put("query", query != null ? query : "");
         body.put("code_instruction", codeInstruction != null ? codeInstruction : "");
         body.put("course", course != null ? course : "");
+        if (datasetFilename != null) {
+            body.put("dataset_filename", datasetFilename);
+        }
+        if (datasetColumns != null && !datasetColumns.isEmpty()) {
+            body.put("dataset_columns", datasetColumns);
+        }
 
         HttpHeaders headers = buildHeaders();
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
