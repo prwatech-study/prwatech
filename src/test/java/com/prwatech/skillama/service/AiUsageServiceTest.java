@@ -2,10 +2,12 @@ package com.prwatech.skillama.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prwatech.skillama.dto.AiBudgetDTO;
+import com.prwatech.skillama.dto.AiUsageModuleBreakdownDTO;
 import com.prwatech.skillama.dto.AiUsageRecordRequestDTO;
 import com.prwatech.skillama.dto.AiUsageSettingsDTO;
 import com.prwatech.skillama.dto.UpdateAiUsageSettingsDTO;
 import com.prwatech.skillama.exception.AiBudgetLimitException;
+import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.AiUsageEvent;
 import com.prwatech.skillama.model.PlatformAiSettings;
 import com.prwatech.skillama.model.User;
@@ -22,6 +24,9 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -30,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -301,5 +307,116 @@ class AiUsageServiceTest {
         assertTrue(user.getAiCostUsdThisPeriod() > 0);
         verify(aiUsageEventRepository).save(any(AiUsageEvent.class));
         verify(userRepository).save(user);
+    }
+
+    // ---------- getUserModuleBreakdown ----------
+
+    private AiUsageEvent event(String endpoint, double costUsd) {
+        return AiUsageEvent.builder()
+                .userId("u1")
+                .endpoint(endpoint)
+                .costUsd(costUsd)
+                .createdAt(IndiaTime.now())
+                .build();
+    }
+
+    @Test
+    void getUserModuleBreakdownThrowsWhenUserNotFound() {
+        when(userRepository.findById("missing")).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class,
+                () -> service.getUserModuleBreakdown("missing"));
+    }
+
+    @Test
+    void getUserModuleBreakdownIsReadOnlyLikeGetAiBudget() {
+        User user = freemium(0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+        when(aiUsageEventRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+                eq("u1"), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+
+        service.getUserModuleBreakdown("u1");
+
+        // resetPeriodIfNeeded is applied in-memory only to pick the right window —
+        // persistence still happens on the next recordUsage call, not here.
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void getUserModuleBreakdownReturnsEmptyWhenNoUsageThisPeriod() {
+        User user = freemium(0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+        when(aiUsageEventRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+                eq("u1"), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+
+        AiUsageModuleBreakdownDTO dto = service.getUserModuleBreakdown("u1");
+
+        assertEquals(0.0, dto.getTotalCostUsd());
+        assertTrue(dto.getByModule().isEmpty());
+    }
+
+    @Test
+    void getUserModuleBreakdownGroupsKnownEndpointsIntoCoarseModules() {
+        User user = freemium(0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+        when(aiUsageEventRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+                eq("u1"), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(
+                        event("debug_assist", 0.010),
+                        event("code_execution_assist", 0.005),
+                        event("generate_practical_code", 0.005),
+                        event("chat_ask", 0.003),
+                        event("ai_mentor_ask", 0.002),
+                        // Regression coverage: generate_exam was initially missing from
+                        // ENDPOINT_MODULE_MAP and silently fell into "Other".
+                        event("generate_exam", 0.002),
+                        event("lecture_generation", 0.020),
+                        event("some_future_endpoint_not_mapped_yet", 0.001)
+                ));
+
+        AiUsageModuleBreakdownDTO dto = service.getUserModuleBreakdown("u1");
+
+        assertEquals(0.048, dto.getTotalCostUsd(), 1e-9);
+
+        java.util.Map<String, AiUsageModuleBreakdownDTO.ModuleUsageDTO> byModule =
+                dto.getByModule().stream().collect(java.util.stream.Collectors.toMap(
+                        AiUsageModuleBreakdownDTO.ModuleUsageDTO::getModule, m -> m));
+
+        assertEquals(0.010, byModule.get("Debug").getCostUsd(), 1e-9);
+        assertEquals(1, byModule.get("Debug").getCallCount());
+
+        assertEquals(0.010, byModule.get("Code Execution").getCostUsd(), 1e-9); // 0.005 + 0.005
+        assertEquals(2, byModule.get("Code Execution").getCallCount());
+
+        // chat_ask + ai_mentor_ask + generate_exam all fold into Ai-Tutor
+        assertEquals(0.007, byModule.get("Ai-Tutor").getCostUsd(), 1e-9);
+        assertEquals(3, byModule.get("Ai-Tutor").getCallCount());
+
+        assertEquals(0.020, byModule.get("Lecture Generation").getCostUsd(), 1e-9);
+
+        assertEquals(0.001, byModule.get("Other").getCostUsd(), 1e-9);
+
+        // Sorted by cost descending.
+        List<String> order = dto.getByModule().stream()
+                .map(AiUsageModuleBreakdownDTO.ModuleUsageDTO::getModule)
+                .toList();
+        assertEquals("Lecture Generation", order.get(0));
+    }
+
+    @Test
+    void getUserModuleBreakdownPercentagesAddUpToTotal() {
+        User user = freemium(0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+        when(aiUsageEventRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+                eq("u1"), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(event("debug_assist", 0.03), event("lecture_generation", 0.01)));
+
+        AiUsageModuleBreakdownDTO dto = service.getUserModuleBreakdown("u1");
+
+        double percentSum = dto.getByModule().stream()
+                .mapToDouble(AiUsageModuleBreakdownDTO.ModuleUsageDTO::getPercentOfTotal)
+                .sum();
+        assertEquals(100.0, percentSum, 1e-9);
     }
 }

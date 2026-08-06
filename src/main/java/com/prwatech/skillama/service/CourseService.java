@@ -603,12 +603,20 @@ public class CourseService {
             validatePracticalSubmoduleScript(updatedSubmodule);
             List<CourseCurriculum.Submodule> list = module.getSubmodules();
             if (list != null && submoduleIdx >= 0 && submoduleIdx < list.size()) {
+                CourseCurriculum.Submodule existing = list.get(submoduleIdx);
                 // Id is server-owned and immutable — always carry forward the existing one (or mint it if this
                 // submodule predates the id field), regardless of what the update request body contains.
-                String existingId = list.get(submoduleIdx).getId();
+                String existingId = existing.getId();
                 updatedSubmodule.setId(org.springframework.util.StringUtils.hasText(existingId)
                         ? existingId
                         : java.util.UUID.randomUUID().toString());
+                // This endpoint's request body only ever carries editable content fields (label/scriptText/
+                // imagePath/isPracticalRequired/enabled) — datasetId and the image-gen counters are managed
+                // exclusively by their own endpoints (AdminCurriculumDatasetController / image generation), so
+                // they must always be carried forward here rather than wiped to whatever Jackson defaulted them to.
+                updatedSubmodule.setDatasetId(existing.getDatasetId());
+                updatedSubmodule.setImageGenCountToday(existing.getImageGenCountToday());
+                updatedSubmodule.setImageGenCountDate(existing.getImageGenCountDate());
                 list.set(submoduleIdx, updatedSubmodule);
                 module.setSubmodules(list);
                 module.setUpdatedAt(IndiaTime.now());

@@ -125,4 +125,35 @@ class CourseServiceTest {
         assertEquals("s1", sub.getId());
         assertEquals("dataset-1", sub.getDatasetId());
     }
+
+    // Regression test for a real production incident: the admin "edit submodule" form (label/
+    // scriptText/image/enabled only) PUTs a Submodule body with no datasetId. updateSubmodule()
+    // used to do list.set(idx, updatedSubmodule) wholesale, preserving only `id` — so saving an
+    // unrelated edit on a practical-exercise submodule silently detached its uploaded dataset.
+    @Test
+    void updateSubmodule_datasetIdOmittedFromRequest_preservesExistingDataset() {
+        CourseCurriculum existing = CourseCurriculum.builder()
+                .id("module-1")
+                .moduleName("Operators in Python")
+                .submodules(new java.util.ArrayList<>(List.of(
+                        practicalSubmodule("s1", "Practical: Analyze Sales Data", "ds_89c6aa51cd8b"))))
+                .build();
+        when(curriculumRepository.findById("module-1")).thenReturn(Optional.of(existing));
+        when(curriculumRepository.save(any(CourseCurriculum.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // Exactly what the edit-submodule form sends: label/scriptText/isPracticalRequired/imagePath/enabled,
+        // no datasetId, no image-gen counters.
+        CourseCurriculum.Submodule update = new CourseCurriculum.Submodule();
+        update.setLabel("Practical: Analyze Sales Data with Pandas");
+        update.setScriptText("Updated instructions.");
+        update.setPracticalRequired(true);
+        update.setEnabled(true);
+
+        CourseCurriculum result = courseService().updateSubmodule("module-1", 0, update);
+
+        CourseCurriculum.Submodule sub = result.getSubmodules().get(0);
+        assertEquals("s1", sub.getId());
+        assertEquals("ds_89c6aa51cd8b", sub.getDatasetId());
+        assertEquals("Updated instructions.", sub.getScriptText());
+    }
 }
