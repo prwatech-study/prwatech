@@ -2,6 +2,7 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.skillama.dto.*;
 import com.prwatech.skillama.exception.AiBudgetLimitException;
+import com.prwatech.skillama.exception.QuizGenerationFailedException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.ModuleQuizAttempt;
@@ -67,14 +68,27 @@ public class ModuleQuizService {
                 .map(Course::getName)
                 .orElse("this course");
 
-        // user is nullable here (guests) — SkillamaAiClient's metered wrapper skips the
-        // budget-check/recordUsage pair entirely when null.
-        GeneratedQuizDTO generated = skillamaAiClient.generateQuizQuestions(
-                user, "generate_module_quiz", request.getCourseId(),
-                courseName, request.getModuleName(), request.getTopics(), NUM_QUESTIONS, null);
-        if (generated.getQuestions() == null || generated.getQuestions().isEmpty()) {
-            throw new IllegalStateException("AI did not return any quiz questions");
+        GeneratedQuizDTO generated;
+        try {
+            // user is nullable here (guests) — SkillamaAiClient's metered wrapper skips the
+            // budget-check/recordUsage pair entirely when null.
+            generated = skillamaAiClient.generateQuizQuestions(
+                    user, "generate_module_quiz", request.getCourseId(),
+                    courseName, request.getModuleName(), request.getTopics(), NUM_QUESTIONS, null);
+            if (generated.getQuestions() == null || generated.getQuestions().isEmpty()) {
+                throw new IllegalStateException("AI did not return any quiz questions");
+            }
+        } catch (AiBudgetLimitException e) {
+            throw e;
+        } catch (IllegalStateException e) {
+            // Generation itself failed — no session/attempt exists to drive the normal
+            // "skip after N failed attempts" flow, so count this toward that same threshold
+            // instead, or a flaky AI response would strand the learner on this module forever.
+            boolean skipEligible = recordGenerationFailure(
+                    profilingSessionId, userId, request.getCourseId(), request.getModuleName());
+            throw new QuizGenerationFailedException(e.getMessage(), skipEligible);
         }
+        clearGenerationFailures(profilingSessionId, userId, request.getCourseId(), request.getModuleName());
 
         String quizSessionId = "quiz-" + UUID.randomUUID();
         LocalDateTime now = IndiaTime.now();
@@ -362,6 +376,70 @@ public class ModuleQuizService {
                 .anyMatch(s -> courseId.equals(s.getCourseId()) && moduleName.equals(s.getModuleName()));
     }
 
+    public int countGenerationFailures(UserProfile profile, String courseId, String moduleName) {
+        if (profile == null || profile.getQuizGenerationFailures() == null) {
+            return 0;
+        }
+        return profile.getQuizGenerationFailures().stream()
+                .filter(f -> courseId.equals(f.getCourseId()) && moduleName.equals(f.getModuleName()))
+                .map(f -> f.getFailureCount() == null ? 0 : f.getFailureCount())
+                .findFirst()
+                .orElse(0);
+    }
+
+    /** Records a failed generation attempt and reports whether skip is now eligible. */
+    private boolean recordGenerationFailure(
+            String profilingSessionId, String userId, String courseId, String moduleName) {
+        UserProfile profile = resolveProfile(profilingSessionId, userId);
+        if (profile == null) {
+            return false;
+        }
+        if (profile.getQuizGenerationFailures() == null) {
+            profile.setQuizGenerationFailures(new ArrayList<>());
+        }
+
+        Optional<UserProfile.QuizGenerationFailure> existing = profile.getQuizGenerationFailures().stream()
+                .filter(f -> courseId.equals(f.getCourseId()) && moduleName.equals(f.getModuleName()))
+                .findFirst();
+
+        int newCount;
+        if (existing.isPresent()) {
+            UserProfile.QuizGenerationFailure failure = existing.get();
+            newCount = (failure.getFailureCount() == null ? 0 : failure.getFailureCount()) + 1;
+            failure.setFailureCount(newCount);
+            failure.setLastFailedAt(IndiaTime.now());
+        } else {
+            newCount = 1;
+            profile.getQuizGenerationFailures().add(UserProfile.QuizGenerationFailure.builder()
+                    .courseId(courseId)
+                    .moduleName(moduleName)
+                    .failureCount(newCount)
+                    .lastFailedAt(IndiaTime.now())
+                    .build());
+        }
+
+        profile.setUpdatedAt(IndiaTime.now());
+        userProfileRepository.save(profile);
+
+        int attemptCount = countAttempts(userId, profilingSessionId, courseId, moduleName);
+        return (attemptCount + newCount) >= MIN_ATTEMPTS_BEFORE_SKIP;
+    }
+
+    /** Clears the failure streak for a module once its quiz generates successfully. */
+    private void clearGenerationFailures(
+            String profilingSessionId, String userId, String courseId, String moduleName) {
+        UserProfile profile = resolveProfile(profilingSessionId, userId);
+        if (profile == null || profile.getQuizGenerationFailures() == null) {
+            return;
+        }
+        boolean removed = profile.getQuizGenerationFailures().removeIf(
+                f -> courseId.equals(f.getCourseId()) && moduleName.equals(f.getModuleName()));
+        if (removed) {
+            profile.setUpdatedAt(IndiaTime.now());
+            userProfileRepository.save(profile);
+        }
+    }
+
     /**
      * Unlock next module when the quiz is passed <em>or</em> explicitly skipped after retries.
      * Skipped quizzes remain "pending" for retake UI until they pass.
@@ -391,7 +469,8 @@ public class ModuleQuizService {
             return Map.of("status", "ok", "skipped", true, "alreadySkipped", true);
         }
 
-        int attemptCount = countAttempts(userId, profilingSessionId, courseId, moduleName);
+        int attemptCount = countAttempts(userId, profilingSessionId, courseId, moduleName)
+                + countGenerationFailures(profile, courseId, moduleName);
         if (attemptCount < MIN_ATTEMPTS_BEFORE_SKIP) {
             throw new IllegalArgumentException(
                     "Skip is available after " + MIN_ATTEMPTS_BEFORE_SKIP + " quiz attempts");

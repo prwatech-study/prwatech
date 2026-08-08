@@ -60,7 +60,16 @@ public class UserProfile {
     /** Modules the learner skipped after failing the quiz (next content unlocked; quiz still pending). */
     @Builder.Default
     private List<SkippedModuleQuiz> skippedModuleQuizzes = new ArrayList<>();
-    
+
+    /**
+     * Consecutive AI quiz-generation failures per module (the AI never returned usable
+     * questions, so no scored attempt was even possible). Counted toward the same
+     * skip-after-N-tries threshold as real failed attempts, and reset once a session
+     * generates successfully.
+     */
+    @Builder.Default
+    private List<QuizGenerationFailure> quizGenerationFailures = new ArrayList<>();
+
     // Metadata
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -141,6 +150,18 @@ public class UserProfile {
         private String moduleName;
         private LocalDateTime skippedAt;
         private Integer attemptCountAtSkip;
+    }
+
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class QuizGenerationFailure {
+        private String courseId;
+        private String moduleName;
+        private Integer failureCount;
+        private LocalDateTime lastFailedAt;
     }
 }
 

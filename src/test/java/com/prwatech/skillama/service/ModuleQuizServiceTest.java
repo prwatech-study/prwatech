@@ -9,6 +9,7 @@ import com.prwatech.skillama.dto.ModuleQuizOptionDTO;
 import com.prwatech.skillama.dto.ModuleQuizQuestionDTO;
 import com.prwatech.skillama.dto.SubmitModuleQuizAttemptRequestDTO;
 import com.prwatech.skillama.exception.AiBudgetLimitException;
+import com.prwatech.skillama.exception.QuizGenerationFailedException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.ModuleQuizAttempt;
@@ -194,6 +195,93 @@ class ModuleQuizServiceTest {
 
         assertThrows(IllegalStateException.class,
                 () -> service.createSession(null, USER, validCreateRequest()));
+    }
+
+    // ---------- quiz generation failure & skip eligibility ----------
+
+    @Test
+    void createSessionRecordsGenerationFailureAndNotYetSkipEligible() {
+        UserProfile p = eligibleProfile();
+        when(userProfileRepository.findByUserId(USER)).thenReturn(Optional.of(p));
+        when(curriculumRepository.findByCourseIdOrderByOrderAsc(COURSE))
+                .thenReturn(List.of(moduleWithOneCompletedLecture()));
+        when(skillamaAiClient.generateQuizQuestions(
+                        any(), anyString(), anyString(), anyString(), anyString(), anyList(), anyInt(), isNull()))
+                .thenThrow(new IllegalStateException("We couldn't generate the quiz right now."));
+        when(attemptRepository.countByUserIdAndCourseIdAndModuleName(USER, COURSE, MODULE)).thenReturn(0);
+
+        QuizGenerationFailedException ex = assertThrows(QuizGenerationFailedException.class,
+                () -> service.createSession(null, USER, validCreateRequest()));
+
+        assertEquals("We couldn't generate the quiz right now.", ex.getMessage());
+        assertFalse(ex.isSkipEligible()); // only 1 failure so far, threshold is 2
+        assertEquals(1, p.getQuizGenerationFailures().size());
+        assertEquals(1, p.getQuizGenerationFailures().get(0).getFailureCount());
+        verify(userProfileRepository).save(p);
+    }
+
+    @Test
+    void createSessionSecondGenerationFailureBecomesSkipEligible() {
+        UserProfile p = eligibleProfile();
+        p.setQuizGenerationFailures(new ArrayList<>(List.of(UserProfile.QuizGenerationFailure.builder()
+                .courseId(COURSE).moduleName(MODULE).failureCount(1).build())));
+        when(userProfileRepository.findByUserId(USER)).thenReturn(Optional.of(p));
+        when(curriculumRepository.findByCourseIdOrderByOrderAsc(COURSE))
+                .thenReturn(List.of(moduleWithOneCompletedLecture()));
+        when(skillamaAiClient.generateQuizQuestions(
+                        any(), anyString(), anyString(), anyString(), anyString(), anyList(), anyInt(), isNull()))
+                .thenThrow(new IllegalStateException("still failing"));
+        when(attemptRepository.countByUserIdAndCourseIdAndModuleName(USER, COURSE, MODULE)).thenReturn(0);
+
+        QuizGenerationFailedException ex = assertThrows(QuizGenerationFailedException.class,
+                () -> service.createSession(null, USER, validCreateRequest()));
+
+        assertTrue(ex.isSkipEligible()); // 2 failures now meets MIN_ATTEMPTS_BEFORE_SKIP
+        assertEquals(2, p.getQuizGenerationFailures().get(0).getFailureCount());
+    }
+
+    @Test
+    void createSessionSuccessClearsPriorGenerationFailures() {
+        UserProfile p = eligibleProfile();
+        p.setQuizGenerationFailures(new ArrayList<>(List.of(UserProfile.QuizGenerationFailure.builder()
+                .courseId(COURSE).moduleName(MODULE).failureCount(1).build())));
+        when(userProfileRepository.findByUserId(USER)).thenReturn(Optional.of(p));
+        when(curriculumRepository.findByCourseIdOrderByOrderAsc(COURSE))
+                .thenReturn(List.of(moduleWithOneCompletedLecture()));
+
+        service.createSession(null, USER, validCreateRequest());
+
+        assertTrue(p.getQuizGenerationFailures().isEmpty());
+    }
+
+    @Test
+    void createSessionDoesNotRecordFailureOnBudgetLimit() {
+        UserProfile p = eligibleProfile();
+        when(userProfileRepository.findByUserId(USER)).thenReturn(Optional.of(p));
+        when(curriculumRepository.findByCourseIdOrderByOrderAsc(COURSE))
+                .thenReturn(List.of(moduleWithOneCompletedLecture()));
+        when(skillamaAiClient.generateQuizQuestions(
+                        any(), anyString(), anyString(), anyString(), anyString(), anyList(), anyInt(), isNull()))
+                .thenThrow(new AiBudgetLimitException("limit reached", 5.0, 5.0));
+
+        assertThrows(AiBudgetLimitException.class,
+                () -> service.createSession(null, USER, validCreateRequest()));
+        assertTrue(p.getQuizGenerationFailures() == null || p.getQuizGenerationFailures().isEmpty());
+    }
+
+    @Test
+    void skipSucceedsFromGenerationFailuresAloneWithNoScoredAttempts() {
+        UserProfile p = eligibleProfile();
+        p.setQuizGenerationFailures(new ArrayList<>(List.of(UserProfile.QuizGenerationFailure.builder()
+                .courseId(COURSE).moduleName(MODULE).failureCount(ModuleQuizService.MIN_ATTEMPTS_BEFORE_SKIP)
+                .build())));
+        when(userProfileRepository.findByUserId(USER)).thenReturn(Optional.of(p));
+        when(attemptRepository.countByUserIdAndCourseIdAndModuleName(USER, COURSE, MODULE)).thenReturn(0);
+
+        Map<String, Object> res = service.skipModuleQuiz(null, USER, COURSE, MODULE);
+
+        assertEquals(true, res.get("skipped"));
+        assertEquals(1, p.getSkippedModuleQuizzes().size());
     }
 
     // ---------- createSession eligibility ----------

@@ -113,6 +113,23 @@ class UserProfileControllerModuleQuizTest {
     }
 
     @Test
+    void createSessionGenerationFailureReturns502WithSkipEligibleFlag() throws Exception {
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
+        when(moduleQuizService.createSession(isNull(), eq("u1"), any()))
+                .thenThrow(new com.prwatech.skillama.exception.QuizGenerationFailedException(
+                        "We couldn't generate the quiz right now.", true));
+
+        mockMvc.perform(post("/skillama/user-profile/module-quiz/sessions")
+                        .header(Constants.AUTH, TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("courseId", "c1", "moduleName", "M1"))))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.message").value("We couldn't generate the quiz right now."))
+                .andExpect(jsonPath("$.skipEligible").value(true));
+    }
+
+    @Test
     void submitAttemptAuthenticatedReturnsResult() throws Exception {
         when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
         when(moduleQuizService.submitAttempt(isNull(), eq("u1"), any()))

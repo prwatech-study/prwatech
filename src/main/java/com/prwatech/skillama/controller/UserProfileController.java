@@ -228,6 +228,11 @@ public class UserProfileController {
                     "aiBudgetLimitReached", true,
                     "aiCostUsedUsd", e.getAiCostUsedUsd(),
                     "aiCostLimitUsd", e.getAiCostLimitUsd()));
+        } catch (com.prwatech.skillama.exception.QuizGenerationFailedException e) {
+            return ResponseEntity.status(502).body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage(),
+                    "skipEligible", e.isSkipEligible()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         } catch (IllegalStateException e) {
