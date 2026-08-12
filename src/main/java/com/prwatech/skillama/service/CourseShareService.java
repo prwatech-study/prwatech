@@ -1,8 +1,11 @@
 package com.prwatech.skillama.service;
 
+import com.prwatech.skillama.dto.CourseShareHistoryItemDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
+import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseShareEvent;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.CourseShareEventRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.util.IndiaTime;
@@ -12,8 +15,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 @Service
 @RequiredArgsConstructor
@@ -22,9 +29,12 @@ public class CourseShareService {
     /** Course sharing is restricted to these platforms — enforced here, not just hidden in the UI. */
     private static final Set<String> REWARDABLE_PLATFORMS = Set.of("INSTAGRAM", "LINKEDIN");
     public static final int SHARE_REWARD_CREDITS = 25;
+    /** Same reward as referrals (25 credits @ 100 credits/USD) — kept spendable via shareBonusUsd. */
+    public static final double SHARE_REWARD_USD = 0.25;
 
     private final CourseShareEventRepository shareEventRepository;
     private final SkillamaUserRepository userRepository;
+    private final CourseRepository courseRepository;
 
     /**
      * Records a course share and rewards credits the first time this user shares this course on
@@ -67,9 +77,35 @@ public class CourseShareService {
         }
 
         int updatedCredits = currentCredits + SHARE_REWARD_CREDITS;
+        double currentShareBonus = user.getShareBonusUsd() != null ? user.getShareBonusUsd() : 0.0;
         user.setCredits(updatedCredits);
+        // The spendable side of the reward — credits above is now just a display counter.
+        user.setShareBonusUsd(currentShareBonus + SHARE_REWARD_USD);
         user.setUpdatedAt(IndiaTime.now());
         userRepository.save(user);
         return updatedCredits;
+    }
+
+    /** This user's course-share reward history, newest first — for the "My Shares" view. */
+    public List<CourseShareHistoryItemDTO> getShareHistory(String userId) {
+        List<CourseShareEvent> events = shareEventRepository.findByUserIdOrderByCreatedAtDesc(userId);
+
+        List<String> courseIds = events.stream()
+                .map(CourseShareEvent::getCourseId)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<String, String> courseNamesById = StreamSupport
+                .stream(courseRepository.findAllById(courseIds).spliterator(), false)
+                .collect(Collectors.toMap(Course::getId, Course::getName));
+
+        return events.stream()
+                .map(event -> CourseShareHistoryItemDTO.builder()
+                        .courseId(event.getCourseId())
+                        .courseName(courseNamesById.get(event.getCourseId()))
+                        .platform(event.getPlatform())
+                        .creditsEarned(SHARE_REWARD_CREDITS)
+                        .sharedAt(event.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
     }
 }

@@ -28,7 +28,9 @@ public class WalletAdjustResultDTO {
     private Double walletAfterUsd;
     /** Permanent referral reward, untouched by admin adjustments. */
     private Double referralBonusUsd;
-    /** walletAfterUsd + referralBonusUsd — what the budget check actually enforces. */
+    /** Permanent course-share reward, untouched by admin adjustments. */
+    private Double shareBonusUsd;
+    /** walletAfterUsd + referralBonusUsd + shareBonusUsd — what the budget check actually enforces. */
     private Double effectiveLimitUsd;
     private String reason;
     private LocalDateTime adjustedAt;

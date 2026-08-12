@@ -68,10 +68,18 @@ public class User {
 
     /**
      * Generic reward-credits counter — earned via actions like sharing a course.
-     * Independent of the AI wallet USD fields above; not currently spendable/redeemable.
+     * Kept as a raw display counter; shareBonusUsd below is the spendable equivalent.
      */
     @Builder.Default
     private Integer credits = 0;
+
+    /**
+     * Permanent course-share reward (USD) added on top of the effective AI wallet base.
+     * Mirrors referralBonusUsd — earned by sharing a course to an eligible platform,
+     * stacks without limit. See AiUsageService#resolveBudgetLimitUsd.
+     */
+    @Builder.Default
+    private Double shareBonusUsd = 0.0;
 
     @Builder.Default
     private List<String> enabledModules = new ArrayList<>();

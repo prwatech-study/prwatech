@@ -525,6 +525,13 @@ public class UserProfileController {
         }
     }
 
+    /** This user's course-share reward history (course, platform, credits, when) — for transparency. */
+    @GetMapping("/course/share/history")
+    public ResponseEntity<List<CourseShareHistoryItemDTO>> getCourseShareHistory(HttpServletRequest request) {
+        String userId = extractUserIdFromRequest(request);
+        return ResponseEntity.ok(courseShareService.getShareHistory(userId));
+    }
+
     // ========== Helper Methods ==========
     
     private String getSessionIdFromRequest(HttpServletRequest request) {

@@ -447,7 +447,8 @@ public class FreemiumService {
         user.setUpdatedBy(adminId);
         userRepository.save(user);
 
-        double bonus = user.getReferralBonusUsd() != null ? user.getReferralBonusUsd() : 0.0;
+        double referralBonus = user.getReferralBonusUsd() != null ? user.getReferralBonusUsd() : 0.0;
+        double shareBonus = user.getShareBonusUsd() != null ? user.getShareBonusUsd() : 0.0;
         return WalletAdjustResultDTO.builder()
                 .userId(userId)
                 .userEmail(user.getEmail())
@@ -456,8 +457,9 @@ public class FreemiumService {
                 .deltaUsd(roundUsd(deltaUsd))
                 .walletBeforeUsd(roundUsd(baseBefore))
                 .walletAfterUsd(roundUsd(baseAfter))
-                .referralBonusUsd(roundUsd(bonus))
-                .effectiveLimitUsd(roundUsd(baseAfter + bonus))
+                .referralBonusUsd(roundUsd(referralBonus))
+                .shareBonusUsd(roundUsd(shareBonus))
+                .effectiveLimitUsd(roundUsd(baseAfter + referralBonus + shareBonus))
                 .reason(request.getReason().trim())
                 .adjustedAt(IndiaTime.now())
                 .build();
@@ -536,6 +538,7 @@ public class FreemiumService {
     }
 
     private FreemiumStatusDTO toStatusDto(User user) {
+        double referralBonus = user.getReferralBonusUsd() != null ? user.getReferralBonusUsd() : 0.0;
         return FreemiumStatusDTO.builder()
                 .planTier(user.getPlanTier())
                 .subscriptionPlanCode(user.getSubscriptionPlanCode())
@@ -545,6 +548,8 @@ public class FreemiumService {
                 .referralCode(user.getReferralCode())
                 .referredBy(user.getReferredBy())
                 .referralBonusUsd(user.getReferralBonusUsd())
+                .referralCount((int) Math.round(referralBonus / REFERRER_REWARD_USD))
+                .shareBonusUsd(user.getShareBonusUsd())
                 .credits(user.getCredits())
                 .unlimitedQueries(aiUsageService.isUnlimitedForBudget(user))
                 .enabledModules(user.getEnabledModules())

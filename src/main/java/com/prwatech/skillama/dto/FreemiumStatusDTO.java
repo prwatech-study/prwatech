@@ -22,6 +22,10 @@ public class FreemiumStatusDTO {
     private String referredBy;
     /** Permanent referrer reward (USD) stacked on top of this user's AI wallet base. */
     private Double referralBonusUsd;
+    /** Number of successful referral signups this reward corresponds to — for the "My Referrals" view. */
+    private Integer referralCount;
+    /** Permanent course-share reward (USD) stacked on top of this user's AI wallet base. */
+    private Double shareBonusUsd;
     /** Generic reward-credits balance (e.g. earned from course-share rewards); not USD. */
     private Integer credits;
     /**

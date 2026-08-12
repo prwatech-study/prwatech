@@ -281,6 +281,7 @@ public class AiUsageService {
                     .unlimited(true)
                     .limitReached(false)
                     .referralBonusUsd(user != null ? round(referralBonusUsd(user)) : null)
+                    .shareBonusUsd(user != null ? round(shareBonusUsd(user)) : null)
                     .build();
         }
         resetPeriodIfNeeded(user);
@@ -295,6 +296,7 @@ public class AiUsageService {
                 .limitInr(round(limitUsd * rate))
                 .remainingInr(round(remainingUsd * rate))
                 .referralBonusUsd(round(referralBonusUsd(user)))
+                .shareBonusUsd(round(shareBonusUsd(user)))
                 .unlimited(false)
                 .limitReached(usedUsd >= limitUsd)
                 .build();
@@ -555,7 +557,7 @@ public class AiUsageService {
     private double resolveBudgetLimitUsd(User user, PlatformAiSettings settings) {
         double base = (user.getAiWalletLimitUsd() != null && user.getAiWalletLimitUsd() > 0)
                 ? user.getAiWalletLimitUsd() : settings.getFreemiumMonthlyBudgetUsdPerUser();
-        double bonus = referralBonusUsd(user);
+        double bonus = referralBonusUsd(user) + shareBonusUsd(user);
         return base + bonus;
     }
 
@@ -571,6 +573,10 @@ public class AiUsageService {
 
     private double referralBonusUsd(User user) {
         return user.getReferralBonusUsd() != null ? user.getReferralBonusUsd() : 0.0;
+    }
+
+    private double shareBonusUsd(User user) {
+        return user.getShareBonusUsd() != null ? user.getShareBonusUsd() : 0.0;
     }
 
     /**
