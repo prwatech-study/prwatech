@@ -19,5 +19,7 @@ public class CourseShareEvent {
     private String courseId;
     /** INSTAGRAM, LINKEDIN — the only platforms course sharing currently supports. */
     private String platform;
+    /** Reward (USD) actually applied at share time — owner-tunable, so history must not re-derive this. */
+    private double rewardUsd;
     private LocalDateTime createdAt = IndiaTime.now();
 }

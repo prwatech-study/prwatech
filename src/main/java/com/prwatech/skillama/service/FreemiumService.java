@@ -14,9 +14,11 @@ import com.prwatech.skillama.dto.WalletAdjustResultDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.QueryActivityLog;
+import com.prwatech.skillama.model.ReferralConversionEvent;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.QueryActivityLogRepository;
+import com.prwatech.skillama.repository.ReferralConversionEventRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,11 +37,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FreemiumService {
 
-    /**
-     * Permanent USD reward credited to the REFERRER for every successful referral signup.
-     * Stacks without limit; the referee gets no bonus.
-     */
-    public static final double REFERRER_REWARD_USD = 0.25;
     public static final String REFERRAL_BONUS_MODULE = "Debug";
     /** All freemium users get these modules from signup (referral rewards the referrer's wallet only). */
     public static final List<String> FREEMIUM_BASE_MODULES = Arrays.asList(
@@ -58,6 +55,7 @@ public class FreemiumService {
     private final UserCourseAccessService userCourseAccessService;
     private final UserContactService userContactService;
     private final AiUsageService aiUsageService;
+    private final ReferralConversionEventRepository referralConversionEventRepository;
 
     /** Public read — home page banner, signup copy (no auth). */
     public FreemiumOfferingDTO getPublicOffering() {
@@ -65,7 +63,7 @@ public class FreemiumService {
                 .baseModules(new ArrayList<>(FREEMIUM_BASE_MODULES))
                 .modulesWithReferral(new ArrayList<>(FREEMIUM_REFERRAL_MODULES))
                 .referralBonusModule(REFERRAL_BONUS_MODULE)
-                .referrerRewardUsd(REFERRER_REWARD_USD)
+                .referrerRewardUsd(aiUsageService.loadSettings().getReferralRewardUsd())
                 .courseSelectionAtSignup(true)
                 .build();
     }
@@ -123,23 +121,33 @@ public class FreemiumService {
         }
 
         user.setReferredBy(referrer.getReferralCode());
-        rewardReferrer(referrer);
+        rewardReferrer(referrer, user.getId());
         user.setUpdatedAt(IndiaTime.now());
         userRepository.save(user);
         return toStatusDto(user);
     }
 
     /**
-     * Credits the REFERRER's permanent wallet bonus. The referee gets nothing — referral
-     * rewards are referrer-only. Stacks without limit across repeat referrals.
+     * Credits the REFERRER's permanent wallet bonus at the CURRENT owner-tunable rate, and logs
+     * a ReferralConversionEvent recording that rate — so referralCount/history stay accurate even
+     * if the rate changes later. The referee gets nothing — referral rewards are referrer-only.
+     * Stacks without limit across repeat referrals.
      */
-    private void rewardReferrer(User referrer) {
+    private void rewardReferrer(User referrer, String refereeId) {
+        double rewardUsd = aiUsageService.loadSettings().getReferralRewardUsd();
         double bonus = referrer.getReferralBonusUsd() != null ? referrer.getReferralBonusUsd() : 0.0;
-        referrer.setReferralBonusUsd(bonus + REFERRER_REWARD_USD);
+        referrer.setReferralBonusUsd(bonus + rewardUsd);
         referrer.setUpdatedAt(IndiaTime.now());
         // referrer is a DIFFERENT entity from the caller's `user` — it is not covered by any
         // outer save(user) call, so it must be persisted explicitly here.
         userRepository.save(referrer);
+
+        ReferralConversionEvent event = new ReferralConversionEvent();
+        event.setReferrerId(referrer.getId());
+        event.setRefereeId(refereeId);
+        event.setRewardUsd(rewardUsd);
+        event.setCreatedAt(IndiaTime.now());
+        referralConversionEventRepository.save(event);
     }
 
     public String getReferralCode(String userId) {
@@ -269,7 +277,10 @@ public class FreemiumService {
                 .ifPresent(referrer -> {
                     if (!referrer.getEmail().equalsIgnoreCase(user.getEmail())) {
                         user.setReferredBy(referrer.getReferralCode());
-                        rewardReferrer(referrer);
+                        // user.getId() is null here — this runs before the new signup is
+                        // persisted. refereeId is best-effort metadata only; referralCount
+                        // derives from referrerId, so a null refereeId doesn't affect it.
+                        rewardReferrer(referrer, user.getId());
                     }
                 });
     }
@@ -538,7 +549,6 @@ public class FreemiumService {
     }
 
     private FreemiumStatusDTO toStatusDto(User user) {
-        double referralBonus = user.getReferralBonusUsd() != null ? user.getReferralBonusUsd() : 0.0;
         return FreemiumStatusDTO.builder()
                 .planTier(user.getPlanTier())
                 .subscriptionPlanCode(user.getSubscriptionPlanCode())
@@ -548,7 +558,9 @@ public class FreemiumService {
                 .referralCode(user.getReferralCode())
                 .referredBy(user.getReferredBy())
                 .referralBonusUsd(user.getReferralBonusUsd())
-                .referralCount((int) Math.round(referralBonus / REFERRER_REWARD_USD))
+                // Exact event count, not derived from bonus÷rate — stays correct even after
+                // referralRewardUsd is tuned to a different value than past referrals earned.
+                .referralCount((int) referralConversionEventRepository.countByReferrerId(user.getId()))
                 .shareBonusUsd(user.getShareBonusUsd())
                 .credits(user.getCredits())
                 .unlimitedQueries(aiUsageService.isUnlimitedForBudget(user))

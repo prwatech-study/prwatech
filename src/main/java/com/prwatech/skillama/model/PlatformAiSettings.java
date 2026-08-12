@@ -17,7 +17,11 @@ public class PlatformAiSettings {
     private boolean devModeEnabled;
     private boolean aiUsageTrackingEnabled = true;
     private double platformMonthlyBudgetUsd = 1000.0;
-    private double freemiumMonthlyBudgetUsdPerUser = 0.50;
+    private double freemiumMonthlyBudgetUsdPerUser = 0.30;
+    /** Owner-tunable referral reward (USD), read by FreemiumService#rewardReferrer. */
+    private double referralRewardUsd = 0.20;
+    /** Owner-tunable course-share reward (USD), read by CourseShareService#trackShare. */
+    private double courseShareRewardUsd = 0.20;
     private LocalDateTime updatedAt;
     private String updatedBy;
 }

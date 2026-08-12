@@ -28,13 +28,18 @@ public class CourseShareService {
 
     /** Course sharing is restricted to these platforms — enforced here, not just hidden in the UI. */
     private static final Set<String> REWARDABLE_PLATFORMS = Set.of("INSTAGRAM", "LINKEDIN");
-    public static final int SHARE_REWARD_CREDITS = 25;
-    /** Same reward as referrals (25 credits @ 100 credits/USD) — kept spendable via shareBonusUsd. */
-    public static final double SHARE_REWARD_USD = 0.25;
+    private static final int USD_TO_CREDITS_RATE = 100;
+    /** Reward before this became owner-tunable — used to backfill history rows saved before rewardUsd existed. */
+    private static final double LEGACY_SHARE_REWARD_USD = 0.25;
 
     private final CourseShareEventRepository shareEventRepository;
     private final SkillamaUserRepository userRepository;
     private final CourseRepository courseRepository;
+    private final AiUsageService aiUsageService;
+
+    private static int usdToCredits(double usd) {
+        return (int) Math.round(usd * USD_TO_CREDITS_RATE);
+    }
 
     /**
      * Records a course share and rewards credits the first time this user shares this course on
@@ -64,10 +69,15 @@ public class CourseShareService {
             return currentCredits;
         }
 
+        // Rate applied to THIS share, frozen onto the event — so an owner tuning
+        // courseShareRewardUsd later never rewrites what past shares already earned.
+        double rewardUsd = aiUsageService.loadSettings().getCourseShareRewardUsd();
+
         CourseShareEvent event = new CourseShareEvent();
         event.setUserId(userId);
         event.setCourseId(courseId);
         event.setPlatform(normalizedPlatform);
+        event.setRewardUsd(rewardUsd);
         event.setCreatedAt(IndiaTime.now());
         try {
             shareEventRepository.save(event);
@@ -76,11 +86,11 @@ public class CourseShareService {
             return currentCredits;
         }
 
-        int updatedCredits = currentCredits + SHARE_REWARD_CREDITS;
+        int updatedCredits = currentCredits + usdToCredits(rewardUsd);
         double currentShareBonus = user.getShareBonusUsd() != null ? user.getShareBonusUsd() : 0.0;
         user.setCredits(updatedCredits);
         // The spendable side of the reward — credits above is now just a display counter.
-        user.setShareBonusUsd(currentShareBonus + SHARE_REWARD_USD);
+        user.setShareBonusUsd(currentShareBonus + rewardUsd);
         user.setUpdatedAt(IndiaTime.now());
         userRepository.save(user);
         return updatedCredits;
@@ -103,7 +113,9 @@ public class CourseShareService {
                         .courseId(event.getCourseId())
                         .courseName(courseNamesById.get(event.getCourseId()))
                         .platform(event.getPlatform())
-                        .creditsEarned(SHARE_REWARD_CREDITS)
+                        // Pre-migration events have no rewardUsd stored — fall back to the
+                        // fixed rate that was actually in effect before this became tunable.
+                        .creditsEarned(usdToCredits(event.getRewardUsd() > 0 ? event.getRewardUsd() : LEGACY_SHARE_REWARD_USD))
                         .sharedAt(event.getCreatedAt())
                         .build())
                 .collect(Collectors.toList());

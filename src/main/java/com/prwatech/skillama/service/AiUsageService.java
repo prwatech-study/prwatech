@@ -43,7 +43,9 @@ import java.util.stream.Collectors;
 public class AiUsageService {
 
     private static final double DEFAULT_PLATFORM_BUDGET_USD = 1000.0;
-    private static final double DEFAULT_FREEMIUM_BUDGET_USD = 0.50;
+    private static final double DEFAULT_FREEMIUM_BUDGET_USD = 0.30;
+    private static final double DEFAULT_REFERRAL_REWARD_USD = 0.20;
+    private static final double DEFAULT_COURSE_SHARE_REWARD_USD = 0.20;
 
     /**
      * Coarse, user-facing module a raw {@code endpoint} belongs to, for the learner-facing
@@ -108,6 +110,12 @@ public class AiUsageService {
         if (settings.getFreemiumMonthlyBudgetUsdPerUser() <= 0) {
             settings.setFreemiumMonthlyBudgetUsdPerUser(DEFAULT_FREEMIUM_BUDGET_USD);
         }
+        if (settings.getReferralRewardUsd() <= 0) {
+            settings.setReferralRewardUsd(DEFAULT_REFERRAL_REWARD_USD);
+        }
+        if (settings.getCourseShareRewardUsd() <= 0) {
+            settings.setCourseShareRewardUsd(DEFAULT_COURSE_SHARE_REWARD_USD);
+        }
         return settings;
     }
 
@@ -118,6 +126,8 @@ public class AiUsageService {
         settings.setAiUsageTrackingEnabled(true);
         settings.setPlatformMonthlyBudgetUsd(DEFAULT_PLATFORM_BUDGET_USD);
         settings.setFreemiumMonthlyBudgetUsdPerUser(DEFAULT_FREEMIUM_BUDGET_USD);
+        settings.setReferralRewardUsd(DEFAULT_REFERRAL_REWARD_USD);
+        settings.setCourseShareRewardUsd(DEFAULT_COURSE_SHARE_REWARD_USD);
         return settings;
     }
 
@@ -145,6 +155,12 @@ public class AiUsageService {
         if (body.getFreemiumMonthlyBudgetUsdPerUser() != null) {
             settings.setFreemiumMonthlyBudgetUsdPerUser(Math.max(0, body.getFreemiumMonthlyBudgetUsdPerUser()));
         }
+        if (body.getReferralRewardUsd() != null) {
+            settings.setReferralRewardUsd(Math.max(0, body.getReferralRewardUsd()));
+        }
+        if (body.getCourseShareRewardUsd() != null) {
+            settings.setCourseShareRewardUsd(Math.max(0, body.getCourseShareRewardUsd()));
+        }
         settings.setUpdatedAt(IndiaTime.now());
         settings.setUpdatedBy(ownerUserId);
         return toSettingsDto(platformAiSettingsRepository.save(settings));
@@ -155,6 +171,8 @@ public class AiUsageService {
                 .aiUsageTrackingEnabled(settings.isAiUsageTrackingEnabled())
                 .platformMonthlyBudgetUsd(settings.getPlatformMonthlyBudgetUsd())
                 .freemiumMonthlyBudgetUsdPerUser(settings.getFreemiumMonthlyBudgetUsdPerUser())
+                .referralRewardUsd(settings.getReferralRewardUsd())
+                .courseShareRewardUsd(settings.getCourseShareRewardUsd())
                 .usdToInrRate(liveUsdToInrRate())
                 .usdToInrRateAsOf(usdInrExchangeRateService.getRateAsOfDate())
                 .updatedAt(settings.getUpdatedAt())
