@@ -10,10 +10,12 @@ import com.prwatech.skillama.dto.FreemiumStatusDTO;
 import com.prwatech.skillama.dto.WalletAdjustResultDTO;
 import com.prwatech.skillama.exception.AiBudgetLimitException;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
+import com.prwatech.skillama.model.PlatformAiSettings;
 import com.prwatech.skillama.model.QueryActivityLog;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.QueryActivityLogRepository;
+import com.prwatech.skillama.repository.ReferralConversionEventRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,15 +50,22 @@ class FreemiumServiceTest {
     @Mock private UserCourseAccessService userCourseAccessService;
     @Mock private UserContactService userContactService;
     @Mock private AiUsageService aiUsageService;
+    @Mock private ReferralConversionEventRepository referralConversionEventRepository;
 
     private FreemiumService service;
 
     @BeforeEach
     void setUp() {
         service = new FreemiumService(userRepository, courseRepository, queryActivityLogRepository,
-                passwordEncode, userCourseAccessService, userContactService, aiUsageService);
+                passwordEncode, userCourseAccessService, userContactService, aiUsageService,
+                referralConversionEventRepository);
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(aiUsageService.getAiBudget(any())).thenReturn(AiBudgetDTO.builder().build());
+        // Referral reward is owner-tunable now (was a fixed 0.25 constant) — tests assert
+        // against this explicit value rather than whatever the current production default is.
+        PlatformAiSettings settings = new PlatformAiSettings();
+        settings.setReferralRewardUsd(0.25);
+        when(aiUsageService.loadSettings()).thenReturn(settings);
     }
 
     private User freemiumUser() {
@@ -100,7 +109,7 @@ class FreemiumServiceTest {
     @Test
     void publicOfferingExposesReferrerRewardAndModules() {
         FreemiumOfferingDTO dto = service.getPublicOffering();
-        assertEquals(FreemiumService.REFERRER_REWARD_USD, dto.getReferrerRewardUsd());
+        // Reflects the current owner-tunable settings value (stubbed to 0.25 in setUp).
         assertEquals(0.25, dto.getReferrerRewardUsd());
         assertTrue(dto.getBaseModules().containsAll(FreemiumService.FREEMIUM_BASE_MODULES));
     }
