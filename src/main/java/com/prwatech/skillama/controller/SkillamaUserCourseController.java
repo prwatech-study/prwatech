@@ -167,23 +167,13 @@ public class SkillamaUserCourseController {
     public ResponseEntity<ApiResponse<UserCourseEnrollment>> enrollToCourse(
             @RequestBody EnrollUserRequest enrollRequest,
             HttpServletRequest request) {
-        try {
-            String userId = extractUserIdFromRequest(request);
-            UserCourseEnrollment enrollment = userCourseService.enrollUserToCourse(
-                userId, 
-                enrollRequest.getCourseId(), 
-                enrollRequest.getEnrollmentType() != null 
-                    ? enrollRequest.getEnrollmentType() 
-                    : UserCourseEnrollment.EnrollmentType.ASSIGNED
-            );
-            return ResponseEntity.ok(new ApiResponse<>(200, enrollment));
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(new ApiResponse<>(404, null));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(new ApiResponse<>(401, null));
-        }
+        // Self-enroll is disabled by product decision: enrollment flows through the
+        // Explore catalog's request-approval loop (POST /users/me/course-requests →
+        // admin approve). This endpoint previously let any authenticated user enroll
+        // into ANY course with a client-chosen enrollmentType — locked down deliberately;
+        // do not re-enable without an availability/plan check.
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ApiResponse<>(403, null));
     }
     
     /**

@@ -28,7 +28,9 @@ public class UserCourseEnrollment {
     private EnrollmentStatus status; // ACTIVE, INACTIVE, COMPLETED
     
     public enum EnrollmentType {
-        ASSIGNED, PURCHASED, DEFAULT_FREEMIUM, USER_SELECTED_FREEMIUM
+        ASSIGNED, PURCHASED, DEFAULT_FREEMIUM, USER_SELECTED_FREEMIUM,
+        /** Learner requested via the Explore catalog and an admin approved it. */
+        REQUEST_APPROVED
     }
     
     public enum EnrollmentStatus {
