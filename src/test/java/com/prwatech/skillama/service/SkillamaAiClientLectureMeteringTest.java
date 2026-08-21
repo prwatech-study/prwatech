@@ -45,8 +45,10 @@ class SkillamaAiClientLectureMeteringTest {
 
     @Mock private AiUsageEventRepository aiUsageEventRepository;
     @Mock private PlatformAiSettingsRepository platformAiSettingsRepository;
+    @Mock private com.prwatech.skillama.repository.PlatformEfficiencyAssumptionsRepository platformEfficiencyAssumptionsRepository;
     @Mock private SkillamaUserRepository userRepository;
     @Mock private UsdInrExchangeRateService usdInrExchangeRateService;
+    @Mock private TimeWalletService timeWalletService;
     @Mock private RestTemplate restTemplate;
 
     private AiUsageService aiUsageService;
@@ -57,7 +59,8 @@ class SkillamaAiClientLectureMeteringTest {
         ObjectMapper objectMapper = new ObjectMapper();
 
         aiUsageService = new AiUsageService(aiUsageEventRepository, platformAiSettingsRepository,
-                userRepository, objectMapper, usdInrExchangeRateService);
+                platformEfficiencyAssumptionsRepository,
+                userRepository, objectMapper, usdInrExchangeRateService, timeWalletService);
         aiUsageService.loadRateCard();
         when(usdInrExchangeRateService.getUsdToInrRate()).thenReturn(83.0);
 
@@ -68,7 +71,7 @@ class SkillamaAiClientLectureMeteringTest {
         when(platformAiSettingsRepository.findById(PlatformAiSettings.SINGLETON_ID))
                 .thenReturn(Optional.of(settings));
 
-        client = new SkillamaAiClient(aiUsageService, objectMapper);
+        client = new SkillamaAiClient(aiUsageService, timeWalletService, objectMapper);
         ReflectionTestUtils.setField(client, "restTemplate", restTemplate);
         ReflectionTestUtils.setField(client, "aiBaseUrl", "https://ai.example.com");
     }

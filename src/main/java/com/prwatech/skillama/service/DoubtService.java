@@ -2,6 +2,7 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.dto.AdminAiMentorDoubtDTO;
+import com.prwatech.skillama.dto.AiAnswerFeedbackRequestDTO;
 import com.prwatech.skillama.dto.AiQueryReplyDTO;
 import com.prwatech.skillama.dto.AskDoubtRequestDTO;
 import com.prwatech.skillama.dto.DoubtFeedbackRequestDTO;
@@ -45,6 +46,7 @@ public class DoubtService {
     private final SkillamaUserRepository userRepository;
     private final CourseRepository courseRepository;
     private final SkillamaAiClient skillamaAiClient;
+    private final AiAnswerFeedbackService aiAnswerFeedbackService;
 
     @Transactional
     public DoubtResponseDTO askDoubt(String userId, AskDoubtRequestDTO request) {
@@ -168,6 +170,21 @@ public class DoubtService {
         }
         doubt.setUpdatedAt(IndiaTime.now());
         doubtRepository.save(doubt);
+
+        // Mirror the vote into the unified ai_answer_feedback collection so AI-Mentor
+        // ratings count toward the investor dashboard's "AI helpful rate" alongside chat.
+        if (request.getHelpful() != null) {
+            try {
+                AiAnswerFeedbackRequestDTO unified = new AiAnswerFeedbackRequestDTO();
+                unified.setMessageId(request.getMessageId());
+                unified.setCourseId(doubt.getCourseId());
+                unified.setEndpoint("ai_mentor_ask");
+                unified.setHelpful(request.getHelpful());
+                aiAnswerFeedbackService.submit(userId, unified);
+            } catch (Exception e) {
+                // Metric mirror must never break the primary doubt-feedback flow.
+            }
+        }
         return toResponseDto(doubt);
     }
 

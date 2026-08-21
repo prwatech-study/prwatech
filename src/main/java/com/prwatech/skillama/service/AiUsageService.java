@@ -12,11 +12,16 @@ import com.prwatech.skillama.dto.AiUsageUserRowDTO;
 import com.prwatech.skillama.dto.UpdateAiUsageSettingsDTO;
 import com.prwatech.skillama.exception.AiBudgetLimitException;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
+import com.prwatech.skillama.dto.EfficiencyAssumptionsDTO;
+import com.prwatech.skillama.dto.EfficiencyEstimateDTO;
+import com.prwatech.skillama.dto.UpdateEfficiencyAssumptionsDTO;
 import com.prwatech.skillama.model.AiUsageEvent;
 import com.prwatech.skillama.model.PlatformAiSettings;
+import com.prwatech.skillama.model.PlatformEfficiencyAssumptions;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.AiUsageEventRepository;
 import com.prwatech.skillama.repository.PlatformAiSettingsRepository;
+import com.prwatech.skillama.repository.PlatformEfficiencyAssumptionsRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.util.IndiaTime;
 import lombok.RequiredArgsConstructor;
@@ -69,9 +74,11 @@ public class AiUsageService {
 
     private final AiUsageEventRepository aiUsageEventRepository;
     private final PlatformAiSettingsRepository platformAiSettingsRepository;
+    private final PlatformEfficiencyAssumptionsRepository platformEfficiencyAssumptionsRepository;
     private final SkillamaUserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final UsdInrExchangeRateService usdInrExchangeRateService;
+    private final TimeWalletService timeWalletService;
 
     @Value("${skillama.ai-usage.internal-api-key:}")
     private String internalApiKey;
@@ -179,6 +186,74 @@ public class AiUsageService {
                 .build();
     }
 
+    public PlatformEfficiencyAssumptions loadEfficiencyAssumptions() {
+        return platformEfficiencyAssumptionsRepository.findById(PlatformEfficiencyAssumptions.SINGLETON_ID)
+                .orElseGet(PlatformEfficiencyAssumptions::new);
+    }
+
+    public EfficiencyAssumptionsDTO getEfficiencyAssumptionsDto() {
+        return toEfficiencyAssumptionsDto(loadEfficiencyAssumptions());
+    }
+
+    public EfficiencyAssumptionsDTO updateEfficiencyAssumptions(UpdateEfficiencyAssumptionsDTO body, String ownerUserId) {
+        if (body == null) {
+            throw new IllegalArgumentException("Request body is required");
+        }
+        PlatformEfficiencyAssumptions assumptions = loadEfficiencyAssumptions();
+        assumptions.setId(PlatformEfficiencyAssumptions.SINGLETON_ID);
+        if (body.getAssumedManualQuizCreationMinutes() != null) {
+            assumptions.setAssumedManualQuizCreationMinutes(Math.max(0, body.getAssumedManualQuizCreationMinutes()));
+        }
+        if (body.getAssumedManualExamCreationMinutes() != null) {
+            assumptions.setAssumedManualExamCreationMinutes(Math.max(0, body.getAssumedManualExamCreationMinutes()));
+        }
+        if (body.getAssumedManualDoubtResolutionMinutes() != null) {
+            assumptions.setAssumedManualDoubtResolutionMinutes(Math.max(0, body.getAssumedManualDoubtResolutionMinutes()));
+        }
+        if (body.getAssumedHourlyInstructorCostInr() != null) {
+            assumptions.setAssumedHourlyInstructorCostInr(Math.max(0, body.getAssumedHourlyInstructorCostInr()));
+        }
+        assumptions.setUpdatedAt(IndiaTime.now());
+        assumptions.setUpdatedBy(ownerUserId);
+        return toEfficiencyAssumptionsDto(platformEfficiencyAssumptionsRepository.save(assumptions));
+    }
+
+    private EfficiencyAssumptionsDTO toEfficiencyAssumptionsDto(PlatformEfficiencyAssumptions assumptions) {
+        return EfficiencyAssumptionsDTO.builder()
+                .assumedManualQuizCreationMinutes(assumptions.getAssumedManualQuizCreationMinutes())
+                .assumedManualExamCreationMinutes(assumptions.getAssumedManualExamCreationMinutes())
+                .assumedManualDoubtResolutionMinutes(assumptions.getAssumedManualDoubtResolutionMinutes())
+                .assumedHourlyInstructorCostInr(assumptions.getAssumedHourlyInstructorCostInr())
+                .updatedAt(assumptions.getUpdatedAt())
+                .build();
+    }
+
+    /**
+     * Estimated time/cost saved this period = AI-handled volume (from {@link #getPlatformSummary})
+     * × the admin-configured assumed manual baseline. Always an estimate — see
+     * {@link PlatformEfficiencyAssumptions} for why no measured baseline exists.
+     */
+    public EfficiencyEstimateDTO getEfficiencyEstimate(String period) {
+        AiUsagePlatformSummaryDTO summary = getPlatformSummary(period);
+        PlatformEfficiencyAssumptions assumptions = loadEfficiencyAssumptions();
+
+        double minutesSaved = summary.getQuizzesGenerated() * assumptions.getAssumedManualQuizCreationMinutes()
+                + summary.getExamsGenerated() * assumptions.getAssumedManualExamCreationMinutes()
+                + summary.getDoubtsResolved() * assumptions.getAssumedManualDoubtResolutionMinutes();
+        double hoursSaved = minutesSaved / 60.0;
+        double costSavedInr = hoursSaved * assumptions.getAssumedHourlyInstructorCostInr();
+
+        return EfficiencyEstimateDTO.builder()
+                .period(summary.getPeriod())
+                .quizzesGenerated(summary.getQuizzesGenerated())
+                .examsGenerated(summary.getExamsGenerated())
+                .doubtsResolved(summary.getDoubtsResolved())
+                .estimatedMinutesSaved(round(minutesSaved))
+                .estimatedHoursSaved(round(hoursSaved))
+                .estimatedCostSavedInr(round(costSavedInr))
+                .build();
+    }
+
     @Transactional
     public AiUsageEvent recordUsage(AiUsageRecordRequestDTO request) {
         PlatformAiSettings settings = loadSettings();
@@ -233,7 +308,22 @@ public class AiUsageService {
     }
 
     public void assertWithinBudget(User user) {
-        if (user == null || isUnlimitedForBudget(user)) {
+        if (user == null) {
+            return;
+        }
+        // Time-based (B2B seat) users: access requires remaining TIME — OR, once time is
+        // exhausted, remaining EXPLICIT credit wallet (aiWalletLimitUsd). The unlimited
+        // shortcut and the freemium default budget must NOT resurrect a spent time seat,
+        // so the time branch is checked before isUnlimitedForBudget and falls through to
+        // the credit gating below only when an explicit wallet exists.
+        if (timeWalletService.isTimeWalletActive(user)) {
+            if (timeWalletService.hasRemainingTime(user)) {
+                return;
+            }
+            if (!hasExplicitWallet(user)) {
+                timeWalletService.assertWithinTimeBudget(user);
+            }
+        } else if (isUnlimitedForBudget(user)) {
             return;
         }
         PlatformAiSettings settings = loadSettings();
@@ -255,6 +345,41 @@ public class AiUsageService {
         } catch (AiBudgetLimitException e) {
             return false;
         }
+    }
+
+    /** Explicit paid/admin-granted USD wallet — distinct from the freemium default budget. */
+    private boolean hasExplicitWallet(User user) {
+        return user.getAiWalletLimitUsd() != null && user.getAiWalletLimitUsd() > 0;
+    }
+
+    /**
+     * Gate for non-AI learning activity (lecture progress). Credit-wallet users learn freely —
+     * only time-based seats are gated here, with the same time-OR-explicit-credits fallback
+     * as assertWithinBudget. Throws TimeBudgetLimitException when both are exhausted.
+     */
+    public void assertLearningAccess(String userId) {
+        if (userId == null) {
+            return;
+        }
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null || !timeWalletService.isTimeWalletActive(user)) {
+            return;
+        }
+        if (timeWalletService.hasRemainingTime(user)) {
+            return;
+        }
+        if (hasExplicitWallet(user)) {
+            PlatformAiSettings settings = loadSettings();
+            if (!settings.isAiUsageTrackingEnabled()) {
+                return;
+            }
+            resetPeriodIfNeeded(user);
+            double used = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
+            if (used < resolveBudgetLimitUsd(user, settings)) {
+                return;
+            }
+        }
+        timeWalletService.assertWithinTimeBudget(user);
     }
 
     /**
@@ -351,6 +476,16 @@ public class AiUsageService {
         double utilization = budgetUsd > 0 ? (totalCostUsd / budgetUsd) * 100.0 : 0.0;
         double projectedMonthEnd = (totalCostUsd / daysElapsed) * range.daysInMonth();
 
+        long quizzesGenerated = events.stream()
+                .filter(e -> "generate_module_quiz".equals(e.getEndpoint()))
+                .count();
+        long examsGenerated = events.stream()
+                .filter(e -> "generate_exam".equals(e.getEndpoint()))
+                .count();
+        long doubtsResolved = events.stream()
+                .filter(e -> Set.of("chat_ask", "ai_mentor_ask", "ai_mentor_follow_up").contains(e.getEndpoint()))
+                .count();
+
         return AiUsagePlatformSummaryDTO.builder()
                 .period(normalizePeriod(period))
                 .dateRange(AiUsagePlatformSummaryDTO.LocalDateRangeDTO.builder()
@@ -374,6 +509,9 @@ public class AiUsageService {
                 .daysElapsedInPeriod(daysElapsed)
                 .projectedMonthEndCostUsd(round(projectedMonthEnd))
                 .usdToInrRate(liveUsdToInrRate())
+                .quizzesGenerated(quizzesGenerated)
+                .examsGenerated(examsGenerated)
+                .doubtsResolved(doubtsResolved)
                 .build();
     }
 

@@ -81,6 +81,18 @@ public class User {
     @Builder.Default
     private Double shareBonusUsd = 0.0;
 
+    /**
+     * B2B time-based seat: total learning minutes granted to this user (admin-allocated,
+     * topped up on request). Null or <= 0 = not a time-based user — the USD credit wallet
+     * governs instead. When set, TIME replaces the credit wallet as the platform gate.
+     * See TimeWalletService.
+     */
+    private Double timeAllocatedMinutes;
+
+    /** Learning minutes consumed so far against timeAllocatedMinutes. Never resets. */
+    @Builder.Default
+    private Double timeConsumedMinutes = 0.0;
+
     @Builder.Default
     private List<String> enabledModules = new ArrayList<>();
 

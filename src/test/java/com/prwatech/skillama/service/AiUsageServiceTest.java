@@ -46,15 +46,18 @@ class AiUsageServiceTest {
 
     @Mock private AiUsageEventRepository aiUsageEventRepository;
     @Mock private PlatformAiSettingsRepository platformAiSettingsRepository;
+    @Mock private com.prwatech.skillama.repository.PlatformEfficiencyAssumptionsRepository platformEfficiencyAssumptionsRepository;
     @Mock private SkillamaUserRepository userRepository;
     @Mock private UsdInrExchangeRateService usdInrExchangeRateService;
+    @Mock private TimeWalletService timeWalletService;
 
     private AiUsageService service;
 
     @BeforeEach
     void setUp() {
         service = new AiUsageService(aiUsageEventRepository, platformAiSettingsRepository,
-                userRepository, new ObjectMapper(), usdInrExchangeRateService);
+                platformEfficiencyAssumptionsRepository,
+                userRepository, new ObjectMapper(), usdInrExchangeRateService, timeWalletService);
         service.loadRateCard(); // ensures rateCard is non-null for cost computation
         when(usdInrExchangeRateService.getUsdToInrRate()).thenReturn(83.0);
         when(platformAiSettingsRepository.findById(PlatformAiSettings.SINGLETON_ID))

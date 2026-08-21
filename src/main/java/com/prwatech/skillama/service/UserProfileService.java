@@ -801,6 +801,13 @@ public class UserProfileService {
     /**
      * Update lecture progress (in-progress)
      */
+    /**
+     * NOTE (time wallet): this endpoint only updates the embedded profile counter and is
+     * currently dispatched by NO frontend component — learning time reaches the B2B time
+     * wallet exclusively via lectures/complete → UserCourseServiceImpl.updateProgress.
+     * If a caller is ever added here with timeSpent, route the charge through
+     * TimeWalletService and reconcile with the complete-path to avoid double-counting.
+     */
     public Map<String, Object> updateLectureProgress(String sessionId, String userId, UpdateLectureProgressRequestDTO request) {
         UserProfile profile = getOrCreateProfile(sessionId, userId);
         
@@ -1086,6 +1093,7 @@ public class UserProfileService {
                 .responseText(answer)
                 .audioUrl(reply.getAudioUrl())
                 .subtitlePath(reply.getSubtitlePath())
+                .interactionId(interaction.getId())
                 .build();
     }
 

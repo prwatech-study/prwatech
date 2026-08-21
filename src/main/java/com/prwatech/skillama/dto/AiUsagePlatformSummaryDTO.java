@@ -29,6 +29,12 @@ public class AiUsagePlatformSummaryDTO {
     private int daysElapsedInPeriod;
     private double projectedMonthEndCostUsd;
     private double usdToInrRate;
+    /** Count of AiUsageEvent rows with endpoint "generate_module_quiz" in this period. */
+    private long quizzesGenerated;
+    /** Count of AiUsageEvent rows with endpoint "generate_exam" in this period. */
+    private long examsGenerated;
+    /** Count of chat/doubt-resolution AiUsageEvent rows (chat_ask, ai_mentor_ask, ai_mentor_follow_up) in this period. */
+    private long doubtsResolved;
 
     @Data
     @Builder

@@ -5,7 +5,10 @@ import com.prwatech.skillama.dto.AiUsageSettingsDTO;
 import com.prwatech.skillama.dto.AiUsageUserDetailDTO;
 import com.prwatech.skillama.dto.AiUsageUserRowDTO;
 import com.prwatech.skillama.dto.ApiResponse;
+import com.prwatech.skillama.dto.EfficiencyAssumptionsDTO;
+import com.prwatech.skillama.dto.EfficiencyEstimateDTO;
 import com.prwatech.skillama.dto.UpdateAiUsageSettingsDTO;
+import com.prwatech.skillama.dto.UpdateEfficiencyAssumptionsDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.AdminModule;
 import com.prwatech.skillama.model.AdminPermissionAction;
@@ -103,6 +106,46 @@ public class AiUsageAdminController {
             String ownerId = skillamaAuthSupport.resolveUserIdFromRequest(request);
             adminPermissionService.requireOwner(ownerId);
             return ResponseEntity.ok(new ApiResponse<>(200, aiUsageService.updateSettings(body, ownerId)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @GetMapping("/efficiency-estimate")
+    public ResponseEntity<ApiResponse<EfficiencyEstimateDTO>> getEfficiencyEstimate(
+            @RequestParam(defaultValue = "month") String period,
+            HttpServletRequest request) {
+        try {
+            adminPermissionService.requirePermission(
+                    skillamaAuthSupport.resolveUserIdFromRequest(request),
+                    AdminModule.AI_USAGE,
+                    AdminPermissionAction.READ);
+            return ResponseEntity.ok(new ApiResponse<>(200, aiUsageService.getEfficiencyEstimate(period)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @GetMapping("/efficiency-settings")
+    public ResponseEntity<ApiResponse<EfficiencyAssumptionsDTO>> getEfficiencySettings(HttpServletRequest request) {
+        try {
+            adminPermissionService.requireOwner(skillamaAuthSupport.resolveUserIdFromRequest(request));
+            return ResponseEntity.ok(new ApiResponse<>(200, aiUsageService.getEfficiencyAssumptionsDto()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PutMapping("/efficiency-settings")
+    public ResponseEntity<ApiResponse<EfficiencyAssumptionsDTO>> updateEfficiencySettings(
+            @RequestBody UpdateEfficiencyAssumptionsDTO body,
+            HttpServletRequest request) {
+        try {
+            String ownerId = skillamaAuthSupport.resolveUserIdFromRequest(request);
+            adminPermissionService.requireOwner(ownerId);
+            return ResponseEntity.ok(new ApiResponse<>(200, aiUsageService.updateEfficiencyAssumptions(body, ownerId)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
         } catch (Exception e) {

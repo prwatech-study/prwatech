@@ -633,6 +633,7 @@ public class AdminService {
                 .filter(u -> u.getEffectiveRole() == User.UserRole.USER && u.isActive())
                 .count();
         long inactiveUsers = totalUsers - activeUsers;
+        long monthlyActiveUsers = userLoginEventRepository.countDistinctUsersSince(IndiaTime.now().minusDays(30));
 
         List<Course> allCourses = courseRepository.findAll();
         long totalCourses = allCourses.size();
@@ -661,6 +662,7 @@ public class AdminService {
         stats.setTotalUsers(totalUsers);
         stats.setActiveUsers(activeUsers);
         stats.setInactiveUsers(inactiveUsers);
+        stats.setMonthlyActiveUsers(monthlyActiveUsers);
         stats.setTotalCourses(totalCourses);
         stats.setActiveCourses(activeCourses);
         stats.setTotalEnrollments(totalEnrollments);

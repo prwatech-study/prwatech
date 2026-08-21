@@ -33,6 +33,8 @@ public class UserCourseServiceImpl implements UserCourseService {
     private final CourseRepository courseRepository;
     private final CourseCurriculumRepository curriculumRepository;
     private final UserCourseAccessService userCourseAccessService;
+    private final TimeWalletService timeWalletService;
+    private final AiUsageService aiUsageService;
     
     @Override
     public List<UserCourseDTO> getUserCoursesWithProgress(String userId) {
@@ -146,6 +148,9 @@ public class UserCourseServiceImpl implements UserCourseService {
     public CourseProgressDTO updateProgress(String userId, String courseId, String lectureId, 
                                            boolean completed, Integer timeSpent) {
         userCourseAccessService.assertCanAccessCourse(userId, courseId);
+        // Time-based (B2B seat) gate — enforced here at the backend choke point, not the UI.
+        // Allows access on remaining time OR remaining explicit credits (see AiUsageService).
+        aiUsageService.assertLearningAccess(userId);
         // Verify course exists
         Course course = courseRepository.findById(courseId)
             .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
@@ -186,6 +191,8 @@ public class UserCourseServiceImpl implements UserCourseService {
             // Accumulate active listen time across sessions.
             int prev = lectureProgress.getTimeSpent() != null ? lectureProgress.getTimeSpent() : 0;
             lectureProgress.setTimeSpent(prev + timeSpent);
+            // Draw down the time wallet for B2B time-based seats (no-op for everyone else).
+            timeWalletService.consumeTimeSeconds(userId, timeSpent);
         }
         if (lectureProgress.getCreatedAt() == null) {
             lectureProgress.setCreatedAt(IndiaTime.now());

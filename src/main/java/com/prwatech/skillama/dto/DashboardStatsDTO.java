@@ -22,6 +22,8 @@ public class DashboardStatsDTO {
     private Long activeUsers;
     /** Learners with {@code active == false}. */
     private Long inactiveUsers;
+    /** Distinct users with at least one login in the last 30 days (real behavioral activity, not account status). */
+    private Long monthlyActiveUsers;
     private Long totalCourses;
     private Long activeCourses;
     private Long totalEnrollments;

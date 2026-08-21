@@ -25,4 +25,8 @@ public class ChatAskResponseDTO {
 
     @JsonProperty("subtitle_path")
     private String subtitlePath;
+
+    /** Server id of the persisted chat interaction — lets the client attach answer feedback. */
+    @JsonProperty("interaction_id")
+    private String interactionId;
 }
