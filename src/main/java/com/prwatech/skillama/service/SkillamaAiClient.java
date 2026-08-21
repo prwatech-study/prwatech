@@ -57,7 +57,6 @@ public class SkillamaAiClient {
     private static final int AI_READ_TIMEOUT_MS = 60_000;
 
     private final AiUsageService aiUsageService;
-    private final TimeWalletService timeWalletService;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate = buildRestTemplate();
 
@@ -138,16 +137,12 @@ public class SkillamaAiClient {
                     .outputTokens(result.getOutputTokens())
                     .totalTokens(result.getTotalTokens())
                     .build());
-            // Time-based (B2B) seats: each AI request also draws down a nominal minute of
-            // learning time — charged ONCE per user-visible request here (not per Bedrock
-            // call/usage event, which can be several per request). No-op for credit users.
-            timeWalletService.consumeTimeSeconds(user.getId(), AI_QUERY_TIME_CHARGE_SECONDS);
         }
+        // NOTE: time-based (B2B) seats are NOT charged per AI request — wall-clock
+        // active time is metered by the frontend heartbeat instead
+        // (TimeWalletService.consumeActiveTime). The budget GATE above still applies.
         return result;
     }
-
-    /** Nominal learning-time charge per AI request for time-based seats (seconds). */
-    private static final int AI_QUERY_TIME_CHARGE_SECONDS = 60;
 
     /**
      * ai-tutor's audio/download routes return host-relative paths (e.g. "/get_audio/x.mp3").

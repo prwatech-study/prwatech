@@ -54,6 +54,11 @@ public class CourseEnrollmentRequestService {
                 .map(UserCourseEnrollment::getCourseId)
                 .collect(Collectors.toSet());
 
+        // Popularity signal for "Recommended" ordering on the client.
+        Map<String, Long> enrollmentCounts = enrollmentRepository.findAll().stream()
+                .filter(e -> e.getStatus() == UserCourseEnrollment.EnrollmentStatus.ACTIVE)
+                .collect(Collectors.groupingBy(UserCourseEnrollment::getCourseId, Collectors.counting()));
+
         // Latest request per course decides the card's status chip.
         Map<String, CourseEnrollmentRequest> latestRequestByCourse = requestRepository
                 .findByUserIdOrderByCreatedAtDesc(userId)
@@ -79,6 +84,7 @@ public class CourseEnrollmentRequestService {
                             .decisionReason(request != null
                                     && request.getStatus() == CourseEnrollmentRequest.RequestStatus.DENIED
                                     ? request.getDecisionReason() : null)
+                            .enrollmentCount(enrollmentCounts.getOrDefault(course.getId(), 0L))
                             .build();
                 })
                 .collect(Collectors.toList());

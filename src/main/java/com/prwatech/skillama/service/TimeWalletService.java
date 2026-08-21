@@ -4,13 +4,18 @@ import com.prwatech.skillama.dto.TimeWalletAdjustRequestDTO;
 import com.prwatech.skillama.dto.TimeWalletDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.exception.TimeBudgetLimitException;
+import com.prwatech.skillama.model.TimeConsumptionEvent;
 import com.prwatech.skillama.model.TimeWalletAdjustmentEvent;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
+import com.prwatech.skillama.repository.TimeConsumptionEventRepository;
 import com.prwatech.skillama.repository.TimeWalletAdjustmentEventRepository;
 import com.prwatech.skillama.util.IndiaTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
 
 /**
  * Time-based (B2B seat) wallet: a user granted N learning minutes is gated by TIME
@@ -25,6 +30,10 @@ public class TimeWalletService {
 
     private final SkillamaUserRepository userRepository;
     private final TimeWalletAdjustmentEventRepository adjustmentEventRepository;
+    private final TimeConsumptionEventRepository consumptionEventRepository;
+
+    /** A single heartbeat may never charge more than this (client beats every ~30s). */
+    private static final int MAX_BEAT_SECONDS = 90;
 
     /** Time-based seat = a positive minute allocation exists. */
     public boolean isTimeWalletActive(User user) {
@@ -78,6 +87,45 @@ public class TimeWalletService {
     public TimeWalletDTO getStatus(String userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return toDto(user);
+    }
+
+    /**
+     * Accepts an active-time heartbeat from a paid feature surface and returns the
+     * (possibly updated) wallet status. Charging rules, all server-side:
+     *   - no-op for non-time-based users;
+     *   - a beat is clamped to MAX_BEAT_SECONDS;
+     *   - a beat can never charge more than the wall-clock elapsed since the LAST
+     *     accepted beat — so two open tabs beating in parallel bill once, and a
+     *     replayed/forged beat cannot inflate consumption.
+     */
+    public TimeWalletDTO consumeActiveTime(String userId, Integer claimedSeconds, String module) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (!isTimeWalletActive(user)) {
+            return toDto(user);
+        }
+        int claimed = claimedSeconds != null ? claimedSeconds : 0;
+        if (claimed <= 0) {
+            return toDto(user);
+        }
+        LocalDateTime now = IndiaTime.now();
+        int charge = Math.min(claimed, MAX_BEAT_SECONDS);
+        if (user.getLastTimeConsumeAt() != null) {
+            long elapsed = Duration.between(user.getLastTimeConsumeAt(), now).getSeconds();
+            charge = (int) Math.max(0, Math.min(charge, elapsed));
+        }
+        user.setLastTimeConsumeAt(now);
+        if (charge > 0) {
+            user.setTimeConsumedMinutes(round(consumedMinutes(user) + charge / 60.0));
+            TimeConsumptionEvent event = new TimeConsumptionEvent();
+            event.setUserId(userId);
+            event.setModule(module != null && !module.isBlank() ? module.trim() : "unknown");
+            event.setSeconds(charge);
+            consumptionEventRepository.save(event);
+        }
+        user.setUpdatedAt(now);
+        userRepository.save(user);
         return toDto(user);
     }
 

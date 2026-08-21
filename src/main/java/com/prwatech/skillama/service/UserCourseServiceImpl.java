@@ -33,7 +33,6 @@ public class UserCourseServiceImpl implements UserCourseService {
     private final CourseRepository courseRepository;
     private final CourseCurriculumRepository curriculumRepository;
     private final UserCourseAccessService userCourseAccessService;
-    private final TimeWalletService timeWalletService;
     private final AiUsageService aiUsageService;
     
     @Override
@@ -188,11 +187,11 @@ public class UserCourseServiceImpl implements UserCourseService {
             lectureProgress.setCompletedAt(IndiaTime.now());
         }
         if (timeSpent != null && timeSpent > 0) {
-            // Accumulate active listen time across sessions.
+            // Accumulate active listen time across sessions. Analytics only — the B2B
+            // time wallet is metered by the frontend heartbeat (consumeActiveTime),
+            // NOT here, so listen time is never double-billed.
             int prev = lectureProgress.getTimeSpent() != null ? lectureProgress.getTimeSpent() : 0;
             lectureProgress.setTimeSpent(prev + timeSpent);
-            // Draw down the time wallet for B2B time-based seats (no-op for everyone else).
-            timeWalletService.consumeTimeSeconds(userId, timeSpent);
         }
         if (lectureProgress.getCreatedAt() == null) {
             lectureProgress.setCreatedAt(IndiaTime.now());

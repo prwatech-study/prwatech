@@ -71,7 +71,7 @@ class SkillamaAiClientLectureMeteringTest {
         when(platformAiSettingsRepository.findById(PlatformAiSettings.SINGLETON_ID))
                 .thenReturn(Optional.of(settings));
 
-        client = new SkillamaAiClient(aiUsageService, timeWalletService, objectMapper);
+        client = new SkillamaAiClient(aiUsageService, objectMapper);
         ReflectionTestUtils.setField(client, "restTemplate", restTemplate);
         ReflectionTestUtils.setField(client, "aiBaseUrl", "https://ai.example.com");
     }

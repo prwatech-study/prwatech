@@ -7,6 +7,7 @@ import com.prwatech.skillama.model.TimeWalletAdjustmentEvent;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.TimeWalletAdjustmentEventRepository;
+import com.prwatech.skillama.util.IndiaTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,12 +35,13 @@ class TimeWalletServiceTest {
 
     @Mock private SkillamaUserRepository userRepository;
     @Mock private TimeWalletAdjustmentEventRepository adjustmentEventRepository;
+    @Mock private com.prwatech.skillama.repository.TimeConsumptionEventRepository consumptionEventRepository;
 
     private TimeWalletService service;
 
     @BeforeEach
     void setUp() {
-        service = new TimeWalletService(userRepository, adjustmentEventRepository);
+        service = new TimeWalletService(userRepository, adjustmentEventRepository, consumptionEventRepository);
     }
 
     private User timeUser(Double allocated, Double consumed) {
@@ -121,6 +123,58 @@ class TimeWalletServiceTest {
         service.consumeTimeSeconds("u1", -5);
         service.consumeTimeSeconds(null, 60);
         verify(userRepository, never()).save(any());
+    }
+
+    // ---------- active-time heartbeat ----------
+
+    @Test
+    void heartbeatChargesClaimedSecondsOnFirstBeat() {
+        User user = timeUser(2400.0, 0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+
+        TimeWalletDTO result = service.consumeActiveTime("u1", 30, "ai_tutor");
+
+        assertEquals(0.5, result.getConsumedMinutes());
+        verify(consumptionEventRepository).save(any());
+    }
+
+    @Test
+    void heartbeatClampsOversizedClaims() {
+        User user = timeUser(2400.0, 0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+
+        TimeWalletDTO result = service.consumeActiveTime("u1", 100000, "ai_tutor");
+
+        // First beat has no elapsed anchor — clamped to MAX_BEAT_SECONDS (90s = 1.5m).
+        assertEquals(1.5, result.getConsumedMinutes());
+    }
+
+    @Test
+    void heartbeatCappedByElapsedWallClockSinceLastBeat() {
+        // Last accepted beat 10 seconds ago — a 30s claim (e.g. a second tab
+        // beating in parallel) may charge at most 10s.
+        User user = timeUser(2400.0, 0.0);
+        user.setLastTimeConsumeAt(IndiaTime.now().minusSeconds(10));
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+
+        TimeWalletDTO result = service.consumeActiveTime("u1", 30, "ai_tutor");
+
+        assertTrue(result.getConsumedMinutes() <= 10 / 60.0 + 0.02,
+                "charge must be capped by elapsed seconds, was " + result.getConsumedMinutes());
+    }
+
+    @Test
+    void heartbeatNoOpForNonTimeUsersAndNonPositiveClaims() {
+        User creditUser = timeUser(null, 0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(creditUser));
+        TimeWalletDTO inactive = service.consumeActiveTime("u1", 30, "ai_tutor");
+        assertFalse(inactive.isActive());
+
+        User timeUser = timeUser(2400.0, 5.0);
+        when(userRepository.findById("u2")).thenReturn(Optional.of(timeUser));
+        TimeWalletDTO unchanged = service.consumeActiveTime("u2", 0, "ai_tutor");
+        assertEquals(5.0, unchanged.getConsumedMinutes());
+        verify(consumptionEventRepository, never()).save(any());
     }
 
     // ---------- admin adjust ----------

@@ -21,4 +21,6 @@ public class CourseCatalogItemDTO {
     private String requestStatus;
     /** Admin's reason when the latest request was denied. */
     private String decisionReason;
+    /** ACTIVE enrollments across all learners — the "popularity" recommendation signal. */
+    private long enrollmentCount;
 }

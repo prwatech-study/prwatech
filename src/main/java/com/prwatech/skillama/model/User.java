@@ -93,6 +93,13 @@ public class User {
     @Builder.Default
     private Double timeConsumedMinutes = 0.0;
 
+    /**
+     * Last active-time heartbeat accepted (see TimeWalletService.consumeActiveTime).
+     * Server-side anti-double-billing anchor: a beat can never charge more than the
+     * wall-clock elapsed since this timestamp, so two open tabs bill once.
+     */
+    private LocalDateTime lastTimeConsumeAt;
+
     @Builder.Default
     private List<String> enabledModules = new ArrayList<>();
 

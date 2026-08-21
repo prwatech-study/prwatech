@@ -40,13 +40,14 @@ class AiUsageServiceTimeGateTest {
     @Mock private SkillamaUserRepository userRepository;
     @Mock private UsdInrExchangeRateService usdInrExchangeRateService;
     @Mock private TimeWalletAdjustmentEventRepository timeWalletAdjustmentEventRepository;
+    @Mock private com.prwatech.skillama.repository.TimeConsumptionEventRepository timeConsumptionEventRepository;
 
     private AiUsageService service;
 
     @BeforeEach
     void setUp() {
-        TimeWalletService timeWalletService =
-                new TimeWalletService(userRepository, timeWalletAdjustmentEventRepository);
+        TimeWalletService timeWalletService = new TimeWalletService(
+                userRepository, timeWalletAdjustmentEventRepository, timeConsumptionEventRepository);
         service = new AiUsageService(aiUsageEventRepository, platformAiSettingsRepository,
                 platformEfficiencyAssumptionsRepository,
                 userRepository, new ObjectMapper(), usdInrExchangeRateService, timeWalletService);
