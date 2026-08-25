@@ -647,21 +647,51 @@ public class UserProfileService {
     
     /**
      * Progress counts are scoped to {@code courseId} so switching courses does not leak completion %.
+     * Package-private for direct testing of the stale-label filtering.
      */
-    private ProgressSummaryDTO buildProgressSummary(
+    ProgressSummaryDTO buildProgressSummary(
             UserProfile profile, List<CourseCurriculum> curriculum, String courseId) {
         int totalLectures = CourseService.countEnabledLectures(curriculum);
 
+        // Count only distinct labels that still exist in the current enabled curriculum.
+        // completedLectures rows are append-only, so labels from renamed/removed lectures
+        // otherwise stay in the numerator forever while totalLectures reflects today's
+        // curriculum — inflating completionPercentage past the truth (seen as a 100% header
+        // while the lecture count was 220/223 with quizzes still pending).
+        Set<String> enabledLabels = enabledLectureLabels(curriculum);
         int completedLectures = (int) profile.getCompletedLectures().stream()
                 .filter(cl -> courseId != null && courseId.equals(cl.getCourseId()))
+                .map(UserProfile.CompletedLecture::getLectureLabel)
+                .filter(Objects::nonNull)
+                .distinct()
+                .filter(enabledLabels::contains)
                 .count();
         int inProgressLectures = (int) profile.getInProgressLectures().stream()
                 .filter(il -> courseId != null && courseId.equals(il.getCourseId()))
+                .map(UserProfile.InProgressLecture::getLectureLabel)
+                .filter(Objects::nonNull)
+                .distinct()
+                .filter(enabledLabels::contains)
                 .count();
         int lockedLectures = Math.max(0, totalLectures - completedLectures - inProgressLectures);
 
         int totalModuleQuizzes = countEnabledModules(curriculum);
-        int passedModuleQuizzes = countPassedModuleQuizzesForCourse(profile, courseId);
+        // Same staleness rule for quizzes: a pass only counts while its module still exists.
+        Set<String> moduleNames = new HashSet<>();
+        if (curriculum != null) {
+            for (CourseCurriculum module : curriculum) {
+                if (module.getModuleName() != null) {
+                    moduleNames.add(module.getModuleName());
+                }
+            }
+        }
+        int passedModuleQuizzes = (int) profile.getPassedModuleQuizzes().stream()
+                .filter(pq -> courseId != null && courseId.equals(pq.getCourseId()))
+                .map(UserProfile.PassedModuleQuiz::getModuleName)
+                .filter(Objects::nonNull)
+                .distinct()
+                .filter(moduleNames::contains)
+                .count();
         int pendingModuleQuizzes = countPendingModuleQuizzes(profile, curriculum, courseId);
 
         int completionDenominator = totalLectures + totalModuleQuizzes;
@@ -700,13 +730,25 @@ public class UserProfileService {
         return count;
     }
 
-    private int countPassedModuleQuizzesForCourse(UserProfile profile, String courseId) {
-        if (profile.getPassedModuleQuizzes() == null || courseId == null) {
-            return 0;
+    /** Labels of every enabled lecture in the current curriculum — the only labels that may
+     * count toward progress; anything else in the profile is a stale row from an older
+     * curriculum revision. */
+    private Set<String> enabledLectureLabels(List<CourseCurriculum> curriculum) {
+        Set<String> labels = new HashSet<>();
+        if (curriculum == null) {
+            return labels;
         }
-        return (int) profile.getPassedModuleQuizzes().stream()
-                .filter(pq -> courseId.equals(pq.getCourseId()))
-                .count();
+        for (CourseCurriculum module : curriculum) {
+            if (module.getSubmodules() == null) {
+                continue;
+            }
+            for (CourseCurriculum.Submodule sub : module.getSubmodules()) {
+                if (CourseService.isSubmoduleEnabled(sub) && sub.getLabel() != null) {
+                    labels.add(sub.getLabel());
+                }
+            }
+        }
+        return labels;
     }
 
     private int countPendingModuleQuizzes(
