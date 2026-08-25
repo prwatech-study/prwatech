@@ -132,6 +132,52 @@ class AiUsageServiceTest {
         assertFalse(service.isWithinBudget(freemium(0.5))); // exactly at limit is blocked
     }
 
+    // ---------- lapsed-subscription period reset (perpetual-zeroing regression) ----------
+
+    @Test
+    void lapsedSubscriptionResetsUsageOnceThenAccumulates() {
+        // Usage accumulated inside the ended billing period → one legitimate reset.
+        User paid = User.builder().id("p").role(User.UserRole.USER).planTier(User.PlanTier.PAID)
+                .aiWalletLimitUsd(18.75)
+                .currentPeriodEnd(IndiaTime.now().minusDays(10))
+                .aiCostPeriodStart(IndiaTime.now().minusDays(40))
+                .aiCostUsdThisPeriod(12.0)
+                .build();
+
+        AiBudgetDTO first = service.getAiBudget(paid);
+        assertEquals(0.0, first.getUsedUsd());
+
+        // Usage accumulated AFTER the rollover must survive later reads — the stale
+        // (never-renewed) currentPeriodEnd used to re-zero the counter on every call.
+        paid.setAiCostUsdThisPeriod(3.0);
+        AiBudgetDTO second = service.getAiBudget(paid);
+        assertEquals(3.0, second.getUsedUsd());
+    }
+
+    @Test
+    void recordUsageAccumulatesForLapsedSubscriptionUser() {
+        // Time-seat user carrying a stale currentPeriodEnd: the counter already rolled
+        // over (periodStart after currentPeriodEnd) — new usage must ADD, not replace.
+        User paid = User.builder().id("p").role(User.UserRole.USER).planTier(User.PlanTier.PAID)
+                .aiWalletLimitUsd(18.75)
+                .currentPeriodEnd(IndiaTime.now().minusDays(10))
+                .aiCostPeriodStart(IndiaTime.now())
+                .aiCostUsdThisPeriod(5.0)
+                .build();
+        when(aiUsageEventRepository.save(any(AiUsageEvent.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findById("p")).thenReturn(Optional.of(paid));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AiUsageRecordRequestDTO req = new AiUsageRecordRequestDTO();
+        req.setEndpoint("/chat");
+        req.setUserId("p");
+        req.setInputTokens(1000);
+        req.setOutputTokens(1000);
+        service.recordUsage(req);
+
+        assertTrue(paid.getAiCostUsdThisPeriod() > 5.0);
+    }
+
     @Test
     void paidWalletBudgetIsUsedWhenSet() {
         User paid = User.builder().id("p").role(User.UserRole.USER).planTier(User.PlanTier.PAID)

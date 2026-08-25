@@ -666,11 +666,20 @@ public class AiUsageService {
         LocalDateTime now = IndiaTime.now();
         LocalDateTime periodStart = user.getAiCostPeriodStart();
 
-        // Subscription-aligned period: reset when past currentPeriodEnd
+        // Subscription-aligned period: reset ONCE when crossing currentPeriodEnd —
+        // only while the accumulated usage still belongs to the ended period
+        // (periodStart <= currentPeriodEnd). Without that guard, a lapsed
+        // never-renewed subscription (e.g. a user later moved to a time-based
+        // seat, whose currentPeriodEnd stays stale) re-zeroed usage on EVERY
+        // call, so the wallet counter never accumulated. After the one-time
+        // reset, periodStart > currentPeriodEnd and the calendar-month reset
+        // below governs the wallet.
         if (user.getCurrentPeriodEnd() != null
                 && user.getAiWalletLimitUsd() != null
                 && user.getAiWalletLimitUsd() > 0
-                && now.isAfter(user.getCurrentPeriodEnd())) {
+                && now.isAfter(user.getCurrentPeriodEnd())
+                && periodStart != null
+                && !periodStart.isAfter(user.getCurrentPeriodEnd())) {
             user.setAiCostPeriodStart(now);
             user.setAiCostUsdThisPeriod(0.0);
             return;
