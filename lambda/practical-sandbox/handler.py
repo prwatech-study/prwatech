@@ -57,11 +57,24 @@ ALLOWED_MODULES = {"pandas", "numpy", "matplotlib", "math", "statistics", "colle
 # Flagged by the static guard below purely for a clear rejection message. None of these names are
 # actually reachable at exec() time regardless — build_sandbox_globals() never binds them and
 # __builtins__ is emptied, so even a guard blind spot degrades to a NameError, not a bypass.
+# Note getattr/setattr/delattr stay blocked even though hasattr is allowed: they take the
+# attribute name as a *string*, which would bypass the static dunder-attribute check below
+# entirely (getattr(x, '__class__')); hasattr only ever returns a bool, so it can't leak an
+# object even when probed with a dunder name.
 BLOCKED_NAMES = {
     "open", "__import__", "eval", "exec", "compile", "input", "exit", "quit", "breakpoint",
-    "globals", "locals", "vars", "dir", "getattr", "setattr", "delattr", "hasattr",
-    "super", "type", "memoryview", "staticmethod", "classmethod",
+    "globals", "locals", "vars", "dir", "getattr", "setattr", "delattr",
+    "memoryview",
 }
+
+# Dunder attributes the course legitimately teaches (calling a parent's __init__ explicitly,
+# defining/calling __str__ / __repr__ / __len__, reading a class's __name__/__doc__). Everything
+# else stays blocked — in particular the introspection chain used by sandbox escapes
+# (__class__, __mro__, __bases__, __subclasses__, __globals__, __dict__, __code__,
+# __getattribute__, __builtins__): since this check is static over the whole AST and getattr is
+# blocked above, an escape needs one of those to appear literally in the source, where it is
+# always rejected — e.g. `x.__init__.__globals__` still fails on the `__globals__` hop.
+ALLOWED_DUNDER_ATTRS = {"__init__", "__str__", "__repr__", "__len__", "__name__", "__doc__"}
 
 
 class ImportGuard(ast.NodeVisitor):
@@ -87,13 +100,24 @@ class ImportGuard(ast.NodeVisitor):
     def visit_Name(self, node):
         if node.id in BLOCKED_NAMES:
             self.violations.append(f"use of '{node.id}' is not allowed")
+        # Bare dunder names (__builtins__, __build_class__, __import__, __loader__, ...) are
+        # sandbox plumbing, never course material — __name__ excepted, for the classic
+        # `if __name__ == "__main__":` lesson.
+        elif node.id.startswith("__") and node.id.endswith("__") and node.id != "__name__":
+            self.violations.append(f"use of '{node.id}' is not allowed")
         self.generic_visit(node)
 
     def visit_Attribute(self, node):
-        # Blocks df.__class__, x.__globals__, etc. Deliberately blunt: any dunder attribute
-        # access is rejected, even rare legitimate ones — usability loss here is cheap,
-        # a missed sandbox-escape attribute isn't.
-        if node.attr.startswith("__") and node.attr.endswith("__"):
+        # Blocks df.__class__, x.__globals__, etc., excepting the small teachable allowlist
+        # above (OOP lessons need Parent.__init__(self, ...) and __str__/__repr__ work).
+        # Still deliberately blunt beyond that list: any other dunder attribute access is
+        # rejected, even rare legitimate ones — usability loss here is cheap, a missed
+        # sandbox-escape attribute isn't.
+        if (
+            node.attr.startswith("__")
+            and node.attr.endswith("__")
+            and node.attr not in ALLOWED_DUNDER_ATTRS
+        ):
             self.violations.append(f"dunder attribute access '{node.attr}' is not allowed")
         self.generic_visit(node)
 
@@ -157,7 +181,14 @@ def build_sandbox_globals(dataframe, plt_module):
     import pandas
 
     globals_dict = {
-        "__builtins__": {"__import__": _restricted_import},
+        # __build_class__ is what the `class` statement compiles to — without it, defining any
+        # class raises NameError even though the static guard happily lets `class` through.
+        # Class creation also reads __name__ from globals for the new class's __module__.
+        "__builtins__": {
+            "__import__": _restricted_import,
+            "__build_class__": _real_builtins.__build_class__,
+        },
+        "__name__": "__main__",
         "pd": pandas,
         "np": numpy,
         "math": math,
@@ -172,6 +203,25 @@ def build_sandbox_globals(dataframe, plt_module):
         "str": str, "int": int, "float": float, "bool": bool, "round": round,
         "enumerate": enumerate, "zip": zip, "abs": abs, "print": print,
         "isinstance": isinstance, "reversed": reversed, "map": map, "filter": filter,
+        # OOP-lecture support (the Python course teaches classes, inheritance, dunder methods,
+        # decorators like @staticmethod/@classmethod/@property). Introspection escape routes
+        # from these stay closed by the static guard: e.g. type(x) is fine, but
+        # type(x).__mro__ / .__bases__ / .__subclasses__ are rejected at validation.
+        "object": object, "super": super, "type": type,
+        "staticmethod": staticmethod, "classmethod": classmethod, "property": property,
+        "hasattr": hasattr, "callable": callable,
+        # Iteration / misc lessons.
+        "iter": iter, "next": next, "any": any, "all": all,
+        "divmod": divmod, "pow": pow, "ord": ord, "chr": chr,
+        "repr": repr, "format": format, "frozenset": frozenset,
+        # try/except lessons need the exception types to exist by name.
+        "BaseException": BaseException, "Exception": Exception,
+        "ValueError": ValueError, "TypeError": TypeError, "KeyError": KeyError,
+        "IndexError": IndexError, "AttributeError": AttributeError, "NameError": NameError,
+        "ZeroDivisionError": ZeroDivisionError, "ArithmeticError": ArithmeticError,
+        "RuntimeError": RuntimeError, "StopIteration": StopIteration,
+        "LookupError": LookupError, "NotImplementedError": NotImplementedError,
+        "OverflowError": OverflowError,
     }
     # Ad-hoc mode (no dataset) leaves `df` undefined entirely, rather than binding it to None —
     # code that references it gets a normal NameError instead of a confusing AttributeError on
