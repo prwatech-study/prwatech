@@ -383,7 +383,10 @@ public class UserController {
             // from a plain expired/invalid token, so it can show the right message.
             return ResponseEntity.status(401).body(Map.of("status", "error", "reason", e.getReason(), "message", e.getMessage()));
         } catch (RuntimeException e) {
-            return ResponseEntity.status(401).build();
+            // Infrastructure/unknown failures must NOT wear 401: the frontend logs the
+            // user out on 401, so a Mongo hiccup during deploy warm-up was mass-logging
+            // out every open session. Only a real auth rejection (above) earns a 401.
+            return ResponseEntity.status(500).build();
         }
     }
 
