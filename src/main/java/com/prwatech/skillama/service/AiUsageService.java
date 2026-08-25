@@ -297,7 +297,7 @@ public class AiUsageService {
         if (request.getUserId() != null && !request.getUserId().isBlank()) {
             User user = userRepository.findById(request.getUserId()).orElse(null);
             if (user != null) {
-                resetPeriodIfNeeded(user);
+                ensureUsageAnchor(user);
                 double used = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
                 user.setAiCostUsdThisPeriod(round(used + costUsd));
                 user.setUpdatedAt(IndiaTime.now());
@@ -331,7 +331,7 @@ public class AiUsageService {
         if (!settings.isAiUsageTrackingEnabled()) {
             return;
         }
-        resetPeriodIfNeeded(user);
+        ensureUsageAnchor(user);
         double limit = resolveBudgetLimitUsd(user, settings);
         double used = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
         if (used >= limit) {
@@ -374,7 +374,7 @@ public class AiUsageService {
             if (!settings.isAiUsageTrackingEnabled()) {
                 return;
             }
-            resetPeriodIfNeeded(user);
+            ensureUsageAnchor(user);
             double used = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
             if (used < resolveBudgetLimitUsd(user, settings)) {
                 return;
@@ -428,7 +428,7 @@ public class AiUsageService {
                     .shareBonusUsd(user != null ? round(shareBonusUsd(user)) : null)
                     .build();
         }
-        resetPeriodIfNeeded(user);
+        ensureUsageAnchor(user);
         double limitUsd = resolveBudgetLimitUsd(user, settings);
         double usedUsd = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
         double remainingUsd = Math.max(0, limitUsd - usedUsd);
@@ -611,13 +611,13 @@ public class AiUsageService {
      * Learner-facing "which module used my AI credits" breakdown for the user's CURRENT
      * billing period (same period boundary as {@link #getAiBudget}, so the sum of
      * {@code byModule[].costUsd} matches the "used" figure shown in the credits badge).
-     * Read-only, like getAiBudget: resetPeriodIfNeeded is applied in-memory to pick the
+     * Read-only, like getAiBudget: ensureUsageAnchor is applied in-memory to anchor the
      * right window but is not persisted (persistence happens on the next recordUsage call).
      */
     public AiUsageModuleBreakdownDTO getUserModuleBreakdown(String userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        resetPeriodIfNeeded(user);
+        ensureUsageAnchor(user);
 
         LocalDateTime start = user.getAiCostPeriodStart() != null
                 ? user.getAiCostPeriodStart()
@@ -663,42 +663,29 @@ public class AiUsageService {
                 .build();
     }
 
-    private void resetPeriodIfNeeded(User user) {
-        LocalDateTime now = IndiaTime.now();
-        LocalDateTime periodStart = user.getAiCostPeriodStart();
-
-        // Explicit wallet = FIXED assigned credits: a depleting balance that never
-        // auto-refreshes. The only refreshes are the business events that grant
-        // credits — SubscriptionService.activate/renew (which explicitly zeroes the
-        // counter on payment) and admin wallet adjustments (which raise the limit).
-        // Time-based resets here silently re-gifted the full wallet: a user at
-        // 48/50 used became 0/50 on every calendar-month change.
-        if (user.getAiWalletLimitUsd() != null && user.getAiWalletLimitUsd() > 0) {
-            if (periodStart == null) {
-                // Anchor for usage-page queries only — never zero an existing counter.
-                user.setAiCostPeriodStart(now);
-                if (user.getAiCostUsdThisPeriod() == null) {
-                    user.setAiCostUsdThisPeriod(0.0);
-                }
-            }
-            return;
+    /**
+     * GROUND RULE (product): credits, once given, are lifetime — and consumption is
+     * NEVER reset by any flow, for any plan tier. There is no periodic refresh of any
+     * kind: subscription renewals TOP UP the wallet limit (SubscriptionService), earned
+     * referral/share bonuses raise it, and the consumed counter only ever grows
+     * (recordUsage) or is repaired from raw events (backfillWalletUsage). A user at
+     * 48/50 used stays at 48/50 until new credits are granted. This method only
+     * initializes the tracking fields on first use — it must never zero an existing
+     * counter.
+     */
+    private void ensureUsageAnchor(User user) {
+        if (user.getAiCostPeriodStart() == null) {
+            user.setAiCostPeriodStart(IndiaTime.now());
         }
-
-        // Freemium platform budget is monthly by definition (freemiumMonthlyBudgetUsdPerUser).
-        if (periodStart == null || !sameCalendarMonth(periodStart, now)) {
-            user.setAiCostPeriodStart(now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0));
+        if (user.getAiCostUsdThisPeriod() == null) {
             user.setAiCostUsdThisPeriod(0.0);
         }
     }
 
-    private boolean sameCalendarMonth(LocalDateTime a, LocalDateTime b) {
-        return a.getYear() == b.getYear() && a.getMonthValue() == b.getMonthValue();
-    }
-
     /**
      * OWNER maintenance: repair aiCostUsdThisPeriod for wallet users whose counter was
-     * wiped by the time-based resets (monthly / lapsed-subscription — both removed in
-     * resetPeriodIfNeeded: an assigned wallet is a depleting balance). Recomputes each
+     * wiped by the now-removed time-based resets (monthly / lapsed-subscription — see
+     * ensureUsageAnchor: consumption is lifetime and never reset). Recomputes each
      * user's LIFETIME consumption from ai_usage_events, the per-call source of truth
      * the resets never touched, and re-anchors the period to the earliest event.
      * Users inside an ACTIVE subscription period are skipped — their counter was

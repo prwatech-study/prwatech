@@ -269,20 +269,26 @@ public class SubscriptionService {
                         ? plan.getEnabledModules()
                         : FreemiumService.PREMIUM_MODULES));
 
+        // GROUND RULE (product): credits, once given, are lifetime and consumption is
+        // never reset. A payment TOPS UP the wallet limit — unused credits roll over,
+        // and the lifetime consumed counter is untouched. Plans without a wallet leave
+        // any previously granted credits in place rather than erasing them.
         if (plan.getWalletInr() != null && plan.getWalletInr() > 0) {
             double rate = usdInrExchangeRateService.getUsdToInrRate();
             if (rate <= 0) {
                 rate = 83.0;
             }
             double walletUsd = plan.getWalletInr() / rate;
-            user.setAiWalletLimitUsd(roundUsd(walletUsd));
-        } else {
-            user.setAiWalletLimitUsd(null);
+            double existingBase = user.getAiWalletLimitUsd() != null ? user.getAiWalletLimitUsd() : 0.0;
+            user.setAiWalletLimitUsd(roundUsd(existingBase + walletUsd));
         }
 
-        // Fresh wallet period on activate/renew
-        user.setAiCostUsdThisPeriod(0.0);
-        user.setAiCostPeriodStart(now);
+        if (user.getAiCostUsdThisPeriod() == null) {
+            user.setAiCostUsdThisPeriod(0.0);
+        }
+        if (user.getAiCostPeriodStart() == null) {
+            user.setAiCostPeriodStart(now);
+        }
         user.setUpdatedAt(now);
         userRepository.save(user);
 

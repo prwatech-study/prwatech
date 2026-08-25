@@ -490,7 +490,8 @@ public class FreemiumService {
         user.setSubscriptionPlanCode(SubscriptionService.PLAN_SPARK);
         user.setSubscriptionStatus(null);
         user.setCurrentPeriodEnd(null);
-        user.setAiWalletLimitUsd(null);
+        // GROUND RULE: credits, once given, are lifetime — moving to the free plan
+        // changes modules/tier but never erases a previously granted wallet.
         user.setEnabledModules(new ArrayList<>(FREEMIUM_BASE_MODULES));
         if (user.getReferralCode() == null) {
             user.setReferralCode(generateReferralCode());

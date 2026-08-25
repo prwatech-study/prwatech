@@ -168,15 +168,15 @@ class AiUsageServiceTest {
     }
 
     @Test
-    void freemiumBudgetStillResetsMonthly() {
-        // The freemium platform budget IS monthly by definition — only explicit
-        // wallets are exempt from the calendar reset.
+    void freemiumUsageAlsoSurvivesCalendarMonthChange() {
+        // GROUND RULE: consumption never resets for ANY flow or tier — the free
+        // allowance is a one-time lifetime grant, not a monthly refresh.
         User u = freemium(0.4);
         u.setAiCostPeriodStart(IndiaTime.now().minusDays(40));
 
         AiBudgetDTO dto = service.getAiBudget(u);
 
-        assertEquals(0.0, dto.getUsedUsd());
+        assertEquals(0.4, dto.getUsedUsd());
     }
 
     @Test

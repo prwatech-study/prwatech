@@ -281,6 +281,25 @@ class SubscriptionServiceTest {
         assertEquals(Math.round((1500.0 / 83.0) * 1_000_000.0) / 1_000_000.0, user.getAiWalletLimitUsd());
     }
 
+    @Test
+    void activateTopsUpExistingWalletAndNeverResetsConsumption() {
+        // GROUND RULE: a payment ADDS credits — unused credits roll over and the
+        // lifetime consumed counter is never reset by any flow.
+        User user = userWithId("u1");
+        user.setAiWalletLimitUsd(5.0);
+        user.setAiCostUsdThisPeriod(3.0);
+        when(subscriptionRepository.findFirstByUserIdAndStatusOrderByUpdatedAtDesc(anyString(), any()))
+                .thenReturn(Optional.empty());
+        when(subscriptionRepository.save(any(UserSubscription.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(usdInrExchangeRateService.getUsdToInrRate()).thenReturn(80.0);
+
+        service.activate(user, pulsePlan(), "MOCK");
+
+        // 5.0 existing + 1500/80 = 18.75 from the plan
+        assertEquals(23.75, user.getAiWalletLimitUsd());
+        assertEquals(3.0, user.getAiCostUsdThisPeriod());
+    }
+
     // ---------- cancel ----------
 
     @Test
