@@ -15,6 +15,7 @@ import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.dto.EfficiencyAssumptionsDTO;
 import com.prwatech.skillama.dto.EfficiencyEstimateDTO;
 import com.prwatech.skillama.dto.UpdateEfficiencyAssumptionsDTO;
+import com.prwatech.skillama.dto.WalletUsageBackfillResultDTO;
 import com.prwatech.skillama.model.AiUsageEvent;
 import com.prwatech.skillama.model.PlatformAiSettings;
 import com.prwatech.skillama.model.PlatformEfficiencyAssumptions;
@@ -693,6 +694,57 @@ public class AiUsageService {
 
     private boolean sameCalendarMonth(LocalDateTime a, LocalDateTime b) {
         return a.getYear() == b.getYear() && a.getMonthValue() == b.getMonthValue();
+    }
+
+    /**
+     * OWNER maintenance: repair aiCostUsdThisPeriod for wallet users whose counter was
+     * wiped by the lapsed-subscription perpetual reset (fixed in resetPeriodIfNeeded).
+     * Re-anchors each lapsed user's period to the current calendar month — the window
+     * the fixed code governs them by — and recomputes the counter from ai_usage_events,
+     * the per-call source of truth the bug never touched. Idempotent; dryRun previews
+     * the per-user before/after without writing.
+     */
+    @Transactional
+    public WalletUsageBackfillResultDTO backfillLapsedWalletUsage(boolean dryRun) {
+        LocalDateTime now = IndiaTime.now();
+        LocalDateTime monthStart = now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        List<User> candidates = userRepository.findByAiWalletLimitUsdGreaterThan(0.0);
+        List<WalletUsageBackfillResultDTO.EntryDTO> entries = new ArrayList<>();
+        int skippedActivePeriod = 0;
+
+        for (User user : candidates) {
+            // Only lapsed periods were affected; an in-period subscription counter is live data.
+            if (user.getCurrentPeriodEnd() == null || !now.isAfter(user.getCurrentPeriodEnd())) {
+                skippedActivePeriod++;
+                continue;
+            }
+            double recomputed = round(aiUsageEventRepository
+                    .findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(user.getId(), monthStart, now)
+                    .stream()
+                    .mapToDouble(AiUsageEvent::getCostUsd)
+                    .sum());
+            double before = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
+            entries.add(WalletUsageBackfillResultDTO.EntryDTO.builder()
+                    .userId(user.getId())
+                    .email(user.getEmail())
+                    .beforeUsd(before)
+                    .afterUsd(recomputed)
+                    .build());
+            if (!dryRun) {
+                user.setAiCostPeriodStart(monthStart);
+                user.setAiCostUsdThisPeriod(recomputed);
+                user.setUpdatedAt(now);
+                userRepository.save(user);
+            }
+        }
+
+        return WalletUsageBackfillResultDTO.builder()
+                .dryRun(dryRun)
+                .candidatesScanned(candidates.size())
+                .updated(entries.size())
+                .skippedActivePeriod(skippedActivePeriod)
+                .entries(entries)
+                .build();
     }
 
     /**

@@ -32,6 +32,8 @@ public interface SkillamaUserRepository extends MongoRepository<User, String>, S
     /** Pre-freemium accounts (planTier not set) — candidates for admin backfill. */
     List<User> findByPlanTierIsNull();
 
+    List<User> findByAiWalletLimitUsdGreaterThan(double limitUsd);
+
     Optional<User> findByGoogleSub(String googleSub);
 
     Optional<User> findByAppleSub(String appleSub);

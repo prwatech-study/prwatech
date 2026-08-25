@@ -6,6 +6,7 @@ import com.prwatech.skillama.dto.AiUsageModuleBreakdownDTO;
 import com.prwatech.skillama.dto.AiUsageRecordRequestDTO;
 import com.prwatech.skillama.dto.AiUsageSettingsDTO;
 import com.prwatech.skillama.dto.UpdateAiUsageSettingsDTO;
+import com.prwatech.skillama.dto.WalletUsageBackfillResultDTO;
 import com.prwatech.skillama.exception.AiBudgetLimitException;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.AiUsageEvent;
@@ -176,6 +177,73 @@ class AiUsageServiceTest {
         service.recordUsage(req);
 
         assertTrue(paid.getAiCostUsdThisPeriod() > 5.0);
+    }
+
+    // ---------- lapsed-wallet usage backfill ----------
+
+    private User lapsedWalletUser(String id, double counterUsd) {
+        return User.builder().id(id).email(id + "@x.com").role(User.UserRole.USER)
+                .planTier(User.PlanTier.PAID)
+                .aiWalletLimitUsd(18.75)
+                .currentPeriodEnd(IndiaTime.now().minusDays(10))
+                .aiCostPeriodStart(IndiaTime.now())
+                .aiCostUsdThisPeriod(counterUsd)
+                .build();
+    }
+
+    private AiUsageEvent eventCosting(double costUsd) {
+        return AiUsageEvent.builder().costUsd(costUsd).createdAt(IndiaTime.now()).build();
+    }
+
+    @Test
+    void backfillRecomputesLapsedWalletCounterFromEvents() {
+        User lapsed = lapsedWalletUser("lapsed", 0.1);
+        when(userRepository.findByAiWalletLimitUsdGreaterThan(0.0)).thenReturn(List.of(lapsed));
+        when(aiUsageEventRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+                eq("lapsed"), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(eventCosting(4.0), eventCosting(2.5)));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        WalletUsageBackfillResultDTO result = service.backfillLapsedWalletUsage(false);
+
+        assertFalse(result.isDryRun());
+        assertEquals(1, result.getUpdated());
+        assertEquals(6.5, lapsed.getAiCostUsdThisPeriod());
+        assertEquals(1, lapsed.getAiCostPeriodStart().getDayOfMonth());
+        assertEquals(0.1, result.getEntries().get(0).getBeforeUsd());
+        assertEquals(6.5, result.getEntries().get(0).getAfterUsd());
+        verify(userRepository).save(lapsed);
+    }
+
+    @Test
+    void backfillDryRunPreviewsWithoutSaving() {
+        User lapsed = lapsedWalletUser("lapsed", 0.1);
+        when(userRepository.findByAiWalletLimitUsdGreaterThan(0.0)).thenReturn(List.of(lapsed));
+        when(aiUsageEventRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+                eq("lapsed"), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(eventCosting(4.0)));
+
+        WalletUsageBackfillResultDTO result = service.backfillLapsedWalletUsage(true);
+
+        assertTrue(result.isDryRun());
+        assertEquals(1, result.getUpdated());
+        assertEquals(4.0, result.getEntries().get(0).getAfterUsd());
+        assertEquals(0.1, lapsed.getAiCostUsdThisPeriod()); // untouched
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void backfillSkipsWalletUsersWithActiveSubscriptionPeriod() {
+        User active = lapsedWalletUser("active", 7.0);
+        active.setCurrentPeriodEnd(IndiaTime.now().plusDays(10)); // in-period counter is live data
+        when(userRepository.findByAiWalletLimitUsdGreaterThan(0.0)).thenReturn(List.of(active));
+
+        WalletUsageBackfillResultDTO result = service.backfillLapsedWalletUsage(false);
+
+        assertEquals(0, result.getUpdated());
+        assertEquals(1, result.getSkippedActivePeriod());
+        assertEquals(7.0, active.getAiCostUsdThisPeriod());
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test

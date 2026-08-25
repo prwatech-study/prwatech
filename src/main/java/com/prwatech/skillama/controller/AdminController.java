@@ -83,6 +83,7 @@ public class AdminController {
     private final com.prwatech.skillama.service.ExamService examService;
     private final com.prwatech.skillama.service.ModuleQuizService moduleQuizService;
     private final com.prwatech.skillama.service.CodeAssistService codeAssistService;
+    private final com.prwatech.skillama.service.AiUsageService aiUsageService;
 
     // ========== Authentication & Authorization ==========
     
@@ -1301,6 +1302,34 @@ public class AdminController {
                             + result.getSkippedNoPhone() + " skipped (no phone), "
                             + result.getSkippedStaff() + " skipped (staff), "
                             + result.getSkippedInactive() + " skipped (inactive)",
+                    null);
+            return ResponseEntity.ok(new ApiResponse<>(200, result));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * OWNER: recompute AI wallet usage counters wiped by the lapsed-subscription
+     * perpetual-reset bug. Recomputes aiCostUsdThisPeriod from ai_usage_events for
+     * every wallet user whose currentPeriodEnd has lapsed, re-anchored to the current
+     * calendar month. Default dryRun=true — pass dryRun=false to apply.
+     */
+    @PostMapping("/maintenance/backfill-wallet-usage")
+    public ResponseEntity<ApiResponse<WalletUsageBackfillResultDTO>> backfillWalletUsage(
+            @RequestParam(defaultValue = "true") boolean dryRun,
+            HttpServletRequest request) {
+        try {
+            String adminId = extractUserIdFromRequest(request);
+            adminService.requireOwner(adminId);
+            WalletUsageBackfillResultDTO result = aiUsageService.backfillLapsedWalletUsage(dryRun);
+            adminAuditService.log(adminId, AdminAuditService.USER_UPDATE, "SYSTEM", "wallet-usage-backfill",
+                    (dryRun ? "Dry-run: " : "Applied: ")
+                            + result.getUpdated() + " recomputed, "
+                            + result.getSkippedActivePeriod() + " skipped (active period), "
+                            + result.getCandidatesScanned() + " wallet users scanned",
                     null);
             return ResponseEntity.ok(new ApiResponse<>(200, result));
         } catch (RuntimeException e) {
