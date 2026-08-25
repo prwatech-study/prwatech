@@ -1312,10 +1312,10 @@ public class AdminController {
     }
 
     /**
-     * OWNER: recompute AI wallet usage counters wiped by the lapsed-subscription
-     * perpetual-reset bug. Recomputes aiCostUsdThisPeriod from ai_usage_events for
-     * every wallet user whose currentPeriodEnd has lapsed, re-anchored to the current
-     * calendar month. Default dryRun=true — pass dryRun=false to apply.
+     * OWNER: recompute AI wallet usage counters wiped by the removed time-based
+     * resets. Assigned wallets are depleting balances — this recomputes each wallet
+     * user's lifetime consumption from ai_usage_events (users inside an active
+     * subscription period are skipped). Default dryRun=true — pass dryRun=false to apply.
      */
     @PostMapping("/maintenance/backfill-wallet-usage")
     public ResponseEntity<ApiResponse<WalletUsageBackfillResultDTO>> backfillWalletUsage(
@@ -1324,7 +1324,7 @@ public class AdminController {
         try {
             String adminId = extractUserIdFromRequest(request);
             adminService.requireOwner(adminId);
-            WalletUsageBackfillResultDTO result = aiUsageService.backfillLapsedWalletUsage(dryRun);
+            WalletUsageBackfillResultDTO result = aiUsageService.backfillWalletUsage(dryRun);
             adminAuditService.log(adminId, AdminAuditService.USER_UPDATE, "SYSTEM", "wallet-usage-backfill",
                     (dryRun ? "Dry-run: " : "Applied: ")
                             + result.getUpdated() + " recomputed, "

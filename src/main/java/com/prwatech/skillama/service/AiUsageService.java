@@ -667,25 +667,24 @@ public class AiUsageService {
         LocalDateTime now = IndiaTime.now();
         LocalDateTime periodStart = user.getAiCostPeriodStart();
 
-        // Subscription-aligned period: reset ONCE when crossing currentPeriodEnd —
-        // only while the accumulated usage still belongs to the ended period
-        // (periodStart <= currentPeriodEnd). Without that guard, a lapsed
-        // never-renewed subscription (e.g. a user later moved to a time-based
-        // seat, whose currentPeriodEnd stays stale) re-zeroed usage on EVERY
-        // call, so the wallet counter never accumulated. After the one-time
-        // reset, periodStart > currentPeriodEnd and the calendar-month reset
-        // below governs the wallet.
-        if (user.getCurrentPeriodEnd() != null
-                && user.getAiWalletLimitUsd() != null
-                && user.getAiWalletLimitUsd() > 0
-                && now.isAfter(user.getCurrentPeriodEnd())
-                && periodStart != null
-                && !periodStart.isAfter(user.getCurrentPeriodEnd())) {
-            user.setAiCostPeriodStart(now);
-            user.setAiCostUsdThisPeriod(0.0);
+        // Explicit wallet = FIXED assigned credits: a depleting balance that never
+        // auto-refreshes. The only refreshes are the business events that grant
+        // credits — SubscriptionService.activate/renew (which explicitly zeroes the
+        // counter on payment) and admin wallet adjustments (which raise the limit).
+        // Time-based resets here silently re-gifted the full wallet: a user at
+        // 48/50 used became 0/50 on every calendar-month change.
+        if (user.getAiWalletLimitUsd() != null && user.getAiWalletLimitUsd() > 0) {
+            if (periodStart == null) {
+                // Anchor for usage-page queries only — never zero an existing counter.
+                user.setAiCostPeriodStart(now);
+                if (user.getAiCostUsdThisPeriod() == null) {
+                    user.setAiCostUsdThisPeriod(0.0);
+                }
+            }
             return;
         }
 
+        // Freemium platform budget is monthly by definition (freemiumMonthlyBudgetUsdPerUser).
         if (periodStart == null || !sameCalendarMonth(periodStart, now)) {
             user.setAiCostPeriodStart(now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0));
             user.setAiCostUsdThisPeriod(0.0);
@@ -698,31 +697,35 @@ public class AiUsageService {
 
     /**
      * OWNER maintenance: repair aiCostUsdThisPeriod for wallet users whose counter was
-     * wiped by the lapsed-subscription perpetual reset (fixed in resetPeriodIfNeeded).
-     * Re-anchors each lapsed user's period to the current calendar month — the window
-     * the fixed code governs them by — and recomputes the counter from ai_usage_events,
-     * the per-call source of truth the bug never touched. Idempotent; dryRun previews
-     * the per-user before/after without writing.
+     * wiped by the time-based resets (monthly / lapsed-subscription — both removed in
+     * resetPeriodIfNeeded: an assigned wallet is a depleting balance). Recomputes each
+     * user's LIFETIME consumption from ai_usage_events, the per-call source of truth
+     * the resets never touched, and re-anchors the period to the earliest event.
+     * Users inside an ACTIVE subscription period are skipped — their counter was
+     * legitimately reset by the renewal payment and is live data. Idempotent; dryRun
+     * previews the per-user before/after without writing.
      */
     @Transactional
-    public WalletUsageBackfillResultDTO backfillLapsedWalletUsage(boolean dryRun) {
+    public WalletUsageBackfillResultDTO backfillWalletUsage(boolean dryRun) {
         LocalDateTime now = IndiaTime.now();
-        LocalDateTime monthStart = now.withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
         List<User> candidates = userRepository.findByAiWalletLimitUsdGreaterThan(0.0);
         List<WalletUsageBackfillResultDTO.EntryDTO> entries = new ArrayList<>();
         int skippedActivePeriod = 0;
 
         for (User user : candidates) {
-            // Only lapsed periods were affected; an in-period subscription counter is live data.
-            if (user.getCurrentPeriodEnd() == null || !now.isAfter(user.getCurrentPeriodEnd())) {
+            if (user.getCurrentPeriodEnd() != null && !now.isAfter(user.getCurrentPeriodEnd())) {
                 skippedActivePeriod++;
                 continue;
             }
-            double recomputed = round(aiUsageEventRepository
-                    .findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(user.getId(), monthStart, now)
-                    .stream()
+            List<AiUsageEvent> events = aiUsageEventRepository.findByUserId(user.getId());
+            double recomputed = round(events.stream()
                     .mapToDouble(AiUsageEvent::getCostUsd)
                     .sum());
+            LocalDateTime anchor = events.stream()
+                    .map(AiUsageEvent::getCreatedAt)
+                    .filter(java.util.Objects::nonNull)
+                    .min(Comparator.naturalOrder())
+                    .orElse(now);
             double before = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
             entries.add(WalletUsageBackfillResultDTO.EntryDTO.builder()
                     .userId(user.getId())
@@ -731,7 +734,7 @@ public class AiUsageService {
                     .afterUsd(recomputed)
                     .build());
             if (!dryRun) {
-                user.setAiCostPeriodStart(monthStart);
+                user.setAiCostPeriodStart(anchor);
                 user.setAiCostUsdThisPeriod(recomputed);
                 user.setUpdatedAt(now);
                 userRepository.save(user);

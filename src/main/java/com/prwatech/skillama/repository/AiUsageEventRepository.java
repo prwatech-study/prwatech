@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface AiUsageEventRepository extends MongoRepository<AiUsageEvent, String> {
+    List<AiUsageEvent> findByUserId(String userId);
+
     List<AiUsageEvent> findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
             String userId, LocalDateTime start, LocalDateTime end);
 

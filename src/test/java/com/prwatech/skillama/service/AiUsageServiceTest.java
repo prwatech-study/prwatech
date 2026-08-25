@@ -133,26 +133,50 @@ class AiUsageServiceTest {
         assertFalse(service.isWithinBudget(freemium(0.5))); // exactly at limit is blocked
     }
 
-    // ---------- lapsed-subscription period reset (perpetual-zeroing regression) ----------
+    // ---------- assigned wallets never auto-reset (depleting balance) ----------
 
     @Test
-    void lapsedSubscriptionResetsUsageOnceThenAccumulates() {
-        // Usage accumulated inside the ended billing period → one legitimate reset.
-        User paid = User.builder().id("p").role(User.UserRole.USER).planTier(User.PlanTier.PAID)
+    void walletUsageSurvivesCalendarMonthChange() {
+        // Assigned credits are a fixed depleting balance: 48/50 used must NOT
+        // become 0/50 when the month changes — only a renewal payment or admin
+        // top-up refreshes a wallet.
+        User granted = User.builder().id("g").role(User.UserRole.USER).planTier(User.PlanTier.PAID)
+                .aiWalletLimitUsd(50.0)
+                .aiCostPeriodStart(IndiaTime.now().minusDays(40))
+                .aiCostUsdThisPeriod(48.0)
+                .build();
+
+        AiBudgetDTO dto = service.getAiBudget(granted);
+
+        assertEquals(48.0, dto.getUsedUsd());
+        assertEquals(2.0, dto.getRemainingUsd());
+    }
+
+    @Test
+    void walletUsageSurvivesLapsedSubscriptionPeriod() {
+        // A lapsed, never-renewed subscription must not re-gift a fresh wallet.
+        User lapsed = User.builder().id("p").role(User.UserRole.USER).planTier(User.PlanTier.PAID)
                 .aiWalletLimitUsd(18.75)
                 .currentPeriodEnd(IndiaTime.now().minusDays(10))
                 .aiCostPeriodStart(IndiaTime.now().minusDays(40))
                 .aiCostUsdThisPeriod(12.0)
                 .build();
 
-        AiBudgetDTO first = service.getAiBudget(paid);
-        assertEquals(0.0, first.getUsedUsd());
+        AiBudgetDTO dto = service.getAiBudget(lapsed);
 
-        // Usage accumulated AFTER the rollover must survive later reads — the stale
-        // (never-renewed) currentPeriodEnd used to re-zero the counter on every call.
-        paid.setAiCostUsdThisPeriod(3.0);
-        AiBudgetDTO second = service.getAiBudget(paid);
-        assertEquals(3.0, second.getUsedUsd());
+        assertEquals(12.0, dto.getUsedUsd());
+    }
+
+    @Test
+    void freemiumBudgetStillResetsMonthly() {
+        // The freemium platform budget IS monthly by definition — only explicit
+        // wallets are exempt from the calendar reset.
+        User u = freemium(0.4);
+        u.setAiCostPeriodStart(IndiaTime.now().minusDays(40));
+
+        AiBudgetDTO dto = service.getAiBudget(u);
+
+        assertEquals(0.0, dto.getUsedUsd());
     }
 
     @Test
@@ -179,7 +203,7 @@ class AiUsageServiceTest {
         assertTrue(paid.getAiCostUsdThisPeriod() > 5.0);
     }
 
-    // ---------- lapsed-wallet usage backfill ----------
+    // ---------- wallet usage backfill (lifetime recompute from events) ----------
 
     private User lapsedWalletUser(String id, double counterUsd) {
         return User.builder().id(id).email(id + "@x.com").role(User.UserRole.USER)
@@ -191,39 +215,57 @@ class AiUsageServiceTest {
                 .build();
     }
 
-    private AiUsageEvent eventCosting(double costUsd) {
-        return AiUsageEvent.builder().costUsd(costUsd).createdAt(IndiaTime.now()).build();
+    private AiUsageEvent eventCosting(double costUsd, int daysAgo) {
+        return AiUsageEvent.builder().costUsd(costUsd).createdAt(IndiaTime.now().minusDays(daysAgo)).build();
     }
 
     @Test
-    void backfillRecomputesLapsedWalletCounterFromEvents() {
+    void backfillRecomputesLifetimeWalletCounterFromEvents() {
         User lapsed = lapsedWalletUser("lapsed", 0.1);
         when(userRepository.findByAiWalletLimitUsdGreaterThan(0.0)).thenReturn(List.of(lapsed));
-        when(aiUsageEventRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
-                eq("lapsed"), any(LocalDateTime.class), any(LocalDateTime.class)))
-                .thenReturn(List.of(eventCosting(4.0), eventCosting(2.5)));
+        // Includes an event from a previous month — lifetime, not month-scoped.
+        when(aiUsageEventRepository.findByUserId("lapsed"))
+                .thenReturn(List.of(eventCosting(4.0, 45), eventCosting(2.5, 3)));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        WalletUsageBackfillResultDTO result = service.backfillLapsedWalletUsage(false);
+        WalletUsageBackfillResultDTO result = service.backfillWalletUsage(false);
 
         assertFalse(result.isDryRun());
         assertEquals(1, result.getUpdated());
         assertEquals(6.5, lapsed.getAiCostUsdThisPeriod());
-        assertEquals(1, lapsed.getAiCostPeriodStart().getDayOfMonth());
+        // Period re-anchored to the earliest event so the usage page shows everything.
+        assertEquals(IndiaTime.now().minusDays(45).toLocalDate(),
+                lapsed.getAiCostPeriodStart().toLocalDate());
         assertEquals(0.1, result.getEntries().get(0).getBeforeUsd());
         assertEquals(6.5, result.getEntries().get(0).getAfterUsd());
         verify(userRepository).save(lapsed);
     }
 
     @Test
+    void backfillIncludesAdminGrantedWalletsWithoutSubscription() {
+        // Admin-granted wallets never had a currentPeriodEnd — the old monthly
+        // reset wiped them too, so the backfill must cover them.
+        User granted = lapsedWalletUser("granted", 0.0);
+        granted.setCurrentPeriodEnd(null);
+        when(userRepository.findByAiWalletLimitUsdGreaterThan(0.0)).thenReturn(List.of(granted));
+        when(aiUsageEventRepository.findByUserId("granted"))
+                .thenReturn(List.of(eventCosting(3.0, 60)));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        WalletUsageBackfillResultDTO result = service.backfillWalletUsage(false);
+
+        assertEquals(1, result.getUpdated());
+        assertEquals(3.0, granted.getAiCostUsdThisPeriod());
+    }
+
+    @Test
     void backfillDryRunPreviewsWithoutSaving() {
         User lapsed = lapsedWalletUser("lapsed", 0.1);
         when(userRepository.findByAiWalletLimitUsdGreaterThan(0.0)).thenReturn(List.of(lapsed));
-        when(aiUsageEventRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
-                eq("lapsed"), any(LocalDateTime.class), any(LocalDateTime.class)))
-                .thenReturn(List.of(eventCosting(4.0)));
+        when(aiUsageEventRepository.findByUserId("lapsed"))
+                .thenReturn(List.of(eventCosting(4.0, 1)));
 
-        WalletUsageBackfillResultDTO result = service.backfillLapsedWalletUsage(true);
+        WalletUsageBackfillResultDTO result = service.backfillWalletUsage(true);
 
         assertTrue(result.isDryRun());
         assertEquals(1, result.getUpdated());
@@ -235,10 +277,10 @@ class AiUsageServiceTest {
     @Test
     void backfillSkipsWalletUsersWithActiveSubscriptionPeriod() {
         User active = lapsedWalletUser("active", 7.0);
-        active.setCurrentPeriodEnd(IndiaTime.now().plusDays(10)); // in-period counter is live data
+        active.setCurrentPeriodEnd(IndiaTime.now().plusDays(10)); // renewal reset the counter — live data
         when(userRepository.findByAiWalletLimitUsdGreaterThan(0.0)).thenReturn(List.of(active));
 
-        WalletUsageBackfillResultDTO result = service.backfillLapsedWalletUsage(false);
+        WalletUsageBackfillResultDTO result = service.backfillWalletUsage(false);
 
         assertEquals(0, result.getUpdated());
         assertEquals(1, result.getSkippedActivePeriod());
