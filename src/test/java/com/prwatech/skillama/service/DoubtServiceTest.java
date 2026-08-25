@@ -191,6 +191,68 @@ class DoubtServiceTest {
     }
 
     @Test
+    void submitFeedback_helpfulTrueAfterFalse_returnsToSolved() {
+        Doubt doubt = existingDoubt("doubt-1", "user-1");
+        when(doubtRepository.findById("doubt-1")).thenReturn(Optional.of(doubt));
+        when(doubtRepository.save(any(Doubt.class))).thenAnswer(inv -> inv.getArgument(0));
+        String aiMessageId = doubt.getMessages().get(1).getId();
+
+        DoubtFeedbackRequestDTO down = new DoubtFeedbackRequestDTO();
+        down.setMessageId(aiMessageId);
+        down.setHelpful(false);
+        doubtService.submitFeedback("user-1", "doubt-1", down);
+
+        DoubtFeedbackRequestDTO up = new DoubtFeedbackRequestDTO();
+        up.setMessageId(aiMessageId);
+        up.setHelpful(true);
+        DoubtResponseDTO response = doubtService.submitFeedback("user-1", "doubt-1", up);
+
+        assertEquals(DoubtStatus.SOLVED, response.getStatus());
+        assertTrue(response.getMessages().get(1).getHelpful());
+    }
+
+    @Test
+    void submitFeedback_helpfulTrue_keepsNeedsMentorWhileAnotherAnswerStillUnhelpful() {
+        Doubt doubt = existingDoubt("doubt-1", "user-1");
+        doubt.getMessages().add(Doubt.DoubtMessage.builder()
+                .id(UUID.randomUUID().toString())
+                .sender(Doubt.Sender.AI)
+                .content("A second answer.")
+                .timestamp(LocalDateTime.of(2026, 7, 1, 10, 5))
+                .build());
+        when(doubtRepository.findById("doubt-1")).thenReturn(Optional.of(doubt));
+        when(doubtRepository.save(any(Doubt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DoubtFeedbackRequestDTO down = new DoubtFeedbackRequestDTO();
+        down.setMessageId(doubt.getMessages().get(1).getId());
+        down.setHelpful(false);
+        doubtService.submitFeedback("user-1", "doubt-1", down);
+
+        DoubtFeedbackRequestDTO up = new DoubtFeedbackRequestDTO();
+        up.setMessageId(doubt.getMessages().get(2).getId());
+        up.setHelpful(true);
+        DoubtResponseDTO response = doubtService.submitFeedback("user-1", "doubt-1", up);
+
+        assertEquals(DoubtStatus.NEEDS_MENTOR, response.getStatus());
+    }
+
+    @Test
+    void submitFeedback_helpfulTrue_doesNotDowngradeResolved() {
+        Doubt doubt = existingDoubt("doubt-1", "user-1");
+        doubt.setStatus(DoubtStatus.RESOLVED);
+        when(doubtRepository.findById("doubt-1")).thenReturn(Optional.of(doubt));
+        when(doubtRepository.save(any(Doubt.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DoubtFeedbackRequestDTO request = new DoubtFeedbackRequestDTO();
+        request.setMessageId(doubt.getMessages().get(1).getId());
+        request.setHelpful(true);
+
+        DoubtResponseDTO response = doubtService.submitFeedback("user-1", "doubt-1", request);
+
+        assertEquals(DoubtStatus.RESOLVED, response.getStatus());
+    }
+
+    @Test
     void updateStatus_toResolved_setsResolvedAt() {
         Doubt doubt = existingDoubt("doubt-1", "user-1");
         when(doubtRepository.findById("doubt-1")).thenReturn(Optional.of(doubt));

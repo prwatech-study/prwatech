@@ -163,10 +163,14 @@ public class DoubtService {
                 .findFirst()
                 .orElseThrow(() -> new NotFoundException("Message not found"));
         message.setHelpful(request.getHelpful());
-        if (Boolean.TRUE.equals(request.getHelpful()) && doubt.getStatus() == DoubtStatus.PENDING) {
-            doubt.setStatus(DoubtStatus.SOLVED);
-        } else if (Boolean.FALSE.equals(request.getHelpful())) {
+        if (Boolean.FALSE.equals(request.getHelpful())) {
             doubt.setStatus(DoubtStatus.NEEDS_MENTOR);
+        } else if (Boolean.TRUE.equals(request.getHelpful())
+                && (doubt.getStatus() == DoubtStatus.PENDING || doubt.getStatus() == DoubtStatus.NEEDS_MENTOR)
+                && doubt.getMessages().stream().noneMatch(m -> Boolean.FALSE.equals(m.getHelpful()))) {
+            // A thumbs-up un-escalates only once no answer in the thread is still voted
+            // unhelpful; RESOLVED (mentor-closed) is never downgraded by a vote.
+            doubt.setStatus(DoubtStatus.SOLVED);
         }
         doubt.setUpdatedAt(IndiaTime.now());
         doubtRepository.save(doubt);
