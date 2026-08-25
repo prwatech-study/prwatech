@@ -91,7 +91,21 @@ public class CodeAssistService {
                 if (sandboxResult.isOk()) {
                     realOutput = sandboxResult.getStdout() != null ? sandboxResult.getStdout() : "";
                 } else if ("rejected".equals(sandboxResult.getStatus())) {
-                    realError = "Blocked: " + String.join("; ", sandboxResult.getViolations());
+                    // "rejected" = the sandbox *policy* refuses this code (os/open()/input()/...),
+                    // not that the code is wrong. Some lectures legitimately teach exactly those
+                    // constructs (the os module, file handling), so:
+                    //  - CODE_EXECUTION (AI-generated lecture code the learner cannot edit):
+                    //    degrade to the AI-simulated path — the learner sees plausible output
+                    //    with the "AI-simulated" badge instead of a policy error they can't act on.
+                    //  - DEBUG (learner-authored code): keep the real rejection, but phrase it as
+                    //    tutor guidance rather than raw policy violations.
+                    if (feature == CodeAssistFeature.CODE_EXECUTION) {
+                        log.info("Sandbox rejected generated lecture code ({}), using AI-simulated output",
+                                String.join("; ", sandboxResult.getViolations()));
+                        sandboxVerified = false;
+                    } else {
+                        realError = friendlySandboxRejection(sandboxResult.getViolations());
+                    }
                 } else {
                     realError = sandboxResult.getError() != null ? sandboxResult.getError() : "Execution failed";
                 }
@@ -144,6 +158,21 @@ public class CodeAssistService {
      * display name. */
     private boolean isPythonCourse(String courseName) {
         return courseName != null && courseName.toLowerCase().contains("python");
+    }
+
+    /**
+     * Learner-facing wording for a sandbox policy rejection of Debug-tab code. The raw
+     * violation list ("import 'os' is not allowed") reads like a firewall log; this frames it
+     * as what the practice sandbox supports and what to try instead. ai-tutor prefixes the
+     * final display with "Error: ", so this must read naturally after that prefix.
+     */
+    private String friendlySandboxRejection(List<String> violations) {
+        return "The practice sandbox couldn't run this code — "
+                + String.join("; ", violations)
+                + ". The sandbox supports pandas, numpy, matplotlib, math, statistics, "
+                + "collections and datetime, and blocks system access (like the os module), "
+                + "file I/O and input(). Try a sandbox-friendly alternative, e.g. hardcode "
+                + "sample values instead of input() or system lookups.";
     }
 
     /**

@@ -151,6 +151,69 @@ class CodeAssistServiceTest {
         assertThrows(IllegalArgumentException.class, () -> codeAssistService.runDebug("ghost", request));
     }
 
+    // ---------- sandbox policy rejections ----------
+
+    private static PracticalSandboxService.SandboxResult rejected(String... violations) {
+        return PracticalSandboxService.SandboxResult.builder()
+                .status("rejected")
+                .violations(List.of(violations))
+                .build();
+    }
+
+    @Test
+    void runCodeExecution_sandboxRejection_fallsBackToAiSimulatedOutput() {
+        // Lecture code the sandbox policy refuses (e.g. an os-module lesson) must not surface
+        // a policy error the learner can't act on — it degrades to the AI-simulated path.
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(existingUser("user-1")));
+        when(practicalSandboxService.executeAdHoc("import os"))
+                .thenReturn(rejected("import 'os' is not allowed"));
+        when(skillamaAiClient.runCodeAssist(
+                        any(User.class), eq("code_execution_assist"), any(), eq("import os"), anyString(),
+                        isNull(), isNull(), isNull(), eq(List.of())))
+                .thenReturn(generated(null));
+        when(interactionRepository.save(any(CodeAssistInteraction.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        CodeAssistRequestDTO request = new CodeAssistRequestDTO();
+        request.setCode("import os");
+
+        CodeAssistResponseDTO response = codeAssistService.runCodeExecution("user-1", request);
+
+        assertFalse(response.getSandboxVerified());
+        ArgumentCaptor<CodeAssistInteraction> captor = ArgumentCaptor.forClass(CodeAssistInteraction.class);
+        verify(interactionRepository).save(captor.capture());
+        assertFalse(captor.getValue().getSandboxVerified());
+        // The isNull() realOutput/realError matchers above are the core assertion: ai-tutor
+        // was asked to simulate, not to explain a policy failure.
+    }
+
+    @Test
+    void runDebug_sandboxRejection_keepsRealErrorWithFriendlyWording() {
+        // Learner-authored Debug code keeps the honest rejection, but phrased as guidance.
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(existingUser("user-1")));
+        when(practicalSandboxService.executeAdHoc("import os"))
+                .thenReturn(rejected("import 'os' is not allowed"));
+        when(skillamaAiClient.runCodeAssist(
+                        any(User.class), eq("debug_assist"), any(), eq("import os"), anyString(),
+                        isNull(), anyString(), isNull(), eq(List.of())))
+                .thenReturn(generated(null));
+        when(interactionRepository.save(any(CodeAssistInteraction.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        CodeAssistRequestDTO request = new CodeAssistRequestDTO();
+        request.setCode("import os");
+
+        CodeAssistResponseDTO response = codeAssistService.runDebug("user-1", request);
+
+        assertTrue(response.getSandboxVerified());
+        ArgumentCaptor<String> errorCaptor = ArgumentCaptor.forClass(String.class);
+        verify(skillamaAiClient).runCodeAssist(
+                any(User.class), eq("debug_assist"), any(), eq("import os"), anyString(),
+                isNull(), errorCaptor.capture(), isNull(), eq(List.of()));
+        assertTrue(errorCaptor.getValue().contains("practice sandbox couldn't run this code"));
+        assertTrue(errorCaptor.getValue().contains("import 'os' is not allowed"));
+    }
+
     // ---------- getInteractionAudio ----------
 
     @Test
