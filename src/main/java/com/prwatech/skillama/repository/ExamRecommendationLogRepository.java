@@ -6,4 +6,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface ExamRecommendationLogRepository extends MongoRepository<ExamRecommendationLog, String> {
+
+    Long deleteByUserId(String userId);
 }

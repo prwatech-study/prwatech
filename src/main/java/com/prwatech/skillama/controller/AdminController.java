@@ -19,6 +19,7 @@ import com.prwatech.skillama.service.NotificationSettingsService;
 import com.prwatech.skillama.service.AdminPermissionService;
 import com.prwatech.skillama.service.ProgressReconciliationService;
 import com.prwatech.skillama.service.DemoDashboardSeedService;
+import com.prwatech.skillama.service.DemoResetService;
 import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.SkillamaPlatformConfigService;
 import com.prwatech.skillama.model.AdminModule;
@@ -76,6 +77,7 @@ public class AdminController {
     private final SkillamaPlatformConfigService platformConfigService;
     private final AdminPermissionService adminPermissionService;
     private final DemoDashboardSeedService demoDashboardSeedService;
+    private final DemoResetService demoResetService;
     private final UserProfileService userProfileService;
     private final ProgressReconciliationService progressReconciliationService;
     private final SkillamaAuthSupport skillamaAuthSupport;
@@ -1180,6 +1182,36 @@ public class AdminController {
             DemoDashboardSeedResultDTO result = demoDashboardSeedService.seedForEmail(email, ownerId, assignAll);
             adminAuditService.log(ownerId, AdminAuditService.USER_UPDATE, "USER", result.getUserId(),
                     "Seeded demo dashboard progress for " + email, null);
+            return ResponseEntity.ok(new ApiResponse<>(200, result));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(404, null));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse<>(400, null));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Owner access")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * OWNER: reset the shared investor-demo learner account between pitches —
+     * wipes doubts, quiz/exam attempts+sessions and chat history, then reseeds
+     * dashboard progress. Never touches the AI wallet (lifetime, never reset).
+     */
+    @PostMapping("/users/{userId}/reset-demo-data")
+    public ResponseEntity<ApiResponse<DemoResetResultDTO>> resetDemoData(
+            @PathVariable String userId,
+            HttpServletRequest httpRequest) {
+        try {
+            String ownerId = extractUserIdFromRequest(httpRequest);
+            adminService.requireOwner(ownerId);
+            DemoResetResultDTO result = demoResetService.resetForUser(userId, ownerId);
+            adminAuditService.log(ownerId, AdminAuditService.USER_UPDATE, "USER", userId,
+                    "Reset demo data for " + result.getEmail(), null);
             return ResponseEntity.ok(new ApiResponse<>(200, result));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)

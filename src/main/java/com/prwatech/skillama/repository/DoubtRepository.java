@@ -9,4 +9,6 @@ public interface DoubtRepository extends MongoRepository<Doubt, String> {
     List<Doubt> findByUserIdOrderByCreatedAtDesc(String userId);
 
     List<Doubt> findByUserIdAndCourseIdOrderByCreatedAtDesc(String userId, String courseId);
+
+    Long deleteByUserId(String userId);
 }

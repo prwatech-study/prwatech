@@ -155,6 +155,26 @@ public class UserService {
         return userRepository.findAll(pageable);
     }
     
+    /**
+     * Stamps a one-time-per-account platform intro (AI-tutor intro / demo video) as seen.
+     * Idempotent — the first call sets the timestamp, later calls are no-ops, and a flag
+     * is never unset, so an intro can't replay once it has been shown (or skipped).
+     */
+    public User markPlatformIntroSeen(String userId, String flag) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        if ("AI_TUTOR_INTRO".equals(flag)) {
+            if (user.getAiTutorIntroSeenAt() != null) return user;
+            user.setAiTutorIntroSeenAt(IndiaTime.now());
+        } else if ("DEMO_VIDEO".equals(flag)) {
+            if (user.getDemoVideoSeenAt() != null) return user;
+            user.setDemoVideoSeenAt(IndiaTime.now());
+        } else {
+            throw new IllegalArgumentException("Unknown platform intro flag: " + flag);
+        }
+        return userRepository.save(user);
+    }
+
     public User activateUser(String email) {
         Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isPresent()) {

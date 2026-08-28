@@ -32,6 +32,7 @@ import com.prwatech.skillama.repository.SkillamaUserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -58,6 +59,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -279,6 +281,25 @@ class ExamServiceTest {
         assertTrue(result.getOverTimeLimit());
     }
 
+    @Test
+    void submitAttemptStoresClampedViolationCountAndNullForLegacyClients() {
+        ExamSession session = sessionFor("exam-1", USER, LocalDateTime.now());
+        when(sessionRepository.findByExamSessionId("exam-1")).thenReturn(Optional.of(session));
+        ArgumentCaptor<ExamAttempt> saved = ArgumentCaptor.forClass(ExamAttempt.class);
+
+        service.submitAttempt(USER, SubmitExamAttemptRequestDTO.builder()
+                .examSessionId("exam-1").answers(Map.of("1", "A")).violationCount(2).build());
+        service.submitAttempt(USER, SubmitExamAttemptRequestDTO.builder()
+                .examSessionId("exam-1").answers(Map.of("1", "A")).violationCount(-5).build());
+        service.submitAttempt(USER, SubmitExamAttemptRequestDTO.builder()
+                .examSessionId("exam-1").answers(Map.of("1", "A")).build());
+
+        verify(attemptRepository, times(3)).save(saved.capture());
+        assertEquals(2, saved.getAllValues().get(0).getViolationCount());
+        assertEquals(0, saved.getAllValues().get(1).getViolationCount());
+        assertNull(saved.getAllValues().get(2).getViolationCount());
+    }
+
     // ---------- listMyAttempts ----------
 
     @Test
@@ -412,6 +433,20 @@ class ExamServiceTest {
         ExamResultDashboardDTO dashboard = service.getResultDashboard(USER, "a1");
 
         assertNull(dashboard.getRank());
+    }
+
+    @Test
+    void getResultDashboardSurfacesStoredViolationCount() {
+        ExamAttempt a = attemptOf("a1", 80.0, ExamType.PRACTICE, ExamDifficulty.BEGINNER, null, null);
+        a.setViolationCount(3);
+        when(attemptRepository.findById("a1")).thenReturn(Optional.of(a));
+        when(attemptRepository.findByCourseIdAndExamTypeAndDifficulty(COURSE, ExamType.PRACTICE, ExamDifficulty.BEGINNER))
+                .thenReturn(List.of(a));
+        when(attemptRepository.findByUserIdAndCourseIdOrderBySubmittedAtDesc(USER, COURSE)).thenReturn(List.of());
+
+        ExamResultDashboardDTO dashboard = service.getResultDashboard(USER, "a1");
+
+        assertEquals(3, dashboard.getViolationCount());
     }
 
     @Test

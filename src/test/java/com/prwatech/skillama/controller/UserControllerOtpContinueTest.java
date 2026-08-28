@@ -9,6 +9,7 @@ import com.prwatech.skillama.service.OAuthAuthService;
 import com.prwatech.skillama.service.OnboardingService;
 import com.prwatech.skillama.service.OtpService;
 import com.prwatech.skillama.service.PasswordResetService;
+import com.prwatech.skillama.service.DemoAccessService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.service.UserContactService;
 import com.prwatech.skillama.service.UserService;
@@ -45,6 +46,7 @@ class UserControllerOtpContinueTest {
     @Mock private OAuthAuthService oAuthAuthService;
     @Mock private OnboardingService onboardingService;
     @Mock private SkillamaAuthSupport skillamaAuthSupport;
+    @Mock private DemoAccessService demoAccessService;
 
     @BeforeEach
     void setUp() {
@@ -58,7 +60,8 @@ class UserControllerOtpContinueTest {
                 userContactService,
                 oAuthAuthService,
                 onboardingService,
-                skillamaAuthSupport);
+                skillamaAuthSupport,
+                demoAccessService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();

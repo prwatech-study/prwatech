@@ -28,6 +28,8 @@ public final class UserMapper {
                 .phone(user.getPhone())
                 .chosenFreemiumCourseId(user.getChosenFreemiumCourseId())
                 .profileImageUrl(user.getProfileImageUrl())
+                .aiTutorIntroSeen(user.getAiTutorIntroSeenAt() != null)
+                .demoVideoSeen(user.getDemoVideoSeenAt() != null)
                 .build();
     }
 
@@ -49,6 +51,8 @@ public final class UserMapper {
                 .onboardingRequired(onboarding.isOnboardingRequired(user))
                 .phone(user.getPhone())
                 .chosenFreemiumCourseId(user.getChosenFreemiumCourseId())
+                .aiTutorIntroSeen(user.getAiTutorIntroSeenAt() != null)
+                .demoVideoSeen(user.getDemoVideoSeenAt() != null)
                 .build();
     }
 

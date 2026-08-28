@@ -17,4 +17,6 @@ public interface ExamAttemptRepository extends MongoRepository<ExamAttempt, Stri
     /** Rank/percentile cohort: every attempt of the same kind, across all learners. */
     List<ExamAttempt> findByCourseIdAndExamTypeAndDifficulty(
             String courseId, ExamType examType, ExamDifficulty difficulty);
+
+    Long deleteByUserId(String userId);
 }

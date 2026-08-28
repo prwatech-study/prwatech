@@ -27,4 +27,6 @@ public class UserSessionDTO {
     private String phone;
     private String chosenFreemiumCourseId;
     private String profileImageUrl;
+    private Boolean aiTutorIntroSeen;
+    private Boolean demoVideoSeen;
 }

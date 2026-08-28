@@ -38,6 +38,9 @@ public class ExamResultDashboardDTO {
     private Boolean overTimeLimit;
     private LocalDateTime submittedAt;
 
+    /** Focus violations (tab switches / fullscreen exits) recorded during the attempt; null for legacy attempts. */
+    private Integer violationCount;
+
     private List<ExamAnswerResultDTO> answers;
 
     private String overallFeedback;

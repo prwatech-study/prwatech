@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface ExamSessionRepository extends MongoRepository<ExamSession, String> {
     Optional<ExamSession> findByExamSessionId(String examSessionId);
+
+    Long deleteByUserId(String userId);
 }

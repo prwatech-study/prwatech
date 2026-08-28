@@ -139,6 +139,15 @@ public class User {
     private LocalDateTime onboardingCompletedAt;
 
     /**
+     * One-time-per-account platform intros. Stamped the first time the AI-tutor voice
+     * introduction is shown (completing and skipping both count) and the first time the
+     * "How to use Skillama" demo gate is watched/dismissed. Never unset — the client
+     * gates on these so the intros can't replay on a new device/browser or after logout.
+     */
+    private LocalDateTime aiTutorIntroSeenAt;
+    private LocalDateTime demoVideoSeenAt;
+
+    /**
      * Per-module CRUD grants for ADMIN users. Null or empty = legacy full access (same as today).
      * OWNER ignores this field (always full access).
      */

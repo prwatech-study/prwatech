@@ -267,6 +267,9 @@ public class ExamService {
                 .submittedAt(submittedAt)
                 .overallFeedback(feedback.getOverallFeedback())
                 .recommendationText(feedback.getRecommendationText())
+                .violationCount(request.getViolationCount() == null
+                        ? null
+                        : Math.max(0, Math.min(999, request.getViolationCount())))
                 .build();
 
         attempt = attemptRepository.save(attempt);
@@ -364,6 +367,7 @@ public class ExamService {
                 .timeSpentSeconds(attempt.getTimeSpentSeconds())
                 .overTimeLimit(attempt.getOverTimeLimit())
                 .submittedAt(attempt.getSubmittedAt())
+                .violationCount(attempt.getViolationCount())
                 .answers(answers)
                 .overallFeedback(attempt.getOverallFeedback())
                 .recommendationText(attempt.getRecommendationText())

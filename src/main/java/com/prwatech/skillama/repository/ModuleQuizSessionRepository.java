@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface ModuleQuizSessionRepository extends MongoRepository<ModuleQuizSession, String> {
     Optional<ModuleQuizSession> findByQuizSessionId(String quizSessionId);
+
+    Long deleteByUserId(String userId);
 }

@@ -9,6 +9,7 @@ import com.prwatech.common.Constants;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.exception.SkillamaAuthException;
 import com.prwatech.skillama.service.AdminService;
+import com.prwatech.skillama.service.DemoAccessService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.OAuthAuthService;
 import com.prwatech.skillama.service.OnboardingService;
@@ -46,6 +47,7 @@ public class UserController {
     private final OAuthAuthService oAuthAuthService;
     private final OnboardingService onboardingService;
     private final SkillamaAuthSupport skillamaAuthSupport;
+    private final DemoAccessService demoAccessService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody User user) {
@@ -108,6 +110,22 @@ public class UserController {
         // LocalDateTime as a [year,month,day,...] component array, which JS Date can't parse.
         body.put("lastLoginAt", user.getLastLoginAt() != null ? user.getLastLoginAt().toString() : null);
         return ResponseEntity.status(409).body(body);
+    }
+
+    /**
+     * One-click login for the shared investor-demo learner account, gated by a
+     * server-side access code. 404 when demo env vars are not configured.
+     */
+    @PostMapping("/demo-login")
+    public ResponseEntity<?> demoLogin(@RequestBody DemoLoginRequestDTO request) {
+        try {
+            String code = request != null ? request.getAccessCode() : null;
+            return ResponseEntity.ok(demoAccessService.demoLogin(code));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(404).body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (SkillamaAuthException e) {
+            return ResponseEntity.status(401).body(Map.of("status", "error", "message", e.getMessage()));
+        }
     }
 
     @PostMapping("/otp/email/send")
@@ -236,6 +254,25 @@ public class UserController {
                 msg = "This mobile number is already linked to another account.";
             }
             return ResponseEntity.status(409).body(Map.of("status", "error", "message", msg));
+        }
+    }
+
+    /**
+     * Marks a one-time-per-account platform intro as seen: {"flag": "AI_TUTOR_INTRO" | "DEMO_VIDEO"}.
+     * Idempotent; returns the refreshed session snapshot so the client can patch stored auth.
+     */
+    @PostMapping("/me/platform-intro/seen")
+    public ResponseEntity<?> markPlatformIntroSeen(
+            @RequestBody Map<String, String> body,
+            HttpServletRequest httpRequest) {
+        try {
+            String userId = extractUserIdFromRequest(httpRequest);
+            User user = userService.markPlatformIntroSeen(userId, body != null ? body.get("flag") : null);
+            return ResponseEntity.ok(UserMapper.toSessionDto(user, onboardingService));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (SkillamaAuthException e) {
+            return ResponseEntity.status(401).body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
 

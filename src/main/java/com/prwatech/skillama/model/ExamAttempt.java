@@ -59,6 +59,9 @@ public class ExamAttempt {
     private String overallFeedback;
     private String recommendationText;
 
+    /** Client-reported focus violations (tab switches / fullscreen exits) — informational only. */
+    private Integer violationCount;
+
     @Getter
     @Setter
     @Builder

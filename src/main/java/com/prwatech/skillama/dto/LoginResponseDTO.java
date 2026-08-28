@@ -28,5 +28,7 @@ public class LoginResponseDTO {
     private Boolean onboardingRequired;
     private String phone;
     private String chosenFreemiumCourseId;
+    private Boolean aiTutorIntroSeen;
+    private Boolean demoVideoSeen;
 }
 

@@ -25,4 +25,6 @@ public interface ModuleQuizAttemptRepository extends MongoRepository<ModuleQuizA
             String guestSessionId, String courseId, String moduleName);
 
     long countByUserId(String userId);
+
+    Long deleteByUserId(String userId);
 }

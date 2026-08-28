@@ -1,17 +1,16 @@
 package com.prwatech.skillama.controller;
 
 import com.prwatech.authentication.security.JwtUtils;
-import com.prwatech.common.Constants;
-import com.prwatech.skillama.dto.OnboardingCompleteRequestDTO;
+import com.prwatech.skillama.dto.LoginResponseDTO;
+import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.exception.SkillamaAuthException;
-import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.AdminService;
+import com.prwatech.skillama.service.DemoAccessService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.OAuthAuthService;
 import com.prwatech.skillama.service.OnboardingService;
 import com.prwatech.skillama.service.OtpService;
 import com.prwatech.skillama.service.PasswordResetService;
-import com.prwatech.skillama.service.DemoAccessService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.service.UserContactService;
 import com.prwatech.skillama.service.UserService;
@@ -25,15 +24,17 @@ import org.springframework.http.converter.json.MappingJackson2HttpMessageConvert
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * Status mapping for the investor-demo one-click login: 200 with the standard
+ * LoginResponseDTO, 401 on a bad code, 404 when demo env vars are unset.
+ */
 @ExtendWith(MockitoExtension.class)
-class UserControllerOnboardingTest {
+class UserControllerDemoLoginTest {
 
     private MockMvc mockMvc;
 
@@ -48,8 +49,6 @@ class UserControllerOnboardingTest {
     @Mock private OnboardingService onboardingService;
     @Mock private SkillamaAuthSupport skillamaAuthSupport;
     @Mock private DemoAccessService demoAccessService;
-
-    private static final String TOKEN = "Bearer valid.jwt.token";
 
     @BeforeEach
     void setUp() {
@@ -71,61 +70,42 @@ class UserControllerOnboardingTest {
     }
 
     @Test
-    void completeOnboarding_withValidAuth_returnsSession() throws Exception {
-        User completed = User.builder()
-                .id("u1")
-                .name("Jitendra Chandwani")
-                .email("learner@example.com")
-                .phone("6366111178")
-                .role(User.UserRole.USER)
-                .active(true)
-                .onboardingCompleted(true)
-                .build();
+    void demoLogin_validCode_returnsLoginResponse() throws Exception {
+        when(demoAccessService.demoLogin("pitch-2026")).thenReturn(
+                LoginResponseDTO.builder()
+                        .id("demo-1")
+                        .email("demo@skillama.co.in")
+                        .token("demo-jwt")
+                        .build());
 
-        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
-        when(oAuthAuthService.completeOnboarding(eq("u1"), any(OnboardingCompleteRequestDTO.class)))
-                .thenReturn(completed);
-        when(onboardingService.isOnboardingRequired(completed)).thenReturn(false);
-
-        mockMvc.perform(post("/skillama/users/me/onboarding/complete")
-                        .header(Constants.AUTH, TOKEN)
+        mockMvc.perform(post("/skillama/users/demo-login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name":"Jitendra Chandwani","phone":"6366111178","freemiumCourseId":"course-1"}
-                                """))
+                        .content("{\"accessCode\":\"pitch-2026\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value("u1"))
-                .andExpect(jsonPath("$.name").value("Jitendra Chandwani"));
+                .andExpect(jsonPath("$.token").value("demo-jwt"))
+                .andExpect(jsonPath("$.email").value("demo@skillama.co.in"));
     }
 
     @Test
-    void completeOnboarding_authFailure_returnsClearMessage() throws Exception {
-        when(skillamaAuthSupport.resolveUserIdFromRequest(any()))
-                .thenThrow(new SkillamaAuthException("Account not found. Please sign in again."));
+    void demoLogin_invalidCode_returns401() throws Exception {
+        when(demoAccessService.demoLogin("wrong"))
+                .thenThrow(new SkillamaAuthException("Invalid access code", "DEMO_CODE_INVALID"));
 
-        mockMvc.perform(post("/skillama/users/me/onboarding/complete")
-                        .header(Constants.AUTH, TOKEN)
+        mockMvc.perform(post("/skillama/users/demo-login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name":"Test","phone":"6366111178","freemiumCourseId":"course-1"}
-                                """))
+                        .content("{\"accessCode\":\"wrong\"}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("Account not found. Please sign in again."));
+                .andExpect(jsonPath("$.message").value("Invalid access code"));
     }
 
     @Test
-    void completeOnboarding_invalidPhone_returns400() throws Exception {
-        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
-        when(oAuthAuthService.completeOnboarding(eq("u1"), any(OnboardingCompleteRequestDTO.class)))
-                .thenThrow(new IllegalArgumentException("Invalid phone number"));
+    void demoLogin_notConfigured_returns404() throws Exception {
+        when(demoAccessService.demoLogin("anything"))
+                .thenThrow(new ResourceNotFoundException("Demo access is not configured on this environment"));
 
-        mockMvc.perform(post("/skillama/users/me/onboarding/complete")
-                        .header(Constants.AUTH, TOKEN)
+        mockMvc.perform(post("/skillama/users/demo-login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"name":"Test","phone":"123","freemiumCourseId":"course-1"}
-                                """))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Invalid phone number"));
+                        .content("{\"accessCode\":\"anything\"}"))
+                .andExpect(status().isNotFound());
     }
 }
