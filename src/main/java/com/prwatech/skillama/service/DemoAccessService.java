@@ -19,8 +19,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * OTP-gated login for the shared investor-demo learner account. The one-time
  * code is emailed to the owner ({@code skillama.demo.otp-email}); whoever the
  * owner shares it with can enter the demo. Disabled (404) unless both
- * {@code skillama.demo.otp-email} and {@code skillama.demo.user-email} are set,
- * so the endpoints are inert on environments without demo env vars.
+ * {@code skillama.demo.otp-email} and {@code skillama.demo.user-email} are
+ * non-empty. Defaults live in application.properties; the
+ * SKILLAMA_DEMO_OTP_EMAIL / SKILLAMA_DEMO_USER_EMAIL env vars override them
+ * per environment (set either to empty to disable the demo there).
  */
 @Service
 public class DemoAccessService {
