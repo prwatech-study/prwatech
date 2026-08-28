@@ -1171,6 +1171,16 @@ public class AdminController {
      * OWNER: seed balanced course progress for learner dashboard screenshots.
      * POST ?email=learner@example.com&amp;assignAll=true
      */
+    @ApiOperation(value = "Seed demo dashboard",
+            notes = "OWNER: seed balanced course progress (incl. module-quiz passes) for the demo learner")
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PostMapping("/users/seed-demo-dashboard")
     public ResponseEntity<ApiResponse<DemoDashboardSeedResultDTO>> seedDemoDashboard(
             @RequestParam String email,
@@ -1202,6 +1212,16 @@ public class AdminController {
      * wipes doubts, quiz/exam attempts+sessions and chat history, then reseeds
      * dashboard progress. Never touches the AI wallet (lifetime, never reset).
      */
+    @ApiOperation(value = "Reset demo data",
+            notes = "OWNER: wipe the demo learner's doubts, quiz/exam attempts and chat, then reseed the dashboard")
+    @ApiImplicitParams({
+            @ApiImplicitParam(
+                    name = Constants.AUTH,
+                    value = Constants.TOKEN_TYPE,
+                    required = true,
+                    dataType = Constants.AUTH_DATA_TYPE,
+                    paramType = Constants.AUTH_PARAM_TYPE)
+    })
     @PostMapping("/users/{userId}/reset-demo-data")
     public ResponseEntity<ApiResponse<DemoResetResultDTO>> resetDemoData(
             @PathVariable String userId,
