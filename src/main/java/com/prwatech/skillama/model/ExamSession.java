@@ -58,6 +58,12 @@ public class ExamSession {
 
     private LocalDateTime createdAt;
     private LocalDateTime startedAt;
+    /**
+     * When the learner clicked "Begin Exam" — the clock grading actually uses. Null until
+     * begun; legacy sessions (pre-begin-endpoint) fall back to startedAt at submit time.
+     * Stamped once and never re-stamped, so re-begin can't reset the timer.
+     */
+    private LocalDateTime beganAt;
     private Integer timeLimitSeconds;
     private LocalDateTime expiresAt;
 

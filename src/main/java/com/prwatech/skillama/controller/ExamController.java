@@ -52,6 +52,21 @@ public class ExamController {
         }
     }
 
+    /** Starts the exam clock and returns the questions — see ExamService.beginAttempt. */
+    @PostMapping("/sessions/{examSessionId}/begin")
+    public ResponseEntity<?> beginAttempt(
+            @PathVariable String examSessionId, HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        try {
+            return ResponseEntity.ok(examService.beginAttempt(userId, examSessionId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
     @PostMapping("/attempts")
     public ResponseEntity<?> submitAttempt(
             @RequestBody SubmitExamAttemptRequestDTO request, HttpServletRequest httpRequest) {

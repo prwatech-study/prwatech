@@ -140,18 +140,55 @@ public class ExamService {
 
         sessionRepository.save(session);
 
-        List<ModuleQuizQuestionDTO> clientQuestions = questions.stream()
-                .map(this::toClientQuestion)
-                .collect(Collectors.toList());
-
+        // Questions are withheld until beginAttempt: the exam clock starts when the
+        // learner clicks Begin, so handing questions out here would allow untimed
+        // preparation against the network response while the ready screen is up.
         return StartExamResponseDTO.builder()
                 .examSessionId(examSessionId)
                 .examTitle(session.getExamTitle())
-                .questions(clientQuestions)
-                .totalQuestions(clientQuestions.size())
+                .totalQuestions(questions.size())
                 .timeLimitSeconds(timeLimitSeconds)
                 .difficulty(request.getDifficulty())
                 .examType(request.getExamType())
+                .build();
+    }
+
+    /**
+     * Stamps the moment the learner actually starts answering and hands over the
+     * questions (still without the answer key). Idempotent: a re-begin (e.g. after a
+     * refresh) returns the questions again with the clock still anchored to the FIRST
+     * begin — re-clicking can never reset the timer.
+     */
+    public StartExamResponseDTO beginAttempt(String userId, String examSessionId) {
+        if (!StringUtils.hasText(examSessionId)) {
+            throw new IllegalArgumentException("examSessionId is required");
+        }
+        ExamSession session = sessionRepository.findByExamSessionId(examSessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Exam session not found"));
+        if (!userId.equals(session.getUserId())) {
+            throw new IllegalArgumentException("Exam session does not belong to this user");
+        }
+        LocalDateTime now = IndiaTime.now();
+        if (session.getExpiresAt() != null && session.getExpiresAt().isBefore(now)) {
+            throw new IllegalArgumentException("Exam session has expired");
+        }
+        if (session.getBeganAt() == null) {
+            session.setBeganAt(now);
+            sessionRepository.save(session);
+        }
+        int timeLimit = session.getTimeLimitSeconds() != null ? session.getTimeLimitSeconds() : 0;
+        int elapsed = (int) Duration.between(session.getBeganAt(), now).getSeconds();
+        return StartExamResponseDTO.builder()
+                .examSessionId(session.getExamSessionId())
+                .examTitle(session.getExamTitle())
+                .questions(session.getQuestions().stream()
+                        .map(this::toClientQuestion)
+                        .collect(Collectors.toList()))
+                .totalQuestions(session.getQuestions().size())
+                .timeLimitSeconds(session.getTimeLimitSeconds())
+                .remainingSeconds(Math.max(0, timeLimit - elapsed))
+                .difficulty(session.getDifficulty())
+                .examType(session.getExamType())
                 .build();
     }
 
@@ -213,8 +250,11 @@ public class ExamService {
         double percentage = maxScore > 0 ? (score * 100.0) / maxScore : 0.0;
         boolean passed = percentage >= ModuleQuizService.PASSING_PERCENTAGE;
         LocalDateTime submittedAt = IndiaTime.now();
-        Integer timeSpentSeconds = session.getStartedAt() != null
-                ? (int) Duration.between(session.getStartedAt(), submittedAt).getSeconds()
+        // beganAt (the Begin Exam click) is the real clock; startedAt (generation time)
+        // only remains as the fallback for legacy sessions created before beginAttempt.
+        LocalDateTime clockStart = session.getBeganAt() != null ? session.getBeganAt() : session.getStartedAt();
+        Integer timeSpentSeconds = clockStart != null
+                ? (int) Duration.between(clockStart, submittedAt).getSeconds()
                 : null;
         Boolean overTimeLimit = session.getTimeLimitSeconds() != null && timeSpentSeconds != null
                 && timeSpentSeconds > session.getTimeLimitSeconds();

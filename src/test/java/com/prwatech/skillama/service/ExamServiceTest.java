@@ -202,7 +202,7 @@ class ExamServiceTest {
     }
 
     @Test
-    void startExamSuccessHidesCorrectKeyAndScalesTimeLimitByDifficulty() {
+    void startExamWithholdsQuestionsAndScalesTimeLimitByDifficulty() {
         StartExamRequestDTO r = practiceRequest();
         r.setDifficulty(ExamDifficulty.ADVANCED);
 
@@ -210,9 +210,62 @@ class ExamServiceTest {
 
         assertTrue(res.getExamSessionId().startsWith("exam-"));
         assertEquals(2, res.getTotalQuestions());
-        assertNull(res.getQuestions().get(0).getCorrectKey());
+        // Questions only leave the server via beginAttempt, when the clock starts.
+        assertNull(res.getQuestions());
         assertEquals(10 * 90, res.getTimeLimitSeconds()); // ADVANCED -> 10 questions * 90s
         verify(sessionRepository).save(any(ExamSession.class));
+    }
+
+    // ---------- beginAttempt ----------
+
+    @Test
+    void beginAttemptStampsBeganAtOnceAndReturnsQuestionsWithoutCorrectKey() {
+        ExamSession session = sessionFor("exam-1", USER, LocalDateTime.now().minusMinutes(5));
+        when(sessionRepository.findByExamSessionId("exam-1")).thenReturn(Optional.of(session));
+
+        StartExamResponseDTO first = service.beginAttempt(USER, "exam-1");
+
+        assertNotNull(session.getBeganAt());
+        assertEquals(2, first.getQuestions().size());
+        assertNull(first.getQuestions().get(0).getCorrectKey());
+        assertEquals(300, first.getRemainingSeconds()); // full limit on first begin
+        verify(sessionRepository).save(session);
+
+        // Re-begin (e.g. refresh) keeps the ORIGINAL clock and doesn't save again.
+        LocalDateTime firstBeganAt = session.getBeganAt();
+        StartExamResponseDTO second = service.beginAttempt(USER, "exam-1");
+        assertEquals(firstBeganAt, session.getBeganAt());
+        assertEquals(2, second.getQuestions().size());
+        verify(sessionRepository, times(1)).save(session);
+    }
+
+    @Test
+    void beginAttemptRejectsWrongOwnerAndExpiredSession() {
+        ExamSession foreign = sessionFor("exam-1", "someoneElse", LocalDateTime.now());
+        when(sessionRepository.findByExamSessionId("exam-1")).thenReturn(Optional.of(foreign));
+        assertThrows(IllegalArgumentException.class, () -> service.beginAttempt(USER, "exam-1"));
+
+        ExamSession expired = sessionFor("exam-2", USER, LocalDateTime.now());
+        expired.setExpiresAt(LocalDateTime.now().minusMinutes(1));
+        when(sessionRepository.findByExamSessionId("exam-2")).thenReturn(Optional.of(expired));
+        assertThrows(IllegalArgumentException.class, () -> service.beginAttempt(USER, "exam-2"));
+    }
+
+    @Test
+    void submitAttemptComputesTimeFromBeganAtNotGenerationTime() {
+        // Generated 10 minutes ago, but the learner clicked Begin only 30s ago —
+        // grading must use the begin click, not the generation timestamp.
+        ExamSession session = sessionFor("exam-1", USER, LocalDateTime.now().minusMinutes(10));
+        session.setBeganAt(LocalDateTime.now().minusSeconds(30));
+        when(sessionRepository.findByExamSessionId("exam-1")).thenReturn(Optional.of(session));
+
+        SubmitExamAttemptRequestDTO r = SubmitExamAttemptRequestDTO.builder()
+                .examSessionId("exam-1").answers(Map.of("1", "A", "2", "B")).build();
+
+        ExamAttemptResultDTO result = service.submitAttempt(USER, r);
+
+        assertTrue(result.getTimeSpentSeconds() < 120);
+        assertFalse(result.getOverTimeLimit());
     }
 
     // ---------- submitAttempt ----------
