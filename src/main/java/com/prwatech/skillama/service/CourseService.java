@@ -21,8 +21,10 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import com.prwatech.skillama.util.IndiaTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import lombok.AllArgsConstructor;
@@ -352,6 +354,55 @@ public class CourseService {
         }
         int cappedCompleted = Math.min(Math.max(completedLectures, 0), totalLectures);
         return Math.min(100, (int) Math.round(cappedCompleted * 100.0 / totalLectures));
+    }
+
+    /** Modules that count toward progress and quizzes: at least one enabled submodule. */
+    public static int countEnabledModules(List<CourseCurriculum> curriculum) {
+        if (curriculum == null) {
+            return 0;
+        }
+        return (int) curriculum.stream()
+                .filter(m -> m.getSubmodules() != null
+                        && m.getSubmodules().stream().anyMatch(CourseService::isSubmoduleEnabled))
+                .count();
+    }
+
+    /** Names of the modules counted by {@link #countEnabledModules}. */
+    public static Set<String> enabledModuleNames(List<CourseCurriculum> curriculum) {
+        Set<String> names = new HashSet<>();
+        if (curriculum == null) {
+            return names;
+        }
+        for (CourseCurriculum module : curriculum) {
+            if (module.getModuleName() == null || module.getSubmodules() == null) {
+                continue;
+            }
+            if (module.getSubmodules().stream().anyMatch(CourseService::isSubmoduleEnabled)) {
+                names.add(module.getModuleName());
+            }
+        }
+        return names;
+    }
+
+    /**
+     * Single source of truth for course completion %: module quizzes count — one per
+     * enabled module — alongside lectures, matching the LMS unlock model (a course is
+     * not finished until its quizzes are). A skipped quiz satisfies its module, the
+     * same way skipping unlocks the next module — otherwise a learner who ever
+     * skipped could never reach 100%. Every surface (home cards, dashboard, LMS
+     * header, stored aggregate) must derive its percent from this method.
+     */
+    public static int calculateCourseCompletionPercent(
+            int completedLectures, int totalLectures, int satisfiedQuizzes, int totalQuizzes) {
+        int lectures = Math.max(totalLectures, 0);
+        int quizzes = Math.max(totalQuizzes, 0);
+        int denominator = lectures + quizzes;
+        if (denominator <= 0) {
+            return 0;
+        }
+        int numerator = Math.min(Math.max(completedLectures, 0), lectures)
+                + Math.min(Math.max(satisfiedQuizzes, 0), quizzes);
+        return Math.min(100, (int) Math.round(numerator * 100.0 / denominator));
     }
 
     public static int clampStoredProgressPercent(Integer progress) {

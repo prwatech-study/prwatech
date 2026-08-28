@@ -49,6 +49,7 @@ public class ModuleQuizService {
     private final CourseCurriculumRepository curriculumRepository;
     private final SkillamaAiClient skillamaAiClient;
     private final SkillamaUserRepository userRepository;
+    private final UserCourseService userCourseService;
 
     /**
      * Generates questions server-side (the client never supplies questions or an answer
@@ -210,6 +211,7 @@ public class ModuleQuizService {
 
         if (passed) {
             recordPassedQuiz(profilingSessionId, userId, session.getCourseId(), session.getModuleName(), score, maxScore);
+            refreshAggregateQuietly(userId, session.getCourseId());
         }
 
         return ModuleQuizAttemptResultDTO.builder()
@@ -488,11 +490,30 @@ public class ModuleQuizService {
         profile.setUpdatedAt(IndiaTime.now());
         userProfileRepository.save(profile);
 
+        refreshAggregateQuietly(
+                StringUtils.hasText(userId) ? userId : profile.getUserId(), courseId);
+
         return Map.of(
                 "status", "ok",
                 "skipped", true,
                 "attemptCount", attemptCount,
                 "quizPending", true);
+    }
+
+    /**
+     * The stored dashboard aggregate counts quizzes too (unified progress formula),
+     * so a pass/skip must recompute it — best-effort, never failing the submit.
+     */
+    private void refreshAggregateQuietly(String userId, String courseId) {
+        if (!StringUtils.hasText(userId)) {
+            return; // guests have no dashboard aggregate
+        }
+        try {
+            userCourseService.refreshCourseProgressAggregate(userId, courseId);
+        } catch (Exception e) {
+            log.warn("Failed to refresh progress aggregate for user {} course {}: {}",
+                    userId, courseId, e.getMessage());
+        }
     }
 
     public Integer getBestQuizScore(UserProfile profile, String courseId, String moduleName) {

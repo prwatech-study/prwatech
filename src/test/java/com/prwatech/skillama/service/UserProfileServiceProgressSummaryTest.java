@@ -139,4 +139,33 @@ class UserProfileServiceProgressSummaryTest {
         assertEquals(100, summary.getCompletionPercentage());
         assertEquals(0, summary.getPendingModuleQuizzes());
     }
+
+    @Test
+    void skippedQuizCountsTowardCompletionButNotAsPassed() {
+        List<CourseCurriculum> curriculum = List.of(module("Module A", lecture("L1"), lecture("L2")));
+
+        UserProfile profile = UserProfile.builder()
+                .userId("u1")
+                .isGuest(false)
+                .completedLectures(new ArrayList<>(List.of(
+                        completed("L1", "c1"),
+                        completed("L2", "c1")
+                )))
+                .inProgressLectures(new ArrayList<>())
+                .passedModuleQuizzes(new ArrayList<>())
+                .skippedModuleQuizzes(new ArrayList<>(List.of(
+                        UserProfile.SkippedModuleQuiz.builder()
+                                .moduleName("Module A")
+                                .courseId("c1")
+                                .build()
+                )))
+                .build();
+
+        ProgressSummaryDTO summary = userProfileService.buildProgressSummary(profile, curriculum, "c1");
+
+        // Skip unlocks the next module, so it satisfies the module for the % too —
+        // otherwise a learner who ever skipped could never reach 100%.
+        assertEquals(100, summary.getCompletionPercentage());
+        assertEquals(0, summary.getPassedModuleQuizzes());
+    }
 }

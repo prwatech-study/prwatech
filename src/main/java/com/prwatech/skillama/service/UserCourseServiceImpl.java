@@ -9,11 +9,13 @@ import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.UserCourseEnrollment;
 import com.prwatech.skillama.model.UserCourseProgress;
 import com.prwatech.skillama.model.UserLectureProgress;
+import com.prwatech.skillama.model.UserProfile;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import com.prwatech.skillama.repository.CourseRepository;
 import com.prwatech.skillama.repository.UserCourseEnrollmentRepository;
 import com.prwatech.skillama.repository.UserCourseProgressRepository;
 import com.prwatech.skillama.repository.UserLectureProgressRepository;
+import com.prwatech.skillama.repository.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,13 +36,17 @@ public class UserCourseServiceImpl implements UserCourseService {
     private final CourseCurriculumRepository curriculumRepository;
     private final UserCourseAccessService userCourseAccessService;
     private final AiUsageService aiUsageService;
+    private final UserProfileRepository userProfileRepository;
     
     @Override
     public List<UserCourseDTO> getUserCoursesWithProgress(String userId) {
         // 1. Get all enrolled courses for the user
         List<UserCourseEnrollment> enrollments = enrollmentRepository.findByUserIdAndStatus(
             userId, UserCourseEnrollment.EnrollmentStatus.ACTIVE);
-        
+
+        // One profile load covers the quiz terms for every course below.
+        UserProfile profile = userProfileRepository.findByUserId(userId).orElse(null);
+
         // 2. For each enrollment, get course details and progress
         return enrollments.stream().map(enrollment -> {
             Course course = courseRepository.findById(enrollment.getCourseId())
@@ -61,10 +67,12 @@ public class UserCourseServiceImpl implements UserCourseService {
             // Calculate completed lectures (only labels still in enabled curriculum)
             int completedLectures = countCompletedInCurriculum(
                     userId, course.getId(), curriculum);
-            
-            // Calculate progress percentage (capped at 100%)
-            int progressPercentage = CourseService.calculateProgressPercent(
-                    completedLectures, totalLectures);
+
+            // Unified formula: quizzes count alongside lectures on every surface.
+            int progressPercentage = CourseService.calculateCourseCompletionPercent(
+                    completedLectures, totalLectures,
+                    countSatisfiedQuizzes(profile, course.getId(), curriculum),
+                    CourseService.countEnabledModules(curriculum));
             
             // Determine status
             String status = determineStatus(progressPercentage);
@@ -107,10 +115,13 @@ public class UserCourseServiceImpl implements UserCourseService {
         
         // Get completed lectures count (enabled curriculum only)
         int completedLectures = countCompletedInCurriculum(userId, courseId, curriculum);
-        
-        // Calculate progress percentage (capped at 100%)
-        int progressPercentage = CourseService.calculateProgressPercent(
-                completedLectures, totalLectures);
+
+        // Unified formula: quizzes count alongside lectures on every surface.
+        int progressPercentage = CourseService.calculateCourseCompletionPercent(
+                completedLectures, totalLectures,
+                countSatisfiedQuizzes(
+                        userProfileRepository.findByUserId(userId).orElse(null), courseId, curriculum),
+                CourseService.countEnabledModules(curriculum));
         
         // Get all lecture progress for this course
         List<UserLectureProgress> lectureProgressList = lectureProgressRepository
@@ -221,16 +232,25 @@ public class UserCourseServiceImpl implements UserCourseService {
         return progressRepository.save(progress);
     }
     
+    @Override
+    public void refreshCourseProgressAggregate(String userId, String courseId) {
+        updateCourseProgressAggregate(userId, courseId);
+    }
+
     private void updateCourseProgressAggregate(String userId, String courseId) {
         // Get total lectures
         List<CourseCurriculum> curriculum = curriculumRepository.findByCourseIdOrderByOrderAsc(courseId);
         int totalLectures = calculateTotalLectures(curriculum);
-        
+
         // Get completed lectures (enabled curriculum only)
         int completedLectures = countCompletedInCurriculum(userId, courseId, curriculum);
-        
-        // Calculate progress (capped at 100%)
-        int progress = CourseService.calculateProgressPercent(completedLectures, totalLectures);
+
+        // Unified formula: quizzes count alongside lectures on every surface.
+        int progress = CourseService.calculateCourseCompletionPercent(
+                completedLectures, totalLectures,
+                countSatisfiedQuizzes(
+                        userProfileRepository.findByUserId(userId).orElse(null), courseId, curriculum),
+                CourseService.countEnabledModules(curriculum));
         
         // Update or create UserCourseProgress
         UserCourseProgress courseProgress = progressRepository
@@ -281,6 +301,40 @@ public class UserCourseServiceImpl implements UserCourseService {
                 .count();
     }
     
+    /**
+     * Quiz half of the unified progress formula: distinct enabled-module names with a
+     * passed or skipped quiz (skipping unlocks the next module, so it satisfies the
+     * module for progress too — see CourseService.calculateCourseCompletionPercent).
+     */
+    private int countSatisfiedQuizzes(
+            UserProfile profile, String courseId, List<CourseCurriculum> curriculum) {
+        if (profile == null || courseId == null) {
+            return 0;
+        }
+        java.util.Set<String> enabledModules = CourseService.enabledModuleNames(curriculum);
+        if (enabledModules.isEmpty()) {
+            return 0;
+        }
+        java.util.Set<String> satisfied = new java.util.HashSet<>();
+        if (profile.getPassedModuleQuizzes() != null) {
+            profile.getPassedModuleQuizzes().stream()
+                    .filter(q -> courseId.equals(q.getCourseId()))
+                    .map(UserProfile.PassedModuleQuiz::getModuleName)
+                    .filter(java.util.Objects::nonNull)
+                    .filter(enabledModules::contains)
+                    .forEach(satisfied::add);
+        }
+        if (profile.getSkippedModuleQuizzes() != null) {
+            profile.getSkippedModuleQuizzes().stream()
+                    .filter(q -> courseId.equals(q.getCourseId()))
+                    .map(UserProfile.SkippedModuleQuiz::getModuleName)
+                    .filter(java.util.Objects::nonNull)
+                    .filter(enabledModules::contains)
+                    .forEach(satisfied::add);
+        }
+        return satisfied.size();
+    }
+
     private String determineStatus(int progress) {
         if (progress == 0) return "not-started";
         if (progress == 100) return "completed";

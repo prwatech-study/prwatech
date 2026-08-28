@@ -9,8 +9,11 @@ import java.util.List;
 public interface UserCourseService {
     List<UserCourseDTO> getUserCoursesWithProgress(String userId);
     CourseProgressDTO getCourseProgress(String userId, String courseId);
-    CourseProgressDTO updateProgress(String userId, String courseId, String lectureId, 
+    CourseProgressDTO updateProgress(String userId, String courseId, String lectureId,
                                      boolean completed, Integer timeSpent);
+
+    /** Recompute and persist the stored progress aggregate (e.g. after a quiz pass/skip). */
+    void refreshCourseProgressAggregate(String userId, String courseId);
     
     // Enrollment methods
     UserCourseEnrollment enrollUserToCourse(String userId, String courseId, 

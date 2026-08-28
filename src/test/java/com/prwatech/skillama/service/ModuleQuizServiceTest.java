@@ -64,6 +64,7 @@ class ModuleQuizServiceTest {
     @Mock private CourseCurriculumRepository curriculumRepository;
     @Mock private SkillamaAiClient skillamaAiClient;
     @Mock private SkillamaUserRepository userRepository;
+    @Mock private UserCourseService userCourseService;
 
     private ModuleQuizService service;
 
@@ -75,7 +76,7 @@ class ModuleQuizServiceTest {
     void setUp() {
         service = new ModuleQuizService(sessionRepository, attemptRepository,
                 userProfileRepository, courseRepository, curriculumRepository,
-                skillamaAiClient, userRepository);
+                skillamaAiClient, userRepository, userCourseService);
         when(sessionRepository.save(any(ModuleQuizSession.class))).thenAnswer(inv -> inv.getArgument(0));
         when(attemptRepository.save(any(ModuleQuizAttempt.class))).thenAnswer(inv -> {
             ModuleQuizAttempt a = inv.getArgument(0);

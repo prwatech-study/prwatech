@@ -675,7 +675,7 @@ public class UserProfileService {
                 .count();
         int lockedLectures = Math.max(0, totalLectures - completedLectures - inProgressLectures);
 
-        int totalModuleQuizzes = countEnabledModules(curriculum);
+        int totalModuleQuizzes = CourseService.countEnabledModules(curriculum);
         // Same staleness rule for quizzes: a pass only counts while its module still exists.
         Set<String> moduleNames = new HashSet<>();
         if (curriculum != null) {
@@ -694,11 +694,25 @@ public class UserProfileService {
                 .count();
         int pendingModuleQuizzes = countPendingModuleQuizzes(profile, curriculum, courseId);
 
-        int completionDenominator = totalLectures + totalModuleQuizzes;
-        int completionNumerator = completedLectures + passedModuleQuizzes;
-        int completionPercentage = completionDenominator > 0
-                ? Math.min(100, (completionNumerator * 100) / completionDenominator)
-                : 0;
+        // For the % a skipped quiz satisfies its module, mirroring unlock behavior —
+        // otherwise a learner who ever skipped could never reach 100%.
+        Set<String> satisfiedQuizModules = new HashSet<>();
+        profile.getPassedModuleQuizzes().stream()
+                .filter(pq -> courseId != null && courseId.equals(pq.getCourseId()))
+                .map(UserProfile.PassedModuleQuiz::getModuleName)
+                .filter(Objects::nonNull)
+                .filter(moduleNames::contains)
+                .forEach(satisfiedQuizModules::add);
+        if (profile.getSkippedModuleQuizzes() != null) {
+            profile.getSkippedModuleQuizzes().stream()
+                    .filter(sq -> courseId != null && courseId.equals(sq.getCourseId()))
+                    .map(UserProfile.SkippedModuleQuiz::getModuleName)
+                    .filter(Objects::nonNull)
+                    .filter(moduleNames::contains)
+                    .forEach(satisfiedQuizModules::add);
+        }
+        int completionPercentage = CourseService.calculateCourseCompletionPercent(
+                completedLectures, totalLectures, satisfiedQuizModules.size(), totalModuleQuizzes);
 
         return ProgressSummaryDTO.builder()
                 .totalLectures(totalLectures)
@@ -710,24 +724,6 @@ public class UserProfileService {
                 .passedModuleQuizzes(passedModuleQuizzes)
                 .pendingModuleQuizzes(pendingModuleQuizzes)
                 .build();
-    }
-
-    private int countEnabledModules(List<CourseCurriculum> curriculum) {
-        if (curriculum == null) {
-            return 0;
-        }
-        int count = 0;
-        for (CourseCurriculum module : curriculum) {
-            if (module.getSubmodules() == null) {
-                continue;
-            }
-            boolean hasEnabled = module.getSubmodules().stream()
-                    .anyMatch(sub -> sub.getEnabled() == null || sub.getEnabled());
-            if (hasEnabled) {
-                count++;
-            }
-        }
-        return count;
     }
 
     /** Labels of every enabled lecture in the current curriculum — the only labels that may
