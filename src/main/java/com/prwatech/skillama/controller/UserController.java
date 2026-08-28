@@ -113,14 +113,30 @@ public class UserController {
     }
 
     /**
-     * One-click login for the shared investor-demo learner account, gated by a
-     * server-side access code. 404 when demo env vars are not configured.
+     * Email a one-time code for the investor demo to the owner
+     * (skillama.demo.otp-email). 404 when demo env vars are not configured,
+     * 429 while the resend cooldown is active.
+     */
+    @PostMapping("/demo-login/otp/send")
+    public ResponseEntity<?> sendDemoLoginOtp() {
+        try {
+            return ResponseEntity.ok(demoAccessService.sendDemoOtp());
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(404).body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(429).body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * Login for the shared investor-demo learner account, gated by the one-time
+     * code emailed to the owner. 404 when demo env vars are not configured.
      */
     @PostMapping("/demo-login")
     public ResponseEntity<?> demoLogin(@RequestBody DemoLoginRequestDTO request) {
         try {
-            String code = request != null ? request.getAccessCode() : null;
-            return ResponseEntity.ok(demoAccessService.demoLogin(code));
+            String otp = request != null ? request.getOtp() : null;
+            return ResponseEntity.ok(demoAccessService.demoLogin(otp));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(404).body(Map.of("status", "error", "message", e.getMessage()));
         } catch (SkillamaAuthException e) {

@@ -1,6 +1,7 @@
 package com.prwatech.skillama.controller;
 
 import com.prwatech.authentication.security.JwtUtils;
+import com.prwatech.skillama.dto.DemoOtpSendResultDTO;
 import com.prwatech.skillama.dto.LoginResponseDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.exception.SkillamaAuthException;
@@ -70,8 +71,8 @@ class UserControllerDemoLoginTest {
     }
 
     @Test
-    void demoLogin_validCode_returnsLoginResponse() throws Exception {
-        when(demoAccessService.demoLogin("pitch-2026")).thenReturn(
+    void demoLogin_validOtp_returnsLoginResponse() throws Exception {
+        when(demoAccessService.demoLogin("482913")).thenReturn(
                 LoginResponseDTO.builder()
                         .id("demo-1")
                         .email("demo@skillama.co.in")
@@ -80,32 +81,60 @@ class UserControllerDemoLoginTest {
 
         mockMvc.perform(post("/skillama/users/demo-login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"accessCode\":\"pitch-2026\"}"))
+                        .content("{\"otp\":\"482913\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").value("demo-jwt"))
                 .andExpect(jsonPath("$.email").value("demo@skillama.co.in"));
     }
 
     @Test
-    void demoLogin_invalidCode_returns401() throws Exception {
-        when(demoAccessService.demoLogin("wrong"))
-                .thenThrow(new SkillamaAuthException("Invalid access code", "DEMO_CODE_INVALID"));
+    void demoLogin_invalidOtp_returns401() throws Exception {
+        when(demoAccessService.demoLogin("000000"))
+                .thenThrow(new SkillamaAuthException("Invalid or expired code", "DEMO_OTP_INVALID"));
 
         mockMvc.perform(post("/skillama/users/demo-login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"accessCode\":\"wrong\"}"))
+                        .content("{\"otp\":\"000000\"}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("Invalid access code"));
+                .andExpect(jsonPath("$.message").value("Invalid or expired code"));
     }
 
     @Test
     void demoLogin_notConfigured_returns404() throws Exception {
-        when(demoAccessService.demoLogin("anything"))
+        when(demoAccessService.demoLogin("482913"))
                 .thenThrow(new ResourceNotFoundException("Demo access is not configured on this environment"));
 
         mockMvc.perform(post("/skillama/users/demo-login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"accessCode\":\"anything\"}"))
+                        .content("{\"otp\":\"482913\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void sendDemoOtp_returnsMaskedEmail() throws Exception {
+        when(demoAccessService.sendDemoOtp()).thenReturn(
+                DemoOtpSendResultDTO.builder().maskedEmail("o***r@skillama.co.in").build());
+
+        mockMvc.perform(post("/skillama/users/demo-login/otp/send"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.maskedEmail").value("o***r@skillama.co.in"));
+    }
+
+    @Test
+    void sendDemoOtp_cooldown_returns429() throws Exception {
+        when(demoAccessService.sendDemoOtp())
+                .thenThrow(new IllegalStateException("A code was just sent. Please wait a moment before requesting another."));
+
+        mockMvc.perform(post("/skillama/users/demo-login/otp/send"))
+                .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    void sendDemoOtp_notConfigured_returns404() throws Exception {
+        when(demoAccessService.sendDemoOtp())
+                .thenThrow(new ResourceNotFoundException("Demo access is not configured on this environment"));
+
+        mockMvc.perform(post("/skillama/users/demo-login/otp/send"))
                 .andExpect(status().isNotFound());
     }
 }

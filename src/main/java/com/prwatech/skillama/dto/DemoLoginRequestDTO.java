@@ -4,5 +4,6 @@ import lombok.Data;
 
 @Data
 public class DemoLoginRequestDTO {
-    private String accessCode;
+    /** One-time code emailed to the owner via POST /users/demo-login/otp/send. */
+    private String otp;
 }

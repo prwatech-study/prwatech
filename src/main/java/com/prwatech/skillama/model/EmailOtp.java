@@ -30,6 +30,6 @@ public class EmailOtp {
     private LocalDateTime createdAt;
 
     public enum OtpPurpose {
-        SIGNUP, LOGIN, MIGRATE_FREEMIUM, PASSWORD_RESET
+        SIGNUP, LOGIN, MIGRATE_FREEMIUM, PASSWORD_RESET, DEMO_LOGIN
     }
 }
