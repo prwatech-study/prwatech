@@ -5,12 +5,14 @@ import com.prwatech.skillama.dto.DemoDashboardSeedResultDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
+import com.prwatech.skillama.model.ModuleQuizAttempt;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserCourseEnrollment;
 import com.prwatech.skillama.model.UserCourseProgress;
 import com.prwatech.skillama.model.UserProfile;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import com.prwatech.skillama.repository.CourseRepository;
+import com.prwatech.skillama.repository.ModuleQuizAttemptRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserCourseEnrollmentRepository;
 import com.prwatech.skillama.repository.UserCourseProgressRepository;
@@ -25,7 +27,10 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +43,10 @@ public class DemoDashboardSeedService {
     /** Balanced mix: completed, in-progress, low, not started — repeats if more courses. */
     private static final int[] TARGET_PROGRESS_PATTERN = {100, 72, 48, 25, 0};
 
+    /** Seeded quiz result: 4/5 = 80%, above the 70% pass mark but not suspiciously perfect. */
+    private static final int SEED_QUIZ_SCORE = 4;
+    private static final int SEED_QUIZ_MAX_SCORE = 5;
+
     private final SkillamaUserRepository userRepository;
     private final CourseRepository courseRepository;
     private final CourseCurriculumRepository curriculumRepository;
@@ -45,6 +54,7 @@ public class DemoDashboardSeedService {
     private final UserCourseProgressRepository courseProgressRepository;
     private final UserLectureProgressRepository lectureProgressRepository;
     private final UserProfileRepository userProfileRepository;
+    private final ModuleQuizAttemptRepository moduleQuizAttemptRepository;
     private final UserCourseService userCourseService;
     private final UserProfileService userProfileService;
     private final AdminService adminService;
@@ -85,7 +95,11 @@ public class DemoDashboardSeedService {
                     "User has no active course enrollments. Assign courses first or pass assignAllActiveCourses=true.");
         }
 
-        UserProfile profile = userProfileRepository.findByUserId(userId)
+        // Ensure the profile exists; all later profile writes re-load a fresh copy.
+        // Holding one snapshot across courses (as this used to) meant every save
+        // overwrote the completions completeLecture had just written for the
+        // previous course, leaving the LMS-side progress store nearly empty.
+        userProfileRepository.findByUserId(userId)
                 .orElseGet(() -> userProfileService.getOrCreateProfile(null, userId));
 
         List<DemoDashboardSeedResultDTO.CourseProgressSummary> summaries = new ArrayList<>();
@@ -108,9 +122,7 @@ public class DemoDashboardSeedService {
             int targetPercent = TARGET_PROGRESS_PATTERN[courseIndex % TARGET_PROGRESS_PATTERN.length];
             courseIndex++;
 
-            resetCourseProgress(userId, courseId, profile);
-            userProfileRepository.save(profile);
-            profile = userProfileRepository.findByUserId(userId).orElse(profile);
+            resetCourseProgress(userId, courseId);
 
             List<LectureRef> lectures = collectEnabledLectures(courseId);
             int total = lectures.size();
@@ -137,6 +149,8 @@ public class DemoDashboardSeedService {
                 userProfileService.completeLecture(null, userId, req);
             }
 
+            seedPassedModuleQuizzes(userId, courseId, lectures, toComplete, accessedAt);
+
             touchLastAccessed(userId, courseId, accessedAt, enrollment.getEnrolledAt());
 
             int progressPercent = total > 0 ? (int) Math.round((toComplete * 100.0) / total) : 0;
@@ -148,8 +162,6 @@ public class DemoDashboardSeedService {
                     .totalLectures(total)
                     .build());
         }
-
-        userProfileRepository.save(profile);
 
         int avg = summaries.isEmpty() ? 0
                 : (int) Math.round(summaries.stream()
@@ -167,12 +179,22 @@ public class DemoDashboardSeedService {
                 .build();
     }
 
-    private void resetCourseProgress(String userId, String courseId, UserProfile profile) {
+    private void resetCourseProgress(String userId, String courseId) {
         lectureProgressRepository.findByUserIdAndCourseId(userId, courseId)
                 .forEach(lectureProgressRepository::delete);
+        moduleQuizAttemptRepository.deleteByUserIdAndCourseId(userId, courseId);
 
-        profile.getCompletedLectures().removeIf(cl -> courseId.equals(cl.getCourseId()));
-        profile.getInProgressLectures().removeIf(il -> courseId.equals(il.getCourseId()));
+        userProfileRepository.findByUserId(userId).ifPresent(profile -> {
+            profile.getCompletedLectures().removeIf(cl -> courseId.equals(cl.getCourseId()));
+            profile.getInProgressLectures().removeIf(il -> courseId.equals(il.getCourseId()));
+            if (profile.getPassedModuleQuizzes() != null) {
+                profile.getPassedModuleQuizzes().removeIf(q -> courseId.equals(q.getCourseId()));
+            }
+            if (profile.getSkippedModuleQuizzes() != null) {
+                profile.getSkippedModuleQuizzes().removeIf(q -> courseId.equals(q.getCourseId()));
+            }
+            userProfileRepository.save(profile);
+        });
 
         courseProgressRepository.findByUserIdAndCourseId(userId, courseId)
                 .ifPresent(p -> {
@@ -180,6 +202,71 @@ public class DemoDashboardSeedService {
                     p.setCompletedLectures(0);
                     courseProgressRepository.save(p);
                 });
+    }
+
+    /**
+     * The LMS-side course % counts one quiz per module in its denominator and gates
+     * the next module on a pass, so seeded lecture completions alone read low there
+     * and leave "complete the quiz to unlock" walls mid-course. Mark the module quiz
+     * passed (profile entry + a matching attempt row for the history panel) for every
+     * module whose lectures were all seeded complete.
+     */
+    private void seedPassedModuleQuizzes(
+            String userId, String courseId, List<LectureRef> lectures, int toComplete,
+            LocalDateTime accessedAt) {
+        Map<String, Integer> totalPerModule = new LinkedHashMap<>();
+        Map<String, Integer> donePerModule = new LinkedHashMap<>();
+        for (int i = 0; i < lectures.size(); i++) {
+            String moduleName = lectures.get(i).moduleName;
+            totalPerModule.merge(moduleName, 1, Integer::sum);
+            if (i < toComplete) {
+                donePerModule.merge(moduleName, 1, Integer::sum);
+            }
+        }
+        List<String> fullyCompletedModules = totalPerModule.entrySet().stream()
+                .filter(e -> Objects.equals(e.getValue(), donePerModule.get(e.getKey())))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+        if (fullyCompletedModules.isEmpty()) {
+            return;
+        }
+
+        UserProfile profile = userProfileRepository.findByUserId(userId).orElse(null);
+        if (profile == null) {
+            return;
+        }
+        if (profile.getPassedModuleQuizzes() == null) {
+            profile.setPassedModuleQuizzes(new ArrayList<>());
+        }
+
+        int quizIndex = 0;
+        for (String moduleName : fullyCompletedModules) {
+            LocalDateTime passedAt =
+                    accessedAt.minusMinutes(30L * (fullyCompletedModules.size() - quizIndex));
+            profile.getPassedModuleQuizzes().add(UserProfile.PassedModuleQuiz.builder()
+                    .courseId(courseId)
+                    .moduleName(moduleName)
+                    .passedAt(passedAt)
+                    .bestScore(SEED_QUIZ_SCORE)
+                    .maxScore(SEED_QUIZ_MAX_SCORE)
+                    .build());
+            moduleQuizAttemptRepository.save(ModuleQuizAttempt.builder()
+                    .userId(userId)
+                    .courseId(courseId)
+                    .moduleName(moduleName)
+                    .attemptNumber(1)
+                    .score(SEED_QUIZ_SCORE)
+                    .maxScore(SEED_QUIZ_MAX_SCORE)
+                    .percentage(SEED_QUIZ_SCORE * 100.0 / SEED_QUIZ_MAX_SCORE)
+                    .passed(true)
+                    .timeSpentSeconds(150 + quizIndex * 20)
+                    .overTimeLimit(false)
+                    .submittedAt(passedAt)
+                    .build());
+            quizIndex++;
+        }
+        profile.setUpdatedAt(IndiaTime.now());
+        userProfileRepository.save(profile);
     }
 
     private void touchLastAccessed(

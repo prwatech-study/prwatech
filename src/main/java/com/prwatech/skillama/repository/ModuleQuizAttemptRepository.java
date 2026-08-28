@@ -27,4 +27,6 @@ public interface ModuleQuizAttemptRepository extends MongoRepository<ModuleQuizA
     long countByUserId(String userId);
 
     Long deleteByUserId(String userId);
+
+    Long deleteByUserIdAndCourseId(String userId, String courseId);
 }
