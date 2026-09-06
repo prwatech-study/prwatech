@@ -31,6 +31,8 @@ public class DashboardStatsDTO {
     private Double averageProgress;
     private Integer recentUsers;
     private Integer recentCourses;
+    /** Window used for {@code recentUsers} / {@code recentCourses} (7, 14, 30, or 90 days). */
+    private Integer recentPeriodDays;
 
     /** Average active listen time per topic/lecture (seconds). */
     private Double averageTopicTimeSeconds;

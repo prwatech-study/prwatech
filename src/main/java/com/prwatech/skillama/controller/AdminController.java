@@ -1097,10 +1097,12 @@ public class AdminController {
     })
     @GetMapping("/analytics/dashboard")
     public ResponseEntity<ApiResponse<DashboardStatsDTO>> getDashboardStats(
-            HttpServletRequest request) {
+            HttpServletRequest request,
+            @RequestParam(required = false) Integer recentDays) {
         try {
             assertModulePermission(request, AdminModule.DASHBOARD, AdminPermissionAction.READ);
-            DashboardStatsDTO stats = adminService.getDashboardStatistics();
+            DashboardStatsDTO stats = adminService.getDashboardStatistics(
+                    adminService.normalizeRecentPeriodDays(recentDays));
             return ResponseEntity.ok(new ApiResponse<>(200, stats));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

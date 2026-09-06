@@ -624,7 +624,22 @@ public class AdminService {
         return result;
     }
     
+    private static final java.util.Set<Integer> ALLOWED_RECENT_PERIOD_DAYS =
+            java.util.Set.of(7, 14, 30, 90);
+
+    public int normalizeRecentPeriodDays(Integer recentDays) {
+        if (recentDays == null || !ALLOWED_RECENT_PERIOD_DAYS.contains(recentDays)) {
+            return 7;
+        }
+        return recentDays;
+    }
+
     public DashboardStatsDTO getDashboardStatistics() {
+        return getDashboardStatistics(7);
+    }
+
+    public DashboardStatsDTO getDashboardStatistics(int recentPeriodDays) {
+        int periodDays = normalizeRecentPeriodDays(recentPeriodDays);
         List<User> allUsers = userRepository.findAll();
         long totalUsers = allUsers.stream()
                 .filter(u -> u.getEffectiveRole() == User.UserRole.USER)
@@ -646,16 +661,16 @@ public class AdminService {
         List<UserCourseProgress> allProgress = progressRepository.findAll();
         double averageProgress = normalizeAverageProgressPercent(allProgress);
         
-        // Recent users (last 7 days) - simplified
+        java.time.LocalDateTime recentSince = IndiaTime.now().minusDays(periodDays);
+
         int recentUsers = (int) userRepository.findAll().stream()
-            .filter(u -> u.getCreatedAt() != null 
-                && u.getCreatedAt().isAfter(IndiaTime.now().minusDays(7)))
+            .filter(u -> u.getCreatedAt() != null
+                && u.getCreatedAt().isAfter(recentSince))
             .count();
-        
-        // Recent courses (last 7 days) - simplified
+
         int recentCourses = (int) courseRepository.findAll().stream()
-            .filter(c -> c.getCreatedAt() != null 
-                && c.getCreatedAt().isAfter(IndiaTime.now().minusDays(7)))
+            .filter(c -> c.getCreatedAt() != null
+                && c.getCreatedAt().isAfter(recentSince))
             .count();
         
         DashboardStatsDTO stats = new DashboardStatsDTO();
@@ -669,6 +684,7 @@ public class AdminService {
         stats.setAverageProgress(averageProgress);
         stats.setRecentUsers(recentUsers);
         stats.setRecentCourses(recentCourses);
+        stats.setRecentPeriodDays(periodDays);
         stats.setTopCourses(buildTopCourseStats());
         stats.setRecentLogins(buildRecentLoginStats(15));
         applyEngagementTimingStats(stats);
