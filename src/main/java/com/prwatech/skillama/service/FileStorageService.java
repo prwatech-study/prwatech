@@ -147,5 +147,16 @@ public interface FileStorageService {
      * @throws com.prwatech.skillama.exception.InvalidDatasetException if any check fails
      */
     void validateCsvDatasetFile(MultipartFile file);
+
+    /**
+     * Uploads a knowledge-base document and its Bedrock metadata sidecar to the study-materials bucket.
+     *
+     * @param s3ObjectKey full object key, e.g. knowledge-base/{courseId}/notes.pdf
+     * @return public URL of the main object (not the sidecar)
+     */
+    String uploadKnowledgeBaseDocument(MultipartFile file, String courseId, String s3ObjectKey) throws IOException;
+
+    /** Removes the main object and its {@code .metadata.json} sidecar. */
+    void deleteKnowledgeBaseDocument(String s3ObjectKey) throws IOException;
 }
 

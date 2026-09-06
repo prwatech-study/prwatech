@@ -87,6 +87,9 @@ public class SkillamaAiClient {
     @Value("${skillama.ai.internal-key:}")
     private String aiInternalKey;
 
+    @Value("${skillama.kb.sync-secret:}")
+    private String kbSyncSecret;
+
     /**
      * ai-tutor rejects this header only once its own ENFORCE_INTERNAL_AUTH toggle is on;
      * until then it's advisory (logged, not enforced) so rollout can't break the
@@ -814,15 +817,19 @@ public class SkillamaAiClient {
      * </pre>
      */
     public GeneratedLectureDTO generateLecture(User user, String courseId, String section, String course) {
-        return meteredCall(user, "lecture_generation", courseId, () -> generateLectureRaw(section, course));
+        return meteredCall(user, "lecture_generation", courseId,
+                () -> generateLectureRaw(section, course, courseId));
     }
 
-    private GeneratedLectureDTO generateLectureRaw(String section, String course) {
+    private GeneratedLectureDTO generateLectureRaw(String section, String course, String courseId) {
         String url = resolveBaseUrl() + "/generate_lecture";
 
         Map<String, Object> body = new HashMap<>();
         body.put("section", section != null ? section : "");
         body.put("course", course != null ? course : "");
+        if (courseId != null && !courseId.isBlank()) {
+            body.put("courseId", courseId);
+        }
 
         HttpHeaders headers = buildHeaders();
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
@@ -1212,5 +1219,47 @@ public class SkillamaAiClient {
                 .data(response.getBody())
                 .contentType(contentType)
                 .build();
+    }
+
+    /**
+     * Triggers a Bedrock knowledge-base ingestion job on ai-tutor (internal-secret gated).
+     */
+    public Map<String, Object> startKnowledgeBaseSync(String courseId) {
+        String url = resolveBaseUrl() + "/kb/sync";
+        Map<String, Object> body = new HashMap<>();
+        if (courseId != null) {
+            body.put("courseId", courseId);
+        }
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, buildKbSyncHeaders());
+        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+        return parseKbSyncJson(response);
+    }
+
+    public Map<String, Object> getKnowledgeBaseSyncStatus(String jobId) {
+        String url = resolveBaseUrl() + "/kb/sync/status?jobId=" + jobId;
+        HttpEntity<Void> entity = new HttpEntity<>(buildKbSyncHeaders());
+        ResponseEntity<String> response = restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, String.class);
+        return parseKbSyncJson(response);
+    }
+
+    private HttpHeaders buildKbSyncHeaders() {
+        HttpHeaders headers = buildHeaders();
+        if (kbSyncSecret != null && !kbSyncSecret.isBlank()) {
+            headers.set("X-Internal-Key", kbSyncSecret);
+        }
+        return headers;
+    }
+
+    private Map<String, Object> parseKbSyncJson(ResponseEntity<String> response) {
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new IllegalStateException("Knowledge base sync service returned " + response.getStatusCode());
+        }
+        try {
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode data = root.has("data") ? root.path("data") : root;
+            return objectMapper.convertValue(data, Map.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to parse knowledge base sync response", e);
+        }
     }
 }

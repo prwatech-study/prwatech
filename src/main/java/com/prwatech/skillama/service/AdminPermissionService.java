@@ -323,6 +323,7 @@ public class AdminPermissionService {
             case MODULE_QUIZ_MONITOR -> "Module Quiz monitor";
             case CODE_ASSIST_MONITOR -> "Debug / Code Execution monitor";
             case ENROLLMENT_REQUESTS -> "Enrollment requests";
+            case KNOWLEDGE_BASE -> "Knowledge base";
         };
     }
 }

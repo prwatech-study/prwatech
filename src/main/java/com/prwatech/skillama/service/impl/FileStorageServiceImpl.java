@@ -550,6 +550,54 @@ public class FileStorageServiceImpl implements FileStorageService {
         }
     }
 
+    @Override
+    public String uploadKnowledgeBaseDocument(MultipartFile file, String courseId, String s3ObjectKey)
+            throws IOException {
+        validateDocumentFile(file);
+        putMultipartObject(studyMaterialsBucketName, s3ObjectKey, file);
+
+        String metadataKey = s3ObjectKey + ".metadata.json";
+        String metadataJson = "{\"metadataAttributes\":{\"courseId\":\"" + courseId + "\"}}";
+        PutObjectRequest metadataRequest = PutObjectRequest.builder()
+                .bucket(studyMaterialsBucketName)
+                .key(metadataKey)
+                .contentType("application/json")
+                .build();
+        s3Client.putObject(metadataRequest, RequestBody.fromBytes(metadataJson.getBytes(StandardCharsets.UTF_8)));
+        return studyMaterialsBaseUrl + "/" + s3ObjectKey;
+    }
+
+    @Override
+    public void deleteKnowledgeBaseDocument(String s3ObjectKey) throws IOException {
+        deleteS3Object(studyMaterialsBucketName, s3ObjectKey);
+        deleteS3Object(studyMaterialsBucketName, s3ObjectKey + ".metadata.json");
+    }
+
+    private void putMultipartObject(String bucket, String s3Key, MultipartFile file) throws IOException {
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(bucket)
+                    .key(s3Key)
+                    .contentType(file.getContentType() != null ? file.getContentType() : "application/octet-stream")
+                    .build();
+            long size = file.getSize();
+            RequestBody body = size >= 0
+                    ? RequestBody.fromInputStream(file.getInputStream(), size)
+                    : RequestBody.fromBytes(file.getBytes());
+            s3Client.putObject(putObjectRequest, body);
+        } catch (S3Exception e) {
+            throw new IOException("Failed to upload knowledge-base document to S3: " + e.getMessage(), e);
+        }
+    }
+
+    private void deleteS3Object(String bucket, String key) throws IOException {
+        try {
+            s3Client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build());
+        } catch (S3Exception e) {
+            throw new IOException("Failed to delete S3 object " + key + ": " + e.getMessage(), e);
+        }
+    }
+
     private static final long MAX_SUPPORT_ATTACHMENT_SIZE = 10L * 1024 * 1024; // 10MB
     private static final List<String> ALLOWED_SUPPORT_ATTACHMENT_TYPES = Arrays.asList(
         "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "application/pdf"
