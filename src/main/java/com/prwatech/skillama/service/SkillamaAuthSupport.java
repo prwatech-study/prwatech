@@ -3,7 +3,10 @@ package com.prwatech.skillama.service;
 import com.prwatech.authentication.security.JwtUtils;
 import com.prwatech.common.Constants;
 import com.prwatech.skillama.exception.SkillamaAuthException;
+import com.prwatech.skillama.model.Organization;
+import com.prwatech.skillama.model.OrganizationStatus;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.repository.OrganizationRepository;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +20,7 @@ public class SkillamaAuthSupport {
 
     private final JwtUtils jwtUtils;
     private final UserService userService;
+    private final OrganizationRepository organizationRepository;
 
     public String resolveUserIdFromRequest(HttpServletRequest request) {
         return resolveSessionFromRequest(request).userId();
@@ -46,6 +50,9 @@ public class SkillamaAuthSupport {
         User user = userService.findByEmailForAuth(email)
                 .orElseThrow(() -> new SkillamaAuthException("Account not found. Please sign in again."));
 
+        assertJwtOrganizationBinding(jwtToken, user);
+        assertOrganizationAllowsAccess(user);
+
         int currentVersion = user.getTokenVersion() != null ? user.getTokenVersion() : 0;
         if (tokenVersion < currentVersion) {
             throw new SkillamaAuthException(
@@ -54,6 +61,43 @@ public class SkillamaAuthSupport {
         }
 
         return new ResolvedSession(user.getId(), tokenVersion);
+    }
+
+    private void assertJwtOrganizationBinding(String jwtToken, User user) {
+        String tokenOrgId = jwtUtils.extractOrganizationId(jwtToken);
+        if (tokenOrgId == null) {
+            if (user.getOrganizationId() != null && !TenantSecurityService.isPlatformStaff(user)) {
+                throw new SkillamaAuthException("Organization session required for this account.");
+            }
+            return;
+        }
+        if (user.getOrganizationId() == null) {
+            throw new SkillamaAuthException("Invalid organization token for this account.");
+        }
+        if (!tokenOrgId.equals(user.getOrganizationId())) {
+            throw new SkillamaAuthException("Organization token mismatch.", "ORG_MISMATCH");
+        }
+    }
+
+    private void assertOrganizationAllowsAccess(User user) {
+        if (user.getOrganizationId() == null) {
+            return;
+        }
+        Organization org = organizationRepository.findById(user.getOrganizationId()).orElse(null);
+        if (org == null) {
+            throw new SkillamaAuthException("Organization not found for this account.");
+        }
+        if (org.getStatus() == OrganizationStatus.SUSPENDED) {
+            throw new SkillamaAuthException(
+                    "Organization account suspended. Contact your administrator.",
+                    "ORG_SUSPENDED");
+        }
+        if (org.getStatus() == OrganizationStatus.ARCHIVED) {
+            throw new SkillamaAuthException("Organization account archived.");
+        }
+        if (org.getStatus() == OrganizationStatus.PROVISIONING) {
+            throw new SkillamaAuthException("Organization is not active yet.");
+        }
     }
 
     public record ResolvedSession(String userId, int tokenVersion) {

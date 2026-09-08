@@ -144,6 +144,22 @@ public class AdminPermissionService {
         }
     }
 
+    /**
+     * Baseline gate for the platform admin API: the caller must hold a platform staff role.
+     * Corporate org roles live on {@code User.orgRole} and never grant admin-console access,
+     * so org-bound tokens are rejected here regardless of their org privileges.
+     */
+    public User requirePlatformStaff(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (user.getRole() != User.UserRole.ADMIN
+                && user.getRole() != User.UserRole.OWNER
+                && user.getRole() != User.UserRole.TESTER) {
+            throw new RuntimeException("Admin access required");
+        }
+        return user;
+    }
+
     public User requireAdminOrOwner(String userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -324,6 +340,7 @@ public class AdminPermissionService {
             case CODE_ASSIST_MONITOR -> "Debug / Code Execution monitor";
             case ENROLLMENT_REQUESTS -> "Enrollment requests";
             case KNOWLEDGE_BASE -> "Knowledge base";
+            case ORGANIZATIONS -> "Organizations";
         };
     }
 }

@@ -52,6 +52,7 @@ public class OAuthAuthService {
     private final PasswordEncode passwordEncode;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestTemplate restTemplate = new RestTemplate();
+    private final OrganizationService organizationService;
 
     @Value("${skillama.oauth.google.client-id:}")
     private String googleClientId;
@@ -125,6 +126,8 @@ public class OAuthAuthService {
         }
         otpService.validateVerificationToken(
                 email, request.getVerificationToken(), EmailOtp.OtpPurpose.SIGNUP);
+
+        organizationService.assertB2cSignupAllowed(email);
 
         User user = new User();
         user.setEmail(email);
@@ -258,6 +261,8 @@ public class OAuthAuthService {
             return updateOAuthProfile(user, name, picture);
         }
 
+        organizationService.assertB2cSignupAllowed(normalizedEmail);
+
         User user = new User();
         user.setEmail(normalizedEmail);
         user.setName(name != null && !name.isBlank() ? name.trim() : normalizedEmail.split("@")[0]);
@@ -327,6 +332,51 @@ public class OAuthAuthService {
         return false;
     }
 
+    /** Verified Google ID token for org-bound SSO (includes Workspace hosted domain). */
+    public GoogleIdTokenClaims parseGoogleIdToken(String idToken) {
+        GoogleProfile profile = verifyGoogleIdToken(idToken);
+        return new GoogleIdTokenClaims(
+                profile.sub, profile.email, profile.name, profile.picture, profile.hd);
+    }
+
+    /** Verified Microsoft Entra ID token for org-bound SSO. */
+    public MicrosoftIdTokenClaims parseMicrosoftIdToken(String idToken) {
+        try {
+            SignedJWT signedJWT = SignedJWT.parse(idToken);
+            String kid = signedJWT.getHeader().getKeyID();
+            JWKSet jwkSet = JWKSet.load(new URL(
+                    "https://login.microsoftonline.com/common/discovery/v2.0/keys"));
+            JWK jwk = jwkSet.getKeyByKeyId(kid);
+            if (jwk == null) {
+                throw new IllegalArgumentException("Microsoft signing key not found");
+            }
+            RSAPublicKey publicKey = jwk.toRSAKey().toRSAPublicKey();
+            JWSVerifier verifier = new RSASSAVerifier(publicKey);
+            if (!signedJWT.verify(verifier)) {
+                throw new IllegalArgumentException("Invalid Microsoft token signature");
+            }
+            var claims = signedJWT.getJWTClaimsSet();
+            if (claims.getExpirationTime() != null
+                    && claims.getExpirationTime().toInstant().isBefore(java.time.Instant.now())) {
+                throw new IllegalArgumentException("Microsoft token expired");
+            }
+            String email = claims.getStringClaim("email");
+            if (email == null || email.isBlank()) {
+                email = claims.getStringClaim("preferred_username");
+            }
+            return new MicrosoftIdTokenClaims(
+                    claims.getSubject(),
+                    email,
+                    claims.getStringClaim("name"),
+                    claims.getStringClaim("tid"));
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            LOGGER.warn("Microsoft token verification failed", e);
+            throw new IllegalArgumentException("Invalid Microsoft token");
+        }
+    }
+
     private User updateOAuthProfile(User user, String name, String picture) {
         if (name != null && !name.isBlank()
                 && (user.getName() == null || user.getName().isBlank()
@@ -360,7 +410,8 @@ public class OAuthAuthService {
                     node.path("sub").asText(null),
                     node.path("email").asText(null),
                     node.path("name").asText(null),
-                    node.path("picture").asText(null));
+                    node.path("picture").asText(null),
+                    node.path("hd").asText(null));
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (Exception e) {
@@ -414,17 +465,49 @@ public class OAuthAuthService {
         return FreemiumService.generateReferralCode();
     }
 
+    public static final class GoogleIdTokenClaims {
+        public final String sub;
+        public final String email;
+        public final String name;
+        public final String picture;
+        public final String hostedDomain;
+
+        public GoogleIdTokenClaims(String sub, String email, String name, String picture, String hostedDomain) {
+            this.sub = sub;
+            this.email = email;
+            this.name = name;
+            this.picture = picture;
+            this.hostedDomain = hostedDomain;
+        }
+    }
+
+    public static final class MicrosoftIdTokenClaims {
+        public final String sub;
+        public final String email;
+        public final String name;
+        public final String tenantId;
+
+        public MicrosoftIdTokenClaims(String sub, String email, String name, String tenantId) {
+            this.sub = sub;
+            this.email = email;
+            this.name = name;
+            this.tenantId = tenantId;
+        }
+    }
+
     private static final class GoogleProfile {
         final String sub;
         final String email;
         final String name;
         final String picture;
+        final String hd;
 
-        GoogleProfile(String sub, String email, String name, String picture) {
+        GoogleProfile(String sub, String email, String name, String picture, String hd) {
             this.sub = sub;
             this.email = email;
             this.name = name;
             this.picture = picture;
+            this.hd = hd;
         }
     }
 

@@ -34,11 +34,13 @@ class OAuthAuthServiceTest {
     @Mock private OnboardingService onboardingService;
     @Mock private OtpService otpService;
     @Mock private PasswordEncode passwordEncode;
+    @Mock private OrganizationService organizationService;
 
     @InjectMocks private OAuthAuthService oAuthAuthService;
 
     @BeforeEach
     void setUp() {
+        lenient().doNothing().when(organizationService).assertB2cSignupAllowed(any());
         lenient().when(userContactService.normalizeEmail(EMAIL)).thenReturn(EMAIL);
         lenient().when(userRepository.findByGoogleSub(any())).thenReturn(Optional.empty());
         lenient().when(userRepository.findByAppleSub(any())).thenReturn(Optional.empty());

@@ -56,6 +56,7 @@ public class FreemiumService {
     private final UserContactService userContactService;
     private final AiUsageService aiUsageService;
     private final ReferralConversionEventRepository referralConversionEventRepository;
+    private final OrganizationService organizationService;
 
     /** Public read — home page banner, signup copy (no auth). */
     public FreemiumOfferingDTO getPublicOffering() {
@@ -167,6 +168,7 @@ public class FreemiumService {
     public User registerFreemiumUser(FreemiumRegisterRequestDTO request) {
         validatePhone(request.getPhone());
         String email = userContactService.normalizeEmail(request.getEmail());
+        organizationService.assertB2cSignupAllowed(email);
         Optional<User> existing = userRepository.findByEmail(email);
         if (existing.isEmpty()) {
             existing = userRepository.findByEmailIgnoreCase(email);

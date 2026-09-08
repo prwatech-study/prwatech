@@ -37,4 +37,10 @@ public interface SkillamaUserRepository extends MongoRepository<User, String>, S
     Optional<User> findByGoogleSub(String googleSub);
 
     Optional<User> findByAppleSub(String appleSub);
+
+    long countByOrganizationIdAndActiveTrue(String organizationId);
+
+    List<User> findByOrganizationId(String organizationId);
+
+    List<User> findByOrganizationIdAndManagerUserId(String organizationId, String managerUserId);
 }

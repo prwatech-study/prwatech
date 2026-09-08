@@ -4,6 +4,7 @@ import com.prwatech.authentication.security.JwtUtils;
 import com.prwatech.common.Constants;
 import com.prwatech.skillama.exception.SkillamaAuthException;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.repository.OrganizationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,14 +29,16 @@ class SkillamaAuthSupportTest {
 
     @Mock private JwtUtils jwtUtils;
     @Mock private UserService userService;
+    @Mock private OrganizationRepository organizationRepository;
     @Mock private HttpServletRequest request;
 
     private SkillamaAuthSupport skillamaAuthSupport;
 
     @BeforeEach
     void setUp() {
-        skillamaAuthSupport = new SkillamaAuthSupport(jwtUtils, userService);
+        skillamaAuthSupport = new SkillamaAuthSupport(jwtUtils, userService, organizationRepository);
         lenient().when(request.getHeader(Constants.AUTH)).thenReturn("Bearer some-jwt-token");
+        lenient().when(jwtUtils.extractOrganizationId("some-jwt-token")).thenReturn(null);
     }
 
     @Test
@@ -55,6 +58,7 @@ class SkillamaAuthSupportTest {
         User user = User.builder().id("u1").email("learner@example.com").tokenVersion(3).build();
         when(jwtUtils.extractUsername("some-jwt-token")).thenReturn("learner@example.com");
         when(jwtUtils.extractTokenVersion("some-jwt-token")).thenReturn(2);
+        when(jwtUtils.extractOrganizationId("some-jwt-token")).thenReturn(null);
         when(userService.findByEmailForAuth("learner@example.com")).thenReturn(Optional.of(user));
 
         SkillamaAuthException ex = assertThrows(SkillamaAuthException.class,
@@ -68,11 +72,31 @@ class SkillamaAuthSupportTest {
         User user = User.builder().id("u1").email("legacy@example.com").tokenVersion(null).build();
         when(jwtUtils.extractUsername("some-jwt-token")).thenReturn("legacy@example.com");
         when(jwtUtils.extractTokenVersion("some-jwt-token")).thenReturn(0);
+        when(jwtUtils.extractOrganizationId("some-jwt-token")).thenReturn(null);
         when(userService.findByEmailForAuth("legacy@example.com")).thenReturn(Optional.of(user));
 
         String userId = skillamaAuthSupport.resolveUserIdFromRequest(request);
 
         assertEquals("u1", userId);
+    }
+
+    @Test
+    void resolveUserIdFromRequest_orgTokenMismatch_throwsOrgMismatch() {
+        User user = User.builder()
+                .id("u1")
+                .email("user@acme.com")
+                .organizationId("org-a")
+                .tokenVersion(1)
+                .build();
+        when(jwtUtils.extractUsername("some-jwt-token")).thenReturn("user@acme.com");
+        when(jwtUtils.extractTokenVersion("some-jwt-token")).thenReturn(1);
+        when(jwtUtils.extractOrganizationId("some-jwt-token")).thenReturn("org-b");
+        when(userService.findByEmailForAuth("user@acme.com")).thenReturn(Optional.of(user));
+
+        SkillamaAuthException ex = assertThrows(SkillamaAuthException.class,
+                () -> skillamaAuthSupport.resolveUserIdFromRequest(request));
+
+        assertEquals("ORG_MISMATCH", ex.getReason());
     }
 
     @Test

@@ -1,0 +1,29 @@
+1. Learner Data Privacy and PII Protection
+Skillama maintains learner data separately within its databases and keeps user activity associated with the relevant user and course. Personally identifiable information (PII) is hidden from AI models, ensuring that unnecessary personal information is not exposed as part of AI interactions.
+
+2. Controlled Access to Production Data
+Production data access is restricted to the CTO/owner account, providing a controlled access model for sensitive learner and platform data. AWS IAM and role-based access controls are also used to manage access to the underlying cloud environment.
+
+3. Course-Context Grounding
+Skillama uses AWS OpenSearch and course-specific learning material to ground AI Tutor responses. This provides the AI with relevant course context rather than relying solely on general model knowledge, helping improve relevance and reduce the risk of inappropriate or unrelated responses.
+
+4. Human Oversight Before Course Deployment
+AI-generated learning content is subject to appropriate human oversight and validation before being made available to learners, helping ensure content quality, relevance, and alignment with the intended learning objectives.
+
+5. AI Interaction and Usage Monitoring
+Skillama monitors AI-human interactions across the platform, including AI Tutor conversations, AI Mentor activity, quizzes, and token consumption. Usage is tracked at both the individual-user and overall monthly levels. Errors and reported issues are also logged and surfaced through the administrative interface for follow-up.
+
+6. Continuous Feedback and Issue Resolution
+Learners can report incorrect or problematic AI responses through a dedicated Report Issue mechanism, including selecting the type of issue and providing descriptions or attachments. The administrative team reviews these reports and creates the relevant technical follow-up cases where required.
+
+7. Transparency Through Learner Activity
+Skillama provides learners with visibility into their learning activity, including questions asked, quizzes completed, course progress, and other learning metrics. This creates transparency around how the AI-enabled learning experience is being used and how the learner is progressing.
+
+8. Controlled AI Application Through the Platform
+AI behavior is controlled at the application/service level, with the learning experience governed through Skillama's implementation, course context, retrieval mechanisms, and service-level workflows rather than exposing unrestricted model access directly to users.
+
+9. Security and Cloud Controls
+Skillama uses AWS infrastructure and access controls to manage its AI and application environment. Authentication credentials such as passwords are protected through encryption, while AWS IAM and role-based permissions provide controlled access to cloud resources.
+
+10. Responsible Deployment Approach
+Skillama follows a human-in-the-loop approach for the creation and release of AI-powered learning experiences, supported by course-specific knowledge grounding, controlled data access, continuous monitoring, learner feedback, and issue resolution. This provides multiple layers of oversight around the AI system while allowing the platform to deliver personalized learning at scale.

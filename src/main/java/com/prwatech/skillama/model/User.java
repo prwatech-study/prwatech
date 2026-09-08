@@ -154,6 +154,20 @@ public class User {
     @Builder.Default
     private List<AdminModulePermission> adminModulePermissions = new ArrayList<>();
 
+    /** Corporate tenant; null for B2C and platform staff. */
+    @Indexed
+    private String organizationId;
+
+    /** Direct manager within the org hierarchy. */
+    @Indexed
+    private String managerUserId;
+
+    /** Corporate role; null for platform staff and B2C users. */
+    private OrgRole orgRole;
+
+    /** Optional department label for org users (filtering / CSV import). */
+    private String department;
+
     public enum AuthProvider {
         EMAIL, GOOGLE, APPLE
     }

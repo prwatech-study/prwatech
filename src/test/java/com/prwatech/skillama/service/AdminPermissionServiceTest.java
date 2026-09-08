@@ -64,6 +64,37 @@ class AdminPermissionServiceTest {
                 .adminModulePermissions(new ArrayList<>(List.of(grants))).build();
     }
 
+    // ---------- requirePlatformStaff ----------
+
+    @Test
+    void platformStaffGateAllowsAdminOwnerAndTester() {
+        for (User staff : List.of(owner(), legacyAdmin(), testerWithGrants())) {
+            when(userRepository.findById(staff.getId())).thenReturn(Optional.of(staff));
+            assertEquals(staff.getId(), service.requirePlatformStaff(staff.getId()).getId());
+        }
+    }
+
+    @Test
+    void platformStaffGateRejectsCorporateOrgUser() {
+        User orgAdmin = User.builder()
+                .id("org-admin")
+                .role(User.UserRole.USER)
+                .organizationId("org-1")
+                .orgRole(com.prwatech.skillama.model.OrgRole.ORG_ADMIN)
+                .build();
+        when(userRepository.findById("org-admin")).thenReturn(Optional.of(orgAdmin));
+        assertThrows(RuntimeException.class, () -> service.requirePlatformStaff("org-admin"));
+    }
+
+    @Test
+    void platformStaffGateRejectsPlainUserAndUnknownUser() {
+        when(userRepository.findById("learner")).thenReturn(Optional.of(learner()));
+        assertThrows(RuntimeException.class, () -> service.requirePlatformStaff("learner"));
+
+        when(userRepository.findById("ghost")).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> service.requirePlatformStaff("ghost"));
+    }
+
     // ---------- usesLegacyFullAccess ----------
 
     @Test

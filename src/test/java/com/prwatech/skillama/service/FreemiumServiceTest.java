@@ -51,6 +51,7 @@ class FreemiumServiceTest {
     @Mock private UserContactService userContactService;
     @Mock private AiUsageService aiUsageService;
     @Mock private ReferralConversionEventRepository referralConversionEventRepository;
+    @Mock private OrganizationService organizationService;
 
     private FreemiumService service;
 
@@ -58,7 +59,7 @@ class FreemiumServiceTest {
     void setUp() {
         service = new FreemiumService(userRepository, courseRepository, queryActivityLogRepository,
                 passwordEncode, userCourseAccessService, userContactService, aiUsageService,
-                referralConversionEventRepository);
+                referralConversionEventRepository, organizationService);
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(aiUsageService.getAiBudget(any())).thenReturn(AiBudgetDTO.builder().build());
         // Referral reward is owner-tunable now (was a fixed 0.25 constant) — tests assert

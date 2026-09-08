@@ -20,6 +20,9 @@ public class JwtUtils {
   public static final long JWT_TOKEN_VALIDITY = 10000 * 180 * 180 * 10L;
   public static final long JWT_TOKEN_REFRESH_VALIDITY = 10000 * 60 * 60 * 15L;
   private static final String TOKEN_VERSION_CLAIM = "tv";
+  private static final String ORGANIZATION_ID_CLAIM = "oid";
+  private static final String ORG_ROLE_CLAIM = "or";
+  private static final String ORG_SLUG_CLAIM = "oslug";
 
   @Value("${jwt.secret.key}")
   private String secretKey;
@@ -61,6 +64,46 @@ public class JwtUtils {
    *     outside skillama that don't participate in session invalidation).
    */
   public Map<String, String> generateToken(UserDetails usersDetails, Integer tokenVersion) {
+    return generateSkillamaToken(usersDetails, tokenVersion, null, null, null);
+  }
+
+  public Map<String, String> generateSkillamaToken(
+          UserDetails usersDetails,
+          Integer tokenVersion,
+          String organizationId,
+          String orgRole,
+          String orgSlug) {
+    Map<String, Object> claims = new HashMap<>();
+    if (tokenVersion != null) {
+      claims.put(TOKEN_VERSION_CLAIM, tokenVersion);
+    }
+    if (organizationId != null) {
+      claims.put(ORGANIZATION_ID_CLAIM, organizationId);
+    }
+    if (orgRole != null) {
+      claims.put(ORG_ROLE_CLAIM, orgRole);
+    }
+    if (orgSlug != null) {
+      claims.put(ORG_SLUG_CLAIM, orgSlug);
+    }
+    return createToken(claims, usersDetails.getUsername());
+  }
+
+  public String extractOrganizationId(String token) {
+    return extractClaim(token, claims -> claims.get(ORGANIZATION_ID_CLAIM, String.class));
+  }
+
+  public String extractOrgRole(String token) {
+    return extractClaim(token, claims -> claims.get(ORG_ROLE_CLAIM, String.class));
+  }
+
+  public String extractOrgSlug(String token) {
+    return extractClaim(token, claims -> claims.get(ORG_SLUG_CLAIM, String.class));
+  }
+
+  /** @deprecated use {@link #generateSkillamaToken} */
+  @Deprecated
+  private Map<String, String> generateTokenLegacy(UserDetails usersDetails, Integer tokenVersion) {
     Map<String, Object> claims = new HashMap<>();
     if (tokenVersion != null) {
       claims.put(TOKEN_VERSION_CLAIM, tokenVersion);

@@ -457,6 +457,11 @@ public class AdminService {
     @Transactional
     public AssignmentResponseDTO assignCourses(String userId, List<String> courseIds, String assignedBy) {
         requireAdminOrOwner(assignedBy);
+        return assignCoursesForOrgUser(userId, courseIds, assignedBy);
+    }
+
+    @Transactional
+    public AssignmentResponseDTO assignCoursesForOrgUser(String userId, List<String> courseIds, String assignedBy) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         assertCourseAssignableLearner(user);
@@ -531,6 +536,11 @@ public class AdminService {
     @Transactional
     public void unassignCourse(String userId, String courseId, String unassignedBy) {
         requireAdminOrOwner(unassignedBy);
+        unassignCourseForOrgUser(userId, courseId, unassignedBy);
+    }
+
+    @Transactional
+    public void unassignCourseForOrgUser(String userId, String courseId, String unassignedBy) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         UserCourseEnrollment enrollment = enrollmentRepository

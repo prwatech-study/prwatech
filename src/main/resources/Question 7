@@ -1,0 +1,26 @@
+1. Context-Grounded AI Responses
+Skillama's AI Tutor uses course-specific learning material and AWS OpenSearch to retrieve relevant context before generating responses. This grounding approach helps keep AI responses aligned with the learner's course and reduces reliance on unrestricted general-model knowledge.
+
+2. Multi-Model Reliability
+Skillama uses multiple AI models through AWS Bedrock for different use cases, with secondary validation and fallback paths where appropriate. This allows the platform to maintain service continuity and select an appropriate model for different workloads rather than depending on a single model across the entire platform.
+
+3. AI Output Validation
+AI-generated learning experiences are subject to appropriate validation before being made available to learners. This provides a quality-control layer for generated learning content and helps ensure that outputs remain relevant to the intended learning objectives.
+
+4. Continuous AI Monitoring
+Skillama continuously monitors AI-human interactions across the platform, including AI Tutor, AI Mentor, quizzes, and other AI-enabled workflows. AI usage and token consumption are tracked at both user and overall monthly levels, while errors and reported issues are surfaced through the administrative interface.
+
+5. Learner Feedback and Issue Reporting
+Learners can directly report incorrect or problematic AI responses through the platform's Report Issue functionality. Reports can include issue categories, descriptions, and attachments, allowing the team to investigate and address AI-related problems identified during real-world usage.
+
+6. Automated Recovery and Error Handling
+For selected AI workflows, Skillama includes additional processing and recovery mechanisms. Coding workflows, for example, can use automated retry and correction paths when generated output requires improvement. This reduces dependency on a single AI response and improves robustness in practical learning scenarios.
+
+7. Real-World Performance Monitoring
+AI performance is continuously observed through actual learner interactions, usage patterns, reported issues, assessment activity, and platform analytics. This provides ongoing visibility into how AI performs in real learning environments rather than relying solely on pre-deployment testing.
+
+8. Continuous Optimization
+Usage, feedback, errors, and AI costs provide measurable signals for ongoing optimization. These insights allow the team to identify areas for improvement, refine AI workflows, and optimize model usage as learner adoption and AI workloads increase.
+
+9. Overall Reliability Approach
+Skillama combines knowledge grounding, multi-model processing, validation, monitoring, user feedback, and recovery mechanisms to deliver a dependable AI learning experience. This layered approach helps maintain consistent performance while providing mechanisms to identify, investigate, and improve AI behavior as the platform operates at scale.

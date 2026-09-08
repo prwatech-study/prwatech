@@ -48,6 +48,16 @@ public enum NotificationEventType {
             "Full access / upgrade request",
             "When a freemium user requests paid or full access.",
             NotificationAudience.TEAM,
+            NotificationCategory.SALES),
+    ORG_LIFECYCLE(
+            "Organization lifecycle",
+            "Organization created, renewed, or branding updated.",
+            NotificationAudience.TEAM,
+            NotificationCategory.SALES),
+    ORG_CONTRACT_ALERT(
+            "Organization contract alert",
+            "Contract expiry, grace period, or suspension notices for corporate accounts.",
+            NotificationAudience.TEAM,
             NotificationCategory.SALES);
 
     private final String label;

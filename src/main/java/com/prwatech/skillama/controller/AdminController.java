@@ -815,7 +815,13 @@ public class AdminController {
             @io.swagger.annotations.ApiResponse(code = 500, message = "Internal server error")
     })
     @PostMapping("/courses/setup-guest-course")
-    public ResponseEntity<ApiResponse<String>> setupGuestCourse() {
+    public ResponseEntity<ApiResponse<String>> setupGuestCourse(HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.COURSES, AdminPermissionAction.UPDATE);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ApiResponse<>(403, "Admin access required"));
+        }
         try {
             guestCourseMigrationScript.setupGuestCourse();
             return ResponseEntity.ok(new ApiResponse<>(200, "Guest course setup completed successfully"));
@@ -869,7 +875,7 @@ public class AdminController {
             @PathVariable String courseId,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request); // Verify authentication
+            assertModulePermission(request, AdminModule.COURSES, AdminPermissionAction.UPDATE);
             boolean success = guestCourseMigrationScript.setCourseAsGuestCourse(courseId);
             if (!success) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -1027,7 +1033,7 @@ public class AdminController {
             @PathVariable String userId,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request); // Verify authentication
+            assertModulePermission(request, AdminModule.ASSIGNMENTS, AdminPermissionAction.READ);
             UserAssignmentsDTO assignments = adminService.getUserAssignments(userId);
             return ResponseEntity.ok(new ApiResponse<>(200, assignments));
         } catch (ResourceNotFoundException e) {
@@ -1063,7 +1069,7 @@ public class AdminController {
             @PathVariable String courseId,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request); // Verify authentication
+            assertModulePermission(request, AdminModule.ASSIGNMENTS, AdminPermissionAction.READ);
             CourseAssignmentsDTO assignments = adminService.getCourseAssignments(courseId);
             return ResponseEntity.ok(new ApiResponse<>(200, assignments));
         } catch (ResourceNotFoundException e) {
@@ -1670,7 +1676,7 @@ public class AdminController {
     @GetMapping("/platform/upgrade-contact")
     public ResponseEntity<ApiResponse<UpgradeContactDTO>> getUpgradeContactAdminConfig(HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request);
+            requireStaffUserId(request);
             return ResponseEntity.ok(new ApiResponse<>(200, platformConfigService.getUpgradeContact()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
@@ -1910,7 +1916,7 @@ public class AdminController {
             @PathVariable String userId,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request);
+            assertModulePermission(request, AdminModule.USERS, AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200, adminService.getUserAdminProfile(userId)));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
@@ -1925,7 +1931,7 @@ public class AdminController {
             @RequestParam(required = false) String courseId,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request);
+            assertModulePermission(request, AdminModule.USERS, AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(
                     200, adminService.getUserModuleQuizAttempts(userId, courseId)));
         } catch (ResourceNotFoundException e) {
@@ -1942,7 +1948,7 @@ public class AdminController {
             @RequestParam(defaultValue = "50") int size,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request);
+            assertModulePermission(request, AdminModule.USERS, AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200, adminService.getUserActivity(userId, page, size)));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
@@ -1956,7 +1962,7 @@ public class AdminController {
             @PathVariable String userId,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request);
+            assertModulePermission(request, AdminModule.USERS, AdminPermissionAction.READ);
             UserAssignmentsDTO assignments = adminService.getUserAssignments(userId);
             return ResponseEntity.ok(new ApiResponse<>(200, assignments));
         } catch (ResourceNotFoundException e) {
@@ -2023,7 +2029,7 @@ public class AdminController {
             @PathVariable String userId,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request); // Verify authentication
+            assertModulePermission(request, AdminModule.ANALYTICS, AdminPermissionAction.READ);
             // Reuse getUserAssignments which includes progress
             UserAssignmentsDTO assignments = adminService.getUserAssignments(userId);
             return ResponseEntity.ok(new ApiResponse<>(200, assignments));
@@ -2091,6 +2097,17 @@ public class AdminController {
 
     private String extractUserIdFromRequest(HttpServletRequest request) {
         return skillamaAuthSupport.resolveUserIdFromRequest(request);
+    }
+
+    /**
+     * Resolves the caller and asserts platform staff before any admin data is touched.
+     * Used by endpoints whose service methods take a target id but perform no authorization
+     * of their own, where a bare authentication check would expose other tenants' records.
+     */
+    private String requireStaffUserId(HttpServletRequest request) {
+        String userId = extractUserIdFromRequest(request);
+        adminPermissionService.requirePlatformStaff(userId);
+        return userId;
     }
 }
 
