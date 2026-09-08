@@ -370,13 +370,49 @@ public class OrganizationService {
         }
         String domain = email.substring(email.indexOf('@') + 1).toLowerCase();
         return organizationRepository.findAll().stream()
-                .filter(o -> o.getStatus() == OrganizationStatus.ACTIVE
-                        || o.getStatus() == OrganizationStatus.PROVISIONING)
+                .filter(this::isDiscoverableOrg)
                 .filter(o -> o.getSecurity() != null
                         && o.getSecurity().getAllowedEmailDomains() != null
                         && o.getSecurity().getAllowedEmailDomains().stream()
                                 .anyMatch(d -> d.equalsIgnoreCase(domain)))
                 .findFirst();
+    }
+
+    /**
+     * Outlook-style home-realm discovery: a work email maps to the tenant login slug.
+     * Prefers an existing org member, then the allowed-domain match.
+     */
+    public Optional<OrgHostResolveDTO> discoverByWorkEmail(String email) {
+        if (email == null || !email.contains("@")) {
+            return Optional.empty();
+        }
+        String normalized = email.trim().toLowerCase();
+        Optional<User> member = userRepository.findByEmail(normalized);
+        if (member.isEmpty()) {
+            member = userRepository.findByEmailIgnoreCase(normalized);
+        }
+        if (member.isPresent() && member.get().getOrganizationId() != null
+                && !member.get().getOrganizationId().isBlank()) {
+            Optional<Organization> byMember = organizationRepository.findById(member.get().getOrganizationId());
+            if (byMember.isPresent() && isDiscoverableOrg(byMember.get())) {
+                return Optional.of(toHostResolve(byMember.get()));
+            }
+        }
+        return findByEmailDomain(normalized).map(this::toHostResolve);
+    }
+
+    private boolean isDiscoverableOrg(Organization org) {
+        return org.getStatus() == OrganizationStatus.ACTIVE
+                || org.getStatus() == OrganizationStatus.PROVISIONING;
+    }
+
+    private OrgHostResolveDTO toHostResolve(Organization org) {
+        return OrgHostResolveDTO.builder()
+                .organizationId(org.getId())
+                .slug(org.getSlug())
+                .name(org.getName())
+                .customDomain(false)
+                .build();
     }
 
     public void assertB2cSignupAllowed(String email) {

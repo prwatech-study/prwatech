@@ -53,6 +53,18 @@ public class PlatformOrgController {
         return ResponseEntity.ok(new ApiResponse<>(200, organizationService.getPublicBranding(slug)));
     }
 
+    @GetMapping("/discover")
+    public ResponseEntity<ApiResponse<OrgHostResolveDTO>> discoverByEmail(
+            @RequestParam String email, HttpServletRequest request) {
+        if (!allow(request, "discover", brandingPermitsPerMinute)) {
+            return tooManyRequests();
+        }
+        return organizationService.discoverByWorkEmail(email)
+                .map(dto -> ResponseEntity.ok(new ApiResponse<>(200, dto)))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse<>(404, null)));
+    }
+
     @GetMapping("/resolve")
     public ResponseEntity<ApiResponse<OrgHostResolveDTO>> resolveHost(
             @RequestParam String host, HttpServletRequest request) {
