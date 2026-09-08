@@ -46,7 +46,7 @@ class OrgLoginDiscoveryTest {
     @InjectMocks private OrganizationService organizationService;
 
     @Test
-    void workEmailDomainOpensCorporateTenant() {
+    void unknownEmailOnAllowedDomainStaysOnPublicLogin() {
         Organization acme = Organization.builder()
                 .id("org-1")
                 .slug("acme")
@@ -56,13 +56,11 @@ class OrgLoginDiscoveryTest {
                         .allowedEmailDomains(List.of("acme.com"))
                         .build())
                 .build();
-        when(userRepository.findByEmail("owner@acme.com")).thenReturn(Optional.empty());
-        when(userRepository.findByEmailIgnoreCase("owner@acme.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("jitendrachandwani@acme.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("jitendrachandwani@acme.com")).thenReturn(Optional.empty());
         when(organizationRepository.findAll()).thenReturn(List.of(acme));
 
-        Optional<OrgHostResolveDTO> found = organizationService.discoverByWorkEmail("owner@acme.com");
-        assertTrue(found.isPresent());
-        assertEquals("acme", found.get().getSlug());
+        assertTrue(organizationService.discoverByWorkEmail("jitendrachandwani@acme.com").isEmpty());
     }
 
     @Test

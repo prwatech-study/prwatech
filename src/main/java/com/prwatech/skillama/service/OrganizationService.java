@@ -379,8 +379,8 @@ public class OrganizationService {
     }
 
     /**
-     * Outlook-style home-realm discovery: a work email maps to the tenant login slug.
-     * Prefers an existing org member, then the allowed-domain match.
+     * Maps a work email to the tenant login slug only when that person is already an org member.
+     * Allowed-domain matching is not used here so unknown addresses cannot open a company login.
      */
     public Optional<OrgHostResolveDTO> discoverByWorkEmail(String email) {
         if (email == null || !email.contains("@")) {
@@ -398,7 +398,7 @@ public class OrganizationService {
                 return Optional.of(toHostResolve(byMember.get()));
             }
         }
-        return findByEmailDomain(normalized).map(this::toHostResolve);
+        return Optional.empty();
     }
 
     private boolean isDiscoverableOrg(Organization org) {
