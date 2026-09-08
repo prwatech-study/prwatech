@@ -38,7 +38,7 @@ public class Organization {
     private String contactEmail;
     private String salesContactEmail;
 
-    /** S3 bucket for this tenant's branding files, typically {@code skillama-org-{slug}}. */
+    /** S3 bucket for this tenant's branding files, typically {@code presentation-image-courses}. */
     private String assetBucket;
 
     @Builder.Default

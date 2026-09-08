@@ -21,8 +21,6 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.mock.web.MockMultipartFile;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
-import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.util.Optional;
@@ -51,18 +49,17 @@ class OrgBrandingAssetServiceTest {
 
     @BeforeEach
     void setUp() {
-        storage = new OrgAssetStorageService(s3Client, "ap-south-1", "skillama-org-", true);
+        storage = new OrgAssetStorageService(
+                s3Client, "ap-south-1", "presentation-image-courses", false, "skillama-org-", false);
         service = new OrgBrandingAssetService(
                 organizationRepository, assetRepository, storage, orgPermissionService, orgNotificationService);
         when(organizationRepository.save(any(Organization.class))).thenAnswer(inv -> inv.getArgument(0));
         when(assetRepository.save(any(OrganizationAsset.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(s3Client.headBucket(any(HeadBucketRequest.class)))
-                .thenThrow(NoSuchBucketException.builder().message("missing").build());
     }
 
     @Test
-    void bucketNameUsesOrgSlug() {
-        assertEquals("skillama-org-acme", storage.bucketNameFor("acme"));
+    void bucketNameUsesSharedPublicBucket() {
+        assertEquals("presentation-image-courses", storage.bucketNameFor("acme"));
     }
 
     @Test
@@ -86,12 +83,13 @@ class OrgBrandingAssetServiceTest {
 
         OrgBrandingAssetDTO dto = service.upload(owner, OrgAssetKind.LOGO, file);
 
-        assertEquals("skillama-org-acme", dto.getS3Bucket());
-        assertEquals("branding/logo.png", dto.getS3Key());
-        assertTrue(dto.getUrl().contains("skillama-org-acme"));
+        assertEquals("presentation-image-courses", dto.getS3Bucket());
+        assertEquals("org/acme/branding/logo.png", dto.getS3Key());
+        assertTrue(dto.getUrl().contains("presentation-image-courses"));
+        assertTrue(dto.getUrl().contains("org/acme/branding/logo.png"));
         assertEquals(dto.getUrl(), org.getBranding().getLogoUrl());
-        assertEquals("skillama-org-acme", org.getAssetBucket());
-        verify(s3Client).createBucket(any(software.amazon.awssdk.services.s3.model.CreateBucketRequest.class));
+        assertEquals("presentation-image-courses", org.getAssetBucket());
+        verify(s3Client, never()).createBucket(any(software.amazon.awssdk.services.s3.model.CreateBucketRequest.class));
         verify(s3Client).putObject(any(PutObjectRequest.class), any(software.amazon.awssdk.core.sync.RequestBody.class));
 
         ArgumentCaptor<OrganizationAsset> captor = ArgumentCaptor.forClass(OrganizationAsset.class);

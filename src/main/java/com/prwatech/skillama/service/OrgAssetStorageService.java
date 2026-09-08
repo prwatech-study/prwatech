@@ -24,7 +24,12 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Per-organization public S3 bucket {@code skillama-org-{slug}} for branding images.
+ * Organization branding images. Production uses the existing public course-image bucket
+ * ({@code presentation-image-courses}) under {@code org/{slug}/branding/…} so the API role
+ * only needs PutObject — not s3:CreateBucket.
+ *
+ * Dedicated {@code skillama-org-{slug}} buckets remain available when
+ * {@code aws.s3.org-assets.dedicated-buckets=true}.
  */
 @Service
 public class OrgAssetStorageService {
@@ -36,21 +41,33 @@ public class OrgAssetStorageService {
 
     private final S3Client s3Client;
     private final String region;
+    private final String sharedBucket;
+    private final boolean dedicatedBuckets;
     private final String bucketPrefix;
     private final boolean createBucket;
 
     public OrgAssetStorageService(
             S3Client s3Client,
             @Value("${aws.s3.region:ap-south-1}") String region,
+            @Value("${aws.s3.org-assets.bucket-name:presentation-image-courses}") String sharedBucket,
+            @Value("${aws.s3.org-assets.dedicated-buckets:false}") boolean dedicatedBuckets,
             @Value("${aws.s3.org-assets.bucket-prefix:skillama-org-}") String bucketPrefix,
-            @Value("${aws.s3.org-assets.create-bucket:true}") boolean createBucket) {
+            @Value("${aws.s3.org-assets.create-bucket:false}") boolean createBucket) {
         this.s3Client = s3Client;
         this.region = region;
+        this.sharedBucket = sharedBucket == null ? "" : sharedBucket.trim();
+        this.dedicatedBuckets = dedicatedBuckets;
         this.bucketPrefix = bucketPrefix == null ? "skillama-org-" : bucketPrefix;
         this.createBucket = createBucket;
     }
 
     public String bucketNameFor(String slug) {
+        if (!dedicatedBuckets) {
+            if (!StringUtils.hasText(sharedBucket)) {
+                throw new IllegalStateException("aws.s3.org-assets.bucket-name is required");
+            }
+            return sharedBucket;
+        }
         String cleaned = sanitizeSlug(slug);
         String name = (bucketPrefix + cleaned).toLowerCase(Locale.ROOT);
         if (name.length() > 63) {
@@ -63,7 +80,18 @@ public class OrgAssetStorageService {
         return name;
     }
 
+    public String objectKey(String slug, OrgAssetKind kind, String extension) {
+        String file = kind.objectBaseName() + extension;
+        if (dedicatedBuckets) {
+            return "branding/" + file;
+        }
+        return "org/" + sanitizeSlug(slug) + "/branding/" + file;
+    }
+
     public void ensureBucket(String slug) {
+        if (!dedicatedBuckets) {
+            return;
+        }
         String bucket = bucketNameFor(slug);
         if (bucketExists(bucket)) {
             return;
@@ -80,7 +108,7 @@ public class OrgAssetStorageService {
         ensureBucket(slug);
         String bucket = bucketNameFor(slug);
         String extension = resolveExtension(file.getOriginalFilename(), file.getContentType());
-        String key = "branding/" + kind.objectBaseName() + extension;
+        String key = objectKey(slug, kind, extension);
         String contentType = file.getContentType() != null ? file.getContentType() : "image/png";
         try {
             PutObjectRequest put = PutObjectRequest.builder()
