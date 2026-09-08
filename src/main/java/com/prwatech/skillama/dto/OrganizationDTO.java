@@ -24,6 +24,7 @@ public class OrganizationDTO {
     private String currentContractId;
     private String contactEmail;
     private String salesContactEmail;
+    private String assetBucket;
     private OrganizationBranding branding;
     private List<String> allowedEmailDomains;
     private boolean requireSso;

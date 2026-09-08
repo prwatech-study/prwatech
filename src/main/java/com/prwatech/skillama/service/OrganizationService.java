@@ -45,6 +45,8 @@ public class OrganizationService {
     private final OrgNotificationService orgNotificationService;
     private final AdminAuditService adminAuditService;
     private final OrgHierarchyService orgHierarchyService;
+    private final OrgPermissionService orgPermissionService;
+    private final OrgBrandingAssetService orgBrandingAssetService;
 
     public Page<OrganizationDTO> listOrganizations(int page, int size, OrganizationStatus status) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -143,7 +145,7 @@ public class OrganizationService {
     public OrganizationDTO updateSecurity(
             String organizationId, UpdateOrgSecurityRequestDTO request, User actor) {
         Organization org = requireOrg(organizationId);
-        tenantAssertOrgActor(actor, organizationId);
+        tenantAssertOrgActor(actor, organizationId, OrgModule.SECURITY, AdminPermissionAction.UPDATE);
         OrganizationSecurity security = org.getSecurity() != null
                 ? org.getSecurity() : OrganizationSecurity.builder().build();
         if (request.getAllowedEmailDomains() != null) {
@@ -278,6 +280,7 @@ public class OrganizationService {
         org.setRootOwnerUserId(rootOwner.getId());
         org.setStatus(OrganizationStatus.ACTIVE);
         org = organizationRepository.save(org);
+        orgBrandingAssetService.provisionBucket(org);
 
         User actor = userRepository.findById(createdBy).orElse(null);
         orgNotificationService.notify(org.getId(), "ORG_CREATED",
@@ -351,7 +354,7 @@ public class OrganizationService {
     @Transactional
     public OrganizationDTO updateBranding(String organizationId, UpdateOrgBrandingRequestDTO request, User actor) {
         Organization org = requireOrg(organizationId);
-        tenantAssertOrgActor(actor, organizationId);
+        tenantAssertOrgActor(actor, organizationId, OrgModule.BRANDING, AdminPermissionAction.UPDATE);
         if (request.getBranding() != null) {
             org.setBranding(request.getBranding());
         }
@@ -454,7 +457,8 @@ public class OrganizationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Organization not found"));
     }
 
-    private void tenantAssertOrgActor(User actor, String organizationId) {
+    private void tenantAssertOrgActor(
+            User actor, String organizationId, OrgModule module, AdminPermissionAction action) {
         if (TenantSecurityService.isPlatformStaff(actor)) {
             return;
         }
@@ -465,6 +469,7 @@ public class OrganizationService {
         if (role != OrgRole.ORG_OWNER && role != OrgRole.ORG_ADMIN) {
             throw new IllegalStateException("Insufficient organization permissions");
         }
+        orgPermissionService.require(actor, module, action);
     }
 
     private OrganizationDTO toDto(Organization org) {
@@ -479,6 +484,7 @@ public class OrganizationService {
                 .currentContractId(org.getCurrentContractId())
                 .contactEmail(org.getContactEmail())
                 .salesContactEmail(org.getSalesContactEmail())
+                .assetBucket(org.getAssetBucket())
                 .branding(org.getBranding())
                 .allowedEmailDomains(org.getSecurity() != null
                         ? org.getSecurity().getAllowedEmailDomains() : List.of())

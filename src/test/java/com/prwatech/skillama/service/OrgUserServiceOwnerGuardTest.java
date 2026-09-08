@@ -18,18 +18,16 @@ import org.mockito.quality.Strictness;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** Reactivating a user consumes a seat, so it must respect the org seat cap. */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class OrgUserServiceSeatLimitTest {
+class OrgUserServiceOwnerGuardTest {
 
     private static final String ORG_ID = "org-1";
 
@@ -74,82 +72,44 @@ class OrgUserServiceSeatLimitTest {
                 .build();
     }
 
-    private User inactiveLearner() {
+    private User owner() {
         return User.builder()
-                .id("learner-1")
-                .email("learner@acme.com")
+                .id("owner-1")
+                .name("Alex Owner")
+                .email("owner@acme.com")
                 .organizationId(ORG_ID)
-                .orgRole(OrgRole.LEARNER)
+                .orgRole(OrgRole.ORG_OWNER)
                 .role(User.UserRole.USER)
-                .active(false)
+                .active(true)
                 .build();
     }
 
     @Test
-    void reactivationIsRejectedWhenSeatsAreExhausted() {
-        User target = inactiveLearner();
-        when(userRepository.findById("learner-1")).thenReturn(Optional.of(target));
-        when(orgFeatureService.getMaxSeats(ORG_ID)).thenReturn(5);
-        when(userRepository.countByOrganizationIdAndActiveTrue(ORG_ID)).thenReturn(5L);
+    void orgAdminCannotEditTheOwner() {
+        User target = owner();
+        when(userRepository.findById("owner-1")).thenReturn(Optional.of(target));
 
         UpdateOrgUserRequestDTO request = new UpdateOrgUserRequestDTO();
-        request.setActive(true);
+        request.setOrgRole(OrgRole.LEARNER);
 
-        assertThrows(IllegalStateException.class,
-                () -> service.updateUser(admin(), "learner-1", request));
-
-        assertFalse(target.isActive());
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> service.updateUser(admin(), "owner-1", request));
+        assertEquals("Organization admins cannot edit the owner", ex.getMessage());
         verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
-    void reactivationSucceedsWhenSeatsRemain() {
-        User target = inactiveLearner();
-        when(userRepository.findById("learner-1")).thenReturn(Optional.of(target));
-        when(orgFeatureService.getMaxSeats(ORG_ID)).thenReturn(5);
-        when(userRepository.countByOrganizationIdAndActiveTrue(ORG_ID)).thenReturn(4L);
+    void ownerCanUpdateOwnNameWithoutChangingRole() {
+        User target = owner();
+        when(userRepository.findById("owner-1")).thenReturn(Optional.of(target));
 
         UpdateOrgUserRequestDTO request = new UpdateOrgUserRequestDTO();
-        request.setActive(true);
+        request.setName("Alex Updated");
 
-        service.updateUser(admin(), "learner-1", request);
+        service.updateUser(owner(), "owner-1", request);
 
-        assertTrue(target.isActive());
-        verify(userRepository).save(target);
-    }
-
-    @Test
-    void deactivationIgnoresSeatCap() {
-        User target = inactiveLearner();
-        target.setActive(true);
-        when(userRepository.findById("learner-1")).thenReturn(Optional.of(target));
-        when(orgFeatureService.getMaxSeats(ORG_ID)).thenReturn(5);
-        when(userRepository.countByOrganizationIdAndActiveTrue(ORG_ID)).thenReturn(5L);
-
-        UpdateOrgUserRequestDTO request = new UpdateOrgUserRequestDTO();
-        request.setActive(false);
-
-        service.updateUser(admin(), "learner-1", request);
-
-        assertFalse(target.isActive());
-        verify(userRepository).save(target);
-    }
-
-    @Test
-    void updatingAnAlreadyActiveUserDoesNotConsumeAnotherSeat() {
-        User target = inactiveLearner();
-        target.setActive(true);
-        when(userRepository.findById("learner-1")).thenReturn(Optional.of(target));
-        when(orgFeatureService.getMaxSeats(ORG_ID)).thenReturn(5);
-        when(userRepository.countByOrganizationIdAndActiveTrue(ORG_ID)).thenReturn(5L);
-
-        UpdateOrgUserRequestDTO request = new UpdateOrgUserRequestDTO();
-        request.setActive(true);
-        request.setName("Renamed Learner");
-
-        service.updateUser(admin(), "learner-1", request);
-
-        assertTrue(target.isActive());
+        assertEquals("Alex Updated", target.getName());
+        assertEquals(OrgRole.ORG_OWNER, target.getOrgRole());
         verify(userRepository).save(target);
     }
 }

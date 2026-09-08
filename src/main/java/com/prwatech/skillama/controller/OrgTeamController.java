@@ -4,10 +4,13 @@ import com.prwatech.skillama.dto.ApiResponse;
 import com.prwatech.skillama.dto.TeamCourseProgressDTO;
 import com.prwatech.skillama.dto.TeamMemberCourseProgressDTO;
 import com.prwatech.skillama.dto.TeamProgressSummaryDTO;
+import com.prwatech.skillama.model.AdminPermissionAction;
+import com.prwatech.skillama.model.OrgModule;
 import com.prwatech.skillama.model.OrgRole;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.OrgAnalyticsService;
 import com.prwatech.skillama.service.OrgFeatureService;
+import com.prwatech.skillama.service.OrgPermissionService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.service.TenantSecurityService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,7 @@ public class OrgTeamController {
     private final OrgFeatureService orgFeatureService;
     private final SkillamaAuthSupport skillamaAuthSupport;
     private final TenantSecurityService tenantSecurityService;
+    private final OrgPermissionService orgPermissionService;
 
     @GetMapping("/progress")
     public ResponseEntity<ApiResponse<TeamProgressSummaryDTO>> teamProgress(HttpServletRequest request) {
@@ -126,10 +130,13 @@ public class OrgTeamController {
             throw new IllegalStateException("Feature disabled");
         }
         OrgRole role = actor.getOrgRole();
-        if (role != OrgRole.MANAGER && role != OrgRole.ORG_ADMIN && role != OrgRole.ORG_OWNER
-                && !TenantSecurityService.isPlatformStaff(actor)) {
+        if (role == OrgRole.MANAGER || TenantSecurityService.isPlatformStaff(actor)) {
+            return actor;
+        }
+        if (role != OrgRole.ORG_ADMIN && role != OrgRole.ORG_OWNER) {
             throw new IllegalStateException("Insufficient role");
         }
+        orgPermissionService.require(actor, OrgModule.REPORTING, AdminPermissionAction.READ);
         return actor;
     }
 }

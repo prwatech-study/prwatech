@@ -8,6 +8,8 @@ import com.prwatech.skillama.dto.ImportOrgUserRowDTO;
 import com.prwatech.skillama.dto.OrgUserDTO;
 import com.prwatech.skillama.dto.UpdateOrgUserRequestDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
+import com.prwatech.skillama.model.AdminPermissionAction;
+import com.prwatech.skillama.model.OrgModule;
 import com.prwatech.skillama.model.OrgRole;
 import com.prwatech.skillama.model.Organization;
 import com.prwatech.skillama.model.User;
@@ -38,10 +40,12 @@ public class OrgUserService {
     private final OrgHierarchyService orgHierarchyService;
     private final OrgFeatureService orgFeatureService;
     private final OrgNotificationService orgNotificationService;
+    private final OrgDepartmentService orgDepartmentService;
+    private final OrgPermissionService orgPermissionService;
 
     public List<OrgUserDTO> listUsers(User actor) {
         Organization org = requireActorOrg(actor);
-        assertCanManageUsers(actor);
+        assertCanListUsers(actor);
         List<User> users = userRepository.findByOrganizationId(org.getId());
         Map<String, User> managers = users.stream()
                 .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a));
@@ -54,7 +58,7 @@ public class OrgUserService {
     @Transactional
     public OrgUserDTO createUser(User actor, CreateOrgUserRequestDTO request) {
         Organization org = requireActorOrg(actor);
-        assertCanManageUsers(actor);
+        assertCanManageUsers(actor, AdminPermissionAction.CREATE);
         return createUserInOrg(org, request, actor);
     }
 
@@ -68,7 +72,7 @@ public class OrgUserService {
     @Transactional
     public OrgUserDTO updateUser(User actor, String userId, UpdateOrgUserRequestDTO request) {
         Organization org = requireActorOrg(actor);
-        assertCanManageUsers(actor);
+        assertCanManageUsers(actor, AdminPermissionAction.UPDATE);
         User target = requireOrgUser(org.getId(), userId);
         return applyUpdate(org, actor, target, request);
     }
@@ -119,7 +123,7 @@ public class OrgUserService {
     @Transactional
     public BulkImportOrgUsersResultDTO bulkImportUsers(User actor, BulkImportOrgUsersRequestDTO request) {
         Organization org = requireActorOrg(actor);
-        assertCanManageUsers(actor);
+        assertCanManageUsers(actor, AdminPermissionAction.CREATE);
         if (!orgFeatureService.isEnabled(org.getId(), "csv_user_import")) {
             throw new IllegalStateException("CSV import is not enabled for this organization");
         }
@@ -262,7 +266,10 @@ public class OrgUserService {
                 .orgRole(role)
                 .organizationId(org.getId())
                 .managerUserId(blankToNull(request.getManagerUserId()))
-                .department(blankToNull(request.getDepartment()))
+                .department(orgDepartmentService.normalizeAssignment(org.getId(), request.getDepartment()))
+                .orgModulePermissions(role == OrgRole.ORG_ADMIN
+                        ? new ArrayList<>(OrgPermissionService.noAccessUntilGranted())
+                        : new ArrayList<>())
                 .planTier(User.PlanTier.ENTERPRISE)
                 .active(true)
                 .emailVerified(true)
@@ -287,6 +294,12 @@ public class OrgUserService {
 
     private OrgUserDTO applyUpdate(
             Organization org, User actor, User target, UpdateOrgUserRequestDTO request) {
+        if (target.getOrgRole() == OrgRole.ORG_OWNER
+                && actor != null
+                && actor.getOrgRole() == OrgRole.ORG_ADMIN
+                && !TenantSecurityService.isPlatformStaff(actor)) {
+            throw new IllegalStateException("Organization admins cannot edit the owner");
+        }
         if (target.getOrgRole() == OrgRole.ORG_OWNER && request.getOrgRole() != null
                 && request.getOrgRole() != OrgRole.ORG_OWNER) {
             throw new IllegalStateException("Transfer ownership before demoting the organization owner");
@@ -299,7 +312,7 @@ public class OrgUserService {
             target.setName(request.getName().trim());
         }
         if (request.getDepartment() != null) {
-            target.setDepartment(blankToNull(request.getDepartment()));
+            target.setDepartment(orgDepartmentService.normalizeAssignment(org.getId(), request.getDepartment()));
         }
         if (request.getManagerUserId() != null) {
             orgHierarchyService.validateManagerAssignment(
@@ -307,7 +320,14 @@ public class OrgUserService {
             target.setManagerUserId(blankToNull(request.getManagerUserId()));
         }
         if (request.getOrgRole() != null) {
+            OrgRole previous = target.getOrgRole();
             target.setOrgRole(request.getOrgRole());
+            if (request.getOrgRole() == OrgRole.ORG_ADMIN && previous != OrgRole.ORG_ADMIN) {
+                target.setOrgModulePermissions(new ArrayList<>(OrgPermissionService.noAccessUntilGranted()));
+            }
+            if (request.getOrgRole() != OrgRole.ORG_ADMIN) {
+                target.setOrgModulePermissions(new ArrayList<>());
+            }
         }
         if (request.getActive() != null) {
             if (target.getOrgRole() == OrgRole.ORG_OWNER && !request.getActive()) {
@@ -368,7 +388,7 @@ public class OrgUserService {
         }
     }
 
-    private void assertCanManageUsers(User actor) {
+    private void assertCanListUsers(User actor) {
         if (TenantSecurityService.isPlatformStaff(actor)) {
             return;
         }
@@ -376,6 +396,26 @@ public class OrgUserService {
         if (role != OrgRole.ORG_OWNER && role != OrgRole.ORG_ADMIN) {
             throw new IllegalStateException("Insufficient organization permissions");
         }
+        boolean canReadUsers = orgPermissionService.hasPermission(actor, OrgModule.USERS, AdminPermissionAction.READ);
+        boolean canReadAssignments = orgPermissionService.hasPermission(
+                actor, OrgModule.ASSIGNMENTS, AdminPermissionAction.READ);
+        if (!canReadUsers && !canReadAssignments) {
+            orgPermissionService.require(actor, OrgModule.USERS, AdminPermissionAction.READ);
+        }
+        if (!orgFeatureService.isEnabled(actor.getOrganizationId(), "org_user_management")) {
+            throw new IllegalStateException("User management is not enabled for this organization");
+        }
+    }
+
+    private void assertCanManageUsers(User actor, AdminPermissionAction action) {
+        if (TenantSecurityService.isPlatformStaff(actor)) {
+            return;
+        }
+        OrgRole role = actor.getOrgRole();
+        if (role != OrgRole.ORG_OWNER && role != OrgRole.ORG_ADMIN) {
+            throw new IllegalStateException("Insufficient organization permissions");
+        }
+        orgPermissionService.require(actor, OrgModule.USERS, action);
         if (!orgFeatureService.isEnabled(actor.getOrganizationId(), "org_user_management")) {
             throw new IllegalStateException("User management is not enabled for this organization");
         }

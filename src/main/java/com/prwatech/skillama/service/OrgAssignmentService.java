@@ -4,7 +4,9 @@ import com.prwatech.skillama.dto.AssignmentResponseDTO;
 import com.prwatech.skillama.dto.OrgAssignCoursesRequestDTO;
 import com.prwatech.skillama.dto.OrgCourseOptionDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
+import com.prwatech.skillama.model.AdminPermissionAction;
 import com.prwatech.skillama.model.Course;
+import com.prwatech.skillama.model.OrgModule;
 import com.prwatech.skillama.model.OrgRole;
 import com.prwatech.skillama.model.Organization;
 import com.prwatech.skillama.model.User;
@@ -26,11 +28,12 @@ public class OrgAssignmentService {
     private final TenantSecurityService tenantSecurityService;
     private final OrgFeatureService orgFeatureService;
     private final AdminService adminService;
+    private final OrgPermissionService orgPermissionService;
 
     @Transactional
     public AssignmentResponseDTO assignCourses(User actor, String targetUserId, OrgAssignCoursesRequestDTO request) {
         Organization org = requireActorOrg(actor);
-        assertCanAssign(actor);
+        assertCanAssign(actor, AdminPermissionAction.CREATE);
         User target = requireOrgUser(org.getId(), targetUserId);
         if (target.getOrgRole() == OrgRole.ORG_OWNER || target.getOrgRole() == OrgRole.ORG_ADMIN) {
             throw new IllegalArgumentException("Course assignment applies to learners only");
@@ -44,13 +47,13 @@ public class OrgAssignmentService {
     @Transactional
     public void unassignCourse(User actor, String targetUserId, String courseId) {
         Organization org = requireActorOrg(actor);
-        assertCanAssign(actor);
+        assertCanAssign(actor, AdminPermissionAction.CREATE);
         requireOrgUser(org.getId(), targetUserId);
         adminService.unassignCourseForOrgUser(targetUserId, courseId, actor.getId());
     }
 
     public List<OrgCourseOptionDTO> listAssignableCourses(User actor) {
-        assertCanAssign(actor);
+        assertCanAssign(actor, AdminPermissionAction.READ);
         return courseRepository.findAll().stream()
                 .filter(c -> c.getDeletedAt() == null)
                 .sorted(Comparator.comparing(Course::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
@@ -58,7 +61,7 @@ public class OrgAssignmentService {
                 .toList();
     }
 
-    private void assertCanAssign(User actor) {
+    private void assertCanAssign(User actor, AdminPermissionAction action) {
         if (TenantSecurityService.isPlatformStaff(actor)) {
             return;
         }
@@ -66,6 +69,7 @@ public class OrgAssignmentService {
         if (role != OrgRole.ORG_OWNER && role != OrgRole.ORG_ADMIN) {
             throw new IllegalStateException("Insufficient organization permissions");
         }
+        orgPermissionService.require(actor, OrgModule.ASSIGNMENTS, action);
         if (!orgFeatureService.isEnabled(actor.getOrganizationId(), "org_user_management")) {
             throw new IllegalStateException("User management is not enabled for this organization");
         }

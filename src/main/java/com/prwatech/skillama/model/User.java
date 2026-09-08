@@ -154,6 +154,13 @@ public class User {
     @Builder.Default
     private List<AdminModulePermission> adminModulePermissions = new ArrayList<>();
 
+    /**
+     * Per-module CRUD grants for ORG_ADMIN users. Null or empty = legacy full access.
+     * ORG_OWNER ignores this field (always full access).
+     */
+    @Builder.Default
+    private List<OrgModulePermission> orgModulePermissions = new ArrayList<>();
+
     /** Corporate tenant; null for B2C and platform staff. */
     @Indexed
     private String organizationId;
