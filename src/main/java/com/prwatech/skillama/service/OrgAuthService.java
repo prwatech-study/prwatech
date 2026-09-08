@@ -45,7 +45,7 @@ public class OrgAuthService {
         }
         User user = resolveOrgUserByEmail(org, request.getEmail().trim());
         if (!userService.validatePassword(request.getPassword(), user.getPassword())) {
-            throw new IllegalArgumentException("Invalid email or password");
+            throw new IllegalArgumentException("Wrong password.");
         }
         return issueTokens(org, user, request.isForceLogin());
     }
@@ -111,7 +111,7 @@ public class OrgAuthService {
 
     private User resolveOrgUserByEmail(Organization org, String email) {
         User user = userService.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
+                .orElseThrow(() -> new IllegalArgumentException("No account found for this email."));
         if (user.getOrganizationId() == null || !user.getOrganizationId().equals(org.getId())) {
             throw new IllegalStateException("This account does not belong to this organization.");
         }

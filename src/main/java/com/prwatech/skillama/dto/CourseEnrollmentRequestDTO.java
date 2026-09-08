@@ -17,6 +17,7 @@ public class CourseEnrollmentRequestDTO {
     private String userId;
     private String userName;
     private String userEmail;
+    private String organizationId;
     private String courseId;
     private String courseName;
     private String note;

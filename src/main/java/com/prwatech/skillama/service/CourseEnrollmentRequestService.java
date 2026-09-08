@@ -27,10 +27,9 @@ import java.util.stream.StreamSupport;
 
 /**
  * Explore-catalog enrollment requests: learners browse ASSIGNABLE courses
- * (active, not archived) and request enrollment; admins approve (creating the
- * enrollment via the standard path) or deny with a reason. Learners never
- * enroll themselves directly — that invariant is enforced here and by the
- * locked-down self-enroll endpoint.
+ * (active, not archived) and request enrollment. Organization members are
+ * approved by the org owner or org admin; individual (B2C) learners stay on
+ * the Skillama admin queue. Learners never enroll themselves directly.
  */
 @Service
 @RequiredArgsConstructor
@@ -108,9 +107,12 @@ public class CourseEnrollmentRequestService {
             throw new IllegalArgumentException("You already have a pending request for this course");
         }
 
+        User requester = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         CourseEnrollmentRequest request = new CourseEnrollmentRequest();
         request.setUserId(userId);
         request.setCourseId(course.getId());
+        request.setOrganizationId(blankToNull(requester.getOrganizationId()));
         request.setNote(body.getNote() != null ? body.getNote().trim() : null);
         return requestRepository.save(request);
     }
@@ -119,16 +121,119 @@ public class CourseEnrollmentRequestService {
         return toDtos(requestRepository.findByUserIdOrderByCreatedAtDesc(userId));
     }
 
+    /** Skillama admin queue: individual / B2C learners only. */
     public List<CourseEnrollmentRequestDTO> listRequests(CourseEnrollmentRequest.RequestStatus status) {
-        List<CourseEnrollmentRequest> requests = status != null
-                ? requestRepository.findByStatusOrderByCreatedAtDesc(status)
-                : requestRepository.findAllByOrderByCreatedAtDesc();
-        return toDtos(requests);
+        return toDtos(filterByOrganization(loadRequests(status), null));
+    }
+
+    /** Organization owner/admin queue for one tenant. */
+    public List<CourseEnrollmentRequestDTO> listForOrganization(
+            String organizationId, CourseEnrollmentRequest.RequestStatus status) {
+        if (organizationId == null || organizationId.isBlank()) {
+            throw new IllegalArgumentException("organizationId is required");
+        }
+        return toDtos(filterByOrganization(loadRequests(status), organizationId));
     }
 
     @Transactional
     public CourseEnrollmentRequestDTO approve(String requestId, String adminId) {
         CourseEnrollmentRequest request = requirePending(requestId);
+        assertPlatformScoped(request);
+        return markApproved(request, adminId);
+    }
+
+    @Transactional
+    public CourseEnrollmentRequestDTO approveForOrganization(
+            String requestId, String actorId, String organizationId) {
+        CourseEnrollmentRequest request = requirePending(requestId);
+        assertBelongsToOrganization(request, organizationId);
+        return markApproved(request, actorId);
+    }
+
+    @Transactional
+    public CourseEnrollmentRequestDTO deny(String requestId, String adminId, String reason) {
+        CourseEnrollmentRequest request = requirePending(requestId);
+        assertPlatformScoped(request);
+        return markDenied(request, adminId, reason);
+    }
+
+    @Transactional
+    public CourseEnrollmentRequestDTO denyForOrganization(
+            String requestId, String actorId, String organizationId, String reason) {
+        CourseEnrollmentRequest request = requirePending(requestId);
+        assertBelongsToOrganization(request, organizationId);
+        return markDenied(request, actorId, reason);
+    }
+
+    /** Pending individual / B2C requests on the Skillama admin queue. */
+    public long pendingCount() {
+        return filterByOrganization(
+                requestRepository.findByStatusOrderByCreatedAtDesc(
+                        CourseEnrollmentRequest.RequestStatus.PENDING),
+                null).size();
+    }
+
+    private List<CourseEnrollmentRequest> loadRequests(CourseEnrollmentRequest.RequestStatus status) {
+        return status != null
+                ? requestRepository.findByStatusOrderByCreatedAtDesc(status)
+                : requestRepository.findAllByOrderByCreatedAtDesc();
+    }
+
+    /**
+     * {@code organizationId == null} keeps individual / B2C requests.
+     * Legacy rows without the field still count as org-scoped when the user has an org.
+     */
+    private List<CourseEnrollmentRequest> filterByOrganization(
+            List<CourseEnrollmentRequest> requests, String organizationId) {
+        Map<String, User> users = usersById(requests);
+        return requests.stream()
+                .filter(r -> {
+                    String resolved = resolvedOrganizationId(r, users.get(r.getUserId()));
+                    if (organizationId == null) {
+                        return resolved == null;
+                    }
+                    return organizationId.equals(resolved);
+                })
+                .collect(Collectors.toList());
+    }
+
+    private Map<String, User> usersById(List<CourseEnrollmentRequest> requests) {
+        Set<String> userIds = requests.stream()
+                .map(CourseEnrollmentRequest::getUserId)
+                .collect(Collectors.toSet());
+        if (userIds.isEmpty()) {
+            return Map.of();
+        }
+        return StreamSupport.stream(userRepository.findAllById(userIds).spliterator(), false)
+                .collect(Collectors.toMap(User::getId, Function.identity(), (a, b) -> a));
+    }
+
+    private String resolvedOrganizationId(CourseEnrollmentRequest request, User user) {
+        String stamped = request != null ? blankToNull(request.getOrganizationId()) : null;
+        if (stamped != null) {
+            return stamped;
+        }
+        return user != null ? blankToNull(user.getOrganizationId()) : null;
+    }
+
+    private void assertPlatformScoped(CourseEnrollmentRequest request) {
+        User requester = userRepository.findById(request.getUserId()).orElse(null);
+        if (resolvedOrganizationId(request, requester) != null) {
+            throw new IllegalStateException(
+                    "Organization enrollment requests are approved by the organization owner or admin");
+        }
+    }
+
+    private void assertBelongsToOrganization(CourseEnrollmentRequest request, String organizationId) {
+        User requester = userRepository.findById(request.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        String resolved = resolvedOrganizationId(request, requester);
+        if (resolved == null || !resolved.equals(organizationId)) {
+            throw new IllegalStateException("Cross-organization access denied");
+        }
+    }
+
+    private CourseEnrollmentRequestDTO markApproved(CourseEnrollmentRequest request, String actorId) {
         Course course = courseRepository.findById(request.getCourseId())
                 .orElseThrow(() -> new ResourceNotFoundException("Course not found"));
         if (!isCatalogEligible(course)) {
@@ -137,30 +242,29 @@ public class CourseEnrollmentRequestService {
         userCourseAccessService.enrollIfAbsent(request.getUserId(), request.getCourseId(),
                 UserCourseEnrollment.EnrollmentType.REQUEST_APPROVED);
         request.setStatus(CourseEnrollmentRequest.RequestStatus.APPROVED);
-        request.setDecidedBy(adminId);
+        request.setDecidedBy(actorId);
         request.setDecidedAt(IndiaTime.now());
         request.setUpdatedAt(IndiaTime.now());
         requestRepository.save(request);
         return toDtos(List.of(request)).get(0);
     }
 
-    @Transactional
-    public CourseEnrollmentRequestDTO deny(String requestId, String adminId, String reason) {
+    private CourseEnrollmentRequestDTO markDenied(
+            CourseEnrollmentRequest request, String actorId, String reason) {
         if (reason == null || reason.isBlank()) {
             throw new IllegalArgumentException("reason is required");
         }
-        CourseEnrollmentRequest request = requirePending(requestId);
         request.setStatus(CourseEnrollmentRequest.RequestStatus.DENIED);
         request.setDecisionReason(reason.trim());
-        request.setDecidedBy(adminId);
+        request.setDecidedBy(actorId);
         request.setDecidedAt(IndiaTime.now());
         request.setUpdatedAt(IndiaTime.now());
         requestRepository.save(request);
         return toDtos(List.of(request)).get(0);
     }
 
-    public long pendingCount() {
-        return requestRepository.countByStatus(CourseEnrollmentRequest.RequestStatus.PENDING);
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private CourseEnrollmentRequest requirePending(String requestId) {
@@ -192,6 +296,7 @@ public class CourseEnrollmentRequestService {
                     .userId(r.getUserId())
                     .userName(user != null ? user.getName() : null)
                     .userEmail(user != null ? user.getEmail() : null)
+                    .organizationId(resolvedOrganizationId(r, user))
                     .courseId(r.getCourseId())
                     .courseName(course != null ? course.getName() : r.getCourseId())
                     .note(r.getNote())

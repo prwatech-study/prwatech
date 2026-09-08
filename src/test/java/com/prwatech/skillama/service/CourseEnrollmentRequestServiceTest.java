@@ -131,6 +131,7 @@ class CourseEnrollmentRequestServiceTest {
         when(userCourseAccessService.hasActiveEnrollment("u1", "c1")).thenReturn(false);
         when(requestRepository.findFirstByUserIdAndCourseIdAndStatus(any(), any(), any()))
                 .thenReturn(Optional.empty());
+        when(userRepository.findById("u1")).thenReturn(Optional.of(User.builder().id("u1").build()));
 
         CreateCourseEnrollmentRequestDTO dto = new CreateCourseEnrollmentRequestDTO();
         dto.setCourseId("c1");
@@ -140,6 +141,89 @@ class CourseEnrollmentRequestServiceTest {
 
         assertEquals(CourseEnrollmentRequest.RequestStatus.PENDING, saved.getStatus());
         assertEquals("please", saved.getNote());
+        assertNull(saved.getOrganizationId());
+    }
+
+    @Test
+    void createStampsOrganizationIdForOrgMembers() {
+        when(courseRepository.findById("c1")).thenReturn(Optional.of(course("c1", true, false)));
+        when(userCourseAccessService.hasActiveEnrollment("u1", "c1")).thenReturn(false);
+        when(requestRepository.findFirstByUserIdAndCourseIdAndStatus(any(), any(), any()))
+                .thenReturn(Optional.empty());
+        when(userRepository.findById("u1")).thenReturn(Optional.of(
+                User.builder().id("u1").organizationId("org-1").build()));
+
+        CreateCourseEnrollmentRequestDTO dto = new CreateCourseEnrollmentRequestDTO();
+        dto.setCourseId("c1");
+
+        CourseEnrollmentRequest saved = service.createRequest("u1", dto);
+
+        assertEquals("org-1", saved.getOrganizationId());
+    }
+
+    @Test
+    void platformQueueExcludesOrgRequestsIncludingLegacyRows() {
+        CourseEnrollmentRequest b2c = pending("u-b2c", "c1");
+        CourseEnrollmentRequest stamped = pending("u-org", "c1");
+        stamped.setId("r2");
+        stamped.setOrganizationId("org-1");
+        CourseEnrollmentRequest legacy = pending("u-legacy", "c1");
+        legacy.setId("r3");
+        when(requestRepository.findAllByOrderByCreatedAtDesc())
+                .thenReturn(List.of(b2c, stamped, legacy));
+        when(userRepository.findAllById(any())).thenReturn(List.of(
+                User.builder().id("u-b2c").name("Solo").build(),
+                User.builder().id("u-org").organizationId("org-1").build(),
+                User.builder().id("u-legacy").organizationId("org-1").build()));
+
+        List<CourseEnrollmentRequestDTO> platform = service.listRequests(null);
+        assertEquals(1, platform.size());
+        assertEquals("u-b2c", platform.get(0).getUserId());
+
+        List<CourseEnrollmentRequestDTO> orgQueue = service.listForOrganization("org-1", null);
+        assertEquals(2, orgQueue.size());
+    }
+
+    @Test
+    void platformApproveRefusesOrgScopedRequest() {
+        CourseEnrollmentRequest request = pending("u1", "c1");
+        request.setOrganizationId("org-1");
+        when(requestRepository.findById("r1")).thenReturn(Optional.of(request));
+        when(userRepository.findById("u1")).thenReturn(Optional.of(
+                User.builder().id("u1").organizationId("org-1").build()));
+
+        assertThrows(IllegalStateException.class, () -> service.approve("r1", "admin1"));
+        verify(userCourseAccessService, never()).enrollIfAbsent(any(), any(), any());
+    }
+
+    @Test
+    void orgApproveEnrollsWhenRequestBelongsToOrg() {
+        CourseEnrollmentRequest request = pending("u1", "c1");
+        request.setOrganizationId("org-1");
+        when(requestRepository.findById("r1")).thenReturn(Optional.of(request));
+        when(userRepository.findById("u1")).thenReturn(Optional.of(
+                User.builder().id("u1").organizationId("org-1").build()));
+        when(courseRepository.findById("c1")).thenReturn(Optional.of(course("c1", true, false)));
+
+        CourseEnrollmentRequestDTO result = service.approveForOrganization("r1", "owner1", "org-1");
+
+        verify(userCourseAccessService).enrollIfAbsent(
+                eq("u1"), eq("c1"), eq(UserCourseEnrollment.EnrollmentType.REQUEST_APPROVED));
+        assertEquals("APPROVED", result.getStatus());
+        assertEquals("owner1", result.getDecidedBy());
+    }
+
+    @Test
+    void orgApproveRefusesOtherTenants() {
+        CourseEnrollmentRequest request = pending("u1", "c1");
+        request.setOrganizationId("org-other");
+        when(requestRepository.findById("r1")).thenReturn(Optional.of(request));
+        when(userRepository.findById("u1")).thenReturn(Optional.of(
+                User.builder().id("u1").organizationId("org-other").build()));
+
+        assertThrows(IllegalStateException.class,
+                () -> service.approveForOrganization("r1", "owner1", "org-1"));
+        verify(userCourseAccessService, never()).enrollIfAbsent(any(), any(), any());
     }
 
     // ---------- approve / deny ----------

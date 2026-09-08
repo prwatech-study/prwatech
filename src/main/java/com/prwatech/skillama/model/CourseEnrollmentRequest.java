@@ -10,9 +10,9 @@ import java.time.LocalDateTime;
 
 /**
  * A learner's request (from the Explore catalog) to be enrolled in a course.
- * Learners cannot self-enroll — an admin approves (creating the enrollment with
- * type REQUEST_APPROVED) or denies with a reason. One PENDING request per
- * (user, course) is enforced in the service.
+ * Learners cannot self-enroll. Organization members are approved by the org
+ * owner or org admin; individual (B2C) learners stay on the Skillama admin queue.
+ * One PENDING request per (user, course) is enforced in the service.
  */
 @Data
 @Document(collection = "course_enrollment_requests")
@@ -25,6 +25,13 @@ public class CourseEnrollmentRequest {
 
     @Indexed
     private String courseId;
+
+    /**
+     * Set when the requester belongs to a corporate tenant. Null for individual / B2C
+     * learners — those stay on the Skillama admin queue.
+     */
+    @Indexed
+    private String organizationId;
 
     @Indexed
     private RequestStatus status = RequestStatus.PENDING;

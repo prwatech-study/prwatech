@@ -23,7 +23,7 @@ import java.util.Map;
 
 /**
  * Learner-facing Explore catalog: browse assignable courses and request
- * enrollment (admin approves/denies — no direct self-enroll).
+ * enrollment (org owner/admin or Skillama admin approves — no direct self-enroll).
  */
 @RestController
 @RequestMapping("/skillama/api/users/me")

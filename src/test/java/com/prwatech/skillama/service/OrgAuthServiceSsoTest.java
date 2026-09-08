@@ -174,6 +174,38 @@ class OrgAuthServiceSsoTest {
                 OrgAuthLoginRequestDTO.builder().orgSlug(SLUG).email("jane@acme.com").password("p").build()));
     }
 
+    @Test
+    void login_unknownEmailSaysAccountNotFound() {
+        givenOrg(org(OrganizationStatus.ACTIVE, security(false, false, "acme.com")));
+        when(orgFeatureService.isEnabled(ORG_ID, "email_password_auth")).thenReturn(true);
+        when(userService.findByEmail("ghost@acme.com")).thenReturn(Optional.empty());
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> orgAuthService.login(
+                OrgAuthLoginRequestDTO.builder().orgSlug(SLUG).email("ghost@acme.com").password("p").build()));
+
+        assertEquals("No account found for this email.", ex.getMessage());
+        verify(userService, never()).validatePassword(anyString(), anyString());
+    }
+
+    @Test
+    void login_wrongPasswordSaysWrongPassword() {
+        givenOrg(org(OrganizationStatus.ACTIVE, security(false, false, "acme.com")));
+        when(orgFeatureService.isEnabled(ORG_ID, "email_password_auth")).thenReturn(true);
+        User user = User.builder()
+                .email("jane@acme.com")
+                .password("hashed")
+                .organizationId(ORG_ID)
+                .active(true)
+                .build();
+        when(userService.findByEmail("jane@acme.com")).thenReturn(Optional.of(user));
+        when(userService.validatePassword("bad", "hashed")).thenReturn(false);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> orgAuthService.login(
+                OrgAuthLoginRequestDTO.builder().orgSlug(SLUG).email("jane@acme.com").password("bad").build()));
+
+        assertEquals("Wrong password.", ex.getMessage());
+    }
+
     // --- feature entitlement --------------------------------------------------
 
     @Test
