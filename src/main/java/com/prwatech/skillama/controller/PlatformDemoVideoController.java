@@ -3,12 +3,14 @@ package com.prwatech.skillama.controller;
 import com.prwatech.skillama.dto.AiSettingsDTO;
 import com.prwatech.skillama.dto.DemoVideoDTO;
 import com.prwatech.skillama.dto.FreemiumOfferingDTO;
+import com.prwatech.skillama.dto.PlatformThemeSettingsDTO;
 import com.prwatech.skillama.dto.PublicStatsDTO;
 import com.prwatech.skillama.dto.UpgradeContactDTO;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.PlatformAiSettingsService;
 import com.prwatech.skillama.service.PlatformDemoVideoService;
 import com.prwatech.skillama.service.PlatformPublicStatsService;
+import com.prwatech.skillama.service.PlatformThemeSettingsService;
 import com.prwatech.skillama.service.SkillamaPlatformConfigService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +29,7 @@ public class PlatformDemoVideoController {
     private final PlatformDemoVideoService platformDemoVideoService;
     private final SkillamaPlatformConfigService platformConfigService;
     private final PlatformAiSettingsService platformAiSettingsService;
+    private final PlatformThemeSettingsService platformThemeSettingsService;
     private final FreemiumService freemiumService;
     private final PlatformPublicStatsService platformPublicStatsService;
 
@@ -51,6 +54,12 @@ public class PlatformDemoVideoController {
     @GetMapping("/ai-settings")
     public ResponseEntity<AiSettingsDTO> getAiSettings() {
         return ResponseEntity.ok(platformAiSettingsService.getPublicSettings());
+    }
+
+    /** Public theme catalog — which built-in themes the owner has allowed. */
+    @GetMapping("/theme-settings")
+    public ResponseEntity<PlatformThemeSettingsDTO> getThemeSettings() {
+        return ResponseEntity.ok(platformThemeSettingsService.getPublicSettings());
     }
 
     /** Public marketing aggregates for homepage social proof (cached). */

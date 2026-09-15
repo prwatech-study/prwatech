@@ -31,13 +31,18 @@ class LmsThemeServiceTest {
 
     @Mock private LmsThemeEventRepository lmsThemeEventRepository;
     @Mock private SkillamaUserRepository userRepository;
+    @Mock private PlatformThemeSettingsService platformThemeSettingsService;
 
     private LmsThemeService service;
 
     @BeforeEach
     void setUp() {
-        service = new LmsThemeService(lmsThemeEventRepository, userRepository);
+        service = new LmsThemeService(lmsThemeEventRepository, userRepository, platformThemeSettingsService);
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(platformThemeSettingsService.isThemeEnabled(any())).thenAnswer(inv -> {
+            String theme = inv.getArgument(0);
+            return "classic".equals(theme) || "aurora".equals(theme) || "obsidian".equals(theme);
+        });
     }
 
     private LmsThemeSwitchRequestDTO req(String theme, String previous) {
@@ -161,5 +166,26 @@ class LmsThemeServiceTest {
         assertEquals(1L, stats.getHomepageObsidian());
         assertEquals(1L, stats.getLmsObsidian());
         assertEquals(1L, stats.getVisitorObsidian());
+    }
+
+    @Test
+    void recordSwitchRejectsDisabledTheme() {
+        when(userRepository.findById("u1")).thenReturn(Optional.of(User.builder().id("u1").build()));
+        when(platformThemeSettingsService.isThemeEnabled("obsidian")).thenReturn(false);
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.recordThemeSwitch("u1", req("obsidian", "aurora")));
+        assertEquals("theme is not currently available", ex.getMessage());
+        verify(lmsThemeEventRepository, never()).save(any());
+    }
+
+    @Test
+    void visitorSwitchRejectsDisabledTheme() {
+        when(platformThemeSettingsService.isThemeEnabled("classic")).thenReturn(false);
+        LmsThemeSwitchRequestDTO r = req("classic", "aurora");
+        r.setVisitorId("v1");
+        r.setContext("homepage");
+        assertThrows(IllegalArgumentException.class, () -> service.recordVisitorThemeSwitch(r));
+        verify(lmsThemeEventRepository, never()).save(any());
     }
 }

@@ -14,6 +14,7 @@ import com.prwatech.skillama.service.AdminService;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.PlatformAiSettingsService;
+import com.prwatech.skillama.service.PlatformThemeSettingsService;
 import com.prwatech.skillama.service.PlatformDemoVideoService;
 import com.prwatech.skillama.service.NotificationSettingsService;
 import com.prwatech.skillama.service.AdminPermissionService;
@@ -69,6 +70,7 @@ public class AdminController {
     private final IssueReportService issueReportService;
     private final PlatformDemoVideoService platformDemoVideoService;
     private final PlatformAiSettingsService platformAiSettingsService;
+    private final PlatformThemeSettingsService platformThemeSettingsService;
     private final ReferralShareService referralShareService;
     private final NotificationSettingsService notificationSettingsService;
     private final AdminAuditService adminAuditService;
@@ -1731,6 +1733,46 @@ public class AdminController {
             adminService.requireOwner(userId);
             return ResponseEntity.ok(
                     new ApiResponse<>(200, platformAiSettingsService.updateDevMode(body, userId)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null
+                    && (e.getMessage().contains("Only OWNER") || e.getMessage().contains("Owner access"))) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @GetMapping("/platform/theme-settings")
+    public ResponseEntity<ApiResponse<PlatformThemeSettingsDTO>> getThemeSettingsAdminConfig(
+            HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            adminService.requireOwner(userId);
+            return ResponseEntity.ok(new ApiResponse<>(200, platformThemeSettingsService.getPublicSettings()));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null
+                    && (e.getMessage().contains("Only OWNER") || e.getMessage().contains("Owner access"))) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    @PutMapping("/platform/theme-settings")
+    public ResponseEntity<ApiResponse<PlatformThemeSettingsDTO>> updateThemeSettingsConfig(
+            @RequestBody UpdatePlatformThemeSettingsDTO body,
+            HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            adminService.requireOwner(userId);
+            return ResponseEntity.ok(
+                    new ApiResponse<>(200, platformThemeSettingsService.updateSettings(body, userId)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
         } catch (RuntimeException e) {

@@ -42,6 +42,7 @@ class OrgLoginDiscoveryTest {
     @Mock private OrgHierarchyService orgHierarchyService;
     @Mock private OrgPermissionService orgPermissionService;
     @Mock private OrgBrandingAssetService orgBrandingAssetService;
+    @Mock private PlatformThemeSettingsService platformThemeSettingsService;
 
     @InjectMocks private OrganizationService organizationService;
 

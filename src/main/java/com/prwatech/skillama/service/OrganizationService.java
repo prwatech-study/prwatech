@@ -47,6 +47,7 @@ public class OrganizationService {
     private final OrgHierarchyService orgHierarchyService;
     private final OrgPermissionService orgPermissionService;
     private final OrgBrandingAssetService orgBrandingAssetService;
+    private final PlatformThemeSettingsService platformThemeSettingsService;
 
     public Page<OrganizationDTO> listOrganizations(int page, int size, OrganizationStatus status) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
@@ -92,7 +93,7 @@ public class OrganizationService {
                 .organizationId(org.getId())
                 .name(org.getName())
                 .slug(org.getSlug())
-                .branding(org.getBranding())
+                .branding(brandingForResponse(org.getBranding()))
                 .enabledFeatureCodes(publicLoginFeatureCodes(org.getId()))
                 .requireSso(org.getSecurity() != null && org.getSecurity().isRequireSso())
                 .build();
@@ -356,7 +357,10 @@ public class OrganizationService {
         Organization org = requireOrg(organizationId);
         tenantAssertOrgActor(actor, organizationId, OrgModule.BRANDING, AdminPermissionAction.UPDATE);
         if (request.getBranding() != null) {
-            org.setBranding(request.getBranding());
+            OrganizationBranding branding = request.getBranding();
+            branding.setDefaultLmsTheme(
+                    platformThemeSettingsService.resolveEnabledTheme(branding.getDefaultLmsTheme()));
+            org.setBranding(branding);
         }
         org.setUpdatedAt(IndiaTime.now());
         org = organizationRepository.save(org);
@@ -508,6 +512,31 @@ public class OrganizationService {
         orgPermissionService.require(actor, module, action);
     }
 
+    /**
+     * Do not mutate stored branding. Disabled theme ids fall back to the platform default.
+     */
+    private OrganizationBranding brandingForResponse(OrganizationBranding branding) {
+        if (branding == null) {
+            return null;
+        }
+        String resolved = platformThemeSettingsService.resolveEnabledTheme(branding.getDefaultLmsTheme());
+        if (resolved.equals(branding.getDefaultLmsTheme())
+                || (branding.getDefaultLmsTheme() == null && resolved == null)) {
+            return branding;
+        }
+        return OrganizationBranding.builder()
+                .logoUrl(branding.getLogoUrl())
+                .faviconUrl(branding.getFaviconUrl())
+                .primaryColor(branding.getPrimaryColor())
+                .accentColor(branding.getAccentColor())
+                .loginWelcomeText(branding.getLoginWelcomeText())
+                .loginBackgroundUrl(branding.getLoginBackgroundUrl())
+                .defaultLmsTheme(resolved)
+                .certificateLogoUrl(branding.getCertificateLogoUrl())
+                .emailFooterText(branding.getEmailFooterText())
+                .build();
+    }
+
     private OrganizationDTO toDto(Organization org) {
         int activeUsers = (int) userRepository.countByOrganizationIdAndActiveTrue(org.getId());
         return OrganizationDTO.builder()
@@ -521,7 +550,7 @@ public class OrganizationService {
                 .contactEmail(org.getContactEmail())
                 .salesContactEmail(org.getSalesContactEmail())
                 .assetBucket(org.getAssetBucket())
-                .branding(org.getBranding())
+                .branding(brandingForResponse(org.getBranding()))
                 .allowedEmailDomains(org.getSecurity() != null
                         ? org.getSecurity().getAllowedEmailDomains() : List.of())
                 .requireSso(org.getSecurity() != null && org.getSecurity().isRequireSso())

@@ -24,16 +24,14 @@ public class LmsThemeService {
 
     private final LmsThemeEventRepository lmsThemeEventRepository;
     private final SkillamaUserRepository userRepository;
+    private final PlatformThemeSettingsService platformThemeSettingsService;
 
     @Transactional
     public void recordThemeSwitch(String userId, LmsThemeSwitchRequestDTO request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        String theme = normalizeTheme(request != null ? request.getTheme() : null);
-        if (theme == null) {
-            throw new IllegalArgumentException("theme must be classic, aurora, or obsidian");
-        }
+        String theme = requireEnabledTheme(request != null ? request.getTheme() : null);
 
         String previous = request != null ? request.getPreviousTheme() : null;
         if (previous != null && previous.equals(theme)) {
@@ -57,10 +55,7 @@ public class LmsThemeService {
 
     @Transactional
     public void recordVisitorThemeSwitch(LmsThemeSwitchRequestDTO request) {
-        String theme = normalizeTheme(request != null ? request.getTheme() : null);
-        if (theme == null) {
-            throw new IllegalArgumentException("theme must be classic, aurora, or obsidian");
-        }
+        String theme = requireEnabledTheme(request != null ? request.getTheme() : null);
 
         String visitorId = request != null ? request.getVisitorId() : null;
         if (visitorId == null || visitorId.isBlank()) {
@@ -167,6 +162,17 @@ public class LmsThemeService {
             return c;
         }
         return null;
+    }
+
+    private String requireEnabledTheme(String raw) {
+        String theme = normalizeTheme(raw);
+        if (theme == null) {
+            throw new IllegalArgumentException("theme must be classic, aurora, or obsidian");
+        }
+        if (!platformThemeSettingsService.isThemeEnabled(theme)) {
+            throw new IllegalArgumentException("theme is not currently available");
+        }
+        return theme;
     }
 
     private String normalizeTheme(String raw) {
