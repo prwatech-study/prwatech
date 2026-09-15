@@ -204,6 +204,7 @@ class OrgAuthServiceSsoTest {
                 OrgAuthLoginRequestDTO.builder().orgSlug(SLUG).email("jane@acme.com").password("bad").build()));
 
         assertEquals("Wrong password.", ex.getMessage());
+        verify(userService, never()).upgradeLegacyPasswordIfNeeded(any(), any());
     }
 
     // --- feature entitlement --------------------------------------------------

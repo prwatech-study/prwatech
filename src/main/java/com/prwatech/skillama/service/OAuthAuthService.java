@@ -117,6 +117,7 @@ public class OAuthAuthService {
             if (!userService.validatePassword(request.getPassword(), user.getPassword())) {
                 throw new IllegalArgumentException("Invalid email or password");
             }
+            userService.upgradeLegacyPasswordIfNeeded(user, request.getPassword());
             return user;
         }
 

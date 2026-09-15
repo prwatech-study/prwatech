@@ -48,7 +48,25 @@ class UserMapperTest {
         assertNull(dto.getClass().getDeclaredFields().length == 0 ? null : findPasswordField(dto));
     }
 
-    private static Object findPasswordField(UserPublicDTO dto) {
+    @Test
+    void toLoginResponse_neverExposesPasswordField() {
+        User user = User.builder()
+                .id("u3")
+                .name("Cara")
+                .email("cara@skillama.co.in")
+                .password("bcrypt-hash")
+                .role(User.UserRole.USER)
+                .active(true)
+                .build();
+
+        LoginResponseDTO dto = UserMapper.toLoginResponse(user, "jwt-token", null);
+
+        assertNotNull(dto);
+        assertEquals("jwt-token", dto.getToken());
+        assertNull(findPasswordField(dto));
+    }
+
+    private static Object findPasswordField(Object dto) {
         try {
             dto.getClass().getDeclaredField("password");
             return "unexpected-password-field";

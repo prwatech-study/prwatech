@@ -199,6 +199,7 @@ class OAuthAuthServiceTest {
         User result = oAuthAuthService.emailContinue(request);
 
         assertEquals("u1", result.getId());
+        verify(userService).upgradeLegacyPasswordIfNeeded(existing, "password123");
         verify(otpService, never()).validateVerificationToken(any(), any(), any());
         verify(userRepository, never()).save(any());
     }

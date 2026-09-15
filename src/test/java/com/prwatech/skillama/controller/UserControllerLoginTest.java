@@ -103,6 +103,7 @@ class UserControllerLoginTest {
                 .andExpect(jsonPath("$.password").doesNotExist());
 
         verify(userService).recordLogin(ACTIVE_USER);
+        verify(userService).upgradeLegacyPasswordIfNeeded(ACTIVE_USER, "correct-pass");
     }
 
     @Test
@@ -134,6 +135,7 @@ class UserControllerLoginTest {
                 .andExpect(status().isUnauthorized());
 
         verify(userService, never()).recordLogin(any());
+        verify(userService, never()).upgradeLegacyPasswordIfNeeded(any(), any());
         verify(jwtUtils, never()).generateToken(any());
     }
 
@@ -163,5 +165,27 @@ class UserControllerLoginTest {
                 .andExpect(status().isForbidden());
 
         verify(userService, never()).validatePassword(any(), any());
+    }
+
+    @Test
+    void register_responseOmitsPassword() throws Exception {
+        when(userContactService.normalizeEmail("new@skillama.co.in")).thenReturn("new@skillama.co.in");
+        User saved = User.builder()
+                .id("u3")
+                .name("New Learner")
+                .email("new@skillama.co.in")
+                .password("$2a$10$abcdefghijklmnopqrstuvABCDEFGHIJKLMNOPQRSTUVWXYZabcde")
+                .active(false)
+                .role(User.UserRole.USER)
+                .build();
+        when(userService.register(any(User.class))).thenReturn(saved);
+
+        mockMvc.perform(post("/skillama/users/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"email\":\"new@skillama.co.in\",\"password\":\"secret-pass\",\"name\":\"New Learner\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("new@skillama.co.in"))
+                .andExpect(jsonPath("$.password").doesNotExist());
     }
 }

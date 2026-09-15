@@ -80,6 +80,7 @@ public class UserController {
             }
             // Password comparison: passwords are stored encoded in DB
             if (userService.validatePassword(loginRequest.getPassword(), user.getPassword())) {
+                userService.upgradeLegacyPasswordIfNeeded(user, loginRequest.getPassword());
                 if (hasConflictingSession(user, forceLogin)) {
                     return sessionConflictResponse(user);
                 }

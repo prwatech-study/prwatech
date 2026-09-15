@@ -29,7 +29,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -201,7 +200,23 @@ public class UserService {
      * Validates user password using encoded password comparison
      */
     public boolean validatePassword(String plainPassword, String encodedPassword) {
-        return passwordEncode.compare(plainPassword, encodedPassword);
+        return Boolean.TRUE.equals(passwordEncode.compare(plainPassword, encodedPassword));
+    }
+
+    /**
+     * After a successful login against a legacy Base64 password, replace the stored
+     * value with a bcrypt hash of the supplied password. No-op for bcrypt hashes
+     * or when the supplied password does not match.
+     */
+    public void upgradeLegacyPasswordIfNeeded(User user, String plainPassword) {
+        if (user == null || plainPassword == null || !passwordEncode.isLegacyEncoded(user.getPassword())) {
+            return;
+        }
+        if (!validatePassword(plainPassword, user.getPassword())) {
+            return;
+        }
+        encodeAndUpdatePassword(user, plainPassword);
+        LOGGER.info("Upgraded legacy password encoding for user {}", user.getId());
     }
     
     /**
@@ -215,9 +230,9 @@ public class UserService {
     }
     
     /**
-     * Migrates all existing user passwords to encoded format
-     * This method checks if a password is already encoded, and if not, encodes it
-     * @return Map with migration statistics
+     * Migrates legacy Base64-stored passwords to bcrypt. Already-bcrypt hashes are skipped.
+     * Login-time upgrade remains the primary path; this is the optional admin bulk job.
+     * @return Map with migration statistics (no password or hash values)
      */
     public Map<String, Object> migrateAllPasswords() {
         Map<String, Object> result = new HashMap<>();
@@ -237,26 +252,18 @@ public class UserService {
                 }
                 
                 try {
-                    // Check if password is already Base64 encoded
-                    if (isBase64Encoded(user.getPassword())) {
-                        // Try to decode to verify it's valid Base64
-                        try {
-                            Base64.getDecoder().decode(user.getPassword());
-                            skippedCount++; // Already encoded, skip
-                            continue;
-                        } catch (IllegalArgumentException e) {
-                            // Not valid Base64, encode it
-                        }
+                    String stored = user.getPassword();
+                    String migrated = passwordEncode.migrateStoredPassword(stored);
+                    if (migrated == null || migrated.equals(stored)) {
+                        skippedCount++;
+                        continue;
                     }
-                    
-                    // Password is plain text, encode it
-                    String encodedPassword = passwordEncode.getEncryptedPassword(user.getPassword());
-                    user.setPassword(encodedPassword);
+                    user.setPassword(migrated);
                     userRepository.save(user);
                     encodedCount++;
                     
                 } catch (Exception e) {
-                    LOGGER.error("Error encoding password for user: {}", user.getEmail(), e);
+                    LOGGER.error("Error encoding password for user id {}", user.getId(), e);
                     errorCount++;
                 }
             }
@@ -277,18 +284,6 @@ public class UserService {
         }
         
         return result;
-    }
-    
-    /**
-     * Checks if a string is Base64 encoded
-     */
-    private boolean isBase64Encoded(String str) {
-        if (str == null || str.isEmpty()) {
-            return false;
-        }
-        // Base64 strings typically don't contain spaces and have specific character set
-        // A simple heuristic: check if it contains only Base64 characters
-        return str.matches("^[A-Za-z0-9+/=]+$") && str.length() % 4 == 0;
     }
     
     /**

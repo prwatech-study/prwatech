@@ -9,14 +9,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
-import java.util.Base64;
 import java.util.List;
 
 /**
- * Migration script to encode existing user passwords
- * This can be run as a CommandLineRunner on application startup
- * Or can be disabled by commenting out @Component annotation
- * 
+ * Optional bulk migration of legacy Base64 passwords to bcrypt.
+ * Disabled on startup by default; login already upgrades on successful authentication.
+ *
  * To run manually, call the /skillama/users/admin/migrate-passwords endpoint
  */
 @Component
@@ -44,7 +42,7 @@ public class PasswordMigrationScript implements CommandLineRunner {
     }
     
     /**
-     * Migrates all existing user passwords to encoded format
+     * Migrates legacy Base64-stored passwords to bcrypt. Already-bcrypt hashes are skipped.
      */
     public void migratePasswords() {
         try {
@@ -63,30 +61,19 @@ public class PasswordMigrationScript implements CommandLineRunner {
                 }
                 
                 try {
-                    // Check if password is already Base64 encoded
-                    if (isBase64Encoded(user.getPassword())) {
-                        // Try to decode to verify it's valid Base64
-                        try {
-                            Base64.getDecoder().decode(user.getPassword());
-                            skippedCount++; // Already encoded, skip
-                            LOGGER.debug("User {} already has encoded password, skipping", user.getEmail());
-                            continue;
-                        } catch (IllegalArgumentException e) {
-                            // Not valid Base64, encode it
-                        }
+                    String stored = user.getPassword();
+                    String migrated = passwordEncode.migrateStoredPassword(stored);
+                    if (migrated == null || migrated.equals(stored)) {
+                        skippedCount++;
+                        continue;
                     }
-                    
-                    // Password is plain text, encode it
-                    String originalPassword = user.getPassword();
-                    String encodedPassword = passwordEncode.getEncryptedPassword(originalPassword);
-                    user.setPassword(encodedPassword);
+                    user.setPassword(migrated);
                     userRepository.save(user);
                     encodedCount++;
-                    
-                    LOGGER.info("Encoded password for user: {}", user.getEmail());
+                    LOGGER.info("Migrated password encoding for user id {}", user.getId());
                     
                 } catch (Exception e) {
-                    LOGGER.error("Error encoding password for user: {}", user.getEmail(), e);
+                    LOGGER.error("Error encoding password for user id {}", user.getId(), e);
                     errorCount++;
                 }
             }
@@ -99,17 +86,4 @@ public class PasswordMigrationScript implements CommandLineRunner {
             throw new RuntimeException("Password migration failed", e);
         }
     }
-    
-    /**
-     * Checks if a string is Base64 encoded
-     */
-    private boolean isBase64Encoded(String str) {
-        if (str == null || str.isEmpty()) {
-            return false;
-        }
-        // Base64 strings typically don't contain spaces and have specific character set
-        // A simple heuristic: check if it contains only Base64 characters and length is multiple of 4
-        return str.matches("^[A-Za-z0-9+/=]+$") && str.length() % 4 == 0;
-    }
 }
-

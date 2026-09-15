@@ -47,6 +47,7 @@ public class OrgAuthService {
         if (!userService.validatePassword(request.getPassword(), user.getPassword())) {
             throw new IllegalArgumentException("Wrong password.");
         }
+        userService.upgradeLegacyPasswordIfNeeded(user, request.getPassword());
         return issueTokens(org, user, request.isForceLogin());
     }
 
