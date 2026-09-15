@@ -166,17 +166,8 @@ public class CourseService {
             if (updated.getDetailAiTutorHelp() != null) {
                 existing.setDetailAiTutorHelp(updated.getDetailAiTutorHelp());
             }
-            if (updated.getDetailTagline() != null
-                    || updated.getDetailOverview() != null
-                    || updated.getDetailObjectives() != null
-                    || updated.getDetailHighlights() != null
-                    || updated.getDetailPrerequisites() != null
-                    || updated.getDetailOutcomes() != null
-                    || updated.getDetailAiTutorHelp() != null) {
-                existing.setDetailCurriculumHash(CourseDetailContentService.curriculumHash(
-                        CourseDetailContentService.buildOutline(
-                                getCurriculumByCourseIdOrdered(id, false, false))));
-            }
+            // Hash is owned by AI generation (saveAiGeneratedDetail). Stamping it on
+            // every PUT would mark stale copy as current after a curriculum edit.
             if (updated.getIsGuestCourse() != null) {
                 existing.setIsGuestCourse(updated.getIsGuestCourse());
             }

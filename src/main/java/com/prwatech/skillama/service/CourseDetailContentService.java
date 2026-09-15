@@ -52,6 +52,10 @@ public class CourseDetailContentService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         getOrRefresh(courseId, null, true, admin);
         Course saved = courseService.findActiveById(courseId).orElse(course);
+        if (!hasValidStoredDetail(saved)) {
+            throw new IllegalStateException(
+                    "We couldn't generate the course detail page right now. Please try again in a moment.");
+        }
         return GeneratedCourseDetailDTO.builder()
                 .tagline(saved.getDetailTagline())
                 .overview(saved.getDetailOverview())

@@ -37,7 +37,7 @@ public class AdminCourseDetailContentController {
     private final SkillamaAuthSupport skillamaAuthSupport;
 
     @ApiOperation(value = "Generate AI course-detail copy",
-            notes = "Drafts tagline, description, highlights, outcomes, and audience from the existing curriculum. Not saved until the admin PUTs the course.")
+            notes = "Generates overview, objectives, key topics, prerequisites, outcomes, and AI Tutor help from the curriculum, persists them with the outline hash, and returns the saved copy. View Details (GET .../share) does the same lazily.")
     @ApiImplicitParams({
             @ApiImplicitParam(name = Constants.AUTH, value = Constants.TOKEN_TYPE, required = true,
                     dataType = Constants.AUTH_DATA_TYPE, paramType = Constants.AUTH_PARAM_TYPE)

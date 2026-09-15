@@ -40,6 +40,7 @@ class CourseControllerGlobalAiExamTest {
     @Mock private UserService userService;
     @Mock private UserCourseAccessService userCourseAccessService;
     @Mock private GlobalAiExamCourseService globalAiExamCourseService;
+    @Mock private com.prwatech.skillama.service.CourseDetailContentService courseDetailContentService;
 
     private static final String TOKEN = "Bearer valid.jwt.token";
 
@@ -47,7 +48,7 @@ class CourseControllerGlobalAiExamTest {
     void setUp() {
         CourseController controller = new CourseController(
                 courseService, studyMaterialService, jwtUtils, userService,
-                userCourseAccessService, globalAiExamCourseService);
+                userCourseAccessService, globalAiExamCourseService, courseDetailContentService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();

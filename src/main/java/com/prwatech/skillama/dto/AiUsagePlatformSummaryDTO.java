@@ -21,6 +21,8 @@ public class AiUsagePlatformSummaryDTO {
     /** Wallet charges: rate-card cost × consumption multiplier. */
     private double totalBilledUsd;
     private double totalBilledInr;
+    /** Current owner consumption multiplier applied to new wallet charges. */
+    private double consumptionMultiplier;
     private double platformMonthlyBudgetUsd;
     private double budgetRemainingUsd;
     private double budgetUtilizationPercent;

@@ -3,6 +3,7 @@ package com.prwatech.skillama.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prwatech.skillama.dto.AiBudgetDTO;
 import com.prwatech.skillama.dto.AiUsageModuleBreakdownDTO;
+import com.prwatech.skillama.dto.AiUsagePlatformSummaryDTO;
 import com.prwatech.skillama.dto.AiUsageRecordRequestDTO;
 import com.prwatech.skillama.dto.AiUsageSettingsDTO;
 import com.prwatech.skillama.dto.UpdateAiUsageSettingsDTO;
@@ -770,5 +771,21 @@ class AiUsageServiceTest {
                 .mapToDouble(AiUsageModuleBreakdownDTO.ModuleUsageDTO::getPercentOfTotal)
                 .sum();
         assertEquals(100.0, percentSum, 1e-9);
+    }
+
+    @Test
+    void platformSummaryExposesCurrentConsumptionMultiplier() {
+        PlatformAiSettings settings = trackingSettings(true, 0.5);
+        settings.setConsumptionMultiplier(3.0);
+        when(platformAiSettingsRepository.findById(PlatformAiSettings.SINGLETON_ID))
+                .thenReturn(Optional.of(settings));
+        when(aiUsageEventRepository.findByCreatedAtBetween(any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(Collections.emptyList());
+        when(userRepository.findAll()).thenReturn(Collections.emptyList());
+
+        AiUsagePlatformSummaryDTO summary = service.getPlatformSummary("month");
+
+        assertEquals(3.0, summary.getConsumptionMultiplier(), 1e-9);
+        assertEquals(0.0, summary.getTotalCostUsd(), 1e-9);
     }
 }

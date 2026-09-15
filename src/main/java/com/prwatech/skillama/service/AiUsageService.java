@@ -559,6 +559,7 @@ public class AiUsageService {
                 .totalCostInr(totalCostInr)
                 .totalBilledUsd(totalBilledUsd)
                 .totalBilledInr(totalBilledInr)
+                .consumptionMultiplier(settings.getConsumptionMultiplier())
                 .platformMonthlyBudgetUsd(budgetUsd)
                 .budgetRemainingUsd(round(budgetRemaining))
                 .budgetUtilizationPercent(round(utilization))
