@@ -15,8 +15,12 @@ public class AiUsagePlatformSummaryDTO {
     private long totalInputTokens;
     private long totalOutputTokens;
     private long totalTokens;
+    /** Rate-card AWS API cost (Bedrock / Transcribe / Polly). */
     private double totalCostUsd;
     private double totalCostInr;
+    /** Wallet charges: rate-card cost × consumption multiplier. */
+    private double totalBilledUsd;
+    private double totalBilledInr;
     private double platformMonthlyBudgetUsd;
     private double budgetRemainingUsd;
     private double budgetUtilizationPercent;

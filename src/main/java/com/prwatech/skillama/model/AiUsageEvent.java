@@ -37,8 +37,18 @@ public class AiUsageEvent {
     private int outputTokens;
     private int totalTokens;
 
+    private Double audioSeconds;
+    private Integer pollyCharacters;
+
+    /** Rate-card AWS API cost (Bedrock / Transcribe / Polly). */
     private double costUsd;
     private double costInr;
+
+    /** Wallet debit: {@code costUsd × consumptionMultiplier} at record time. Null on legacy events. */
+    private Double billedUsd;
+    private Double billedInr;
+    /** Multiplier snapshotted at record time. Null on legacy events. */
+    private Double consumptionMultiplier;
 
     @Indexed
     private LocalDateTime createdAt;

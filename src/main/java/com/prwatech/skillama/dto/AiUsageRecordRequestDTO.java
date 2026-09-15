@@ -18,4 +18,8 @@ public class AiUsageRecordRequestDTO {
     private Integer inputTokens;
     private Integer outputTokens;
     private Integer totalTokens;
+    /** Amazon Transcribe streaming duration in seconds (actual audio length). */
+    private Double audioSeconds;
+    /** Amazon Polly billed characters (SSML tags excluded). */
+    private Integer pollyCharacters;
 }

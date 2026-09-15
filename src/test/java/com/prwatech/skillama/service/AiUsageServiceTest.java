@@ -70,6 +70,7 @@ class AiUsageServiceTest {
         s.setAiUsageTrackingEnabled(tracking);
         s.setPlatformMonthlyBudgetUsd(1000.0);
         s.setFreemiumMonthlyBudgetUsdPerUser(freemiumBudget);
+        s.setConsumptionMultiplier(1.0);
         return s;
     }
 
@@ -242,6 +243,22 @@ class AiUsageServiceTest {
     }
 
     @Test
+    void backfillPrefersBilledUsdOverRateCardCost() {
+        User lapsed = lapsedWalletUser("lapsed", 0.0);
+        when(userRepository.findByAiWalletLimitUsdGreaterThan(0.0)).thenReturn(List.of(lapsed));
+        AiUsageEvent legacy = eventCosting(4.0, 3);
+        AiUsageEvent multiplied = eventCosting(1.0, 1);
+        multiplied.setBilledUsd(3.0);
+        when(aiUsageEventRepository.findByUserId("lapsed")).thenReturn(List.of(legacy, multiplied));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        WalletUsageBackfillResultDTO result = service.backfillWalletUsage(false);
+
+        assertEquals(7.0, lapsed.getAiCostUsdThisPeriod(), 1e-9);
+        assertEquals(7.0, result.getEntries().get(0).getAfterUsd(), 1e-9);
+    }
+
+    @Test
     void backfillIncludesAdminGrantedWalletsWithoutSubscription() {
         // Admin-granted wallets never had a currentPeriodEnd — the old monthly
         // reset wiped them too, so the backfill must cover them.
@@ -399,6 +416,16 @@ class AiUsageServiceTest {
     // ---------- updateSettings ----------
 
     @Test
+    void missingConsumptionMultiplierDefaultsToThree() {
+        PlatformAiSettings stored = trackingSettings(true, 0.5);
+        stored.setConsumptionMultiplier(0);
+        when(platformAiSettingsRepository.findById(PlatformAiSettings.SINGLETON_ID))
+                .thenReturn(Optional.of(stored));
+
+        assertEquals(3.0, service.getSettingsDto().getConsumptionMultiplier());
+    }
+
+    @Test
     void updateSettingsRejectsNullBody() {
         assertThrows(IllegalArgumentException.class, () -> service.updateSettings(null, "owner"));
     }
@@ -416,6 +443,29 @@ class AiUsageServiceTest {
         assertEquals(0.0, dto.getPlatformMonthlyBudgetUsd());
         assertEquals(0.0, dto.getFreemiumMonthlyBudgetUsdPerUser());
         assertFalse(dto.isAiUsageTrackingEnabled());
+        assertEquals(1.0, dto.getConsumptionMultiplier());
+    }
+
+    @Test
+    void updateSettingsClampsConsumptionMultiplierToAtLeastOne() {
+        when(platformAiSettingsRepository.save(any(PlatformAiSettings.class))).thenAnswer(inv -> inv.getArgument(0));
+        UpdateAiUsageSettingsDTO body = new UpdateAiUsageSettingsDTO();
+        body.setConsumptionMultiplier(0.5);
+
+        AiUsageSettingsDTO dto = service.updateSettings(body, "owner");
+
+        assertEquals(1.0, dto.getConsumptionMultiplier());
+    }
+
+    @Test
+    void updateSettingsPersistsConsumptionMultiplier() {
+        when(platformAiSettingsRepository.save(any(PlatformAiSettings.class))).thenAnswer(inv -> inv.getArgument(0));
+        UpdateAiUsageSettingsDTO body = new UpdateAiUsageSettingsDTO();
+        body.setConsumptionMultiplier(3.0);
+
+        AiUsageSettingsDTO dto = service.updateSettings(body, "owner");
+
+        assertEquals(3.0, dto.getConsumptionMultiplier());
     }
 
     // ---------- recordUsage ----------
@@ -462,10 +512,41 @@ class AiUsageServiceTest {
         assertEquals(1000, event.getInputTokens());
         assertEquals(2000, event.getTotalTokens());
         assertTrue(event.getCostUsd() > 0);
-        // user period cost incremented by the event cost
+        assertEquals(event.getCostUsd(), event.getBilledUsd(), 1e-9);
+        assertEquals(1.0, event.getConsumptionMultiplier(), 1e-9);
+        // user period cost incremented by the billed amount
         assertTrue(user.getAiCostUsdThisPeriod() > 0);
         verify(aiUsageEventRepository).save(any(AiUsageEvent.class));
         verify(userRepository).save(user);
+    }
+
+    @Test
+    void recordUsageDebitsWalletAtConsumptionMultiplierAndKeepsRateCardCost() {
+        PlatformAiSettings settings = trackingSettings(true, 0.5);
+        settings.setConsumptionMultiplier(3.0);
+        when(platformAiSettingsRepository.findById(PlatformAiSettings.SINGLETON_ID))
+                .thenReturn(Optional.of(settings));
+        AiUsageRecordRequestDTO req = new AiUsageRecordRequestDTO();
+        req.setEndpoint("/chat");
+        req.setUserId("u1");
+        req.setInputTokens(1000);
+        req.setOutputTokens(1000);
+        when(aiUsageEventRepository.save(any(AiUsageEvent.class))).thenAnswer(inv -> inv.getArgument(0));
+        User user = freemium(0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AiUsageEvent event = service.recordUsage(req);
+
+        assertTrue(event.getCostUsd() > 0);
+        assertEquals(round6(event.getCostUsd() * 3.0), event.getBilledUsd(), 1e-9);
+        assertEquals(3.0, event.getConsumptionMultiplier(), 1e-9);
+        assertEquals(event.getBilledUsd(), user.getAiCostUsdThisPeriod(), 1e-9);
+        assertTrue(user.getAiCostUsdThisPeriod() > event.getCostUsd());
+    }
+
+    private static double round6(double value) {
+        return Math.round(value * 1_000_000.0) / 1_000_000.0;
     }
 
     // ---------- getUserModuleBreakdown ----------
@@ -511,7 +592,7 @@ class AiUsageServiceTest {
 
         AiUsageModuleBreakdownDTO dto = service.getUserModuleBreakdown("u1");
 
-        assertEquals(0.0, dto.getTotalCostUsd());
+        assertEquals(0.0, dto.getTotalCredits());
         assertTrue(dto.getByModule().isEmpty());
     }
 
@@ -536,31 +617,126 @@ class AiUsageServiceTest {
 
         AiUsageModuleBreakdownDTO dto = service.getUserModuleBreakdown("u1");
 
-        assertEquals(0.048, dto.getTotalCostUsd(), 1e-9);
+        // $0.048 billed at 1× (legacy events without billedUsd) → 4.8 credits
+        assertEquals(4.8, dto.getTotalCredits(), 1e-9);
 
         java.util.Map<String, AiUsageModuleBreakdownDTO.ModuleUsageDTO> byModule =
                 dto.getByModule().stream().collect(java.util.stream.Collectors.toMap(
                         AiUsageModuleBreakdownDTO.ModuleUsageDTO::getModule, m -> m));
 
-        assertEquals(0.010, byModule.get("Debug").getCostUsd(), 1e-9);
-        assertEquals(1, byModule.get("Debug").getCallCount());
+        assertEquals(1.0, byModule.get("Debug").getCredits(), 1e-9);
+        assertEquals(1.0, byModule.get("Code Execution").getCredits(), 1e-9); // 0.005 + 0.005
+        assertEquals(0.7, byModule.get("Ai-Tutor").getCredits(), 1e-9);
+        assertEquals(2.0, byModule.get("Lecture Generation").getCredits(), 1e-9);
+        assertEquals(0.1, byModule.get("Other").getCredits(), 1e-9);
 
-        assertEquals(0.010, byModule.get("Code Execution").getCostUsd(), 1e-9); // 0.005 + 0.005
-        assertEquals(2, byModule.get("Code Execution").getCallCount());
-
-        // chat_ask + ai_mentor_ask + generate_exam all fold into Ai-Tutor
-        assertEquals(0.007, byModule.get("Ai-Tutor").getCostUsd(), 1e-9);
-        assertEquals(3, byModule.get("Ai-Tutor").getCallCount());
-
-        assertEquals(0.020, byModule.get("Lecture Generation").getCostUsd(), 1e-9);
-
-        assertEquals(0.001, byModule.get("Other").getCostUsd(), 1e-9);
-
-        // Sorted by cost descending.
         List<String> order = dto.getByModule().stream()
                 .map(AiUsageModuleBreakdownDTO.ModuleUsageDTO::getModule)
                 .toList();
         assertEquals("Lecture Generation", order.get(0));
+    }
+
+    @Test
+    void getUserModuleBreakdownMapsFlaskAliasesIntoNamedModulesNotOther() {
+        User user = freemium(0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+        when(aiUsageEventRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+                eq("u1"), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(
+                        event("handle_query", 0.004),
+                        event("chat_ask", 0.002),
+                        event("audio_to_text", 0.001),
+                        event("generate_lecture", 0.010),
+                        event("debug_code", 0.003),
+                        event("generate_output", 0.002),
+                        event("generate_image", 0.006)
+                ));
+
+        AiUsageModuleBreakdownDTO dto = service.getUserModuleBreakdown("u1");
+        java.util.Map<String, AiUsageModuleBreakdownDTO.ModuleUsageDTO> byModule =
+                dto.getByModule().stream().collect(java.util.stream.Collectors.toMap(
+                        AiUsageModuleBreakdownDTO.ModuleUsageDTO::getModule, m -> m));
+
+        assertFalse(byModule.containsKey("Other"));
+        assertEquals(0.7, byModule.get("Ai-Tutor").getCredits(), 1e-9);
+        assertEquals(1.0, byModule.get("Lecture Generation").getCredits(), 1e-9);
+        assertEquals(0.3, byModule.get("Debug").getCredits(), 1e-9);
+        assertEquals(0.2, byModule.get("Code Execution").getCredits(), 1e-9);
+        assertEquals(0.6, byModule.get("Course images").getCredits(), 1e-9);
+    }
+
+    @Test
+    void getUserModuleBreakdownMapsSpeechEndpointsToAiTutorSubmodules() {
+        User user = freemium(0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+        when(aiUsageEventRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+                eq("u1"), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(
+                        event("audio_to_text", 0.006),
+                        event("text_to_speech", 0.004),
+                        event("introduce_tutor", 0.002),
+                        event("lecture_start_instruction", 0.001)
+                ));
+
+        AiUsageModuleBreakdownDTO dto = service.getUserModuleBreakdown("u1");
+        java.util.Map<String, AiUsageModuleBreakdownDTO.ModuleUsageDTO> byModule =
+                dto.getByModule().stream().collect(java.util.stream.Collectors.toMap(
+                        AiUsageModuleBreakdownDTO.ModuleUsageDTO::getModule, m -> m));
+
+        assertEquals(1.3, byModule.get("Ai-Tutor").getCredits(), 1e-9);
+        assertEquals(1, dto.getByModule().size());
+    }
+
+    @Test
+    void getUserModuleBreakdownUsesBilledUsdWhenPresent() {
+        User user = freemium(0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+        AiUsageEvent billed = event("chat_ask", 0.01);
+        billed.setBilledUsd(0.03);
+        when(aiUsageEventRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+                eq("u1"), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(billed));
+
+        AiUsageModuleBreakdownDTO dto = service.getUserModuleBreakdown("u1");
+
+        assertEquals(3.0, dto.getTotalCredits(), 1e-9);
+        assertEquals(3.0, dto.getByModule().get(0).getCredits(), 1e-9);
+    }
+
+    @Test
+    void recordUsageAddsTranscribeAndPollyCostOnTopOfTokens() {
+        AiUsageRecordRequestDTO req = new AiUsageRecordRequestDTO();
+        req.setEndpoint("audio_to_text");
+        req.setUserId("u1");
+        req.setInputTokens(0);
+        req.setOutputTokens(0);
+        req.setAudioSeconds(5.0); // billed at the 15s AWS minimum
+        req.setPollyCharacters(1000);
+        when(aiUsageEventRepository.save(any(AiUsageEvent.class))).thenAnswer(inv -> inv.getArgument(0));
+        User user = freemium(0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AiUsageEvent event = service.recordUsage(req);
+
+        // 15/60 * 0.024 + 1000/1e6 * 4.0 = 0.006 + 0.004
+        assertEquals(0.01, event.getCostUsd(), 1e-9);
+        assertEquals(5.0, event.getAudioSeconds(), 1e-9);
+        assertEquals(1000, event.getPollyCharacters());
+        assertEquals(0.01, user.getAiCostUsdThisPeriod(), 1e-9);
+    }
+
+    @Test
+    void billedPollyCharactersStripsSsmlTags() {
+        assertEquals(5, AiUsageService.billedPollyCharacters("<speak>Hello</speak>"));
+        assertEquals(0, AiUsageService.billedPollyCharacters(null));
+        assertEquals(0, AiUsageService.billedPollyCharacters("  "));
+    }
+
+    @Test
+    void recordSpeechUsageSkipsWhenUserIsNull() {
+        service.recordSpeechUsage(null, "c1", "Hello there");
+        verify(aiUsageEventRepository, never()).save(any(AiUsageEvent.class));
     }
 
     @Test

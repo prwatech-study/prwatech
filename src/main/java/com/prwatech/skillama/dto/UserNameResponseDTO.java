@@ -20,4 +20,6 @@ public class UserNameResponseDTO {
 
     @JsonProperty("subtitle_path")
     private String subtitlePath;
+    private Double audioSeconds;
+    private Integer pollyCharacters;
 }

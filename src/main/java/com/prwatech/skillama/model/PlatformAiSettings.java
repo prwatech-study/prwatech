@@ -22,6 +22,12 @@ public class PlatformAiSettings {
     private double referralRewardUsd = 0.20;
     /** Owner-tunable course-share reward (USD), read by CourseShareService#trackShare. */
     private double courseShareRewardUsd = 0.20;
+    /**
+     * Wallet burn rate on top of Bedrock / Transcribe / Polly rate-card cost.
+     * {@code 1.0} = API-only. Default {@code 3.0} recovers a share of oversized
+     * infra without charging today's 50–100 users for idle EC2.
+     */
+    private double consumptionMultiplier = 3.0;
     private LocalDateTime updatedAt;
     private String updatedBy;
 }

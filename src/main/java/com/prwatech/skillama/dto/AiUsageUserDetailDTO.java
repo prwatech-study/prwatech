@@ -21,6 +21,8 @@ public class AiUsageUserDetailDTO {
     private long totalTokens;
     private double costUsd;
     private double costInr;
+    private double billedUsd;
+    private double billedInr;
     private AiBudgetDTO aiBudget;
 
     @Builder.Default
@@ -35,6 +37,7 @@ public class AiUsageUserDetailDTO {
         private long inputTokens;
         private long outputTokens;
         private double costUsd;
+        private double billedUsd;
         private long callCount;
     }
 }

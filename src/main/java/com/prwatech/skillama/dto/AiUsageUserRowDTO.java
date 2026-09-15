@@ -18,6 +18,8 @@ public class AiUsageUserRowDTO {
     private long totalTokens;
     private double costUsd;
     private double costInr;
+    private double billedUsd;
+    private double billedInr;
     private Double freemiumBudgetUsd;
     private Double budgetUsedPercent;
 }

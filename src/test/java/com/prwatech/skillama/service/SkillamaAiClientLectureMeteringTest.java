@@ -68,6 +68,7 @@ class SkillamaAiClientLectureMeteringTest {
         settings.setAiUsageTrackingEnabled(true);
         settings.setPlatformMonthlyBudgetUsd(1000.0);
         settings.setFreemiumMonthlyBudgetUsdPerUser(0.5);
+        settings.setConsumptionMultiplier(1.0);
         when(platformAiSettingsRepository.findById(PlatformAiSettings.SINGLETON_ID))
                 .thenReturn(Optional.of(settings));
 
@@ -106,12 +107,15 @@ class SkillamaAiClientLectureMeteringTest {
         GeneratedLectureDTO result = client.generateLecture(user, "course1", "Intro", "Python");
 
         // default rate card: $0.0003/1k input, $0.0006/1k output
-        double expectedCost = (800 / 1000.0) * 0.0003 + (400 / 1000.0) * 0.0006; // = 0.00048
+        double expectedTokenCost = (800 / 1000.0) * 0.0003 + (400 / 1000.0) * 0.0006; // = 0.00048
+        double expectedPollyCost = (3 / 1_000_000.0) * 4.0; // lecture_text "..."
         assertEquals(1200, result.getTotalTokens());
-        assertEquals(0.025 + expectedCost, user.getAiCostUsdThisPeriod(), 1e-9);
-        verify(aiUsageEventRepository).save(argThat(evt ->
+        assertEquals(0.025 + expectedTokenCost + expectedPollyCost, user.getAiCostUsdThisPeriod(), 1e-9);
+        verify(aiUsageEventRepository, org.mockito.Mockito.atLeastOnce()).save(argThat(evt ->
                 "lecture_generation".equals(evt.getEndpoint()) && evt.getCostUsd() > 0));
-        verify(userRepository).save(user);
+        verify(aiUsageEventRepository, org.mockito.Mockito.atLeastOnce()).save(argThat(evt ->
+                "text_to_speech".equals(evt.getEndpoint())));
+        verify(userRepository, org.mockito.Mockito.atLeastOnce()).save(user);
     }
 
     @Test

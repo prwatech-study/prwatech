@@ -22,4 +22,6 @@ public class ConfirmationResponseDTO {
     private String subtitlePath;
 
     private String transcript;
+    private Double audioSeconds;
+    private Integer pollyCharacters;
 }

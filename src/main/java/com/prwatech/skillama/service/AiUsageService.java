@@ -52,26 +52,63 @@ public class AiUsageService {
     private static final double DEFAULT_FREEMIUM_BUDGET_USD = 0.30;
     private static final double DEFAULT_REFERRAL_REWARD_USD = 0.20;
     private static final double DEFAULT_COURSE_SHARE_REWARD_USD = 0.20;
+    private static final double DEFAULT_CONSUMPTION_MULTIPLIER = 3.0;
+    /** Display-only credits per USD of billed wallet (matches LMS creditsFormat.js). */
+    private static final double USD_TO_CREDITS_RATE = 100.0;
+    private static final double DEFAULT_TRANSCRIBE_PER_MINUTE_USD = 0.024;
+    private static final double DEFAULT_TRANSCRIBE_MINIMUM_SECONDS = 15.0;
+    private static final double DEFAULT_POLLY_PER_MILLION_CHARS_USD = 4.0;
 
     /**
-     * Coarse, user-facing module a raw {@code endpoint} belongs to, for the learner-facing
-     * "which module used my credits" breakdown. Endpoints not listed here (e.g. admin-only
-     * generate_image/generate_thumbnail) fall back to "Other" rather than being dropped.
+     * Module + submodule a raw {@code endpoint} belongs to, for the learner-facing
+     * "which module used my credits" breakdown. Includes Flask/backup aliases
+     * ({@code handle_query}, {@code generate_lecture}, {@code audio_to_text}, …)
+     * so those do not silently land in Other. Anything still unlisted is Other,
+     * with a humanized endpoint name as the submodule label.
      */
-    private static final Map<String, String> ENDPOINT_MODULE_MAP = Map.ofEntries(
-            Map.entry("debug_assist", "Debug"),
-            Map.entry("code_execution_assist", "Code Execution"),
-            Map.entry("generate_practical_code", "Code Execution"),
-            Map.entry("practice_code_generation", "Code Execution"),
-            Map.entry("chat_ask", "Ai-Tutor"),
-            Map.entry("ai_mentor_ask", "Ai-Tutor"),
-            Map.entry("ai_mentor_follow_up", "Ai-Tutor"),
-            Map.entry("generate_module_quiz", "Ai-Tutor"),
-            Map.entry("generate_exam", "Ai-Tutor"),
-            Map.entry("ai_exam_recommendation", "Ai-Tutor"),
-            Map.entry("ai_exam_feedback", "Ai-Tutor"),
-            Map.entry("lecture_generation", "Lecture Generation")
+    private static final Map<String, EndpointCategory> ENDPOINT_MODULE_MAP = Map.ofEntries(
+            Map.entry("debug_assist", cat("Debug", "Debug assistant")),
+            Map.entry("debug_code", cat("Debug", "Debug assistant")),
+            Map.entry("code_execution_assist", cat("Code Execution", "Run code")),
+            Map.entry("generate_output", cat("Code Execution", "Run code")),
+            Map.entry("generate_practical_code", cat("Code Execution", "Practice code")),
+            Map.entry("practice_code_generation", cat("Code Execution", "Practice code")),
+            Map.entry("generate_code", cat("Code Execution", "Practice code")),
+            Map.entry("chat_ask", cat("Ai-Tutor", "Chat questions")),
+            Map.entry("handle_query", cat("Ai-Tutor", "Chat questions")),
+            Map.entry("audio_to_text", cat("Ai-Tutor", "Voice to text")),
+            Map.entry("text_to_speech", cat("Ai-Tutor", "Text to speech")),
+            Map.entry("text_to_audio", cat("Ai-Tutor", "Text to speech")),
+            Map.entry("introduce_tutor", cat("Ai-Tutor", "Text to speech")),
+            Map.entry("lecture_start_instruction", cat("Ai-Tutor", "Text to speech")),
+            Map.entry("ai_mentor_ask", cat("Ai-Tutor", "AI Mentor")),
+            Map.entry("ai_mentor_follow_up", cat("Ai-Tutor", "AI Mentor")),
+            Map.entry("generate_module_quiz", cat("Ai-Tutor", "Module quizzes")),
+            Map.entry("generate_exam", cat("Ai-Tutor", "Exams")),
+            Map.entry("ai_exam_recommendation", cat("Ai-Tutor", "Exams")),
+            Map.entry("ai_exam_feedback", cat("Ai-Tutor", "Exams")),
+            Map.entry("lecture_generation", cat("Lecture Generation", "Lecture audio and script")),
+            Map.entry("generate_lecture", cat("Lecture Generation", "Lecture audio and script")),
+            Map.entry("generate_image", cat("Course images", "Lesson diagrams")),
+            Map.entry("generate_thumbnail", cat("Course images", "Course thumbnails"))
     );
+
+    private record EndpointCategory(String module, String submodule) {}
+
+    /**
+     * Wallet amount for an event. New events store billedUsd; legacy rows fall back
+     * to rate-card costUsd (1×).
+     */
+    static double eventBilledUsd(AiUsageEvent event) {
+        if (event == null) {
+            return 0.0;
+        }
+        return event.getBilledUsd() != null ? event.getBilledUsd() : event.getCostUsd();
+    }
+
+    private static EndpointCategory cat(String module, String submodule) {
+        return new EndpointCategory(module, submodule);
+    }
 
     private final AiUsageEventRepository aiUsageEventRepository;
     private final PlatformAiSettingsRepository platformAiSettingsRepository;
@@ -124,6 +161,9 @@ public class AiUsageService {
         if (settings.getCourseShareRewardUsd() <= 0) {
             settings.setCourseShareRewardUsd(DEFAULT_COURSE_SHARE_REWARD_USD);
         }
+        if (settings.getConsumptionMultiplier() < 1.0) {
+            settings.setConsumptionMultiplier(DEFAULT_CONSUMPTION_MULTIPLIER);
+        }
         return settings;
     }
 
@@ -136,6 +176,7 @@ public class AiUsageService {
         settings.setFreemiumMonthlyBudgetUsdPerUser(DEFAULT_FREEMIUM_BUDGET_USD);
         settings.setReferralRewardUsd(DEFAULT_REFERRAL_REWARD_USD);
         settings.setCourseShareRewardUsd(DEFAULT_COURSE_SHARE_REWARD_USD);
+        settings.setConsumptionMultiplier(DEFAULT_CONSUMPTION_MULTIPLIER);
         return settings;
     }
 
@@ -169,6 +210,10 @@ public class AiUsageService {
         if (body.getCourseShareRewardUsd() != null) {
             settings.setCourseShareRewardUsd(Math.max(0, body.getCourseShareRewardUsd()));
         }
+        if (body.getConsumptionMultiplier() != null
+                && Double.isFinite(body.getConsumptionMultiplier())) {
+            settings.setConsumptionMultiplier(Math.max(1.0, body.getConsumptionMultiplier()));
+        }
         settings.setUpdatedAt(IndiaTime.now());
         settings.setUpdatedBy(ownerUserId);
         return toSettingsDto(platformAiSettingsRepository.save(settings));
@@ -181,6 +226,7 @@ public class AiUsageService {
                 .freemiumMonthlyBudgetUsdPerUser(settings.getFreemiumMonthlyBudgetUsdPerUser())
                 .referralRewardUsd(settings.getReferralRewardUsd())
                 .courseShareRewardUsd(settings.getCourseShareRewardUsd())
+                .consumptionMultiplier(settings.getConsumptionMultiplier())
                 .usdToInrRate(liveUsdToInrRate())
                 .usdToInrRateAsOf(usdInrExchangeRateService.getRateAsOfDate())
                 .updatedAt(settings.getUpdatedAt())
@@ -276,8 +322,13 @@ public class AiUsageService {
                 : inputTokens + outputTokens;
 
         String modelId = request.getModelId() != null ? request.getModelId() : "default";
-        double costUsd = computeCostUsd(modelId, inputTokens, outputTokens);
+        double audioSeconds = request.getAudioSeconds() != null ? Math.max(0.0, request.getAudioSeconds()) : 0.0;
+        int pollyCharacters = request.getPollyCharacters() != null ? Math.max(0, request.getPollyCharacters()) : 0;
+        double costUsd = computeCostUsd(modelId, inputTokens, outputTokens, audioSeconds, pollyCharacters);
         double costInr = round(costUsd * liveUsdToInrRate());
+        double multiplier = settings.getConsumptionMultiplier();
+        double billedUsd = round(costUsd * multiplier);
+        double billedInr = round(billedUsd * liveUsdToInrRate());
 
         AiUsageEvent event = AiUsageEvent.builder()
                 .userId(request.getUserId())
@@ -288,8 +339,13 @@ public class AiUsageService {
                 .inputTokens(inputTokens)
                 .outputTokens(outputTokens)
                 .totalTokens(totalTokens)
+                .audioSeconds(audioSeconds > 0 ? audioSeconds : null)
+                .pollyCharacters(pollyCharacters > 0 ? pollyCharacters : null)
                 .costUsd(round(costUsd))
                 .costInr(costInr)
+                .billedUsd(billedUsd)
+                .billedInr(billedInr)
+                .consumptionMultiplier(multiplier)
                 .createdAt(IndiaTime.now())
                 .build();
         aiUsageEventRepository.save(event);
@@ -299,7 +355,7 @@ public class AiUsageService {
             if (user != null) {
                 ensureUsageAnchor(user);
                 double used = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
-                user.setAiCostUsdThisPeriod(round(used + costUsd));
+                user.setAiCostUsdThisPeriod(round(used + billedUsd));
                 user.setUpdatedAt(IndiaTime.now());
                 userRepository.save(user);
             }
@@ -456,6 +512,8 @@ public class AiUsageService {
         long totalTokens = events.stream().mapToLong(AiUsageEvent::getTotalTokens).sum();
         double totalCostUsd = round(events.stream().mapToDouble(AiUsageEvent::getCostUsd).sum());
         double totalCostInr = round(totalCostUsd * liveUsdToInrRate());
+        double totalBilledUsd = round(events.stream().mapToDouble(AiUsageService::eventBilledUsd).sum());
+        double totalBilledInr = round(totalBilledUsd * liveUsdToInrRate());
 
         Set<String> usersWithUsage = events.stream()
                 .map(AiUsageEvent::getUserId)
@@ -498,6 +556,8 @@ public class AiUsageService {
                 .totalTokens(totalTokens)
                 .totalCostUsd(totalCostUsd)
                 .totalCostInr(totalCostInr)
+                .totalBilledUsd(totalBilledUsd)
+                .totalBilledInr(totalBilledInr)
                 .platformMonthlyBudgetUsd(budgetUsd)
                 .budgetRemainingUsd(round(budgetRemaining))
                 .budgetUtilizationPercent(round(utilization))
@@ -533,11 +593,13 @@ public class AiUsageService {
             long total = userEvents.stream().mapToLong(AiUsageEvent::getTotalTokens).sum();
             double costUsd = round(userEvents.stream().mapToDouble(AiUsageEvent::getCostUsd).sum());
             double costInr = round(costUsd * liveUsdToInrRate());
+            double billedUsd = round(userEvents.stream().mapToDouble(AiUsageService::eventBilledUsd).sum());
+            double billedInr = round(billedUsd * liveUsdToInrRate());
             Double freemiumCap = null;
             Double usedPct = null;
             if (user != null && !isUnlimitedForBudget(user)) {
                 freemiumCap = resolveBudgetLimitUsd(user, settings);
-                usedPct = freemiumCap > 0 ? round((costUsd / freemiumCap) * 100.0) : 0.0;
+                usedPct = freemiumCap > 0 ? round((billedUsd / freemiumCap) * 100.0) : 0.0;
             }
             rows.add(AiUsageUserRowDTO.builder()
                     .userId(entry.getKey())
@@ -548,11 +610,13 @@ public class AiUsageService {
                     .totalTokens(total)
                     .costUsd(costUsd)
                     .costInr(costInr)
+                    .billedUsd(billedUsd)
+                    .billedInr(billedInr)
                     .freemiumBudgetUsd(freemiumCap)
                     .budgetUsedPercent(usedPct)
                     .build());
         }
-        rows.sort(Comparator.comparing(AiUsageUserRowDTO::getCostUsd).reversed());
+        rows.sort(Comparator.comparing(AiUsageUserRowDTO::getBilledUsd).reversed());
         return rows;
     }
 
@@ -569,10 +633,13 @@ public class AiUsageService {
         long total = events.stream().mapToLong(AiUsageEvent::getTotalTokens).sum();
         double costUsd = round(events.stream().mapToDouble(AiUsageEvent::getCostUsd).sum());
         double costInr = round(costUsd * liveUsdToInrRate());
+        double billedUsd = round(events.stream().mapToDouble(AiUsageService::eventBilledUsd).sum());
+        double billedInr = round(billedUsd * liveUsdToInrRate());
 
         Map<String, AiUsageUserDetailDTO.EndpointBreakdownDTO> breakdownMap = new HashMap<>();
         for (AiUsageEvent event : events) {
             String endpoint = event.getEndpoint() != null ? event.getEndpoint() : "unknown";
+            double eventBilled = eventBilledUsd(event);
             AiUsageUserDetailDTO.EndpointBreakdownDTO existing = breakdownMap.get(endpoint);
             if (existing == null) {
                 breakdownMap.put(endpoint, AiUsageUserDetailDTO.EndpointBreakdownDTO.builder()
@@ -580,18 +647,20 @@ public class AiUsageService {
                         .inputTokens(event.getInputTokens())
                         .outputTokens(event.getOutputTokens())
                         .costUsd(event.getCostUsd())
+                        .billedUsd(eventBilled)
                         .callCount(1)
                         .build());
             } else {
                 existing.setInputTokens(existing.getInputTokens() + event.getInputTokens());
                 existing.setOutputTokens(existing.getOutputTokens() + event.getOutputTokens());
                 existing.setCostUsd(round(existing.getCostUsd() + event.getCostUsd()));
+                existing.setBilledUsd(round(existing.getBilledUsd() + eventBilled));
                 existing.setCallCount(existing.getCallCount() + 1);
             }
         }
 
         List<AiUsageUserDetailDTO.EndpointBreakdownDTO> breakdown = new ArrayList<>(breakdownMap.values());
-        breakdown.sort(Comparator.comparing(AiUsageUserDetailDTO.EndpointBreakdownDTO::getCostUsd).reversed());
+        breakdown.sort(Comparator.comparing(AiUsageUserDetailDTO.EndpointBreakdownDTO::getBilledUsd).reversed());
 
         return AiUsageUserDetailDTO.builder()
                 .userId(userId)
@@ -602,6 +671,8 @@ public class AiUsageService {
                 .totalTokens(total)
                 .costUsd(costUsd)
                 .costInr(costInr)
+                .billedUsd(billedUsd)
+                .billedInr(billedInr)
                 .aiBudget(getAiBudget(user))
                 .byEndpoint(breakdown)
                 .build();
@@ -610,7 +681,8 @@ public class AiUsageService {
     /**
      * Learner-facing "which module used my AI credits" breakdown for the user's CURRENT
      * billing period (same period boundary as {@link #getAiBudget}, so the sum of
-     * {@code byModule[].costUsd} matches the "used" figure shown in the credits badge).
+     * {@code byModule[].credits} matches the "used" figure shown in the credits badge).
+     * Credits are billed (rate-card × multiplier), not raw AWS API cost.
      * Read-only, like getAiBudget: ensureUsageAnchor is applied in-memory to anchor the
      * right window but is not persisted (persistence happens on the next recordUsage call).
      */
@@ -627,40 +699,69 @@ public class AiUsageService {
         List<AiUsageEvent> events = aiUsageEventRepository
                 .findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(userId, start, end);
 
-        Map<String, AiUsageModuleBreakdownDTO.ModuleUsageDTO> byModule = new HashMap<>();
+        Map<String, Double> billedByModule = new HashMap<>();
         for (AiUsageEvent event : events) {
-            String module = ENDPOINT_MODULE_MAP.getOrDefault(event.getEndpoint(), "Other");
-            AiUsageModuleBreakdownDTO.ModuleUsageDTO existing = byModule.get(module);
-            if (existing == null) {
-                byModule.put(module, AiUsageModuleBreakdownDTO.ModuleUsageDTO.builder()
-                        .module(module)
-                        .costUsd(event.getCostUsd())
-                        .callCount(1)
-                        .build());
-            } else {
-                existing.setCostUsd(round(existing.getCostUsd() + event.getCostUsd()));
-                existing.setCallCount(existing.getCallCount() + 1);
-            }
+            EndpointCategory category = categorizeEndpoint(event.getEndpoint());
+            billedByModule.merge(category.module(), eventBilledUsd(event), Double::sum);
         }
 
-        double rate = liveUsdToInrRate();
-        double totalCostUsd = round(byModule.values().stream()
-                .mapToDouble(AiUsageModuleBreakdownDTO.ModuleUsageDTO::getCostUsd).sum());
-
-        List<AiUsageModuleBreakdownDTO.ModuleUsageDTO> breakdown = new ArrayList<>(byModule.values());
-        for (AiUsageModuleBreakdownDTO.ModuleUsageDTO m : breakdown) {
-            m.setCostUsd(round(m.getCostUsd()));
-            m.setCostInr(round(m.getCostUsd() * rate));
-            m.setPercentOfTotal(totalCostUsd > 0 ? round((m.getCostUsd() / totalCostUsd) * 100.0) : 0.0);
+        List<AiUsageModuleBreakdownDTO.ModuleUsageDTO> breakdown = new ArrayList<>();
+        for (Map.Entry<String, Double> entry : billedByModule.entrySet()) {
+            double moduleBilled = round(entry.getValue());
+            breakdown.add(AiUsageModuleBreakdownDTO.ModuleUsageDTO.builder()
+                    .module(entry.getKey())
+                    .credits(usdToCredits(moduleBilled))
+                    .build());
         }
-        breakdown.sort(Comparator.comparing(AiUsageModuleBreakdownDTO.ModuleUsageDTO::getCostUsd).reversed());
+        breakdown.sort(Comparator.comparing(AiUsageModuleBreakdownDTO.ModuleUsageDTO::getCredits).reversed());
+
+        double totalCredits = round(breakdown.stream()
+                .mapToDouble(AiUsageModuleBreakdownDTO.ModuleUsageDTO::getCredits)
+                .sum());
+        for (AiUsageModuleBreakdownDTO.ModuleUsageDTO row : breakdown) {
+            row.setPercentOfTotal(totalCredits > 0
+                    ? round((row.getCredits() / totalCredits) * 100.0)
+                    : 0.0);
+        }
 
         return AiUsageModuleBreakdownDTO.builder()
                 .periodStart(start)
-                .totalCostUsd(totalCostUsd)
-                .totalCostInr(round(totalCostUsd * rate))
+                .totalCredits(totalCredits)
                 .byModule(breakdown)
                 .build();
+    }
+
+    private EndpointCategory categorizeEndpoint(String endpoint) {
+        if (endpoint == null || endpoint.isBlank()) {
+            return cat("Other", "Unknown");
+        }
+        String key = endpoint.startsWith("/") ? endpoint.substring(1) : endpoint.trim();
+        EndpointCategory mapped = ENDPOINT_MODULE_MAP.get(key);
+        if (mapped != null) {
+            return mapped;
+        }
+        return cat("Other", humanizeEndpoint(key));
+    }
+
+    static String humanizeEndpoint(String endpoint) {
+        if (endpoint == null || endpoint.isBlank()) {
+            return "Unknown";
+        }
+        String[] parts = endpoint.replace('-', '_').split("_");
+        StringBuilder sb = new StringBuilder();
+        for (String part : parts) {
+            if (part.isBlank()) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append(' ');
+            }
+            sb.append(Character.toUpperCase(part.charAt(0)));
+            if (part.length() > 1) {
+                sb.append(part.substring(1).toLowerCase());
+            }
+        }
+        return sb.length() == 0 ? "Unknown" : sb.toString();
     }
 
     /**
@@ -706,7 +807,7 @@ public class AiUsageService {
             }
             List<AiUsageEvent> events = aiUsageEventRepository.findByUserId(user.getId());
             double recomputed = round(events.stream()
-                    .mapToDouble(AiUsageEvent::getCostUsd)
+                    .mapToDouble(AiUsageService::eventBilledUsd)
                     .sum());
             LocalDateTime anchor = events.stream()
                     .map(AiUsageEvent::getCreatedAt)
@@ -793,7 +894,8 @@ public class AiUsageService {
     public com.prwatech.skillama.dto.AiCostEstimateDTO estimateCost(String modelId, int inputTokens, int outputTokens) {
         int in = Math.max(0, inputTokens);
         int out = Math.max(0, outputTokens);
-        double usd = computeCostUsd(modelId != null && !modelId.isBlank() ? modelId : "default", in, out);
+        double usd = computeCostUsd(
+                modelId != null && !modelId.isBlank() ? modelId : "default", in, out, 0.0, 0);
         double rate = liveUsdToInrRate();
         return com.prwatech.skillama.dto.AiCostEstimateDTO.builder()
                 .costUsd(round(usd))
@@ -806,13 +908,99 @@ public class AiUsageService {
     }
 
     private double computeCostUsd(String modelId, int inputTokens, int outputTokens) {
+        return computeCostUsd(modelId, inputTokens, outputTokens, 0.0, 0);
+    }
+
+    private double computeCostUsd(
+            String modelId, int inputTokens, int outputTokens, double audioSeconds, int pollyCharacters) {
         JsonNode modelRates = rateCard.path("models").path(modelId);
         if (modelRates.isMissingNode()) {
             modelRates = rateCard.path("default");
         }
         double inputRate = modelRates.path("inputPer1kTokensUsd").asDouble(0.0003);
         double outputRate = modelRates.path("outputPer1kTokensUsd").asDouble(0.0006);
-        return (inputTokens / 1000.0) * inputRate + (outputTokens / 1000.0) * outputRate;
+        double tokenCost = (inputTokens / 1000.0) * inputRate + (outputTokens / 1000.0) * outputRate;
+
+        JsonNode media = rateCard.path("media");
+        double transcribePerMinute = media.path("transcribePerMinuteUsd")
+                .asDouble(DEFAULT_TRANSCRIBE_PER_MINUTE_USD);
+        double transcribeMinimumSeconds = media.path("transcribeMinimumSeconds")
+                .asDouble(DEFAULT_TRANSCRIBE_MINIMUM_SECONDS);
+        double pollyPerMillion = media.path("pollyStandardPerMillionCharsUsd")
+                .asDouble(DEFAULT_POLLY_PER_MILLION_CHARS_USD);
+
+        double transcribeCost = 0.0;
+        if (audioSeconds > 0) {
+            double billedSeconds = Math.max(audioSeconds, transcribeMinimumSeconds);
+            transcribeCost = (billedSeconds / 60.0) * transcribePerMinute;
+        }
+        double pollyCost = pollyCharacters > 0
+                ? (pollyCharacters / 1_000_000.0) * pollyPerMillion
+                : 0.0;
+        return tokenCost + transcribeCost + pollyCost;
+    }
+
+    /**
+     * AWS Polly does not bill SSML tags. Count remaining characters after stripping tags
+     * and unescaping a few common entities.
+     */
+    public static int billedPollyCharacters(String text) {
+        if (text == null || text.isBlank()) {
+            return 0;
+        }
+        String stripped = text.replaceAll("(?s)<[^>]+>", "");
+        stripped = stripped.replace("&amp;", "&")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&apos;", "'");
+        return stripped.length();
+    }
+
+    /** Best-effort sibling event so learners see Text to speech on the usage page. */
+    public void recordSpeechUsage(User user, String courseId, String spokenText) {
+        recordSpeechUsage(user, courseId, billedPollyCharacters(spokenText));
+    }
+
+    public void recordSpeechUsage(User user, String courseId, int pollyCharacters) {
+        if (user == null || pollyCharacters <= 0) {
+            return;
+        }
+        try {
+            recordUsage(AiUsageRecordRequestDTO.builder()
+                    .userId(user.getId())
+                    .courseId(courseId)
+                    .endpoint("text_to_speech")
+                    .pollyCharacters(pollyCharacters)
+                    .inputTokens(0)
+                    .outputTokens(0)
+                    .build());
+        } catch (Exception ignored) {
+            // Tracking must never fail a delivered lecture/reply.
+        }
+    }
+
+    /** Best-effort sibling event so learners see Voice to text on the usage page. */
+    public void recordTranscribeUsage(User user, String courseId, Double audioSeconds) {
+        if (user == null || audioSeconds == null || audioSeconds <= 0) {
+            return;
+        }
+        try {
+            recordUsage(AiUsageRecordRequestDTO.builder()
+                    .userId(user.getId())
+                    .courseId(courseId)
+                    .endpoint("audio_to_text")
+                    .audioSeconds(audioSeconds)
+                    .inputTokens(0)
+                    .outputTokens(0)
+                    .build());
+        } catch (Exception ignored) {
+            // Tracking must never fail a delivered transcription.
+        }
+    }
+
+    private double usdToCredits(double usd) {
+        return Math.round(usd * USD_TO_CREDITS_RATE * 10.0) / 10.0;
     }
 
     private double round(double value) {

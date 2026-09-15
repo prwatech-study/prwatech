@@ -15,4 +15,5 @@ public class UpdateAiUsageSettingsDTO {
     private Double freemiumMonthlyBudgetUsdPerUser;
     private Double referralRewardUsd;
     private Double courseShareRewardUsd;
+    private Double consumptionMultiplier;
 }

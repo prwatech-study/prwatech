@@ -15,6 +15,7 @@ import com.prwatech.skillama.dto.GeneratedPracticeCodeDTO;
 import com.prwatech.skillama.dto.GeneratedPracticalCodeDTO;
 import com.prwatech.skillama.dto.LectureStartInstructionResponseDTO;
 import com.prwatech.skillama.dto.TextToAudioResponseDTO;
+import com.prwatech.skillama.dto.TranscribedAudioDTO;
 import com.prwatech.skillama.dto.TutorIntroResponseDTO;
 import com.prwatech.skillama.dto.GeneratedQuizDTO;
 import com.prwatech.skillama.dto.ModuleQuizQuestionDTO;
@@ -554,8 +555,10 @@ public class SkillamaAiClient {
     public AiQueryReplyDTO answerQuery(
             User user, String endpoint, String courseId,
             String query, String topic, String course, List<String> prevTopicList, String lastAiReply) {
-        return meteredCall(user, endpoint, courseId,
+        AiQueryReplyDTO result = meteredCall(user, endpoint, courseId,
                 () -> answerQueryRaw(query, topic, course, prevTopicList, lastAiReply));
+        aiUsageService.recordSpeechUsage(user, courseId, result.getResponseText());
+        return result;
     }
 
     private AiQueryReplyDTO answerQueryRaw(
@@ -675,8 +678,10 @@ public class SkillamaAiClient {
     public GeneratedCodeAssistDTO runCodeAssist(
             User user, String endpoint, String courseId, String code, String course,
             String realOutput, String realError, String datasetFilename, java.util.List<String> datasetColumns) {
-        return meteredCall(user, endpoint, courseId,
+        GeneratedCodeAssistDTO result = meteredCall(user, endpoint, courseId,
                 () -> runCodeAssistRaw(code, course, realOutput, realError, datasetFilename, datasetColumns));
+        aiUsageService.recordSpeechUsage(user, courseId, result.getResponseText());
+        return result;
     }
 
     private GeneratedCodeAssistDTO runCodeAssistRaw(
@@ -817,8 +822,10 @@ public class SkillamaAiClient {
      * </pre>
      */
     public GeneratedLectureDTO generateLecture(User user, String courseId, String section, String course) {
-        return meteredCall(user, "lecture_generation", courseId,
+        GeneratedLectureDTO result = meteredCall(user, "lecture_generation", courseId,
                 () -> generateLectureRaw(section, course, courseId));
+        aiUsageService.recordSpeechUsage(user, courseId, result.getLectureText());
+        return result;
     }
 
     private GeneratedLectureDTO generateLectureRaw(String section, String course, String courseId) {
@@ -893,8 +900,10 @@ public class SkillamaAiClient {
     public GeneratedPracticeCodeDTO generatePracticeCode(
             User user, String courseId, String query, String codeInstruction, String course,
             String datasetFilename, java.util.List<String> datasetColumns) {
-        return meteredCall(user, "practice_code_generation", courseId,
+        GeneratedPracticeCodeDTO result = meteredCall(user, "practice_code_generation", courseId,
                 () -> generatePracticeCodeRaw(query, codeInstruction, course, datasetFilename, datasetColumns));
+        aiUsageService.recordSpeechUsage(user, courseId, "Will learn," + (query != null ? query : ""));
+        return result;
     }
 
     private GeneratedPracticeCodeDTO generatePracticeCodeRaw(
@@ -1070,18 +1079,16 @@ public class SkillamaAiClient {
     }
 
     /**
-     * Transcribes a mic recording (AWS Transcribe, no LLM). Proxied purely to close the
-     * browser-direct-to-ai-tutor bypass; not budget-gated — it supports an already-billed
-     * subsequent action (the question it feeds into), so metering it separately would
-     * double-charge a single user action.
+     * Transcribes a mic recording (AWS Transcribe, no LLM). Logged-in learners are
+     * metered by the caller using {@code audioSeconds} from the response.
      *
      * <p><b>ai-tutor (Flask) contract — POST {aiBaseUrl}/audio_to_text</b>
      * <pre>
      * Request: multipart/form-data, field "audio" = recording bytes
-     * Response JSON: { "transcript": String, "error": String (optional; present on failure) }
+     * Response JSON: { "transcript": String, "usage": { "audioSeconds": number }, "error": String }
      * </pre>
      */
-    public String transcribeAudio(byte[] audioBytes, String filename) {
+    public TranscribedAudioDTO transcribeAudio(byte[] audioBytes, String filename) {
         String url = resolveBaseUrl() + "/audio_to_text";
         HttpEntity<MultiValueMap<String, Object>> entity =
                 new HttpEntity<>(audioBody(audioBytes, filename), buildMultipartHeaders());
@@ -1101,7 +1108,11 @@ public class SkillamaAiClient {
             if (data.hasNonNull("error")) {
                 throw new IllegalStateException("Transcription service error: " + data.path("error").asText());
             }
-            return data.path("transcript").asText("");
+            JsonNode usage = data.path("usage");
+            return TranscribedAudioDTO.builder()
+                    .transcript(data.path("transcript").asText(""))
+                    .audioSeconds(usage.path("audioSeconds").asDouble(0))
+                    .build();
         } catch (IllegalStateException e) {
             throw e;
         } catch (Exception e) {
@@ -1142,11 +1153,14 @@ public class SkillamaAiClient {
             if (data.hasNonNull("error")) {
                 throw new IllegalStateException("Confirmation service error: " + data.path("error").asText());
             }
+            JsonNode usage = data.path("usage");
             return ConfirmationResponseDTO.builder()
                     .responseText(data.path("response_text").asBoolean(false))
                     .audioUrl(data.path("audio_url").asText(null))
                     .subtitlePath(data.path("subtitle_path").asText(null))
                     .transcript(data.path("transcript").asText(null))
+                    .audioSeconds(usage.path("audioSeconds").asDouble(0))
+                    .pollyCharacters(usage.path("pollyCharacters").asInt(0))
                     .build();
         } catch (IllegalStateException e) {
             throw e;
@@ -1187,10 +1201,13 @@ public class SkillamaAiClient {
             if (data.hasNonNull("error")) {
                 throw new IllegalStateException("User-name service error: " + data.path("error").asText());
             }
+            JsonNode usage = data.path("usage");
             return UserNameResponseDTO.builder()
                     .welcomeText(data.path("welcome_text").asText(null))
                     .audioUrl(data.path("audio_url").asText(null))
                     .subtitlePath(data.path("subtitle_path").asText(null))
+                    .audioSeconds(usage.path("audioSeconds").asDouble(0))
+                    .pollyCharacters(usage.path("pollyCharacters").asInt(0))
                     .build();
         } catch (IllegalStateException e) {
             throw e;

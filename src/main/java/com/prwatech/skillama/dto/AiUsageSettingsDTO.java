@@ -17,6 +17,8 @@ public class AiUsageSettingsDTO {
     private double freemiumMonthlyBudgetUsdPerUser;
     private double referralRewardUsd;
     private double courseShareRewardUsd;
+    /** Wallet burn rate vs rate-card API cost. Owner-only. Minimum 1.0. */
+    private double consumptionMultiplier;
     /** Live USD → INR from FX API (read-only). */
     private double usdToInrRate;
     /** Date the FX provider quotes for the rate (e.g. ECB publication date). */

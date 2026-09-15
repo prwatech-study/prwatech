@@ -15,5 +15,10 @@
     "nvidia.nemotron-nano-3-30b": { "inputPer1kTokensUsd": 0.0002, "outputPer1kTokensUsd": 0.0008 },
     "qwen.qwen3-coder-30b-a3b-v1:0": { "inputPer1kTokensUsd": 0.00025, "outputPer1kTokensUsd": 0.001 },
     "amazon.titan-embed-image-v1": { "inputPer1kTokensUsd": 0.00008, "outputPer1kTokensUsd": 0.0 }
+  },
+  "media": {
+    "transcribePerMinuteUsd": 0.024,
+    "transcribeMinimumSeconds": 15,
+    "pollyStandardPerMillionCharsUsd": 4.0
   }
 }
