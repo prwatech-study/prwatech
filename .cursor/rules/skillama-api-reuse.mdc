@@ -1,0 +1,64 @@
+---
+description: Reuse existing course, curriculum, and AI Tutor APIs before creating any new endpoint
+alwaysApply: true
+---
+
+# Reuse before creating (course / curriculum / AI)
+
+Before **any new REST path**, Flask route, AI client, or duplicate fetch: search existing APIs, fill the template, then reuse or extend. Do not add a sibling resource because a feature needs similar data.
+
+## Investigation template (required in the plan or PR notes)
+
+```text
+Existing Endpoint:
+<endpoint>
+
+Purpose:
+<what it currently does>
+
+Required Data:
+<what the new feature needs>
+
+Can Reuse:
+YES / NO
+
+If YES:
+<how it will be reused/extended>
+
+If NO:
+<why an existing endpoint cannot reasonably support the requirement>
+```
+
+Cover services, repositories, models, DTOs, auth, caching, and generated-content patterns — not only the controller.
+
+## Decision order
+
+```text
+Existing endpoint → satisfies need? YES → Reuse
+                                 NO → safe to extend? YES → Extend
+                                                   NO → new endpoint only
+```
+
+A new endpoint is allowed only when no existing one provides the data **and** extending it would break the contract (auth, payload size, or a different resource). Persist through existing CRUD even if a new LLM draft route is justified.
+
+## Locked reuse map (Skillama)
+
+There is **no Lesson entity**. Course = `courses`; Module = `course_curricula` document; lecture/topic = nested `Submodule`.
+
+| Need | Reuse | Do not create |
+|------|-------|----------------|
+| Title, description, thumbnail, flags | `GET /skillama/courses/{id}` | Combined course+curriculum GET; do not put modules on Course |
+| Module + lecture tree, scripts, order | `GET /skillama/courses/{courseId}/curriculum` (`guest=true`, `forAdmin=true`) | `GET .../modules`, `.../lessons`, a second curriculum GET |
+| Single module | `GET /skillama/curriculum/{moduleId}` | New module resource |
+| Structure writes | `/skillama/curriculum/module` and `.../submodule/{idx}` (`idx` is array index) | Parallel CRUD |
+| Locks / progress | `GET /skillama/user-profile/access-control?courseId=` | Lock flags on curriculum GET |
+| Lecture narration | `POST /skillama/lecture/generate` → Flask `/generate_lecture` via `SkillamaAiClient` | New LLM client or Java proxy |
+| Quiz / chat / code / images | Existing `SkillamaAiClient` + Flask `/generate_quiz`, `/handle_query`, `/generate_code`, `/generate_output`, `/generate_image` | Second AI HTTP stack |
+
+LMS already composes course + curriculum + access-control on load (`src/app/lms/(main)/page.js`, `src/utils/switchLmsCourse.js`). Curriculum cache: RTK `getCourseCurriculum`.
+
+Do **not** revive unused legacy `/api/public/course/{courseId}/curriculum`.
+
+**True gap today:** no bulk “generate entire curriculum from a prompt.” A new Flask **draft** route is the only plausible new path; commit still uses existing curriculum CRUD. Do not add a persist API for that.
+
+Optional `GET /courses/{id}?include=curriculum` is an extension of last resort, only after a measured round-trip problem — not a new resource.

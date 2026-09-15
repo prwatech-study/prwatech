@@ -75,6 +75,7 @@ class ExamServiceTest {
     @Mock private ModuleQuizService moduleQuizService;
     @Mock private ExamRecommendationLogRepository recommendationLogRepository;
     @Mock private CourseCurriculumRepository curriculumRepository;
+    @Mock private GlobalAiExamCourseService globalAiExamCourseService;
 
     private ExamService service;
 
@@ -85,8 +86,9 @@ class ExamServiceTest {
     void setUp() {
         service = new ExamService(sessionRepository, attemptRepository, courseRepository,
                 skillamaAiClient, userRepository, moduleQuizService,
-                recommendationLogRepository, curriculumRepository);
+                recommendationLogRepository, curriculumRepository, globalAiExamCourseService);
 
+        when(globalAiExamCourseService.isEnabled(anyString())).thenReturn(true);
         when(userRepository.findById(USER)).thenReturn(Optional.of(User.builder().id(USER).build()));
         when(courseRepository.findById(COURSE)).thenReturn(Optional.of(Course.builder().id(COURSE).name("Python").build()));
         when(sessionRepository.save(any(ExamSession.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -198,6 +200,17 @@ class ExamServiceTest {
                 .thenThrow(new AiBudgetLimitException("limit reached", 5.0, 5.0));
 
         assertThrows(AiBudgetLimitException.class, () -> service.startExam(USER, practiceRequest()));
+        verify(sessionRepository, never()).save(any(ExamSession.class));
+    }
+
+    @Test
+    void startExamRejectsWhenCourseIsNotGloballyEnabled() {
+        when(globalAiExamCourseService.isEnabled(COURSE)).thenReturn(false);
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.startExam(USER, practiceRequest()));
+        assertEquals(GlobalAiExamCourseService.NOT_ENABLED_MESSAGE, ex.getMessage());
+        verify(skillamaAiClient, never()).generateQuizQuestions(
+                any(), anyString(), anyString(), anyString(), anyString(), anyList(), anyInt(), any());
         verify(sessionRepository, never()).save(any(ExamSession.class));
     }
 
@@ -384,6 +397,15 @@ class ExamServiceTest {
         assertEquals("Loops", res.getTopic());
         verify(skillamaAiClient).getExamRecommendation(any(User.class), eq(COURSE), eq("Python"), isNull(), eq(70.0));
         verify(recommendationLogRepository).save(any(ExamRecommendationLog.class));
+    }
+
+    @Test
+    void getRecommendationRejectsWhenCourseIsNotGloballyEnabled() {
+        when(globalAiExamCourseService.isEnabled(COURSE)).thenReturn(false);
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.getRecommendation(USER, COURSE));
+        assertEquals(GlobalAiExamCourseService.NOT_ENABLED_MESSAGE, ex.getMessage());
+        verify(skillamaAiClient, never()).getExamRecommendation(any(), anyString(), anyString(), any(), any());
     }
 
     // ---------- listAdminRecommendations ----------

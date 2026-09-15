@@ -10,6 +10,7 @@ import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.CourseStudyMaterialService;
+import com.prwatech.skillama.service.GlobalAiExamCourseService;
 import com.prwatech.skillama.service.UserCourseAccessService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class CourseController {
     private final JwtUtils jwtUtils;
     private final UserService userService;
     private final UserCourseAccessService userCourseAccessService;
+    private final GlobalAiExamCourseService globalAiExamCourseService;
 
     @Value("${skillama.app.public-url:https://skillama.co.in}")
     private String publicAppUrl;
@@ -84,8 +86,12 @@ public class CourseController {
             if (userId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
-            enforceLearnerCourseAccess(request, courseId);
-            userCourseAccessService.touchLastAccessed(userId, courseId);
+            // Globally enabled AI Exam courses can load curriculum without enrollment
+            // so module/topic pickers work. Do not open GET /courses/{id} or materials.
+            if (!globalAiExamCourseService.isEnabled(courseId)) {
+                enforceLearnerCourseAccess(request, courseId);
+                userCourseAccessService.touchLastAccessed(userId, courseId);
+            }
         }
         return ResponseEntity.ok(courseService.getCurriculumByCourseIdOrdered(courseId, guestAccess, adminView));
     }
@@ -140,12 +146,12 @@ public class CourseController {
     }
 
     /**
-     * Get all public courses accessible to non-logged-in users
-     * This endpoint is public and does not require authentication
+     * Guest-browsable catalog (no auth). Same active courses as Explore —
+     * not limited to the isPublic guest-LMS teaser flag.
      */
     @GetMapping("/public")
     public ResponseEntity<List<Course>> getPublicCourses() {
-        return ResponseEntity.ok(courseService.findPublicCourses());
+        return ResponseEntity.ok(courseService.findBrowsableCourses());
     }
 
     /**

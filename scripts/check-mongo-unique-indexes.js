@@ -15,6 +15,7 @@
 
 const UNIQUE_INDEXES = [
   { collection: "course_knowledge_sync_state", field: "courseId", sparse: false },
+  { collection: "global_ai_exam_courses", field: "courseId", sparse: false },
   { collection: "exam_sessions", field: "examSessionId", sparse: false },
   { collection: "module_quiz_sessions", field: "quizSessionId", sparse: false },
   { collection: "organizations", field: "slug", sparse: false },

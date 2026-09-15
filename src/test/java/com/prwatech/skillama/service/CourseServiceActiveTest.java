@@ -9,13 +9,17 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Query;
 
+import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
@@ -103,5 +107,32 @@ class CourseServiceActiveTest {
         Course archived = Course.builder().active(true).build();
         archived.setDeletedAt(com.prwatech.skillama.util.IndiaTime.now());
         assertFalse(CourseService.isAvailableToLearner(archived));
+    }
+
+    @Test
+    void findBrowsableCourses_includesActiveCoursesThatAreNotPublic() {
+        Course publicTeaser = Course.builder().id("p").name("Public teaser").isPublic(true).active(true).build();
+        Course catalog = Course.builder().id("c").name("Catalog course").isPublic(false).active(true).build();
+        Course deactivated = Course.builder().id("d").name("Off").isPublic(false).active(false).build();
+        when(skillamaMongoTemplate.find(any(Query.class), eq(Course.class)))
+                .thenReturn(List.of(publicTeaser, catalog, deactivated));
+
+        List<Course> browsable = courseService.findBrowsableCourses();
+
+        assertEquals(2, browsable.size());
+        assertEquals("c", browsable.get(0).getId());
+        assertEquals("p", browsable.get(1).getId());
+    }
+
+    @Test
+    void findPublicCourses_stillRequiresIsPublicFlag() {
+        when(courseRepository.findByIsPublicTrue()).thenReturn(List.of(
+                Course.builder().id("p").name("Public").isPublic(true).active(true).build(),
+                Course.builder().id("off").name("Off").isPublic(true).active(false).build()));
+
+        List<Course> pub = courseService.findPublicCourses();
+
+        assertEquals(1, pub.size());
+        assertEquals("p", pub.get(0).getId());
     }
 }

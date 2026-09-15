@@ -21,6 +21,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import com.prwatech.skillama.util.IndiaTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -589,13 +590,26 @@ public class CourseService {
     }
 
     /**
-     * Gets all public courses
-     * @return List of public courses
+     * Guest-LMS teasers flagged {@code isPublic}. Not the marketing catalog —
+     * most assignable courses are not marked public.
      */
     public List<Course> findPublicCourses() {
         return courseRepository.findByIsPublicTrue().stream()
                 // Exclude archived AND admin-deactivated courses from the public catalog.
                 .filter(CourseService::isAvailableToLearner)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Marketing / guest browse list: the same active, non-archived courses
+     * learners see on Explore. Enrollment still requires login.
+     */
+    public List<Course> findBrowsableCourses() {
+        return findAllActiveList().stream()
+                .filter(CourseService::isAvailableToLearner)
+                .sorted(Comparator.comparing(
+                        c -> c.getName() != null ? c.getName().toLowerCase() : "",
+                        Comparator.nullsLast(String::compareTo)))
                 .collect(Collectors.toList());
     }
 

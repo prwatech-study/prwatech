@@ -83,9 +83,11 @@ public class ExamService {
     private final ModuleQuizService moduleQuizService;
     private final ExamRecommendationLogRepository recommendationLogRepository;
     private final CourseCurriculumRepository curriculumRepository;
+    private final GlobalAiExamCourseService globalAiExamCourseService;
 
     public StartExamResponseDTO startExam(String userId, StartExamRequestDTO request) {
         validateStartRequest(request);
+        assertGloballyEnabled(request.getCourseId());
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -341,6 +343,7 @@ public class ExamService {
      * safe fallback.
      */
     public ExamRecommendationResponseDTO getRecommendation(String userId, String courseId) {
+        assertGloballyEnabled(courseId);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
@@ -834,6 +837,12 @@ public class ExamService {
         }
         int to = Math.min(from + limit, total);
         return new PageImpl<>(rows.subList(from, to), PageRequest.of(pageNum, limit), total);
+    }
+
+    private void assertGloballyEnabled(String courseId) {
+        if (!globalAiExamCourseService.isEnabled(courseId)) {
+            throw new IllegalArgumentException(GlobalAiExamCourseService.NOT_ENABLED_MESSAGE);
+        }
     }
 
     private void validateStartRequest(StartExamRequestDTO request) {
