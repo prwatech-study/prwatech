@@ -3,6 +3,7 @@ package com.prwatech.skillama.controller;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.dto.CodeAssistRequestDTO;
 import com.prwatech.skillama.dto.ProxiedAudioDTO;
+import com.prwatech.skillama.exception.AiBudgetLimitException;
 import com.prwatech.skillama.service.CodeAssistService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,10 @@ public class CodeAssistController {
         }
         try {
             return ResponseEntity.ok(codeAssistService.runDebug(userId, request));
+        } catch (AiBudgetLimitException e) {
+            // Must precede the IllegalStateException catch below — AiBudgetLimitException
+            // extends it, so the broader catch would otherwise mask exhaustion as a 502.
+            return ResponseEntity.status(429).body(e.toResponseBody());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         } catch (IllegalStateException e) {
@@ -55,6 +60,8 @@ public class CodeAssistController {
         }
         try {
             return ResponseEntity.ok(codeAssistService.runCodeExecution(userId, request));
+        } catch (AiBudgetLimitException e) {
+            return ResponseEntity.status(429).body(e.toResponseBody());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         } catch (IllegalStateException e) {

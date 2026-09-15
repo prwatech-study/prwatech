@@ -18,6 +18,7 @@ public class LmsThemeService {
 
     private static final String CLASSIC = "classic";
     private static final String AURORA = "aurora";
+    private static final String OBSIDIAN = "obsidian";
     private static final String HOMEPAGE = "homepage";
     private static final String LMS = "lms";
 
@@ -31,7 +32,7 @@ public class LmsThemeService {
 
         String theme = normalizeTheme(request != null ? request.getTheme() : null);
         if (theme == null) {
-            throw new IllegalArgumentException("theme must be classic or aurora");
+            throw new IllegalArgumentException("theme must be classic, aurora, or obsidian");
         }
 
         String previous = request != null ? request.getPreviousTheme() : null;
@@ -58,7 +59,7 @@ public class LmsThemeService {
     public void recordVisitorThemeSwitch(LmsThemeSwitchRequestDTO request) {
         String theme = normalizeTheme(request != null ? request.getTheme() : null);
         if (theme == null) {
-            throw new IllegalArgumentException("theme must be classic or aurora");
+            throw new IllegalArgumentException("theme must be classic, aurora, or obsidian");
         }
 
         String visitorId = request != null ? request.getVisitorId() : null;
@@ -86,28 +87,38 @@ public class LmsThemeService {
     public LmsThemeStatsDTO getStats() {
         long classicSwitches = lmsThemeEventRepository.countByTheme(CLASSIC);
         long auroraSwitches = lmsThemeEventRepository.countByTheme(AURORA);
+        long obsidianSwitches = lmsThemeEventRepository.countByTheme(OBSIDIAN);
         long activeClassic = userRepository.countByLmsThemePreference(CLASSIC);
         long activeAurora = userRepository.countByLmsThemePreference(AURORA);
+        long activeObsidian = userRepository.countByLmsThemePreference(OBSIDIAN);
 
         long homepageClassic = lmsThemeEventRepository.countByThemeAndContext(CLASSIC, HOMEPAGE);
         long homepageAurora = lmsThemeEventRepository.countByThemeAndContext(AURORA, HOMEPAGE);
+        long homepageObsidian = lmsThemeEventRepository.countByThemeAndContext(OBSIDIAN, HOMEPAGE);
         long lmsClassic = lmsThemeEventRepository.countByThemeAndContext(CLASSIC, LMS);
         long lmsAurora = lmsThemeEventRepository.countByThemeAndContext(AURORA, LMS);
+        long lmsObsidian = lmsThemeEventRepository.countByThemeAndContext(OBSIDIAN, LMS);
         long visitorClassic = lmsThemeEventRepository.countByThemeAndAnonymousTrue(CLASSIC);
         long visitorAurora = lmsThemeEventRepository.countByThemeAndAnonymousTrue(AURORA);
+        long visitorObsidian = lmsThemeEventRepository.countByThemeAndAnonymousTrue(OBSIDIAN);
 
         return LmsThemeStatsDTO.builder()
                 .classic(classicSwitches)
                 .aurora(auroraSwitches)
-                .totalSwitches(classicSwitches + auroraSwitches)
+                .obsidian(obsidianSwitches)
+                .totalSwitches(classicSwitches + auroraSwitches + obsidianSwitches)
                 .activeClassic(activeClassic)
                 .activeAurora(activeAurora)
+                .activeObsidian(activeObsidian)
                 .homepageClassic(homepageClassic)
                 .homepageAurora(homepageAurora)
+                .homepageObsidian(homepageObsidian)
                 .lmsClassic(lmsClassic)
                 .lmsAurora(lmsAurora)
+                .lmsObsidian(lmsObsidian)
                 .visitorClassic(visitorClassic)
                 .visitorAurora(visitorAurora)
+                .visitorObsidian(visitorObsidian)
                 .build();
     }
 
@@ -163,7 +174,7 @@ public class LmsThemeService {
             return null;
         }
         String t = raw.trim().toLowerCase();
-        if (CLASSIC.equals(t) || AURORA.equals(t)) {
+        if (CLASSIC.equals(t) || AURORA.equals(t) || OBSIDIAN.equals(t)) {
             return t;
         }
         return null;

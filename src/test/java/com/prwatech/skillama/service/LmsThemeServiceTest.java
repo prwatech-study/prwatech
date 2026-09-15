@@ -114,12 +114,52 @@ class LmsThemeServiceTest {
     }
 
     @Test
+    void recordSwitchPersistsObsidianPreference() {
+        User user = User.builder().id("u1").email("u@x.com").build();
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+        LmsThemeSwitchRequestDTO r = req("obsidian", "aurora");
+        r.setContext("homepage");
+
+        service.recordThemeSwitch("u1", r);
+
+        ArgumentCaptor<LmsThemeEvent> captor = ArgumentCaptor.forClass(LmsThemeEvent.class);
+        verify(lmsThemeEventRepository).save(captor.capture());
+        assertEquals("obsidian", captor.getValue().getTheme());
+        assertEquals("homepage", captor.getValue().getContext());
+        assertEquals("obsidian", user.getLmsThemePreference());
+    }
+
+    @Test
+    void visitorSwitchAcceptsObsidian() {
+        LmsThemeSwitchRequestDTO r = req("obsidian", "classic");
+        r.setVisitorId("v1");
+        r.setContext("homepage");
+
+        service.recordVisitorThemeSwitch(r);
+
+        ArgumentCaptor<LmsThemeEvent> captor = ArgumentCaptor.forClass(LmsThemeEvent.class);
+        verify(lmsThemeEventRepository).save(captor.capture());
+        assertEquals("obsidian", captor.getValue().getTheme());
+        assertEquals(true, captor.getValue().isAnonymous());
+    }
+
+    @Test
     void statsAggregatesCounts() {
         when(lmsThemeEventRepository.countByTheme("classic")).thenReturn(3L);
         when(lmsThemeEventRepository.countByTheme("aurora")).thenReturn(7L);
+        when(lmsThemeEventRepository.countByTheme("obsidian")).thenReturn(2L);
+        when(userRepository.countByLmsThemePreference("obsidian")).thenReturn(4L);
+        when(lmsThemeEventRepository.countByThemeAndContext("obsidian", "homepage")).thenReturn(1L);
+        when(lmsThemeEventRepository.countByThemeAndContext("obsidian", "lms")).thenReturn(1L);
+        when(lmsThemeEventRepository.countByThemeAndAnonymousTrue("obsidian")).thenReturn(1L);
         LmsThemeStatsDTO stats = service.getStats();
         assertEquals(3L, stats.getClassic());
         assertEquals(7L, stats.getAurora());
-        assertEquals(10L, stats.getTotalSwitches());
+        assertEquals(2L, stats.getObsidian());
+        assertEquals(12L, stats.getTotalSwitches());
+        assertEquals(4L, stats.getActiveObsidian());
+        assertEquals(1L, stats.getHomepageObsidian());
+        assertEquals(1L, stats.getLmsObsidian());
+        assertEquals(1L, stats.getVisitorObsidian());
     }
 }

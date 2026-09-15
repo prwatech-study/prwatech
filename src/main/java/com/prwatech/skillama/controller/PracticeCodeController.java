@@ -37,12 +37,7 @@ public class PracticeCodeController {
         try {
             return ResponseEntity.ok(practiceCodeService.generate(userId, request));
         } catch (AiBudgetLimitException e) {
-            return ResponseEntity.status(429).body(Map.of(
-                    "status", "error",
-                    "message", e.getMessage(),
-                    "aiBudgetLimitReached", true,
-                    "aiCostUsedUsd", e.getAiCostUsedUsd(),
-                    "aiCostLimitUsd", e.getAiCostLimitUsd()));
+            return ResponseEntity.status(429).body(e.toResponseBody());
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         } catch (IllegalStateException e) {

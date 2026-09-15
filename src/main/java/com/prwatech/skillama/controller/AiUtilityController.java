@@ -207,12 +207,7 @@ public class AiUtilityController {
     }
 
     private static ResponseEntity<Map<String, Object>> budgetLimit(AiBudgetLimitException e) {
-        return ResponseEntity.status(429).body(Map.of(
-                "status", "error",
-                "message", e.getMessage(),
-                "aiBudgetLimitReached", true,
-                "aiCostUsedUsd", e.getAiCostUsedUsd(),
-                "aiCostLimitUsd", e.getAiCostLimitUsd()));
+        return ResponseEntity.status(429).body(e.toResponseBody());
     }
 
     private String resolveCourseName(String courseId) {

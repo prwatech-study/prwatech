@@ -21,7 +21,7 @@ public class LmsThemeEvent {
     private String userId;
     private String userEmail;
 
-    /** Theme switched to: classic | aurora */
+    /** Theme switched to: classic | aurora | obsidian */
     @Indexed
     private String theme;
     private String previousTheme;

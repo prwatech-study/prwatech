@@ -222,12 +222,7 @@ public class UserProfileController {
             return ResponseEntity.ok(moduleQuizService.createSession(
                     profilingSessionId(sessionId, userId), userId, request));
         } catch (com.prwatech.skillama.exception.AiBudgetLimitException e) {
-            return ResponseEntity.status(429).body(Map.of(
-                    "status", "error",
-                    "message", e.getMessage(),
-                    "aiBudgetLimitReached", true,
-                    "aiCostUsedUsd", e.getAiCostUsedUsd(),
-                    "aiCostLimitUsd", e.getAiCostLimitUsd()));
+            return ResponseEntity.status(429).body(e.toResponseBody());
         } catch (com.prwatech.skillama.exception.QuizGenerationFailedException e) {
             return ResponseEntity.status(502).body(Map.of(
                     "status", "error",
@@ -359,12 +354,7 @@ public class UserProfileController {
             return ResponseEntity.ok(userProfileService.askChat(
                     profilingSessionId(sessionId, userId), userId, request));
         } catch (com.prwatech.skillama.exception.AiBudgetLimitException e) {
-            return ResponseEntity.status(429).body(Map.of(
-                    "status", "error",
-                    "message", e.getMessage(),
-                    "aiBudgetLimitReached", true,
-                    "aiCostUsedUsd", e.getAiCostUsedUsd(),
-                    "aiCostLimitUsd", e.getAiCostLimitUsd()));
+            return ResponseEntity.status(429).body(e.toResponseBody());
         } catch (com.prwatech.skillama.exception.GuestChatLimitException e) {
             return ResponseEntity.status(429).body(Map.of(
                     "status", "error", "message", e.getMessage(), "guestChatLimitReached", true));
@@ -407,12 +397,7 @@ public class UserProfileController {
             String userId = extractUserIdFromRequest(request);
             return ResponseEntity.ok(freemiumService.consumeQuery(userId, body));
         } catch (com.prwatech.skillama.exception.AiBudgetLimitException e) {
-            return ResponseEntity.status(429).body(Map.of(
-                    "status", "error",
-                    "message", e.getMessage(),
-                    "aiBudgetLimitReached", true,
-                    "aiCostUsedUsd", e.getAiCostUsedUsd(),
-                    "aiCostLimitUsd", e.getAiCostLimitUsd()));
+            return ResponseEntity.status(429).body(e.toResponseBody());
         } catch (IllegalStateException e) {
             return ResponseEntity.status(429).body(Map.of("status", "error", "message", e.getMessage()));
         }

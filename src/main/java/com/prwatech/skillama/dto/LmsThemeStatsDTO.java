@@ -16,17 +16,24 @@ public class LmsThemeStatsDTO {
     private long classic;
     /** Times learners switched to Aurora */
     private long aurora;
+    /** Times learners switched to Obsidian */
+    private long obsidian;
     private long totalSwitches;
     /** Learners whose saved preference is Classic */
     private long activeClassic;
     /** Learners whose saved preference is Aurora */
     private long activeAurora;
+    /** Learners whose saved preference is Obsidian */
+    private long activeObsidian;
 
     private long homepageClassic;
     private long homepageAurora;
+    private long homepageObsidian;
     private long lmsClassic;
     private long lmsAurora;
+    private long lmsObsidian;
     /** Anonymous homepage visitor switches */
     private long visitorClassic;
     private long visitorAurora;
+    private long visitorObsidian;
 }

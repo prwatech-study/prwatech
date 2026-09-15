@@ -124,7 +124,7 @@ public class User {
     @Builder.Default
     private Boolean sessionActive = false;
 
-    /** Learner LMS UI theme: classic | aurora */
+    /** Learner LMS UI theme: classic | aurora | obsidian */
     private String lmsThemePreference;
 
     /** OAuth provider subject IDs (sparse unique indexes). */

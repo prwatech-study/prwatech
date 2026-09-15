@@ -4,7 +4,7 @@ import lombok.Data;
 
 @Data
 public class LmsThemeSwitchRequestDTO {
-    /** classic | aurora */
+    /** classic | aurora | obsidian */
     private String theme;
     private String previousTheme;
     private String source;

@@ -2,6 +2,7 @@ package com.prwatech.skillama.controller;
 
 import com.prwatech.common.exception.ForbiddenException;
 import com.prwatech.skillama.dto.PracticalExecutionRequestDTO;
+import com.prwatech.skillama.exception.AiBudgetLimitException;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.service.PracticalDatasetService;
 import com.prwatech.skillama.service.PracticalExecutionService;
@@ -90,6 +91,10 @@ public class PracticalDatasetController {
         }
         try {
             return ResponseEntity.ok(executionService.execute(userId, datasetId, request.getTask()));
+        } catch (AiBudgetLimitException e) {
+            // Must precede the IllegalStateException catch below — AiBudgetLimitException
+            // extends it, so the broader catch would otherwise mask exhaustion as a 502.
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(e.toResponseBody());
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("status", "error", "message", e.getMessage()));
         } catch (ForbiddenException e) {

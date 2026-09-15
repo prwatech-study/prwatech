@@ -10,6 +10,9 @@ import lombok.Getter;
  */
 @Getter
 public class TimeBudgetLimitException extends AiBudgetLimitException {
+    /** Value of {@code limitType} for an exhausted B2B time seat. */
+    public static final String LIMIT_TYPE_LEARNING_TIME = "LEARNING_TIME";
+
     private final double timeUsedMinutes;
     private final double timeLimitMinutes;
 
@@ -17,5 +20,19 @@ public class TimeBudgetLimitException extends AiBudgetLimitException {
         super(message, timeUsedMinutes, timeLimitMinutes);
         this.timeUsedMinutes = timeUsedMinutes;
         this.timeLimitMinutes = timeLimitMinutes;
+    }
+
+    @Override
+    public String getLimitType() {
+        return LIMIT_TYPE_LEARNING_TIME;
+    }
+
+    /** Adds correctly-named minute fields alongside the inherited USD-named ones. */
+    @Override
+    public java.util.Map<String, Object> toResponseBody() {
+        java.util.Map<String, Object> body = super.toResponseBody();
+        body.put("timeUsedMinutes", timeUsedMinutes);
+        body.put("timeLimitMinutes", timeLimitMinutes);
+        return body;
     }
 }

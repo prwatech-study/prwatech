@@ -16,7 +16,7 @@ public class OrganizationBranding {
     private String accentColor;
     private String loginWelcomeText;
     private String loginBackgroundUrl;
-    /** classic | aurora */
+    /** classic | aurora | obsidian */
     private String defaultLmsTheme;
     private String certificateLogoUrl;
     private String emailFooterText;

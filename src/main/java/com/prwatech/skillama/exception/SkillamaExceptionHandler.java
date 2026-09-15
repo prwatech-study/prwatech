@@ -9,6 +9,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.Map;
+
 /**
  * Exception handler for Skillama module endpoints
  * Provides consistent error response format for /api/* endpoints
@@ -40,6 +42,18 @@ public class SkillamaExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
     
+    /**
+     * Safety net so any Skillama endpoint that forgets to catch this still returns the
+     * canonical 429 budget shape instead of a generic 400/500 the client can't recognise.
+     * Controllers that catch IllegalStateException locally must catch this first — the
+     * local catch wins over this advice.
+     */
+    @ExceptionHandler(AiBudgetLimitException.class)
+    public ResponseEntity<Map<String, Object>> handleAiBudgetLimit(AiBudgetLimitException ex) {
+        LOGGER.warn("AI budget limit reached: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(ex.toResponseBody());
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
         LOGGER.error("Bad request: {}", ex.getMessage());
