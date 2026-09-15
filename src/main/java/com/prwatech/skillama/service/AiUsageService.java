@@ -90,7 +90,8 @@ public class AiUsageService {
             Map.entry("lecture_generation", cat("Lecture Generation", "Lecture audio and script")),
             Map.entry("generate_lecture", cat("Lecture Generation", "Lecture audio and script")),
             Map.entry("generate_image", cat("Course images", "Lesson diagrams")),
-            Map.entry("generate_thumbnail", cat("Course images", "Course thumbnails"))
+            Map.entry("generate_thumbnail", cat("Course images", "Course thumbnails")),
+            Map.entry("generate_course_detail", cat("Course pages", "Detail page copy"))
     );
 
     private record EndpointCategory(String module, String submodule) {}

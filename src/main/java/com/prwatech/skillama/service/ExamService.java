@@ -92,9 +92,7 @@ public class ExamService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        String courseName = courseRepository.findById(request.getCourseId())
-                .map(Course::getName)
-                .orElse("this course");
+        String courseName = globalAiExamCourseService.resolveDisplayName(request.getCourseId());
         String topicHint = StringUtils.hasText(request.getModuleId())
                 ? request.getModuleId()
                 : StringUtils.hasText(request.getTopic()) ? request.getTopic() : courseName;
@@ -267,9 +265,7 @@ public class ExamService {
                 .filter(StringUtils::hasText)
                 .distinct()
                 .collect(Collectors.toList());
-        String courseName = courseRepository.findById(session.getCourseId())
-                .map(Course::getName)
-                .orElse("this course");
+        String courseName = globalAiExamCourseService.resolveDisplayName(session.getCourseId());
         String topicOrModule = StringUtils.hasText(session.getTopic())
                 ? session.getTopic()
                 : StringUtils.hasText(session.getModuleId()) ? session.getModuleId() : courseName;
@@ -347,7 +343,7 @@ public class ExamService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        String courseName = courseRepository.findById(courseId).map(Course::getName).orElse("this course");
+        String courseName = globalAiExamCourseService.resolveDisplayName(courseId);
 
         List<ModuleQuizAttemptSummaryDTO> quizAttempts = moduleQuizService.getAttempts(null, userId, courseId, null);
         Double avgQuizScore = quizAttempts.isEmpty()
@@ -386,7 +382,7 @@ public class ExamService {
         }
 
         String courseName = attempt.getCourseId() != null
-                ? courseRepository.findById(attempt.getCourseId()).map(Course::getName).orElse(null)
+                ? globalAiExamCourseService.resolveDisplayName(attempt.getCourseId())
                 : null;
         List<ExamAnswerResultDTO> answers = attempt.getAnswers() == null
                 ? new ArrayList<>()
@@ -430,7 +426,7 @@ public class ExamService {
         if (!StringUtils.hasText(courseId)) {
             throw new IllegalArgumentException("courseId is required");
         }
-        String courseName = courseRepository.findById(courseId).map(Course::getName).orElse(null);
+        String courseName = globalAiExamCourseService.resolveDisplayName(courseId);
         List<ExamAttempt> attempts = attemptRepository.findByUserIdAndCourseIdOrderBySubmittedAtDesc(userId, courseId);
 
         if (attempts.isEmpty()) {
@@ -737,7 +733,7 @@ public class ExamService {
                             : null;
                     String courseName = a.getCourseId() != null
                             ? courseNameCache.computeIfAbsent(a.getCourseId(),
-                                    cid -> courseRepository.findById(cid).map(Course::getName).orElse(null))
+                                    globalAiExamCourseService::resolveDisplayName)
                             : null;
                     return AdminExamAttemptDTO.builder()
                             .attemptId(a.getId())
@@ -808,7 +804,7 @@ public class ExamService {
                             : null;
                     String courseName = r.getCourseId() != null
                             ? courseNameCache.computeIfAbsent(r.getCourseId(),
-                                    cid -> courseRepository.findById(cid).map(Course::getName).orElse(null))
+                                    globalAiExamCourseService::resolveDisplayName)
                             : null;
                     return AdminExamRecommendationDTO.builder()
                             .id(r.getId())

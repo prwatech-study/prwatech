@@ -15,13 +15,15 @@ import java.time.LocalDateTime;
 public class GlobalAiExamCourseDTO {
     /** Config row id — used for PUT/DELETE. */
     private String id;
-    /** Real course id — used to start an exam. */
+    /** Catalog course id or {@code custom-<slug>} — used to start an exam. */
     private String courseId;
     private String name;
     private String thumbnail;
     private String description;
-    /** False when the course is missing, archived, or deactivated. */
+    /** False when a linked catalog course is missing, archived, or deactivated. Custom subjects are always true. */
     private boolean available;
+    /** True when this row points at an existing Skillama course (curriculum pickers apply). */
+    private boolean catalogLinked;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;

@@ -11,4 +11,8 @@ public interface GlobalAiExamCourseRepository extends MongoRepository<GlobalAiEx
     boolean existsByCourseId(String courseId);
 
     Optional<GlobalAiExamCourse> findByCourseId(String courseId);
+
+    boolean existsByNameKey(String nameKey);
+
+    Optional<GlobalAiExamCourse> findByNameKey(String nameKey);
 }

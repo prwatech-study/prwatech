@@ -54,6 +54,7 @@ There is **no Lesson entity**. Course = `courses`; Module = `course_curricula` d
 | Locks / progress | `GET /skillama/user-profile/access-control?courseId=` | Lock flags on curriculum GET |
 | Lecture narration | `POST /skillama/lecture/generate` → Flask `/generate_lecture` via `SkillamaAiClient` | New LLM client or Java proxy |
 | Quiz / chat / code / images | Existing `SkillamaAiClient` + Flask `/generate_quiz`, `/handle_query`, `/generate_code`, `/generate_output`, `/generate_image` | Second AI HTTP stack |
+| Public course detail copy | `POST /skillama/api/admin/courses/{id}/detail-content/generate` → Flask `/generate_course_detail`; persist with existing course PUT; read via extended `GET /skillama/courses/{id}/share` | New public GET, new persist API, or stuffing scripts onto share |
 
 LMS already composes course + curriculum + access-control on load (`src/app/lms/(main)/page.js`, `src/utils/switchLmsCourse.js`). Curriculum cache: RTK `getCourseCurriculum`.
 

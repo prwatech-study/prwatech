@@ -66,6 +66,7 @@ class FreemiumServiceTest {
         // against this explicit value rather than whatever the current production default is.
         PlatformAiSettings settings = new PlatformAiSettings();
         settings.setReferralRewardUsd(0.25);
+        settings.setFreemiumMonthlyBudgetUsdPerUser(0.30);
         when(aiUsageService.loadSettings()).thenReturn(settings);
     }
 
@@ -112,6 +113,7 @@ class FreemiumServiceTest {
         FreemiumOfferingDTO dto = service.getPublicOffering();
         // Reflects the current owner-tunable settings value (stubbed to 0.25 in setUp).
         assertEquals(0.25, dto.getReferrerRewardUsd());
+        assertEquals(0.30, dto.getWalletLimitUsd());
         assertTrue(dto.getBaseModules().containsAll(FreemiumService.FREEMIUM_BASE_MODULES));
     }
 

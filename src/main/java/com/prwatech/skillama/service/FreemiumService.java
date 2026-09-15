@@ -60,11 +60,13 @@ public class FreemiumService {
 
     /** Public read — home page banner, signup copy (no auth). */
     public FreemiumOfferingDTO getPublicOffering() {
+        var settings = aiUsageService.loadSettings();
         return FreemiumOfferingDTO.builder()
                 .baseModules(new ArrayList<>(FREEMIUM_BASE_MODULES))
                 .modulesWithReferral(new ArrayList<>(FREEMIUM_REFERRAL_MODULES))
                 .referralBonusModule(REFERRAL_BONUS_MODULE)
-                .referrerRewardUsd(aiUsageService.loadSettings().getReferralRewardUsd())
+                .referrerRewardUsd(settings.getReferralRewardUsd())
+                .walletLimitUsd(settings.getFreemiumMonthlyBudgetUsdPerUser())
                 .courseSelectionAtSignup(true)
                 .build();
     }

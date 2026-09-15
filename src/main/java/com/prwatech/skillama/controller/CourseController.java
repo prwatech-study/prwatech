@@ -5,6 +5,7 @@ import com.prwatech.common.exception.ForbiddenException;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.dto.CourseShareMetadataDTO;
 import com.prwatech.skillama.dto.StudyMaterialDTO;
+import com.prwatech.skillama.service.CourseDetailContentService;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.User;
@@ -34,6 +35,7 @@ public class CourseController {
     private final UserService userService;
     private final UserCourseAccessService userCourseAccessService;
     private final GlobalAiExamCourseService globalAiExamCourseService;
+    private final CourseDetailContentService courseDetailContentService;
 
     @Value("${skillama.app.public-url:https://skillama.co.in}")
     private String publicAppUrl;
@@ -170,18 +172,11 @@ public class CourseController {
      */
     @GetMapping("/{id}/share")
     public ResponseEntity<CourseShareMetadataDTO> getShareMetadata(@PathVariable String id) {
-        return courseService.findActiveById(id)
-                .map(course -> {
-                    String base = publicAppUrl != null ? publicAppUrl.replaceAll("/$", "") : "https://skillama.co.in";
-                    String shareUrl = base + "/courses/" + id;
-                    String imageUrl = resolveShareImageUrl(course.getThumbnail(), base);
-                    return ResponseEntity.ok(CourseShareMetadataDTO.builder()
-                            .courseId(course.getId())
-                            .title(course.getName())
-                            .description(course.getDescription())
-                            .imageUrl(imageUrl)
-                            .shareUrl(shareUrl)
-                            .build());
+        String base = publicAppUrl != null ? publicAppUrl.replaceAll("/$", "") : "https://skillama.co.in";
+        return courseDetailContentService.getShareMetadata(id, base)
+                .map(dto -> {
+                    dto.setImageUrl(resolveShareImageUrl(dto.getImageUrl(), base));
+                    return ResponseEntity.ok(dto);
                 })
                 .orElse(ResponseEntity.notFound().build());
     }

@@ -1,6 +1,7 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.common.exception.NotFoundException;
+import com.prwatech.skillama.dto.GeneratedCourseDetailDTO;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
@@ -141,6 +142,41 @@ public class CourseService {
             existing.setDescription(updated.getDescription());
             existing.setThumbnail(updated.getThumbnail());
             existing.setUpdatedBy(updated.getUpdatedBy());
+            if (updated.getDetailTagline() != null) {
+                existing.setDetailTagline(updated.getDetailTagline());
+            }
+            if (updated.getDetailOverview() != null) {
+                existing.setDetailOverview(updated.getDetailOverview());
+            }
+            if (updated.getDetailObjectives() != null) {
+                existing.setDetailObjectives(updated.getDetailObjectives());
+            }
+            if (updated.getDetailHighlights() != null) {
+                existing.setDetailHighlights(updated.getDetailHighlights());
+            }
+            if (updated.getDetailPrerequisites() != null) {
+                existing.setDetailPrerequisites(updated.getDetailPrerequisites());
+            }
+            if (updated.getDetailOutcomes() != null) {
+                existing.setDetailOutcomes(updated.getDetailOutcomes());
+            }
+            if (updated.getDetailAudience() != null) {
+                existing.setDetailAudience(updated.getDetailAudience());
+            }
+            if (updated.getDetailAiTutorHelp() != null) {
+                existing.setDetailAiTutorHelp(updated.getDetailAiTutorHelp());
+            }
+            if (updated.getDetailTagline() != null
+                    || updated.getDetailOverview() != null
+                    || updated.getDetailObjectives() != null
+                    || updated.getDetailHighlights() != null
+                    || updated.getDetailPrerequisites() != null
+                    || updated.getDetailOutcomes() != null
+                    || updated.getDetailAiTutorHelp() != null) {
+                existing.setDetailCurriculumHash(CourseDetailContentService.curriculumHash(
+                        CourseDetailContentService.buildOutline(
+                                getCurriculumByCourseIdOrdered(id, false, false))));
+            }
             if (updated.getIsGuestCourse() != null) {
                 existing.setIsGuestCourse(updated.getIsGuestCourse());
             }
@@ -154,6 +190,43 @@ public class CourseService {
                 existing.setRegistrationEligible(updated.getRegistrationEligible());
             }
             normalizeRegistrationEligibility(existing);
+            existing.setUpdatedAt(IndiaTime.now());
+            return courseRepository.save(existing);
+        }).orElse(null);
+    }
+
+    /** Persist AI View Details copy without touching catalog name/description. */
+    public Course saveAiGeneratedDetail(String courseId, GeneratedCourseDetailDTO draft, String curriculumHash) {
+        return courseRepository.findById(courseId).map(existing -> {
+            if (!isActive(existing)) {
+                throw new IllegalStateException("Cannot update an archived course. Restore it first.");
+            }
+            if (draft.getTagline() != null) {
+                existing.setDetailTagline(draft.getTagline());
+            }
+            String overview = StringUtils.hasText(draft.getOverview()) ? draft.getOverview() : draft.getDescription();
+            if (StringUtils.hasText(overview)) {
+                existing.setDetailOverview(overview);
+            }
+            if (draft.getObjectives() != null) {
+                existing.setDetailObjectives(draft.getObjectives());
+            }
+            if (draft.getHighlights() != null) {
+                existing.setDetailHighlights(draft.getHighlights());
+            }
+            if (draft.getPrerequisites() != null) {
+                existing.setDetailPrerequisites(draft.getPrerequisites());
+            }
+            if (draft.getOutcomes() != null) {
+                existing.setDetailOutcomes(draft.getOutcomes());
+            }
+            if (draft.getAudience() != null) {
+                existing.setDetailAudience(draft.getAudience());
+            }
+            if (draft.getAiTutorHelp() != null) {
+                existing.setDetailAiTutorHelp(draft.getAiTutorHelp());
+            }
+            existing.setDetailCurriculumHash(curriculumHash);
             existing.setUpdatedAt(IndiaTime.now());
             return courseRepository.save(existing);
         }).orElse(null);

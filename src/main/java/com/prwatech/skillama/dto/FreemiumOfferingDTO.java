@@ -18,5 +18,10 @@ public class FreemiumOfferingDTO {
     private String referralBonusModule;
     /** Permanent USD wallet reward the REFERRER earns per successful referral signup. */
     private double referrerRewardUsd;
+    /**
+     * Signup wallet in USD — owner "New user credits" (freemiumMonthlyBudgetUsdPerUser).
+     * LMS shows this as credits at 100× (e.g. 0.30 → 30 credits).
+     */
+    private double walletLimitUsd;
     private boolean courseSelectionAtSignup;
 }

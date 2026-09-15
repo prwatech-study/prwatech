@@ -18,6 +18,8 @@ import com.prwatech.skillama.dto.TextToAudioResponseDTO;
 import com.prwatech.skillama.dto.TranscribedAudioDTO;
 import com.prwatech.skillama.dto.TutorIntroResponseDTO;
 import com.prwatech.skillama.dto.GeneratedQuizDTO;
+import com.prwatech.skillama.dto.GeneratedCourseDetailDTO;
+import com.prwatech.skillama.dto.CourseOutlineModuleDTO;
 import com.prwatech.skillama.dto.ModuleQuizQuestionDTO;
 import com.prwatech.skillama.dto.ProxiedAudioDTO;
 import com.prwatech.skillama.dto.UserNameResponseDTO;
@@ -875,6 +877,108 @@ public class SkillamaAiClient {
         } catch (Exception e) {
             throw new IllegalStateException("Failed to parse AI lecture service response", e);
         }
+    }
+
+    /**
+     * Drafts public course-detail copy from a curriculum outline (labels only).
+     *
+     * <p><b>ai-tutor (Flask) contract — POST {aiBaseUrl}/generate_course_detail</b>
+     */
+    public GeneratedCourseDetailDTO generateCourseDetail(
+            User user, String courseId, String courseName, String description,
+            List<CourseOutlineModuleDTO> modules) {
+        return meteredCall(user, "generate_course_detail", courseId,
+                () -> generateCourseDetailRaw(courseName, description, modules));
+    }
+
+    private GeneratedCourseDetailDTO generateCourseDetailRaw(
+            String courseName, String description, List<CourseOutlineModuleDTO> modules) {
+        String url = resolveBaseUrl() + "/generate_course_detail";
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("course", courseName != null ? courseName : "");
+        body.put("description", description != null ? description : "");
+        List<Map<String, Object>> modulePayload = new ArrayList<>();
+        if (modules != null) {
+            for (CourseOutlineModuleDTO module : modules) {
+                Map<String, Object> row = new HashMap<>();
+                row.put("moduleName", module.getModuleName() != null ? module.getModuleName() : "");
+                row.put("lectures", module.getLectures() != null ? module.getLectures() : new ArrayList<>());
+                modulePayload.add(row);
+            }
+        }
+        body.put("modules", modulePayload);
+
+        HttpHeaders headers = buildHeaders();
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+        ResponseEntity<String> response;
+        try {
+            response = restTemplate.postForEntity(url, entity, String.class);
+        } catch (org.springframework.web.client.RestClientException e) {
+            String message = isTimeout(e)
+                    ? "The course detail page is taking longer than expected to generate. Please try again in a moment."
+                    : "We couldn't generate the course detail page right now. Please try again in a moment.";
+            throw new IllegalStateException(message, e);
+        }
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new IllegalStateException(
+                    "We couldn't generate the course detail page right now. Please try again in a moment.");
+        }
+        try {
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode data = root.has("data") ? root.path("data") : root;
+            if (data.hasNonNull("error")) {
+                throw new IllegalStateException("AI course-detail service error: " + data.path("error").asText());
+            }
+            JsonNode usage = data.path("usage");
+            return GeneratedCourseDetailDTO.builder()
+                    .tagline(textOrNull(data, "tagline"))
+                    .overview(firstText(data, "overview", "description"))
+                    .description(firstText(data, "overview", "description"))
+                    .objectives(stringList(data.path("objectives")))
+                    .highlights(stringList(data.has("highlights") ? data.path("highlights") : data.path("keyTopics")))
+                    .prerequisites(stringList(data.path("prerequisites")))
+                    .outcomes(stringList(data.path("outcomes")))
+                    .audience(textOrNull(data, "audience"))
+                    .aiTutorHelp(firstText(data, "aiTutorHelp", "ai_tutor_help"))
+                    .modelId(data.path("model_id").asText(null))
+                    .inputTokens(usage.path("inputTokens").asInt(0))
+                    .outputTokens(usage.path("outputTokens").asInt(0))
+                    .totalTokens(usage.path("totalTokens").asInt(0))
+                    .build();
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to parse AI course-detail service response", e);
+        }
+    }
+
+    private static String firstText(JsonNode data, String primary, String fallback) {
+        String value = textOrNull(data, primary);
+        return value != null ? value : textOrNull(data, fallback);
+    }
+
+    private static String textOrNull(JsonNode data, String field) {
+        String value = data.path(field).asText(null);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private static List<String> stringList(JsonNode node) {
+        List<String> out = new ArrayList<>();
+        if (node == null || !node.isArray()) {
+            return out;
+        }
+        for (JsonNode item : node) {
+            String text = item.asText("").trim();
+            if (!text.isEmpty()) {
+                out.add(text);
+            }
+        }
+        return out;
     }
 
     /**

@@ -47,6 +47,24 @@ public class Course {
      */
     @Builder.Default
     private Boolean registrationEligible = Boolean.TRUE;
+    /** AI (or admin) one-line promise shown on the public course detail page. */
+    private String detailTagline;
+    /** AI overview for View Details. Separate from catalog {@code description}. */
+    private String detailOverview;
+    /** Learning objectives grounded in the curriculum. */
+    private List<String> detailObjectives;
+    /** AI (or admin) key topics / "what you will learn" bullets. */
+    private List<String> detailHighlights;
+    /** Prerequisites implied by the curriculum only. */
+    private List<String> detailPrerequisites;
+    /** AI (or admin) post-course outcomes for the public detail page. */
+    private List<String> detailOutcomes;
+    /** AI (or admin) one-sentence audience line for the public detail page. */
+    private String detailAudience;
+    /** How the Skillama AI Tutor helps with this curriculum. */
+    private String detailAiTutorHelp;
+    /** SHA-256 of the public curriculum outline used to generate the stored copy. */
+    private String detailCurriculumHash;
     /** When set, course is hidden from learners and admins; only Owner can restore. */
     private java.time.LocalDateTime deletedAt;
     private String deletedBy;

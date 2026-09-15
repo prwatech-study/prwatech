@@ -89,6 +89,7 @@ class ExamServiceTest {
                 recommendationLogRepository, curriculumRepository, globalAiExamCourseService);
 
         when(globalAiExamCourseService.isEnabled(anyString())).thenReturn(true);
+        when(globalAiExamCourseService.resolveDisplayName(anyString())).thenReturn("Python");
         when(userRepository.findById(USER)).thenReturn(Optional.of(User.builder().id(USER).build()));
         when(courseRepository.findById(COURSE)).thenReturn(Optional.of(Course.builder().id(COURSE).name("Python").build()));
         when(sessionRepository.save(any(ExamSession.class))).thenAnswer(inv -> inv.getArgument(0));

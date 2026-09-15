@@ -666,6 +666,23 @@ class AiUsageServiceTest {
     }
 
     @Test
+    void getUserModuleBreakdownMapsCourseDetailCopyToCoursePages() {
+        User user = freemium(0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+        when(aiUsageEventRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
+                eq("u1"), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(event("generate_course_detail", 0.008)));
+
+        AiUsageModuleBreakdownDTO dto = service.getUserModuleBreakdown("u1");
+        java.util.Map<String, AiUsageModuleBreakdownDTO.ModuleUsageDTO> byModule =
+                dto.getByModule().stream().collect(java.util.stream.Collectors.toMap(
+                        AiUsageModuleBreakdownDTO.ModuleUsageDTO::getModule, m -> m));
+
+        assertEquals(0.8, byModule.get("Course pages").getCredits(), 1e-9);
+        assertFalse(byModule.containsKey("Other"));
+    }
+
+    @Test
     void getUserModuleBreakdownMapsSpeechEndpointsToAiTutorSubmodules() {
         User user = freemium(0.0);
         when(userRepository.findById("u1")).thenReturn(Optional.of(user));
