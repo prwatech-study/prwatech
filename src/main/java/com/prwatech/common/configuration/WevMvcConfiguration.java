@@ -2,6 +2,8 @@ package com.prwatech.common.configuration;
 
 import com.prwatech.authentication.security.AuthInterceptor;
 import com.prwatech.authentication.security.JwtUtils;
+import com.prwatech.skillama.security.SkillamaCorsOrigins;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.convert.ApplicationConversionService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,9 +24,14 @@ public class WevMvcConfiguration implements WebMvcConfigurer {
   };
 
   private final JwtUtils jwtUtils;
+  private final String allowedOriginsRaw;
 
-  public WevMvcConfiguration(JwtUtils jwtUtils) {
+  public WevMvcConfiguration(
+      JwtUtils jwtUtils,
+      @Value("${skillama.cors.allowed-origins:" + SkillamaCorsOrigins.DEFAULT + "}")
+      String allowedOriginsRaw) {
     this.jwtUtils = jwtUtils;
+    this.allowedOriginsRaw = allowedOriginsRaw;
   }
 
   @Bean
@@ -44,7 +51,13 @@ public class WevMvcConfiguration implements WebMvcConfigurer {
 
   @Override
   public void addCorsMappings(CorsRegistry registry) {
-    registry.addMapping("/**").allowedOrigins("*").allowedMethods("*").allowedHeaders("*");
+    String[] origins = SkillamaCorsOrigins.parse(allowedOriginsRaw).toArray(String[]::new);
+    registry.addMapping("/**")
+        .allowedOrigins(origins)
+        .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
+        .allowedHeaders("Authorization", "Content-Type", "X-Session-Id")
+        .allowCredentials(true)
+        .maxAge(3600);
   }
 
   @Override

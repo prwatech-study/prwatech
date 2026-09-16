@@ -5,13 +5,18 @@ import com.prwatech.common.exception.ForbiddenException;
 import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.dto.CourseShareMetadataDTO;
 import com.prwatech.skillama.dto.StudyMaterialDTO;
+import com.prwatech.skillama.exception.SkillamaAuthException;
 import com.prwatech.skillama.service.CourseDetailContentService;
+import com.prwatech.skillama.model.AdminModule;
+import com.prwatech.skillama.model.AdminPermissionAction;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.service.AdminPermissionService;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.CourseStudyMaterialService;
 import com.prwatech.skillama.service.GlobalAiExamCourseService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.service.UserCourseAccessService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +41,8 @@ public class CourseController {
     private final UserCourseAccessService userCourseAccessService;
     private final GlobalAiExamCourseService globalAiExamCourseService;
     private final CourseDetailContentService courseDetailContentService;
+    private final AdminPermissionService adminPermissionService;
+    private final SkillamaAuthSupport skillamaAuthSupport;
 
     @Value("${skillama.app.public-url:https://skillama.co.in}")
     private String publicAppUrl;
@@ -45,7 +52,8 @@ public class CourseController {
     private int demoMaxModules;
 
     @PostMapping
-    public ResponseEntity<Course> create(@RequestBody Course course) {
+    public ResponseEntity<Course> create(@RequestBody Course course, HttpServletRequest request) {
+        requireCoursePermission(request, AdminPermissionAction.CREATE);
         return ResponseEntity.ok(courseService.create(course));
     }
 
@@ -196,7 +204,9 @@ public class CourseController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Course> update(@PathVariable String id, @RequestBody Course course) {
+    public ResponseEntity<Course> update(
+            @PathVariable String id, @RequestBody Course course, HttpServletRequest request) {
+        requireCoursePermission(request, AdminPermissionAction.UPDATE);
         Course updated = courseService.update(id, course);
         if (updated == null) {
             return ResponseEntity.notFound().build();
@@ -215,6 +225,21 @@ public class CourseController {
         }
         courseService.softDelete(id, userId);
         return ResponseEntity.noContent().build();
+    }
+
+    private void requireCoursePermission(HttpServletRequest request, AdminPermissionAction action) {
+        try {
+            String userId = skillamaAuthSupport.resolveUserIdFromRequest(request);
+            adminPermissionService.requirePermission(userId, AdminModule.COURSES, action);
+        } catch (SkillamaAuthException e) {
+            throw new com.prwatech.common.exception.UnAuthorizedException("Authentication required.");
+        } catch (RuntimeException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "";
+            if (msg.contains("Admin access") || msg.contains("Insufficient permission")) {
+                throw new ForbiddenException(msg);
+            }
+            throw e;
+        }
     }
 
     private void enforceLearnerCourseAccess(HttpServletRequest request, String courseId) {

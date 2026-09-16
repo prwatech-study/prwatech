@@ -2108,12 +2108,18 @@ public class AdminController {
             @PathVariable String courseId,
             HttpServletRequest request) {
         try {
-            extractUserIdFromRequest(request); // Verify authentication
+            assertModulePermission(request, AdminModule.ANALYTICS, AdminPermissionAction.READ);
             CourseAnalyticsDTO analytics = adminService.getCourseAnalytics(courseId);
             return ResponseEntity.ok(new ApiResponse<>(200, analytics));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiResponse<>(404, null));
+        } catch (RuntimeException e) {
+            if (isModuleForbidden(e)
+                    || (e.getMessage() != null && e.getMessage().contains("Admin access"))) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ApiResponse<>(401, null));

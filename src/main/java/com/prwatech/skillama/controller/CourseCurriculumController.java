@@ -10,6 +10,7 @@ import com.prwatech.skillama.service.AdminPermissionService;
 import com.prwatech.skillama.service.CourseCurriculumService;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.UserService;
+import com.prwatech.skillama.exception.SkillamaAuthException;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import lombok.RequiredArgsConstructor;
@@ -53,9 +54,7 @@ public class CourseCurriculumController {
             @PathVariable String moduleId,
             HttpServletRequest request) {
         try {
-            if (hasAuthHeader(request)) {
-                assertCurriculumPermission(request, AdminPermissionAction.READ);
-            }
+            assertCurriculumPermission(request, AdminPermissionAction.READ);
             return curriculumService.findById(moduleId)
                     .map(ResponseEntity::ok)
                     .orElse(ResponseEntity.notFound().build());
@@ -153,17 +152,16 @@ public class CourseCurriculumController {
         adminPermissionService.requirePermission(userId, AdminModule.CURRICULUM, action);
     }
 
-    private boolean hasAuthHeader(HttpServletRequest request) {
-        String header = request.getHeader("Authorization");
-        return header != null && header.startsWith("Bearer ");
-    }
-
     private <T> ResponseEntity<T> curriculumErrorResponse(RuntimeException e) {
+        if (e instanceof SkillamaAuthException) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         String msg = e.getMessage() != null ? e.getMessage() : "";
-        if (msg.contains("Insufficient permission") || msg.contains("Owner access")) {
+        if (msg.contains("Insufficient permission") || msg.contains("Owner access")
+                || msg.contains("Admin access")) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        if (msg.contains("Authorization") || msg.contains("Admin access")) {
+        if (msg.contains("Authorization")) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();

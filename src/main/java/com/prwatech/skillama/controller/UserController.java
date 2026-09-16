@@ -611,7 +611,18 @@ public class UserController {
     }
     
     @PostMapping("/admin/migrate-passwords")
-    public ResponseEntity<?> migratePasswords() {
-        return ResponseEntity.ok(userService.migrateAllPasswords());
+    public ResponseEntity<?> migratePasswords(HttpServletRequest request) {
+        try {
+            String actorId = extractUserIdFromRequest(request);
+            adminService.requireOwner(actorId);
+            return ResponseEntity.ok(userService.migrateAllPasswords());
+        } catch (SkillamaAuthException e) {
+            return ResponseEntity.status(401).body("Unauthorized");
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("access required")) {
+                return ResponseEntity.status(403).body(e.getMessage());
+            }
+            return ResponseEntity.status(401).body("Unauthorized");
+        }
     }
 }

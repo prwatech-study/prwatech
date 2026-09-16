@@ -34,6 +34,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -174,5 +175,38 @@ class UserControllerSecurityTest {
         mockMvc.perform(get("/skillama/users").header(Constants.AUTH, TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value("u9"));
+    }
+
+    @Test
+    void migratePasswords_withoutAuth_returns401() throws Exception {
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any()))
+                .thenThrow(new SkillamaAuthException("Session expired. Please sign in again."));
+        mockMvc.perform(post("/skillama/users/admin/migrate-passwords"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void migratePasswords_asLearner_returns403() throws Exception {
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
+        when(adminService.requireOwner("u1")).thenThrow(new RuntimeException("Owner access required"));
+        mockMvc.perform(post("/skillama/users/admin/migrate-passwords").header(Constants.AUTH, TOKEN))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void migratePasswords_asOwner_returns200() throws Exception {
+        User owner = User.builder()
+                .id("owner1")
+                .email("owner@skillama.co.in")
+                .password("hash")
+                .role(User.UserRole.OWNER)
+                .active(true)
+                .build();
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("owner1");
+        when(adminService.requireOwner("owner1")).thenReturn(owner);
+        when(userService.migrateAllPasswords()).thenReturn(java.util.Map.of("migrated", 3));
+
+        mockMvc.perform(post("/skillama/users/admin/migrate-passwords").header(Constants.AUTH, TOKEN))
+                .andExpect(status().isOk());
     }
 }

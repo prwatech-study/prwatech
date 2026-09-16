@@ -8,6 +8,7 @@ import com.prwatech.skillama.service.ReviewService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,21 +23,17 @@ public class ReviewController {
     private final JwtUtils jwtUtils;
 
     /**
-     * Backward compatible: accepts legacy body with userId in Review.
-     * New clients may omit userId and send Authorization Bearer instead.
+     * Creates a review as the authenticated user. Body userId is ignored (IDOR).
      */
     @PostMapping
     public ResponseEntity<Review> createReview(
             @RequestBody Review review,
             HttpServletRequest httpRequest) {
-        if (review.getUserId() == null || review.getUserId().isBlank()) {
-            String userId = extractUserIdOptional(httpRequest);
-            if (userId != null) {
-                review.setUserId(userId);
-            } else {
-                throw new RuntimeException("userId required in body or Authorization header");
-            }
+        String userId = extractUserIdOptional(httpRequest);
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        review.setUserId(userId);
         Review saved = reviewService.saveReview(review);
         return ResponseEntity.ok(saved);
     }
@@ -50,7 +47,7 @@ public class ReviewController {
             HttpServletRequest httpRequest) {
         String userId = extractUserIdOptional(httpRequest);
         if (userId == null) {
-            throw new RuntimeException("Authorization required");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         return ResponseEntity.ok(reviewService.saveReview(userId, request));
     }
