@@ -18,23 +18,22 @@ A startup script can automatically create the first OWNER on application startup
    private static final boolean AUTO_CREATE_FIRST_OWNER = true;
    ```
 
-2. **Configure the first owner details (optional):**
-   ```java
-   private static final String FIRST_OWNER_EMAIL = "owner@prwatech.com";
-   private static final String FIRST_OWNER_PASSWORD = "ChangeThisPassword123!";
-   private static final String FIRST_OWNER_NAME = "System Owner";
+2. **Set the first-owner password in the environment (required when the script is enabled):**
+   ```bash
+   export FIRST_OWNER_PASSWORD='a-strong-password-you-will-change'
    ```
+   Email defaults to `owner@prwatech.com`. Do not put the password in source.
 
 3. **Restart the application:**
    - The script will run on startup
-   - Check the logs for the created owner credentials
+   - Check the logs for the created owner email
    - **IMPORTANT:** Change the password immediately after first login!
 
 **What it does:**
 - Checks if any OWNER users exist
-- If no OWNER exists, creates one with the configured email/password
+- If no OWNER exists, creates one with the configured email and `FIRST_OWNER_PASSWORD`
 - If a user with that email exists, promotes them to OWNER
-- Logs the credentials to the console (check application logs)
+- Does not log the password
 
 **Security Note:** After creating the first owner, set `AUTO_CREATE_FIRST_OWNER = false` to disable the script.
 
@@ -101,7 +100,7 @@ use skillamaDB
 db.users.insertOne({
   name: "System Owner",
   email: "owner@prwatech.com",
-  password: "$2a$10$HYunSfuYwLxf8CrqhW7QHO...", // You'll need to hash the password
+  password: "<bcrypt-hash-of-the-password>", // generate with PasswordEncode; never paste a live hash here
   role: "OWNER",
   active: true,
   createdAt: new Date(),
@@ -141,13 +140,13 @@ db.users.insertOne({
 ### For Creating First OWNER:
 
 1. **Find your MongoDB connection string:**
-   - Check `application.properties`: `skillama.mongodb.uri`
-   - Or connect to: `mongodb://prwatech:PrwaT3ch@3.6.142.208:27017/skillamaDB?authSource=admin`
+   - Export `SKILLAMA_MONGODB_URI` (same value the Java API uses). Do not paste live credentials into this file.
+   - Or read `skillama.mongodb.uri` from a local, uncommitted env file.
 
 2. **Connect using MongoDB Compass or MongoDB Shell:**
    ```bash
-   # Using MongoDB Shell
-   mongosh "mongodb://prwatech:PrwaT3ch@3.6.142.208:27017/skillamaDB?authSource=admin"
+   # Using MongoDB Shell — URI comes from the environment, never from git
+   mongosh "$SKILLAMA_MONGODB_URI"
    ```
 
 3. **Find a user (or create one via registration):**

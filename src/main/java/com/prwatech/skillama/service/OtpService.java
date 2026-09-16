@@ -57,8 +57,7 @@ public class OtpService {
                     "Skillama verification code",
                     "Your verification code is: " + otp + "\n\nThis code expires in " + OTP_EXPIRY_MINUTES + " minutes."));
         } catch (Exception e) {
-            LOGGER.warn("Failed to send OTP email to {}: {}", email, e.getMessage());
-            LOGGER.info("DEV OTP for {}: {}", email, otp);
+            LOGGER.warn("Failed to send OTP email to {}", email);
         }
     }
 

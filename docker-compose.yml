@@ -5,3 +5,5 @@ services:
     container_name: prwatech-dev-prod
     ports:
       - "9090:9090"
+    # Secrets must be injected at runtime (host env / uncommitted .env). See .env.example.
+    # Do not bake credentials into the image or this file.

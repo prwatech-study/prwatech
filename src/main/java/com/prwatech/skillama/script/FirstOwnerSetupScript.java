@@ -38,9 +38,8 @@ public class FirstOwnerSetupScript implements CommandLineRunner {
     // Set to true to enable automatic first owner creation
     private static final boolean AUTO_CREATE_FIRST_OWNER = false;
     
-    // First owner configuration
+    // First owner identity (password MUST come from FIRST_OWNER_PASSWORD env when enabled)
     private static final String FIRST_OWNER_EMAIL = "owner@prwatech.com";
-    private static final String FIRST_OWNER_PASSWORD = "ChangeThisPassword123!";
     private static final String FIRST_OWNER_NAME = "System Owner";
     
     @Override
@@ -80,7 +79,6 @@ public class FirstOwnerSetupScript implements CommandLineRunner {
                     userRepository.save(user);
                     LOGGER.warn("================================================");
                     LOGGER.warn("FIRST OWNER CREATED: {}", FIRST_OWNER_EMAIL);
-                    LOGGER.warn("PASSWORD: {}", FIRST_OWNER_PASSWORD);
                     LOGGER.warn("IMPORTANT: Change this password immediately!");
                     LOGGER.warn("================================================");
                     return;
@@ -96,7 +94,7 @@ public class FirstOwnerSetupScript implements CommandLineRunner {
             User firstOwner = new User();
             firstOwner.setName(FIRST_OWNER_NAME);
             firstOwner.setEmail(FIRST_OWNER_EMAIL);
-            firstOwner.setPassword(passwordEncode.getEncryptedPassword(FIRST_OWNER_PASSWORD));
+            firstOwner.setPassword(passwordEncode.getEncryptedPassword(requireFirstOwnerPassword()));
             firstOwner.setRole(User.UserRole.OWNER);
             firstOwner.setActive(true);
             firstOwner.setCreatedAt(IndiaTime.now());
@@ -109,13 +107,21 @@ public class FirstOwnerSetupScript implements CommandLineRunner {
             LOGGER.warn("================================================");
             LOGGER.warn("FIRST OWNER CREATED SUCCESSFULLY!");
             LOGGER.warn("Email: {}", FIRST_OWNER_EMAIL);
-            LOGGER.warn("Password: {}", FIRST_OWNER_PASSWORD);
             LOGGER.warn("IMPORTANT: Change this password immediately!");
             LOGGER.warn("================================================");
             
         } catch (Exception e) {
             LOGGER.error("Error creating first owner: {}", e.getMessage(), e);
         }
+    }
+
+    private static String requireFirstOwnerPassword() {
+        String password = System.getenv("FIRST_OWNER_PASSWORD");
+        if (password == null || password.isBlank()) {
+            throw new IllegalStateException(
+                    "FIRST_OWNER_PASSWORD must be set when auto-creating the first owner");
+        }
+        return password;
     }
 }
 

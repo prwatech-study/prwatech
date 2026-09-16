@@ -14,8 +14,8 @@ import static org.mockito.Mockito.when;
 
 class PasswordEncodeTest {
 
-    private static final String PRODUCTION_SALT = "$2a$10$HYunSfuYwLxf8CrqhW7QHO";
-    private static final String FAST_TEST_SALT = "$2a$04$HYunSfuYwLxf8CrqhW7QHO";
+    private static final String COST_TEN_SALT = "$2a$10$abcdefghijklmnopqrstuu";
+    private static final String FAST_TEST_SALT = "$2a$04$abcdefghijklmnopqrstuu";
 
     private PasswordEncode passwordEncode;
 
@@ -28,7 +28,7 @@ class PasswordEncodeTest {
 
     @Test
     void resolveBcryptStrength_readsCostFromExistingSaltConfig() {
-        assertEquals(10, PasswordEncode.resolveBcryptStrength(PRODUCTION_SALT));
+        assertEquals(10, PasswordEncode.resolveBcryptStrength(COST_TEN_SALT));
         assertEquals(4, PasswordEncode.resolveBcryptStrength(FAST_TEST_SALT));
         assertEquals(PasswordEncode.DEFAULT_BCRYPT_STRENGTH, PasswordEncode.resolveBcryptStrength(null));
         assertEquals(PasswordEncode.DEFAULT_BCRYPT_STRENGTH, PasswordEncode.resolveBcryptStrength("not-a-salt"));

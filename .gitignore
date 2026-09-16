@@ -42,6 +42,17 @@ backups/
 # Machine-specific Gradle config (e.g. org.gradle.java.home) must stay local.
 gradle.properties
 
+# Secrets — never commit. Copy .env.example → .env
+.env
+.env.local
+.env.*.local
+application-local.properties
+
+# Firebase service-account private keys (never commit)
+firebase-service-account.json
+**/firebase-service-account.json
+src/main/resources/templates/firbase_sdk.json
+
 # Terraform
 **/.terraform/
 *.tfstate

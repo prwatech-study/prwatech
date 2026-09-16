@@ -51,7 +51,7 @@ class UserServicePasswordTest {
     @BeforeEach
     void setUp() {
         AppContext saltContext = org.mockito.Mockito.mock(AppContext.class);
-        when(saltContext.getSalt()).thenReturn("$2a$04$HYunSfuYwLxf8CrqhW7QHO");
+        when(saltContext.getSalt()).thenReturn("$2a$04$abcdefghijklmnopqrstuu");
         passwordEncode = new PasswordEncode(saltContext);
         userService = new UserService(
                 userRepository,

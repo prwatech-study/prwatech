@@ -18,6 +18,11 @@ import org.mockito.quality.Strictness;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.slf4j.LoggerFactory;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -78,6 +83,30 @@ class OtpServiceTest {
         doThrow(new RuntimeException("smtp")).when(emailService).sendEmail(any(EmailSendDto.class));
         service.sendOtp("u@x.com", null); // purpose null → defaults to SIGNUP, must not throw
         verify(emailOtpRepository).save(any(EmailOtp.class));
+    }
+
+    @Test
+    void sendOtpDoesNotLogOtpValueWhenEmailFails() {
+        Logger logger = (Logger) LoggerFactory.getLogger(OtpService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            doThrow(new RuntimeException("smtp")).when(emailService).sendEmail(any(EmailSendDto.class));
+            service.sendOtp("u@x.com", EmailOtp.OtpPurpose.SIGNUP);
+            ArgumentCaptor<EmailSendDto> emailCaptor = ArgumentCaptor.forClass(EmailSendDto.class);
+            verify(emailService).sendEmail(emailCaptor.capture());
+            String emailedBody = emailCaptor.getValue().getMessage();
+            String otp = emailedBody.replaceAll("(?s).*verification code is: (\\d+).*", "$1");
+            org.junit.jupiter.api.Assertions.assertTrue(otp.matches("\\d{6}"));
+            for (ILoggingEvent event : appender.list) {
+                String message = event.getFormattedMessage();
+                org.junit.jupiter.api.Assertions.assertFalse(message.contains(otp), "must not log OTP value");
+                org.junit.jupiter.api.Assertions.assertFalse(message.contains("DEV OTP"));
+            }
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 
     // ---------- verifyOtp ----------
