@@ -84,10 +84,11 @@ public class ExamService {
     private final ExamRecommendationLogRepository recommendationLogRepository;
     private final CourseCurriculumRepository curriculumRepository;
     private final GlobalAiExamCourseService globalAiExamCourseService;
+    private final UserCourseAccessService userCourseAccessService;
 
     public StartExamResponseDTO startExam(String userId, StartExamRequestDTO request) {
         validateStartRequest(request);
-        assertGloballyEnabled(request.getCourseId());
+        assertExamEligible(userId, request.getCourseId());
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -339,7 +340,7 @@ public class ExamService {
      * safe fallback.
      */
     public ExamRecommendationResponseDTO getRecommendation(String userId, String courseId) {
-        assertGloballyEnabled(courseId);
+        assertExamEligible(userId, courseId);
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
@@ -835,10 +836,18 @@ public class ExamService {
         return new PageImpl<>(rows.subList(from, to), PageRequest.of(pageNum, limit), total);
     }
 
-    private void assertGloballyEnabled(String courseId) {
-        if (!globalAiExamCourseService.isEnabled(courseId)) {
-            throw new IllegalArgumentException(GlobalAiExamCourseService.NOT_ENABLED_MESSAGE);
+    /**
+     * Learners may take exams on globally configured subjects (including custom
+     * non-catalog ones) or on any course they are actively enrolled in.
+     */
+    private void assertExamEligible(String userId, String courseId) {
+        if (globalAiExamCourseService.isEnabled(courseId)) {
+            return;
         }
+        if (StringUtils.hasText(userId) && userCourseAccessService.hasActiveEnrollment(userId, courseId)) {
+            return;
+        }
+        throw new IllegalArgumentException(GlobalAiExamCourseService.NOT_ENABLED_MESSAGE);
     }
 
     private void validateStartRequest(StartExamRequestDTO request) {

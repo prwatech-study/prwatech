@@ -76,6 +76,7 @@ class ExamServiceTest {
     @Mock private ExamRecommendationLogRepository recommendationLogRepository;
     @Mock private CourseCurriculumRepository curriculumRepository;
     @Mock private GlobalAiExamCourseService globalAiExamCourseService;
+    @Mock private UserCourseAccessService userCourseAccessService;
 
     private ExamService service;
 
@@ -86,10 +87,12 @@ class ExamServiceTest {
     void setUp() {
         service = new ExamService(sessionRepository, attemptRepository, courseRepository,
                 skillamaAiClient, userRepository, moduleQuizService,
-                recommendationLogRepository, curriculumRepository, globalAiExamCourseService);
+                recommendationLogRepository, curriculumRepository, globalAiExamCourseService,
+                userCourseAccessService);
 
         when(globalAiExamCourseService.isEnabled(anyString())).thenReturn(true);
         when(globalAiExamCourseService.resolveDisplayName(anyString())).thenReturn("Python");
+        when(userCourseAccessService.hasActiveEnrollment(anyString(), anyString())).thenReturn(false);
         when(userRepository.findById(USER)).thenReturn(Optional.of(User.builder().id(USER).build()));
         when(courseRepository.findById(COURSE)).thenReturn(Optional.of(Course.builder().id(COURSE).name("Python").build()));
         when(sessionRepository.save(any(ExamSession.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -205,14 +208,27 @@ class ExamServiceTest {
     }
 
     @Test
-    void startExamRejectsWhenCourseIsNotGloballyEnabled() {
+    void startExamRejectsWhenCourseIsNotGloballyEnabledAndUserNotEnrolled() {
         when(globalAiExamCourseService.isEnabled(COURSE)).thenReturn(false);
+        when(userCourseAccessService.hasActiveEnrollment(USER, COURSE)).thenReturn(false);
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.startExam(USER, practiceRequest()));
         assertEquals(GlobalAiExamCourseService.NOT_ENABLED_MESSAGE, ex.getMessage());
         verify(skillamaAiClient, never()).generateQuizQuestions(
                 any(), anyString(), anyString(), anyString(), anyString(), anyList(), anyInt(), any());
         verify(sessionRepository, never()).save(any(ExamSession.class));
+    }
+
+    @Test
+    void startExamAllowsEnrolledCourseWhenNotGloballyEnabled() {
+        when(globalAiExamCourseService.isEnabled(COURSE)).thenReturn(false);
+        when(userCourseAccessService.hasActiveEnrollment(USER, COURSE)).thenReturn(true);
+
+        StartExamResponseDTO res = service.startExam(USER, practiceRequest());
+
+        assertNotNull(res.getExamSessionId());
+        verify(skillamaAiClient).generateQuizQuestions(
+                any(), anyString(), eq(COURSE), anyString(), anyString(), anyList(), anyInt(), any());
     }
 
     @Test
@@ -401,12 +417,32 @@ class ExamServiceTest {
     }
 
     @Test
-    void getRecommendationRejectsWhenCourseIsNotGloballyEnabled() {
+    void getRecommendationRejectsWhenCourseIsNotGloballyEnabledAndUserNotEnrolled() {
         when(globalAiExamCourseService.isEnabled(COURSE)).thenReturn(false);
+        when(userCourseAccessService.hasActiveEnrollment(USER, COURSE)).thenReturn(false);
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.getRecommendation(USER, COURSE));
         assertEquals(GlobalAiExamCourseService.NOT_ENABLED_MESSAGE, ex.getMessage());
         verify(skillamaAiClient, never()).getExamRecommendation(any(), anyString(), anyString(), any(), any());
+    }
+
+    @Test
+    void getRecommendationAllowsEnrolledCourseWhenNotGloballyEnabled() {
+        when(globalAiExamCourseService.isEnabled(COURSE)).thenReturn(false);
+        when(userCourseAccessService.hasActiveEnrollment(USER, COURSE)).thenReturn(true);
+        when(moduleQuizService.getAttempts(null, USER, COURSE, null)).thenReturn(List.of());
+        when(skillamaAiClient.getExamRecommendation(any(), anyString(), anyString(), any(), any())).thenReturn(
+                ExamRecommendationResponseDTO.builder()
+                        .difficulty(ExamDifficulty.BEGINNER)
+                        .topic("Basics").reasoning("start here")
+                        .estimatedMinutes(10).expectedScorePercent(60)
+                        .modelId("m").inputTokens(1).outputTokens(2).totalTokens(3)
+                        .build());
+
+        ExamRecommendationResponseDTO res = service.getRecommendation(USER, COURSE);
+
+        assertEquals(ExamDifficulty.BEGINNER, res.getDifficulty());
+        verify(skillamaAiClient).getExamRecommendation(any(User.class), eq(COURSE), eq("Python"), isNull(), any());
     }
 
     // ---------- listAdminRecommendations ----------
