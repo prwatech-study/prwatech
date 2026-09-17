@@ -112,11 +112,20 @@ public class AdminController {
     public ResponseEntity<ApiResponse<AdminAccessDTO>> checkAccess(HttpServletRequest request) {
         try {
             String userId = extractUserIdFromRequest(request);
+            if (userId == null || userId.isBlank()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiResponse<>(401, null));
+            }
             AdminAccessDTO access = adminService.checkAdminAccess(userId, adminPermissionService);
             return ResponseEntity.ok(new ApiResponse<>(200, access));
-        } catch (Exception e) {
+        } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ApiResponse<>(401, null));
+        } catch (Exception e) {
+            // Do not map infra/unexpected errors to 401 — that clears or flutters
+            // the admin↔login loop when the session is still valid.
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse<>(500, null));
         }
     }
     
