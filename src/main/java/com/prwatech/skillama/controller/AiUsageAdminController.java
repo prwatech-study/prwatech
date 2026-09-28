@@ -1,5 +1,6 @@
 package com.prwatech.skillama.controller;
 
+import com.prwatech.skillama.dto.AiUsageMonthlyHistoryDTO;
 import com.prwatech.skillama.dto.AiUsagePlatformSummaryDTO;
 import com.prwatech.skillama.dto.AiUsageSettingsDTO;
 import com.prwatech.skillama.dto.AiUsageUserDetailDTO;
@@ -65,6 +66,23 @@ public class AiUsageAdminController {
                     AdminModule.AI_USAGE,
                     AdminPermissionAction.READ);
             return ResponseEntity.ok(new ApiResponse<>(200, aiUsageService.listUserUsage(period)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /**
+     * Calendar-month AI cost rollup (all months with data) plus lifetime avg cost per user.
+     * Rate-card API burn only — not full AWS infrastructure.
+     */
+    @GetMapping("/monthly-history")
+    public ResponseEntity<ApiResponse<AiUsageMonthlyHistoryDTO>> getMonthlyHistory(HttpServletRequest request) {
+        try {
+            adminPermissionService.requirePermission(
+                    skillamaAuthSupport.resolveUserIdFromRequest(request),
+                    AdminModule.AI_USAGE,
+                    AdminPermissionAction.READ);
+            return ResponseEntity.ok(new ApiResponse<>(200, aiUsageService.getMonthlyHistory()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }

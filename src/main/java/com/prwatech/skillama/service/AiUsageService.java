@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prwatech.skillama.dto.AiBudgetDTO;
 import com.prwatech.skillama.dto.AiUsageModuleBreakdownDTO;
+import com.prwatech.skillama.dto.AiUsageMonthlyHistoryDTO;
 import com.prwatech.skillama.dto.AiUsagePlatformSummaryDTO;
 import com.prwatech.skillama.dto.AiUsageRecordRequestDTO;
 import com.prwatech.skillama.dto.AiUsageSettingsDTO;
@@ -35,11 +36,15 @@ import javax.annotation.PostConstruct;
 import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -581,6 +586,7 @@ public class AiUsageService {
     public List<AiUsageUserRowDTO> listUserUsage(String period) {
         PlatformAiSettings settings = loadSettings();
         PeriodRange range = resolvePeriodRange(period);
+        boolean lifetime = isLifetimePeriod(period);
         List<AiUsageEvent> events = aiUsageEventRepository.findByCreatedAtBetween(range.start(), range.end());
         Map<String, List<AiUsageEvent>> byUser = events.stream()
                 .filter(e -> e.getUserId() != null && !e.getUserId().isBlank())
@@ -599,7 +605,8 @@ public class AiUsageService {
             double billedInr = round(billedUsd * liveUsdToInrRate());
             Double freemiumCap = null;
             Double usedPct = null;
-            if (user != null && !isUnlimitedForBudget(user)) {
+            // Monthly freemium cap is not meaningful against lifetime totals.
+            if (!lifetime && user != null && !isUnlimitedForBudget(user)) {
                 freemiumCap = resolveBudgetLimitUsd(user, settings);
                 usedPct = freemiumCap > 0 ? round((billedUsd / freemiumCap) * 100.0) : 0.0;
             }
@@ -620,6 +627,90 @@ public class AiUsageService {
         }
         rows.sort(Comparator.comparing(AiUsageUserRowDTO::getBilledUsd).reversed());
         return rows;
+    }
+
+    /**
+     * All calendar months that have AI usage events, newest first, plus lifetime totals.
+     * Cost is rate-card API burn only (not full AWS infrastructure).
+     */
+    public AiUsageMonthlyHistoryDTO getMonthlyHistory() {
+        PlatformAiSettings settings = loadSettings();
+        PeriodRange lifetime = resolvePeriodRange("lifetime");
+        List<AiUsageEvent> events = aiUsageEventRepository.findByCreatedAtBetween(lifetime.start(), lifetime.end());
+        double fx = liveUsdToInrRate();
+        double multiplier = settings.getConsumptionMultiplier() > 0
+                ? settings.getConsumptionMultiplier()
+                : DEFAULT_CONSUMPTION_MULTIPLIER;
+
+        Map<YearMonth, List<AiUsageEvent>> byMonth = new LinkedHashMap<>();
+        for (AiUsageEvent event : events) {
+            if (event.getCreatedAt() == null) {
+                continue;
+            }
+            YearMonth ym = YearMonth.from(event.getCreatedAt());
+            byMonth.computeIfAbsent(ym, k -> new ArrayList<>()).add(event);
+        }
+
+        DateTimeFormatter labelFmt = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH);
+        YearMonth currentMonth = YearMonth.from(IndiaTime.now().toLocalDate());
+        List<AiUsageMonthlyHistoryDTO.MonthRowDTO> months = byMonth.entrySet().stream()
+                .sorted(Map.Entry.<YearMonth, List<AiUsageEvent>>comparingByKey().reversed())
+                .map(entry -> {
+                    YearMonth ym = entry.getKey();
+                    List<AiUsageEvent> monthEvents = entry.getValue();
+                    long inputTokens = monthEvents.stream().mapToLong(AiUsageEvent::getInputTokens).sum();
+                    long outputTokens = monthEvents.stream().mapToLong(AiUsageEvent::getOutputTokens).sum();
+                    long totalTokens = monthEvents.stream().mapToLong(AiUsageEvent::getTotalTokens).sum();
+                    double totalCostUsd = round(monthEvents.stream().mapToDouble(AiUsageEvent::getCostUsd).sum());
+                    double totalBilledUsd = round(monthEvents.stream().mapToDouble(AiUsageService::eventBilledUsd).sum());
+                    Set<String> users = monthEvents.stream()
+                            .map(AiUsageEvent::getUserId)
+                            .filter(id -> id != null && !id.isBlank())
+                            .collect(Collectors.toSet());
+                    double avgPerUser = users.isEmpty() ? 0 : totalCostUsd / users.size();
+                    LocalDate start = ym.atDay(1);
+                    LocalDate end = ym.equals(currentMonth)
+                            ? IndiaTime.now().toLocalDate()
+                            : ym.atEndOfMonth();
+                    return AiUsageMonthlyHistoryDTO.MonthRowDTO.builder()
+                            .yearMonth(ym.toString())
+                            .label(ym.format(labelFmt))
+                            .start(start.toString())
+                            .end(end.toString())
+                            .totalCostUsd(totalCostUsd)
+                            .totalCostInr(round(totalCostUsd * fx))
+                            .totalBilledUsd(totalBilledUsd)
+                            .totalBilledInr(round(totalBilledUsd * fx))
+                            .activeUsersWithUsage(users.size())
+                            .avgCostPerUserUsd(round(avgPerUser))
+                            .avgCostPerUserInr(round(avgPerUser * fx))
+                            .totalTokens(totalTokens)
+                            .inputTokens(inputTokens)
+                            .outputTokens(outputTokens)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        double lifetimeCostUsd = round(events.stream().mapToDouble(AiUsageEvent::getCostUsd).sum());
+        double lifetimeBilledUsd = round(events.stream().mapToDouble(AiUsageService::eventBilledUsd).sum());
+        Set<String> lifetimeUsers = events.stream()
+                .map(AiUsageEvent::getUserId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+        double lifetimeAvg = lifetimeUsers.isEmpty() ? 0 : lifetimeCostUsd / lifetimeUsers.size();
+
+        return AiUsageMonthlyHistoryDTO.builder()
+                .lifetimeTotalCostUsd(lifetimeCostUsd)
+                .lifetimeTotalCostInr(round(lifetimeCostUsd * fx))
+                .lifetimeTotalBilledUsd(lifetimeBilledUsd)
+                .lifetimeTotalBilledInr(round(lifetimeBilledUsd * fx))
+                .lifetimeUsersWithUsage(lifetimeUsers.size())
+                .lifetimeAvgCostPerUserUsd(round(lifetimeAvg))
+                .lifetimeAvgCostPerUserInr(round(lifetimeAvg * fx))
+                .usdToInrRate(fx)
+                .consumptionMultiplier(multiplier)
+                .months(months)
+                .build();
     }
 
     public AiUsageUserDetailDTO getUserUsageDetail(String userId, String period) {
@@ -1013,8 +1104,21 @@ public class AiUsageService {
         return period == null || period.isBlank() ? "month" : period.trim().toLowerCase();
     }
 
+    private boolean isLifetimePeriod(String period) {
+        String normalized = normalizePeriod(period);
+        return "lifetime".equals(normalized) || "all".equals(normalized);
+    }
+
     private PeriodRange resolvePeriodRange(String period) {
         LocalDate today = IndiaTime.now().toLocalDate();
+        if (isLifetimePeriod(period)) {
+            // Far-past start catches every stored event; end is end of today (India).
+            LocalDate startDate = LocalDate.of(2020, 1, 1);
+            LocalDateTime start = startDate.atStartOfDay();
+            LocalDateTime end = today.plusDays(1).atStartOfDay().minusNanos(1);
+            int days = Math.max(1, (int) ChronoUnit.DAYS.between(startDate, today) + 1);
+            return new PeriodRange(start, end, startDate, today, days);
+        }
         LocalDate monthStart = today.withDayOfMonth(1);
         LocalDate monthEnd = today;
         LocalDateTime start = monthStart.atStartOfDay();

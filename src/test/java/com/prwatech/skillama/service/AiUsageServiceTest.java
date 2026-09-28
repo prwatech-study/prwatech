@@ -3,9 +3,11 @@ package com.prwatech.skillama.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prwatech.skillama.dto.AiBudgetDTO;
 import com.prwatech.skillama.dto.AiUsageModuleBreakdownDTO;
+import com.prwatech.skillama.dto.AiUsageMonthlyHistoryDTO;
 import com.prwatech.skillama.dto.AiUsagePlatformSummaryDTO;
 import com.prwatech.skillama.dto.AiUsageRecordRequestDTO;
 import com.prwatech.skillama.dto.AiUsageSettingsDTO;
+import com.prwatech.skillama.dto.AiUsageUserRowDTO;
 import com.prwatech.skillama.dto.UpdateAiUsageSettingsDTO;
 import com.prwatech.skillama.dto.WalletUsageBackfillResultDTO;
 import com.prwatech.skillama.exception.AiBudgetLimitException;
@@ -787,5 +789,81 @@ class AiUsageServiceTest {
 
         assertEquals(3.0, summary.getConsumptionMultiplier(), 1e-9);
         assertEquals(0.0, summary.getTotalCostUsd(), 1e-9);
+    }
+
+    @Test
+    void monthlyHistoryGroupsByMonthAndComputesLifetimeAvgPerUser() {
+        PlatformAiSettings settings = trackingSettings(true, 0.5);
+        settings.setConsumptionMultiplier(3.0);
+        when(platformAiSettingsRepository.findById(PlatformAiSettings.SINGLETON_ID))
+                .thenReturn(Optional.of(settings));
+
+        AiUsageEvent july = AiUsageEvent.builder()
+                .userId("u1")
+                .costUsd(1.0)
+                .billedUsd(3.0)
+                .inputTokens(100)
+                .outputTokens(50)
+                .totalTokens(150)
+                .createdAt(IndiaTime.now().withDayOfMonth(1).minusMonths(2).withHour(12))
+                .build();
+        AiUsageEvent augU1 = AiUsageEvent.builder()
+                .userId("u1")
+                .costUsd(2.0)
+                .billedUsd(6.0)
+                .inputTokens(200)
+                .outputTokens(100)
+                .totalTokens(300)
+                .createdAt(IndiaTime.now().withDayOfMonth(1).minusMonths(1).withHour(12))
+                .build();
+        AiUsageEvent augU2 = AiUsageEvent.builder()
+                .userId("u2")
+                .costUsd(4.0)
+                .billedUsd(12.0)
+                .inputTokens(400)
+                .outputTokens(200)
+                .totalTokens(600)
+                .createdAt(IndiaTime.now().withDayOfMonth(1).minusMonths(1).withHour(14))
+                .build();
+        when(aiUsageEventRepository.findByCreatedAtBetween(any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(july, augU1, augU2));
+
+        AiUsageMonthlyHistoryDTO history = service.getMonthlyHistory();
+
+        assertEquals(7.0, history.getLifetimeTotalCostUsd(), 1e-9);
+        assertEquals(2, history.getLifetimeUsersWithUsage());
+        assertEquals(3.5, history.getLifetimeAvgCostPerUserUsd(), 1e-9);
+        assertEquals(3.0, history.getConsumptionMultiplier(), 1e-9);
+        assertEquals(2, history.getMonths().size());
+
+        AiUsageMonthlyHistoryDTO.MonthRowDTO aug = history.getMonths().stream()
+                .filter(m -> m.getTotalCostUsd() == 6.0)
+                .findFirst()
+                .orElseThrow();
+        assertEquals(2, aug.getActiveUsersWithUsage());
+        assertEquals(3.0, aug.getAvgCostPerUserUsd(), 1e-9);
+    }
+
+    @Test
+    void listUserUsageLifetimeOmitsFreemiumCap() {
+        User user = freemium(0.0);
+        when(userRepository.findById("u1")).thenReturn(Optional.of(user));
+        when(aiUsageEventRepository.findByCreatedAtBetween(any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(AiUsageEvent.builder()
+                        .userId("u1")
+                        .costUsd(0.5)
+                        .billedUsd(1.5)
+                        .inputTokens(10)
+                        .outputTokens(5)
+                        .totalTokens(15)
+                        .createdAt(IndiaTime.now().minusMonths(3))
+                        .build()));
+
+        List<AiUsageUserRowDTO> rows = service.listUserUsage("lifetime");
+
+        assertEquals(1, rows.size());
+        assertEquals(0.5, rows.get(0).getCostUsd(), 1e-9);
+        assertNull(rows.get(0).getFreemiumBudgetUsd());
+        assertNull(rows.get(0).getBudgetUsedPercent());
     }
 }
