@@ -100,11 +100,17 @@ class AiInterviewServiceTest {
     }
 
     @Test
-    void joinWindowRejectsEarlyAndExpiredAndAllowsTheGraceBoundary() {
-        service.setClock(clock(START.minusSeconds(1)));
+    void joinWindowRejectsTooEarlyAllowsEarlyArrivalAndGraceBoundary() {
+        service.setClock(clock(START.minusSeconds(10 * 60 + 1)));
         InterviewFlowException early = assertThrows(InterviewFlowException.class, () -> join("client-a"));
         assertEquals("TOO_EARLY", early.getCode());
 
+        service.setClock(clock(START.minusSeconds(5 * 60)));
+        Map<String, Object> earlyJoin = join("client-early");
+        assertEquals(START.plusSeconds(20 * 60).toEpochMilli(), ((Number) earlyJoin.get("endsAtMs")).longValue());
+
+        sessions.set(null);
+        schedule.setStatus("SCHEDULED");
         service.setClock(clock(START.plusSeconds(10 * 60)));
         Map<String, Object> onTheBoundary = join("client-a");
         assertEquals(START.plusSeconds(20 * 60).toEpochMilli(), ((Number) onTheBoundary.get("endsAtMs")).longValue());

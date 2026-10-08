@@ -979,7 +979,7 @@ public class AiInterviewService {
     private InterviewFlowException windowError(String denial) {
         return switch (denial) {
             case "TOO_EARLY" -> bad("TOO_EARLY",
-                    "This interview has not started yet. Please join at the scheduled time.");
+                    "This interview is not open yet. You can join up to 10 minutes before the scheduled start.");
             case "JOIN_GRACE_EXPIRED" -> bad("JOIN_GRACE_EXPIRED",
                     "The join window has closed. Ask your administrator to reschedule.");
             case "SLOT_EXPIRED" -> bad("SLOT_EXPIRED", "This interview invite has expired.");

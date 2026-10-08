@@ -36,14 +36,16 @@ public final class InterviewSessionRules {
     }
 
     /**
-     * First start window is [scheduledAt, scheduledAt + joinGrace], and also before slot end.
-     * Equality at the grace boundary is still inside the window (matches the LMS helper).
+     * First start window is [scheduledAt − joinGrace, scheduledAt + joinGrace], and also before slot end.
+     * Candidates may arrive up to {@code joinGraceMinutes} early (default 10). Equality at either
+     * grace boundary is still inside the window (matches the LMS helper).
      */
     public static String firstJoinDenial(Instant scheduledAt, int joinGraceMinutes, Instant slotEnd, Instant now) {
         if (scheduledAt == null || slotEnd == null || now == null || joinGraceMinutes < 0) {
             return "INVALID_SCHEDULE";
         }
-        if (now.isBefore(scheduledAt)) {
+        Instant earliest = scheduledAt.minus(Duration.ofMinutes(joinGraceMinutes));
+        if (now.isBefore(earliest)) {
             return "TOO_EARLY";
         }
         if (now.isAfter(scheduledAt.plus(Duration.ofMinutes(joinGraceMinutes)))) {

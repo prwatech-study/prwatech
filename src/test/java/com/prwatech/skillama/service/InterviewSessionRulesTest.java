@@ -28,9 +28,12 @@ class InterviewSessionRulesTest {
     }
 
     @Test
-    void firstJoinWindowMatchesGraceThenSlot() {
+    void firstJoinWindowAllowsTenMinutesEarlyThroughGraceThenSlot() {
         Instant ends = InterviewSessionRules.endsAt(START, 20);
-        assertEquals("TOO_EARLY", InterviewSessionRules.firstJoinDenial(START, 10, ends, START.minusSeconds(1)));
+        assertEquals("TOO_EARLY",
+                InterviewSessionRules.firstJoinDenial(START, 10, ends, START.minusSeconds(10 * 60 + 1)));
+        assertNull(InterviewSessionRules.firstJoinDenial(START, 10, ends, START.minusSeconds(10 * 60)));
+        assertNull(InterviewSessionRules.firstJoinDenial(START, 10, ends, START.minusSeconds(1)));
         assertNull(InterviewSessionRules.firstJoinDenial(START, 10, ends, START));
         assertNull(InterviewSessionRules.firstJoinDenial(START, 10, ends, START.plusSeconds(10 * 60)));
         assertEquals("JOIN_GRACE_EXPIRED",
