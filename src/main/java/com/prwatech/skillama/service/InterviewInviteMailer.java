@@ -2,6 +2,7 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.service.impl.EmailServiceImpl;
+import com.prwatech.skillama.util.IndiaTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,21 +11,17 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
-import jakarta.activation.DataHandler;
-import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
-import jakarta.mail.internet.MimeMultipart;
-import jakarta.mail.util.ByteArrayDataSource;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 /**
  * Email plus an ICS calendar invite.
- * SMTP sends a real {@code .ics} attachment (and a {@code text/calendar} part so clients can
- * auto-add the event). The HTTP mail API cannot attach files, so that fallback must never paste
- * raw VCALENDAR into the body.
+ * SMTP sends a real {@code interview.ics} attachment. The HTTP mail API cannot attach files,
+ * so that path includes a download link instead of pasting raw VCALENDAR into the body.
  */
 @Service
 @RequiredArgsConstructor
@@ -33,8 +30,9 @@ public class InterviewInviteMailer {
 
     private static final DateTimeFormatter ICS_TIME =
             DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(ZoneOffset.UTC);
-    private static final DateTimeFormatter HUMAN_UTC =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm 'UTC'").withZone(ZoneOffset.UTC);
+    private static final DateTimeFormatter HUMAN_IST =
+            DateTimeFormatter.ofPattern("dd MMM yyyy, h:mm a 'IST'", Locale.ENGLISH)
+                    .withZone(IndiaTime.ZONE);
 
     private final JavaMailSender mailSender;
     private final EmailServiceImpl emailService;
@@ -47,15 +45,16 @@ public class InterviewInviteMailer {
 
     public boolean sendInvite(String email, String token, Instant start, Instant end, String orgName) {
         String link = inviteLink(publicUrl, token);
+        String calendarLink = calendarLink(publicUrl, token);
         String ics = buildIcs(token, start, end, link, email, orgName);
         String subject = "Your Skillama AI Interview";
-        String bodyForSmtp = plainBody(link, start, end, true);
-        if (trySmtp(email, subject, bodyForSmtp, ics)) {
+        if (trySmtp(email, subject, plainBody(link, calendarLink, start, end, true), ics)) {
             return true;
         }
         // HTTP support API only accepts {email, subject, message} — no attachments.
         try {
-            emailService.sendEmail(new EmailSendDto(email, subject, plainBody(link, start, end, false)));
+            emailService.sendEmail(new EmailSendDto(
+                    email, subject, plainBody(link, calendarLink, start, end, false)));
             return true;
         } catch (RuntimeException ex) {
             log.warn("Interview invite email failed for {}: {}", email, ex.getMessage());
@@ -63,12 +62,26 @@ public class InterviewInviteMailer {
         }
     }
 
+    /** ICS bytes for the public calendar download link (same payload as the email attachment). */
+    public byte[] icsBytes(String token, Instant start, Instant end, String email, String orgName) {
+        String link = inviteLink(publicUrl, token);
+        return buildIcs(token, start, end, link, email, orgName).getBytes(StandardCharsets.UTF_8);
+    }
+
     static String inviteLink(String publicUrl, String token) {
+        return trimBase(publicUrl) + "/interview/" + token;
+    }
+
+    static String calendarLink(String publicUrl, String token) {
+        return trimBase(publicUrl) + "/interview/" + token + "/calendar.ics";
+    }
+
+    private static String trimBase(String publicUrl) {
         String base = publicUrl == null ? "https://skillama.co.in" : publicUrl.trim();
         if (base.endsWith("/")) {
             base = base.substring(0, base.length() - 1);
         }
-        return base + "/interview/" + token;
+        return base;
     }
 
     static String buildIcs(String uid, Instant start, Instant end, String link, String email, String orgName) {
@@ -88,29 +101,33 @@ public class InterviewInviteMailer {
                 + "SUMMARY:" + escapeIcs(summary) + "\r\n"
                 + "DESCRIPTION:" + escapeIcs(description) + "\r\n"
                 + "URL:" + link + "\r\n"
+                + "LOCATION:" + escapeIcs(link) + "\r\n"
                 + "ATTENDEE;CN=" + escapeIcs(email) + ":MAILTO:" + email + "\r\n"
                 + "END:VEVENT\r\n"
                 + "END:VCALENDAR\r\n";
     }
 
-    static String plainBody(String link, Instant start, Instant end, boolean hasCalendarAttachment) {
+    static String plainBody(
+            String link, String calendarLink, Instant start, Instant end, boolean hasCalendarAttachment) {
         StringBuilder body = new StringBuilder();
         body.append("Your AI Interview is scheduled.\n\n");
-        body.append("When: ").append(HUMAN_UTC.format(start))
-                .append(" – ").append(HUMAN_UTC.format(end)).append("\n\n");
+        body.append("When: ").append(HUMAN_IST.format(start))
+                .append(" – ").append(HUMAN_IST.format(end)).append("\n\n");
         body.append("Join with this link:\n").append(link).append("\n\n");
         body.append("Use the same email address this invitation was sent to.\n");
-        body.append("Camera and microphone are required. The session ends at the scheduled stop time.");
+        body.append("Camera and microphone are required. The session ends at the scheduled stop time.\n\n");
         if (hasCalendarAttachment) {
-            body.append("\n\nA calendar invite (interview.ics) is attached — open it to add this to your calendar.");
+            body.append("A calendar invite (interview.ics) is attached. ");
+            body.append("If your mail app did not show it, open:\n").append(calendarLink);
         } else {
-            body.append("\n\nAdd the time above to your calendar manually (a file invite could not be attached).");
+            body.append("Add to your calendar (opens interview.ics):\n").append(calendarLink);
         }
         return body.toString();
     }
 
     private boolean trySmtp(String email, String subject, String body, String ics) {
         if (fromAddress == null || fromAddress.isBlank()) {
+            log.warn("SMTP interview invite skipped: prwatech.default.email.id is blank");
             return false;
         }
         try {
@@ -124,16 +141,6 @@ public class InterviewInviteMailer {
                     "interview.ics",
                     new ByteArrayResource(ics.getBytes(StandardCharsets.UTF_8)),
                     "text/calendar; method=REQUEST; charset=UTF-8");
-
-            // Extra calendar MIME part helps Outlook/Gmail offer "Add to calendar".
-            MimeMultipart mixed = (MimeMultipart) message.getContent();
-            MimeBodyPart calendarPart = new MimeBodyPart();
-            calendarPart.setDataHandler(new DataHandler(
-                    new ByteArrayDataSource(ics, "text/calendar; method=REQUEST; charset=UTF-8")));
-            calendarPart.setHeader("Content-Class", "urn:content-classes:calendarmessage");
-            calendarPart.setFileName("invite.ics");
-            mixed.addBodyPart(calendarPart);
-
             mailSender.send(message);
             return true;
         } catch (Exception ex) {

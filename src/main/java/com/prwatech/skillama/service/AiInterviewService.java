@@ -360,6 +360,26 @@ public class AiInterviewService {
         return body;
     }
 
+    /** Public {@code .ics} download for invite emails when SMTP cannot attach a file. */
+    public byte[] calendarInviteIcs(String token) {
+        AiInterviewSchedule schedule = scheduleRepository.findByInviteToken(token)
+                .orElseThrow(() -> notFound("This interview invite was not found."));
+        if ("CANCELLED".equals(schedule.getStatus()) || "RESCHEDULED".equals(schedule.getStatus())) {
+            throw bad("NOT_JOINABLE", "This interview invite is no longer active.");
+        }
+        Instant end = InterviewSessionRules.endsAt(
+                schedule.getScheduledAt(),
+                schedule.getDurationMinutes() == null
+                        ? InterviewSessionRules.DEFAULT_DURATION_MINUTES
+                        : schedule.getDurationMinutes());
+        return interviewInviteMailer.icsBytes(
+                schedule.getInviteToken(),
+                schedule.getScheduledAt(),
+                end,
+                schedule.getCandidateEmail(),
+                organizationName(schedule.getOrganizationId()));
+    }
+
     public Map<String, Object> join(String token, Map<String, Object> body) {
         String email = normalizeEmail(requireText(body.get("email"), "Email is required."));
         String clientInstanceId = requireText(body.get("clientInstanceId"), "clientInstanceId is required.");

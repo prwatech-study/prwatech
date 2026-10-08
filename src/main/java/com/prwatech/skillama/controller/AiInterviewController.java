@@ -3,7 +3,9 @@ package com.prwatech.skillama.controller;
 import com.prwatech.skillama.service.AiInterviewService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -137,6 +139,15 @@ public class AiInterviewController {
     @GetMapping("/invite/{token}")
     public ResponseEntity<?> preview(@PathVariable String token) {
         return ResponseEntity.ok(aiInterviewService.preview(token));
+    }
+
+    @GetMapping("/invite/{token}/calendar.ics")
+    public ResponseEntity<byte[]> calendarInvite(@PathVariable String token) {
+        byte[] ics = aiInterviewService.calendarInviteIcs(token);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"interview.ics\"")
+                .contentType(MediaType.parseMediaType("text/calendar;charset=UTF-8"))
+                .body(ics);
     }
 
     @PostMapping("/invite/{token}/join")

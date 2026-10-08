@@ -29,6 +29,7 @@ class SkillamaAnonymousRequestMatchersTest {
         assertTrue(anon("GET", "/skillama/billing/plans"));
         assertTrue(anon("GET", "/skillama/review"));
         assertTrue(anon("GET", "/skillama/ai-interview/invite/opaque-token"));
+        assertTrue(anon("GET", "/skillama/ai-interview/invite/opaque-token/calendar.ics"));
         assertTrue(anon("POST", "/skillama/ai-interview/invite/opaque-token/join"));
         assertTrue(anon("POST", "/skillama/ai-interview/session/heartbeat"));
         assertTrue(anon("POST", "/skillama/ai-interview/session/turns"));

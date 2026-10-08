@@ -99,6 +99,7 @@ public final class SkillamaAnonymousRequestMatchers {
             new Route(HttpMethod.GET, "/skillama/internal/ai-usage/budget-check"),
             // AI Interview guest room — opaque invite token, no Skillama JWT
             new Route(HttpMethod.GET, "/skillama/ai-interview/invite/*"),
+            new Route(HttpMethod.GET, "/skillama/ai-interview/invite/*/calendar.ics"),
             new Route(HttpMethod.POST, "/skillama/ai-interview/invite/*/join"),
             new Route(HttpMethod.POST, "/skillama/ai-interview/session/heartbeat"),
             new Route(HttpMethod.POST, "/skillama/ai-interview/session/turns"),

@@ -36,6 +36,19 @@ public class BeanConfiguration {
     mailSender.setPort(appContext.getEmailPort());
     mailSender.setUsername(appContext.getEmailHostUsername());
     mailSender.setPassword(appContext.getEmailHostPassword());
+    String protocol = appContext.getEmailProtocol();
+    if (protocol != null && !protocol.isBlank() && !"smpt".equalsIgnoreCase(protocol)) {
+      mailSender.setProtocol(protocol);
+    } else {
+      mailSender.setProtocol("smtp");
+    }
+    java.util.Properties props = mailSender.getJavaMailProperties();
+    props.put("mail.transport.protocol", "smtp");
+    props.put("mail.smtp.auth", String.valueOf(Boolean.TRUE.equals(appContext.getEmailAuth())));
+    props.put(
+        "mail.smtp.starttls.enable",
+        String.valueOf(Boolean.TRUE.equals(appContext.getEmailStarttls())));
+    props.put("mail.smtp.starttls.required", "true");
     return mailSender;
   }
 
