@@ -1,8 +1,11 @@
 package com.prwatech.skillama.service;
 
+import com.prwatech.skillama.model.AdminModule;
+import com.prwatech.skillama.model.AdminPermissionAction;
 import com.prwatech.skillama.model.AiMockInterviewConfig;
 import com.prwatech.skillama.model.AiMockInterviewSession;
 import com.prwatech.skillama.model.InterviewTurn;
+import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.AiMockInterviewConfigRepository;
 import com.prwatech.skillama.repository.AiMockInterviewSessionRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
@@ -22,6 +25,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -35,13 +40,18 @@ class AiMockInterviewServiceTest {
     @Mock private AiMockInterviewSessionRepository sessionRepository;
     @Mock private SkillamaUserRepository userRepository;
     @Mock private SkillamaAiClient skillamaAiClient;
+    @Mock private AdminPermissionService adminPermissionService;
 
     private AiMockInterviewService service;
 
     @BeforeEach
     void setUp() {
         service = new AiMockInterviewService(
-                configRepository, sessionRepository, userRepository, skillamaAiClient);
+                configRepository,
+                sessionRepository,
+                userRepository,
+                skillamaAiClient,
+                adminPermissionService);
         service.setClock(Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -113,6 +123,25 @@ class AiMockInterviewServiceTest {
         assertEquals("What trade-off did you accept?", next.get("text"));
         assertEquals("AI", session.getTurns().get(session.getTurns().size() - 1).getRole());
         assertEquals("What trade-off did you accept?", session.getTurns().get(session.getTurns().size() - 1).getText());
+    }
+
+    @Test
+    void adminListSessionsIncludesCandidateEmail() {
+        AiMockInterviewSession session = liveSession(NOW.plusSeconds(600));
+        session.setTitle("Behavioral practice");
+        session.setScore(78);
+        when(sessionRepository.findAllByOrderByStartedAtDesc()).thenReturn(List.of(session));
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(
+                User.builder().id("user-1").email("learner@example.com").build()));
+        doNothing().when(adminPermissionService)
+                .requirePermission(eq("admin-1"), eq(AdminModule.AI_INTERVIEWS), eq(AdminPermissionAction.READ));
+
+        List<Map<String, Object>> rows = service.adminListSessions("admin-1", null);
+
+        assertEquals(1, rows.size());
+        assertEquals("learner@example.com", rows.get(0).get("candidateEmail"));
+        assertEquals(78, rows.get(0).get("score"));
+        assertEquals("Behavioral practice", rows.get(0).get("title"));
     }
 
     private static AiMockInterviewSession liveSession(Instant endsAt) {

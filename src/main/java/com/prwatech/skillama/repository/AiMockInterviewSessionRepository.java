@@ -7,4 +7,8 @@ import java.util.List;
 
 public interface AiMockInterviewSessionRepository extends MongoRepository<AiMockInterviewSession, String> {
     List<AiMockInterviewSession> findByUserIdOrderByStartedAtDesc(String userId);
+
+    List<AiMockInterviewSession> findAllByOrderByStartedAtDesc();
+
+    List<AiMockInterviewSession> findByStatusOrderByStartedAtDesc(String status);
 }

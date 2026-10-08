@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.servlet.http.HttpServletRequest;
@@ -97,6 +98,28 @@ public class AiMockInterviewController {
             return unauthorized();
         }
         return ResponseEntity.ok(aiMockInterviewService.end(userId, sessionId));
+    }
+
+    @GetMapping("/admin/sessions")
+    public ResponseEntity<?> adminSessions(
+            @RequestParam(required = false) String status,
+            HttpServletRequest request) {
+        String userId = requireUser(request);
+        if (userId == null) {
+            return unauthorized();
+        }
+        return ResponseEntity.ok(aiMockInterviewService.adminListSessions(userId, status));
+    }
+
+    @GetMapping("/admin/sessions/{sessionId}")
+    public ResponseEntity<?> adminSessionDetail(
+            @PathVariable String sessionId,
+            HttpServletRequest request) {
+        String userId = requireUser(request);
+        if (userId == null) {
+            return unauthorized();
+        }
+        return ResponseEntity.ok(aiMockInterviewService.adminDetail(userId, sessionId));
     }
 
     private String requireUser(HttpServletRequest request) {

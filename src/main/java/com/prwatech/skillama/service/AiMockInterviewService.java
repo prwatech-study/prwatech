@@ -1,9 +1,13 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.skillama.exception.InterviewFlowException;
+import com.prwatech.skillama.exception.ResourceNotFoundException;
+import com.prwatech.skillama.model.AdminModule;
+import com.prwatech.skillama.model.AdminPermissionAction;
 import com.prwatech.skillama.model.AiMockInterviewConfig;
 import com.prwatech.skillama.model.AiMockInterviewSession;
 import com.prwatech.skillama.model.InterviewTurn;
+import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.AiMockInterviewConfigRepository;
 import com.prwatech.skillama.repository.AiMockInterviewSessionRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
@@ -32,6 +36,7 @@ public class AiMockInterviewService {
     private final AiMockInterviewSessionRepository sessionRepository;
     private final SkillamaUserRepository userRepository;
     private final SkillamaAiClient skillamaAiClient;
+    private final AdminPermissionService adminPermissionService;
     private java.time.Clock clock = java.time.Clock.systemUTC();
 
     @Autowired
@@ -39,11 +44,13 @@ public class AiMockInterviewService {
             AiMockInterviewConfigRepository configRepository,
             AiMockInterviewSessionRepository sessionRepository,
             SkillamaUserRepository userRepository,
-            SkillamaAiClient skillamaAiClient) {
+            SkillamaAiClient skillamaAiClient,
+            AdminPermissionService adminPermissionService) {
         this.configRepository = configRepository;
         this.sessionRepository = sessionRepository;
         this.userRepository = userRepository;
         this.skillamaAiClient = skillamaAiClient;
+        this.adminPermissionService = adminPermissionService;
     }
 
     void setClock(java.time.Clock clock) {
@@ -133,19 +140,42 @@ public class AiMockInterviewService {
     public List<Map<String, Object>> listMine(String userId) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (AiMockInterviewSession session : sessionRepository.findByUserIdOrderByStartedAtDesc(userId)) {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("id", session.getId());
-            row.put("sessionId", session.getId());
-            row.put("title", session.getTitle());
-            row.put("configTitle", session.getTitle());
-            row.put("status", session.getStatus());
-            row.put("startedAt", session.getStartedAt());
-            row.put("completedAt", session.getCompletedAt());
-            row.put("durationSeconds", session.getDurationSeconds());
-            row.put("feedbackSummary", session.getFeedbackSummary());
-            out.add(row);
+            out.add(listRow(session, null));
         }
         return out;
+    }
+
+    /** Admin monitor: all practice sessions with candidate email + score preview. */
+    public List<Map<String, Object>> adminListSessions(String adminUserId, String status) {
+        requireInterviewAdmin(adminUserId, AdminPermissionAction.READ);
+        List<AiMockInterviewSession> sessions;
+        if (status != null && !status.isBlank()) {
+            sessions = sessionRepository.findByStatusOrderByStartedAtDesc(status.trim().toUpperCase(Locale.ROOT));
+        } else {
+            sessions = sessionRepository.findAllByOrderByStartedAtDesc();
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (AiMockInterviewSession session : sessions) {
+            out.add(listRow(session, resolveUserEmail(session.getUserId())));
+        }
+        return out;
+    }
+
+    /** Admin detail: full transcript, score, and feedback for any practice session. */
+    public Map<String, Object> adminDetail(String adminUserId, String sessionId) {
+        requireInterviewAdmin(adminUserId, AdminPermissionAction.READ);
+        AiMockInterviewSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> notFound("Practice session not found."));
+        maybeFinish(session);
+        Map<String, Object> body = sessionDetailBody(session);
+        body.put("userId", session.getUserId());
+        body.put("candidateEmail", resolveUserEmail(session.getUserId()));
+        body.put("configId", session.getConfigId());
+        body.put("style", session.getStyle());
+        body.put("startedAt", session.getStartedAt());
+        body.put("completedAt", session.getCompletedAt());
+        body.put("durationSeconds", session.getDurationSeconds());
+        return body;
     }
 
     public Map<String, Object> detail(String userId, String sessionId) {
@@ -155,36 +185,7 @@ public class AiMockInterviewService {
             throw new InterviewFlowException("FORBIDDEN", HttpStatus.FORBIDDEN, "You cannot view this practice session.");
         }
         maybeFinish(session);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("id", session.getId());
-        body.put("sessionId", session.getId());
-        body.put("title", session.getTitle());
-        body.put("status", session.getStatus());
-        body.put("feedbackSummary", session.getFeedbackSummary());
-        body.put("feedback", session.getFeedback());
-        body.put("score", session.getScore());
-        Instant now = Instant.now(clock);
-        body.put("endsAtMs", session.getEndsAt() == null ? null : session.getEndsAt().toEpochMilli());
-        body.put("clockArmed", session.getEndsAt() != null);
-        body.put("durationMinutes", session.getDurationMinutes());
-        if (session.getEndsAt() != null) {
-            body.put("remainingSeconds", InterviewSessionRules.remainingSeconds(session.getEndsAt(), now));
-        } else {
-            int minutes = session.getDurationMinutes() == null
-                    ? InterviewSessionRules.DEFAULT_DURATION_MINUTES : session.getDurationMinutes();
-            body.put("remainingSeconds", minutes * 60L);
-        }
-        List<Map<String, Object>> turns = new ArrayList<>();
-        if (session.getTurns() != null) {
-            for (InterviewTurn turn : session.getTurns()) {
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("role", turn.getRole());
-                row.put("text", turn.getText());
-                turns.add(row);
-            }
-        }
-        body.put("turns", turns);
-        return body;
+        return sessionDetailBody(session);
     }
 
     public Map<String, Object> addTurn(String userId, String sessionId, Map<String, Object> body) {
@@ -445,6 +446,81 @@ public class AiMockInterviewService {
             throw new InterviewFlowException("FORBIDDEN", HttpStatus.FORBIDDEN, "You cannot view this practice session.");
         }
         return session;
+    }
+
+    private void requireInterviewAdmin(String userId, AdminPermissionAction action) {
+        try {
+            adminPermissionService.requirePermission(userId, AdminModule.AI_INTERVIEWS, action);
+        } catch (ResourceNotFoundException ex) {
+            throw notFound(ex.getMessage());
+        } catch (RuntimeException ex) {
+            throw new InterviewFlowException(
+                    "FORBIDDEN",
+                    HttpStatus.FORBIDDEN,
+                    ex.getMessage() == null ? "You do not have permission to perform this action." : ex.getMessage());
+        }
+    }
+
+    private Map<String, Object> sessionDetailBody(AiMockInterviewSession session) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("id", session.getId());
+        body.put("sessionId", session.getId());
+        body.put("title", session.getTitle());
+        body.put("status", session.getStatus());
+        body.put("feedbackSummary", session.getFeedbackSummary());
+        body.put("feedback", session.getFeedback());
+        body.put("score", session.getScore());
+        Instant now = Instant.now(clock);
+        body.put("endsAtMs", session.getEndsAt() == null ? null : session.getEndsAt().toEpochMilli());
+        body.put("clockArmed", session.getEndsAt() != null);
+        body.put("durationMinutes", session.getDurationMinutes());
+        if (session.getEndsAt() != null) {
+            body.put("remainingSeconds", InterviewSessionRules.remainingSeconds(session.getEndsAt(), now));
+        } else {
+            int minutes = session.getDurationMinutes() == null
+                    ? InterviewSessionRules.DEFAULT_DURATION_MINUTES : session.getDurationMinutes();
+            body.put("remainingSeconds", minutes * 60L);
+        }
+        List<Map<String, Object>> turns = new ArrayList<>();
+        if (session.getTurns() != null) {
+            for (InterviewTurn turn : session.getTurns()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("role", turn.getRole());
+                row.put("text", turn.getText());
+                turns.add(row);
+            }
+        }
+        body.put("turns", turns);
+        body.put("transcript", turns);
+        return body;
+    }
+
+    private Map<String, Object> listRow(AiMockInterviewSession session, String candidateEmail) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", session.getId());
+        row.put("sessionId", session.getId());
+        row.put("title", session.getTitle());
+        row.put("configTitle", session.getTitle());
+        row.put("status", session.getStatus());
+        row.put("startedAt", session.getStartedAt());
+        row.put("completedAt", session.getCompletedAt());
+        row.put("durationSeconds", session.getDurationSeconds());
+        row.put("durationMinutes", session.getDurationMinutes());
+        row.put("score", session.getScore());
+        row.put("feedbackSummary", session.getFeedbackSummary());
+        row.put("style", session.getStyle());
+        if (candidateEmail != null) {
+            row.put("candidateEmail", candidateEmail);
+            row.put("userId", session.getUserId());
+        }
+        return row;
+    }
+
+    private String resolveUserEmail(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        return userRepository.findById(userId).map(User::getEmail).orElse(null);
     }
 
     /** @return true when the session was updated and needs saving */
