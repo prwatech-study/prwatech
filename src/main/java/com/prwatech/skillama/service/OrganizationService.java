@@ -31,6 +31,7 @@ public class OrganizationService {
     private static final Map<String, List<String>> PACKAGE_FEATURES = Map.of(
             "CORP_ENTERPRISE", List.of(
                     "ai_tutor", "ai_mentor", "code_lab", "debug_assistant", "ai_exam",
+                    "ai_interview", "ai_mock_interview",
                     "module_quiz", "study_materials", "learner_analytics",
                     "team_analytics", "org_hierarchy", "org_user_management", "csv_user_import",
                     "white_label_branding", "email_password_auth", "max_seats"));

@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -52,6 +53,17 @@ public class SkillamaExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleAiBudgetLimit(AiBudgetLimitException ex) {
         LOGGER.warn("AI budget limit reached: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(ex.toResponseBody());
+    }
+
+    @ExceptionHandler(InterviewFlowException.class)
+    public ResponseEntity<Map<String, Object>> handleInterviewFlow(InterviewFlowException ex) {
+        LOGGER.warn("Interview flow {}: {}", ex.getCode(), ex.getMessage());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", ex.getStatus().value());
+        body.put("error", ex.getStatus().getReasonPhrase());
+        body.put("message", ex.getMessage());
+        body.put("code", ex.getCode());
+        return ResponseEntity.status(ex.getStatus()).body(body);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

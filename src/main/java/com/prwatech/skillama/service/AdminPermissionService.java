@@ -336,6 +336,7 @@ public class AdminPermissionService {
             case TESTER_EVALUATIONS -> "Tester evaluations";
             case AI_MENTOR_DOUBTS -> "AI Mentor doubts";
             case AI_EXAMS -> "AI Exam attempts";
+            case AI_INTERVIEWS -> "AI Interviews";
             case MODULE_QUIZ_MONITOR -> "Module Quiz monitor";
             case CODE_ASSIST_MONITOR -> "Debug / Code Execution monitor";
             case ENROLLMENT_REQUESTS -> "Individual enrollment requests";

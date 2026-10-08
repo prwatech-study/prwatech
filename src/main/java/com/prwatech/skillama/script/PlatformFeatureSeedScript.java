@@ -20,11 +20,16 @@ public class PlatformFeatureSeedScript implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        if (platformFeatureRepository.count() > 0) {
-            return;
+        int added = 0;
+        for (PlatformFeature feature : defaultFeatures()) {
+            if (platformFeatureRepository.findByCode(feature.getCode()).isEmpty()) {
+                platformFeatureRepository.save(feature);
+                added++;
+            }
         }
-        LOGGER.info("Seeding platform_features catalog...");
-        platformFeatureRepository.saveAll(defaultFeatures());
+        if (added > 0) {
+            LOGGER.info("Seeded {} platform_features catalog entries", added);
+        }
     }
 
     private List<PlatformFeature> defaultFeatures() {
@@ -34,6 +39,8 @@ public class PlatformFeatureSeedScript implements CommandLineRunner {
                 feature("code_lab", "Code Lab", PlatformFeature.FeatureCategory.AI, 30, null),
                 feature("debug_assistant", "Debug Assistant", PlatformFeature.FeatureCategory.AI, 40, null),
                 feature("ai_exam", "AI Exams", PlatformFeature.FeatureCategory.LMS, 50, null),
+                feature("ai_interview", "AI Interview", PlatformFeature.FeatureCategory.LMS, 55, null),
+                feature("ai_mock_interview", "AI Mock Interview", PlatformFeature.FeatureCategory.LMS, 56, null),
                 feature("module_quiz", "Module Quizzes", PlatformFeature.FeatureCategory.LMS, 60, null),
                 feature("study_materials", "Study Materials", PlatformFeature.FeatureCategory.LMS, 70, null),
                 feature("learner_analytics", "Learner Analytics", PlatformFeature.FeatureCategory.LMS, 80, null),

@@ -1371,6 +1371,48 @@ public class SkillamaAiClient {
         return headers;
     }
 
+    /**
+     * Opening interviewer question. Org billing is logged on the interview session, not the learner wallet.
+     */
+    public Map<String, Object> interviewStart(Map<String, Object> body) {
+        return postInterview("/interview/start", body);
+    }
+
+    /** Next turn. Caller must already have forced CLOSE when remainingSeconds is 0. */
+    public Map<String, Object> interviewNext(Map<String, Object> body) {
+        return postInterview("/interview/next", body);
+    }
+
+    public Map<String, Object> interviewEvaluate(Map<String, Object> body) {
+        return postInterview("/interview/evaluate", body);
+    }
+
+    private Map<String, Object> postInterview(String path, Map<String, Object> body) {
+        String url = resolveBaseUrl() + path;
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, buildHeaders());
+        ResponseEntity<String> response;
+        try {
+            response = restTemplate.postForEntity(url, entity, String.class);
+        } catch (org.springframework.web.client.RestClientException e) {
+            throw new IllegalStateException("Interview service is unavailable.", e);
+        }
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            throw new IllegalStateException("Interview service returned " + response.getStatusCode());
+        }
+        try {
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode data = root.has("data") ? root.path("data") : root;
+            if (data.hasNonNull("error")) {
+                throw new IllegalStateException("Interview service error: " + data.path("error").asText());
+            }
+            return objectMapper.convertValue(data, Map.class);
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to parse interview service response", e);
+        }
+    }
+
     private Map<String, Object> parseKbSyncJson(ResponseEntity<String> response) {
         if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
             throw new IllegalStateException("Knowledge base sync service returned " + response.getStatusCode());

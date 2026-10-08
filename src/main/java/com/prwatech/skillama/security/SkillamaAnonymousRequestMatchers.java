@@ -96,7 +96,15 @@ public final class SkillamaAnonymousRequestMatchers {
             new Route(HttpMethod.POST, "/skillama/ai-utility/get-user-name"),
             // internal service key (controller validates X-AI-Usage-Key)
             new Route(HttpMethod.POST, "/skillama/internal/ai-usage/record"),
-            new Route(HttpMethod.GET, "/skillama/internal/ai-usage/budget-check")
+            new Route(HttpMethod.GET, "/skillama/internal/ai-usage/budget-check"),
+            // AI Interview guest room — opaque invite token, no Skillama JWT
+            new Route(HttpMethod.GET, "/skillama/ai-interview/invite/*"),
+            new Route(HttpMethod.POST, "/skillama/ai-interview/invite/*/join"),
+            new Route(HttpMethod.POST, "/skillama/ai-interview/session/heartbeat"),
+            new Route(HttpMethod.POST, "/skillama/ai-interview/session/turns"),
+            new Route(HttpMethod.POST, "/skillama/ai-interview/session/next"),
+            new Route(HttpMethod.POST, "/skillama/ai-interview/session/end"),
+            new Route(HttpMethod.POST, "/skillama/ai-interview/session/snapshots")
     );
 
     private static final List<RequestMatcher> MATCHERS =

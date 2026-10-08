@@ -28,6 +28,13 @@ class SkillamaAnonymousRequestMatchersTest {
         assertTrue(anon("GET", "/skillama/internal/ai-usage/budget-check"));
         assertTrue(anon("GET", "/skillama/billing/plans"));
         assertTrue(anon("GET", "/skillama/review"));
+        assertTrue(anon("GET", "/skillama/ai-interview/invite/opaque-token"));
+        assertTrue(anon("POST", "/skillama/ai-interview/invite/opaque-token/join"));
+        assertTrue(anon("POST", "/skillama/ai-interview/session/heartbeat"));
+        assertTrue(anon("POST", "/skillama/ai-interview/session/turns"));
+        assertTrue(anon("POST", "/skillama/ai-interview/session/next"));
+        assertTrue(anon("POST", "/skillama/ai-interview/session/end"));
+        assertTrue(anon("POST", "/skillama/ai-interview/session/snapshots"));
     }
 
     @Test
@@ -44,6 +51,10 @@ class SkillamaAnonymousRequestMatchersTest {
         assertFalse(anon("GET", "/skillama/api/admin/check-access"));
         assertFalse(anon("POST", "/skillama/api/org/users"));
         assertFalse(anon("PUT", "/skillama/platform/ai-settings"));
+        assertFalse(anon("GET", "/skillama/ai-interview/questions"));
+        assertFalse(anon("GET", "/skillama/ai-interview/my"));
+        assertFalse(anon("GET", "/skillama/ai-interview/schedules/abc/admin-detail"));
+        assertFalse(anon("POST", "/skillama/ai-mock-interview/start"));
     }
 
     @Test
