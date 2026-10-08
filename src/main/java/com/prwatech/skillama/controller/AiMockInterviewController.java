@@ -60,6 +60,15 @@ public class AiMockInterviewController {
         return ResponseEntity.ok(aiMockInterviewService.detail(userId, sessionId));
     }
 
+    @PostMapping("/sessions/{sessionId}/join")
+    public ResponseEntity<?> join(@PathVariable String sessionId, HttpServletRequest request) {
+        String userId = requireUser(request);
+        if (userId == null) {
+            return unauthorized();
+        }
+        return ResponseEntity.ok(aiMockInterviewService.join(userId, sessionId));
+    }
+
     @PostMapping("/sessions/{sessionId}/turns")
     public ResponseEntity<?> turn(
             @PathVariable String sessionId,

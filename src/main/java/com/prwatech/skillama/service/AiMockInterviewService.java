@@ -73,9 +73,10 @@ public class AiMockInterviewService {
         }
         int duration = config.getDurationMinutes() == null
                 ? InterviewSessionRules.DEFAULT_DURATION_MINUTES : config.getDurationMinutes();
-        Instant started = Instant.now(clock);
-        Instant ends = started.plus(Duration.ofMinutes(duration));
+        Instant created = Instant.now(clock);
         String opening = resolveOpening(config);
+        // Wall clock starts on join, not on lobby create — otherwise the countdown
+        // burns while the candidate is still reading "Before you begin".
         AiMockInterviewSession session = AiMockInterviewSession.builder()
                 .userId(userId)
                 .configId(config.getId())
@@ -83,12 +84,12 @@ public class AiMockInterviewService {
                 .style(config.getStyle())
                 .durationMinutes(duration)
                 .status("IN_PROGRESS")
-                .startedAt(started)
-                .endsAt(ends)
+                .startedAt(created)
+                .endsAt(null)
                 .turns(new ArrayList<>(List.of(InterviewTurn.builder()
                         .role("AI")
                         .text(opening)
-                        .at(started)
+                        .at(created)
                         .build())))
                 .build();
         session = sessionRepository.save(session);
@@ -98,9 +99,35 @@ public class AiMockInterviewService {
         response.put("title", session.getTitle());
         response.put("status", session.getStatus());
         response.put("openingQuestion", opening);
-        response.put("endsAtMs", ends.toEpochMilli());
-        response.put("remainingSeconds", InterviewSessionRules.remainingSeconds(ends, started));
+        response.put("durationMinutes", duration);
+        response.put("endsAtMs", null);
+        response.put("remainingSeconds", duration * 60L);
+        response.put("clockArmed", false);
         return response;
+    }
+
+    /**
+     * Arms the practice wall clock when the candidate actually enters the room.
+     * Idempotent if the clock was already started (resume).
+     */
+    public Map<String, Object> join(String userId, String sessionId) {
+        AiMockInterviewSession session = requireOwned(userId, sessionId);
+        if ("COMPLETED".equals(session.getStatus())) {
+            throw alreadyCompleted();
+        }
+        Instant now = Instant.now(clock);
+        boolean armed = ensureClockArmed(session, now);
+        if (armed) {
+            sessionRepository.save(session);
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("sessionId", session.getId());
+        body.put("status", session.getStatus());
+        body.put("durationMinutes", session.getDurationMinutes());
+        body.put("endsAtMs", session.getEndsAt() == null ? null : session.getEndsAt().toEpochMilli());
+        body.put("remainingSeconds", InterviewSessionRules.remainingSeconds(session.getEndsAt(), now));
+        body.put("clockArmed", session.getEndsAt() != null);
+        return body;
     }
 
     public List<Map<String, Object>> listMine(String userId) {
@@ -136,9 +163,17 @@ public class AiMockInterviewService {
         body.put("feedbackSummary", session.getFeedbackSummary());
         body.put("feedback", session.getFeedback());
         body.put("score", session.getScore());
+        Instant now = Instant.now(clock);
         body.put("endsAtMs", session.getEndsAt() == null ? null : session.getEndsAt().toEpochMilli());
-        body.put("remainingSeconds", InterviewSessionRules.remainingSeconds(session.getEndsAt(), Instant.now(clock)));
+        body.put("clockArmed", session.getEndsAt() != null);
         body.put("durationMinutes", session.getDurationMinutes());
+        if (session.getEndsAt() != null) {
+            body.put("remainingSeconds", InterviewSessionRules.remainingSeconds(session.getEndsAt(), now));
+        } else {
+            int minutes = session.getDurationMinutes() == null
+                    ? InterviewSessionRules.DEFAULT_DURATION_MINUTES : session.getDurationMinutes();
+            body.put("remainingSeconds", minutes * 60L);
+        }
         List<Map<String, Object>> turns = new ArrayList<>();
         if (session.getTurns() != null) {
             for (InterviewTurn turn : session.getTurns()) {
@@ -183,6 +218,9 @@ public class AiMockInterviewService {
             return closeView();
         }
         Instant now = Instant.now(clock);
+        if (ensureClockArmed(session, now)) {
+            sessionRepository.save(session);
+        }
         long remaining = InterviewSessionRules.remainingSeconds(session.getEndsAt(), now);
         if (InterviewSessionRules.timeUp(remaining)) {
             appendTurn(session, "AI", InterviewSessionRules.CLOSE_TEXT);
@@ -407,6 +445,18 @@ public class AiMockInterviewService {
             throw new InterviewFlowException("FORBIDDEN", HttpStatus.FORBIDDEN, "You cannot view this practice session.");
         }
         return session;
+    }
+
+    /** @return true when the session was updated and needs saving */
+    private boolean ensureClockArmed(AiMockInterviewSession session, Instant now) {
+        if (session.getEndsAt() != null) {
+            return false;
+        }
+        int duration = session.getDurationMinutes() == null
+                ? InterviewSessionRules.DEFAULT_DURATION_MINUTES : session.getDurationMinutes();
+        session.setStartedAt(now);
+        session.setEndsAt(now.plus(Duration.ofMinutes(duration)));
+        return true;
     }
 
     private Map<String, Object> aiContext(AiMockInterviewSession session, AiMockInterviewConfig config) {

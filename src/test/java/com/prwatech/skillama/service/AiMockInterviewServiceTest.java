@@ -46,6 +46,36 @@ class AiMockInterviewServiceTest {
     }
 
     @Test
+    void joinArmsTheClockAndDoesNotBurnLobbyTime() {
+        AiMockInterviewSession session = liveSession(null);
+        session.setDurationMinutes(15);
+        session.setStartedAt(NOW.minusSeconds(120));
+        when(sessionRepository.findById("s1")).thenReturn(Optional.of(session));
+        when(sessionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Map<String, Object> joined = service.join("user-1", "s1");
+
+        assertEquals(Boolean.TRUE, joined.get("clockArmed"));
+        assertEquals(15 * 60L, ((Number) joined.get("remainingSeconds")).longValue());
+        assertEquals(NOW, session.getStartedAt());
+        assertEquals(NOW.plusSeconds(15 * 60L), session.getEndsAt());
+    }
+
+    @Test
+    void joinIsIdempotentWhenClockAlreadyArmed() {
+        Instant ends = NOW.plusSeconds(500);
+        AiMockInterviewSession session = liveSession(ends);
+        when(sessionRepository.findById("s1")).thenReturn(Optional.of(session));
+
+        Map<String, Object> joined = service.join("user-1", "s1");
+
+        assertEquals(Boolean.TRUE, joined.get("clockArmed"));
+        assertEquals(500L, ((Number) joined.get("remainingSeconds")).longValue());
+        assertEquals(ends, session.getEndsAt());
+        verify(sessionRepository, never()).save(any());
+    }
+
+    @Test
     void timeUpReturnsCloseAndDoesNotAskTheModel() {
         AiMockInterviewSession session = liveSession(NOW.minusSeconds(30));
         when(sessionRepository.findById("s1")).thenReturn(Optional.of(session));
