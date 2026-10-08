@@ -60,6 +60,36 @@ public class AiMockInterviewController {
         return ResponseEntity.ok(aiMockInterviewService.detail(userId, sessionId));
     }
 
+    @PostMapping("/sessions/{sessionId}/turns")
+    public ResponseEntity<?> turn(
+            @PathVariable String sessionId,
+            @RequestBody Map<String, Object> body,
+            HttpServletRequest request) {
+        String userId = requireUser(request);
+        if (userId == null) {
+            return unauthorized();
+        }
+        return ResponseEntity.ok(aiMockInterviewService.addTurn(userId, sessionId, body));
+    }
+
+    @PostMapping("/sessions/{sessionId}/next")
+    public ResponseEntity<?> next(@PathVariable String sessionId, HttpServletRequest request) {
+        String userId = requireUser(request);
+        if (userId == null) {
+            return unauthorized();
+        }
+        return ResponseEntity.ok(aiMockInterviewService.next(userId, sessionId));
+    }
+
+    @PostMapping("/sessions/{sessionId}/end")
+    public ResponseEntity<?> end(@PathVariable String sessionId, HttpServletRequest request) {
+        String userId = requireUser(request);
+        if (userId == null) {
+            return unauthorized();
+        }
+        return ResponseEntity.ok(aiMockInterviewService.end(userId, sessionId));
+    }
+
     private String requireUser(HttpServletRequest request) {
         try {
             return skillamaAuthSupport.resolveUserIdFromRequest(request);

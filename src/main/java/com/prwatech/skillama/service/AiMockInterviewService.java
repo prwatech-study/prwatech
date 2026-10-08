@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -135,6 +136,9 @@ public class AiMockInterviewService {
         body.put("feedbackSummary", session.getFeedbackSummary());
         body.put("feedback", session.getFeedback());
         body.put("score", session.getScore());
+        body.put("endsAtMs", session.getEndsAt() == null ? null : session.getEndsAt().toEpochMilli());
+        body.put("remainingSeconds", InterviewSessionRules.remainingSeconds(session.getEndsAt(), Instant.now(clock)));
+        body.put("durationMinutes", session.getDurationMinutes());
         List<Map<String, Object>> turns = new ArrayList<>();
         if (session.getTurns() != null) {
             for (InterviewTurn turn : session.getTurns()) {
@@ -148,9 +152,102 @@ public class AiMockInterviewService {
         return body;
     }
 
+    public Map<String, Object> addTurn(String userId, String sessionId, Map<String, Object> body) {
+        AiMockInterviewSession session = requireOwned(userId, sessionId);
+        if ("COMPLETED".equals(session.getStatus())) {
+            throw alreadyCompleted();
+        }
+        String role = body == null ? null : stringVal(body.get("role"));
+        if (role != null) {
+            role = role.trim().toUpperCase(Locale.ROOT);
+        }
+        if (!"AI".equals(role) && !"CANDIDATE".equals(role)) {
+            throw bad("Turn role must be AI or CANDIDATE.");
+        }
+        String text = body == null ? null : stringVal(body.get("text"));
+        if (text == null || text.isBlank()) {
+            throw bad("Turn text is required.");
+        }
+        appendTurn(session, role, text.trim());
+        sessionRepository.save(session);
+        return Map.of("ok", true, "turnCount", session.getTurns().size());
+    }
+
     /**
-     * The LMS practice room is a history view. When the wall-clock slot has ended,
-     * score the transcript with the same evaluator as org interviews.
+     * Next interviewer line. The server clock decides. When time is up this returns CLOSE
+     * and does not ask another question, even if the candidate just finished an answer.
+     */
+    public Map<String, Object> next(String userId, String sessionId) {
+        AiMockInterviewSession session = requireOwned(userId, sessionId);
+        if ("COMPLETED".equals(session.getStatus())) {
+            return closeView();
+        }
+        Instant now = Instant.now(clock);
+        long remaining = InterviewSessionRules.remainingSeconds(session.getEndsAt(), now);
+        if (InterviewSessionRules.timeUp(remaining)) {
+            appendTurn(session, "AI", InterviewSessionRules.CLOSE_TEXT);
+            sessionRepository.save(session);
+            return closeView();
+        }
+        AiMockInterviewConfig config = configRepository.findById(session.getConfigId()).orElse(null);
+        try {
+            Map<String, Object> request = aiContext(session, config);
+            request.put("remainingSeconds", remaining);
+            Map<String, Object> response = skillamaAiClient.interviewNext(request);
+            String action = stringVal(response.get("action"));
+            if (action != null) {
+                action = action.trim().toUpperCase(Locale.ROOT);
+            }
+            String text = stringVal(response.get("text"));
+            if ("CLOSE".equals(action)) {
+                if (text == null || text.isBlank()) {
+                    text = InterviewSessionRules.CLOSE_TEXT;
+                }
+                appendTurn(session, "AI", text);
+                sessionRepository.save(session);
+                return closeView(text);
+            }
+            if (text == null || text.isBlank()) {
+                text = fallbackFollowUp(session.getStyle());
+                action = "ASK";
+            }
+            if (!"FOLLOW_UP".equals(action)) {
+                action = "ASK";
+            }
+            appendTurn(session, "AI", text);
+            sessionRepository.save(session);
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("action", action);
+            body.put("text", text);
+            body.put("phase", "ACTIVE");
+            body.put("remainingSeconds", remaining);
+            return body;
+        } catch (RuntimeException ex) {
+            log.warn("Mock interview next fallback: {}", ex.getMessage());
+            String text = fallbackFollowUp(session.getStyle());
+            appendTurn(session, "AI", text);
+            sessionRepository.save(session);
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("action", "ASK");
+            body.put("text", text);
+            body.put("phase", "ACTIVE");
+            body.put("remainingSeconds", remaining);
+            return body;
+        }
+    }
+
+    /** Ends the practice session and returns feedback the candidate is allowed to see. */
+    public Map<String, Object> end(String userId, String sessionId) {
+        AiMockInterviewSession session = requireOwned(userId, sessionId);
+        if (!"COMPLETED".equals(session.getStatus())) {
+            completeSession(session, Instant.now(clock));
+        }
+        return feedbackView(session);
+    }
+
+    /**
+     * Abandoned sessions are scored when the wall-clock slot has ended.
+     * A live room calls {@link #end} itself after the candidate finishes speaking.
      */
     private void maybeFinish(AiMockInterviewSession session) {
         if ("COMPLETED".equals(session.getStatus()) || session.getEndsAt() == null) {
@@ -160,11 +257,16 @@ public class AiMockInterviewService {
         if (now.isBefore(session.getEndsAt())) {
             return;
         }
+        completeSession(session, session.getEndsAt());
+    }
+
+    private void completeSession(AiMockInterviewSession session, Instant completedAt) {
+        Instant ended = completedAt == null ? Instant.now(clock) : completedAt;
         session.setStatus("COMPLETED");
-        session.setCompletedAt(session.getEndsAt());
+        session.setCompletedAt(ended);
         if (session.getStartedAt() != null) {
             session.setDurationSeconds((int) Math.max(0,
-                    Duration.between(session.getStartedAt(), session.getEndsAt()).getSeconds()));
+                    Duration.between(session.getStartedAt(), ended).getSeconds()));
         }
         boolean answered = session.getTurns() != null && session.getTurns().stream()
                 .anyMatch(turn -> "CANDIDATE".equals(turn.getRole()));
@@ -186,7 +288,9 @@ public class AiMockInterviewService {
             Object feedback = evaluated.get("feedback");
             Object summary = evaluated.get("feedbackSummary");
             session.setFeedback(feedback == null ? null : feedback.toString());
-            session.setFeedbackSummary(summary == null ? null : summary.toString());
+            session.setFeedbackSummary(summary == null
+                    ? (feedback == null ? "Practice session ended." : feedback.toString())
+                    : summary.toString());
         } catch (RuntimeException ex) {
             log.warn("Mock interview evaluation fallback: {}", ex.getMessage());
             session.setFeedbackSummary("Practice session ended.");
@@ -289,5 +393,84 @@ public class AiMockInterviewService {
 
     private static InterviewFlowException notFound(String message) {
         return new InterviewFlowException("NOT_FOUND", HttpStatus.NOT_FOUND, message);
+    }
+
+    private static InterviewFlowException alreadyCompleted() {
+        return new InterviewFlowException(
+                "ALREADY_COMPLETED", HttpStatus.CONFLICT, "This practice session is already complete.");
+    }
+
+    private AiMockInterviewSession requireOwned(String userId, String sessionId) {
+        AiMockInterviewSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> notFound("Practice session not found."));
+        if (!userId.equals(session.getUserId())) {
+            throw new InterviewFlowException("FORBIDDEN", HttpStatus.FORBIDDEN, "You cannot view this practice session.");
+        }
+        return session;
+    }
+
+    private Map<String, Object> aiContext(AiMockInterviewSession session, AiMockInterviewConfig config) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("style", session.getStyle());
+        body.put("jdText", config == null || config.getJdText() == null ? "" : config.getJdText());
+        body.put("course", config == null || config.getCourseName() == null ? "" : config.getCourseName());
+        List<Map<String, String>> questions = new ArrayList<>();
+        if (config != null && config.getQuestions() != null) {
+            for (String text : config.getQuestions()) {
+                if (text != null && !text.isBlank()) {
+                    questions.add(Map.of("text", text));
+                }
+            }
+        }
+        body.put("questions", questions);
+        body.put("transcript", transcript(session.getTurns()));
+        return body;
+    }
+
+    private void appendTurn(AiMockInterviewSession session, String role, String text) {
+        List<InterviewTurn> turns = session.getTurns() == null
+                ? new ArrayList<>() : new ArrayList<>(session.getTurns());
+        InterviewTurn last = turns.isEmpty() ? null : turns.get(turns.size() - 1);
+        if (last != null && role.equals(last.getRole()) && text.equals(last.getText())) {
+            return;
+        }
+        turns.add(InterviewTurn.builder().role(role).text(text).at(Instant.now(clock)).build());
+        session.setTurns(turns);
+    }
+
+    private static String fallbackFollowUp(String style) {
+        if ("TECHNICAL".equals(style)) {
+            return "What trade-off did you consider, and why did you choose that approach?";
+        }
+        if ("BEHAVIORAL".equals(style)) {
+            return "What was your specific contribution, and what would you do differently next time?";
+        }
+        return "Can you go one level deeper on what you just described?";
+    }
+
+    private static Map<String, Object> closeView() {
+        return closeView(InterviewSessionRules.CLOSE_TEXT);
+    }
+
+    private static Map<String, Object> closeView(String text) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("action", "CLOSE");
+        body.put("text", text);
+        body.put("phase", "CLOSING");
+        body.put("remainingSeconds", 0);
+        return body;
+    }
+
+    private static Map<String, Object> feedbackView(AiMockInterviewSession session) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", "COMPLETED");
+        body.put("score", session.getScore());
+        body.put("feedback", session.getFeedback());
+        body.put("feedbackSummary", session.getFeedbackSummary());
+        return body;
+    }
+
+    private static String stringVal(Object value) {
+        return value == null ? null : value.toString();
     }
 }
