@@ -23,6 +23,7 @@ import com.prwatech.skillama.dto.StartExamResponseDTO;
 import com.prwatech.skillama.dto.SubmitExamAttemptRequestDTO;
 import com.prwatech.skillama.dto.AreaLinkDTO;
 import com.prwatech.skillama.dto.RetakeOptionsDTO;
+import com.prwatech.skillama.model.CertificationExamMeta;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.ExamAttempt;
@@ -111,8 +112,12 @@ public class ExamService {
             throw new IllegalArgumentException("This certification exam is not currently available.");
         }
 
-        int numQuestions = globalCertificationExamService.targetQuestionCount(cert.getParsedMeta());
-        int timeLimitSeconds = globalCertificationExamService.timeLimitSeconds(cert.getParsedMeta());
+        CertificationExamMeta examMeta = globalCertificationExamService.resolvedMeta(cert);
+        if (examMeta == null) {
+            examMeta = cert.getParsedMeta();
+        }
+        int numQuestions = globalCertificationExamService.targetQuestionCount(examMeta);
+        int timeLimitSeconds = globalCertificationExamService.timeLimitSeconds(examMeta);
         List<com.prwatech.skillama.dto.ModuleQuizQuestionDTO> paper =
                 certificationQuestionBankService.assemblePaper(cert, numQuestions);
         if (paper == null || paper.isEmpty()) {

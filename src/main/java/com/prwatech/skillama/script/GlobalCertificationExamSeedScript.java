@@ -1,9 +1,11 @@
 package com.prwatech.skillama.script;
 
+import com.prwatech.skillama.model.CertificationExamMeta;
 import com.prwatech.skillama.model.CertificationTier;
 import com.prwatech.skillama.model.GlobalCertificationExam;
 import com.prwatech.skillama.repository.GlobalCertificationExamRepository;
 import com.prwatech.skillama.service.GlobalCertificationExamService;
+import com.prwatech.skillama.service.OfficialCertificationExamFormat;
 import com.prwatech.skillama.util.IndiaTime;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -14,8 +16,9 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Seeds the GCP global certification catalog (URLs only). Guidelines snapshots are
- * fetched on admin save / refresh / first exam start so startup is not blocked by network.
+ * Seeds the GCP global certification catalog (URLs + official exam length/count).
+ * Guidelines snapshots are fetched on admin save / refresh / first exam start
+ * so startup is not blocked by network.
  */
 @Component
 @RequiredArgsConstructor
@@ -30,9 +33,23 @@ public class GlobalCertificationExamSeedScript implements CommandLineRunner {
     @Override
     public void run(String... args) {
         int added = 0;
+        int corrected = 0;
         for (SeedRow seed : gcpSeeds()) {
             String nameKey = GlobalCertificationExamService.nameKey(seed.name());
-            if (repository.findByProviderIgnoreCaseAndNameKey(PROVIDER, nameKey).isPresent()) {
+            CertificationExamMeta official = OfficialCertificationExamFormat.merge(
+                    seed.name(), seed.url(), null);
+            var existing = repository.findByProviderIgnoreCaseAndNameKey(PROVIDER, nameKey);
+            if (existing.isPresent()) {
+                GlobalCertificationExam row = existing.get();
+                CertificationExamMeta merged = OfficialCertificationExamFormat.merge(
+                        seed.name(), seed.url(), row.getParsedMeta());
+                if (!OfficialCertificationExamFormat.sameExamRules(row.getParsedMeta(), merged)) {
+                    row.setParsedMeta(merged);
+                    row.setUpdatedAt(IndiaTime.now());
+                    row.setUpdatedBy(ACTOR);
+                    repository.save(row);
+                    corrected++;
+                }
                 continue;
             }
             repository.save(GlobalCertificationExam.builder()
@@ -42,6 +59,7 @@ public class GlobalCertificationExamSeedScript implements CommandLineRunner {
                     .nameKey(nameKey)
                     .guidelinesUrl(seed.url())
                     .description(seed.description())
+                    .parsedMeta(official)
                     .active(true)
                     .createdAt(IndiaTime.now())
                     .createdBy(ACTOR)
@@ -52,6 +70,9 @@ public class GlobalCertificationExamSeedScript implements CommandLineRunner {
         }
         if (added > 0) {
             LOGGER.info("Seeded {} GCP global certification exam catalog entries", added);
+        }
+        if (corrected > 0) {
+            LOGGER.info("Corrected official exam length/count on {} GCP catalog entries", corrected);
         }
     }
 

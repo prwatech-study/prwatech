@@ -33,12 +33,16 @@ public class CertificationGuidelinesFetcher {
     private static final String USER_AGENT =
             "Mozilla/5.0 (compatible; SkillamaGuidelinesBot/1.0; +https://skillama.com)";
 
-    private static final Pattern LENGTH_PATTERN = Pattern.compile(
+    private static final Pattern RENEWAL_CUT_PATTERN = Pattern.compile(
+            "(?i)renewal\\s+(?:exam|via|faqs)|renewal exam information");
+    private static final Pattern DURATION_HOURS_PATTERN = Pattern.compile(
+            "(?i)(?:length|duration)\\s*:?\\s*(\\d+|one|two|three)\\s*-?\\s*hours?");
+    private static final Pattern DURATION_MINUTES_PATTERN = Pattern.compile(
             "(?i)(?:length|duration)\\s*:?\\s*(\\d+)\\s*minutes?");
     private static final Pattern QUESTION_RANGE_PATTERN = Pattern.compile(
-            "(?i)(\\d+)\\s*[-–—to]+\\s*(\\d+)\\s*(?:multiple[- ]choice|questions?)");
+            "(?i)(?:~\\s*)?(\\d+)\\s*[-–—to]+\\s*(\\d+)\\s*(?:multiple[- ]choice|questions?)");
     private static final Pattern QUESTION_SINGLE_PATTERN = Pattern.compile(
-            "(?i)(\\d+)\\s*(?:multiple[- ]choice|multiple[- ]select)?\\s*(?:and\\s+multiple[- ]select\\s+)?questions?");
+            "(?i)~?\\s*(\\d+)\\s*(?:multiple[- ]choice|multiple[- ]select)?\\s*(?:and\\s+multiple[- ]select\\s+)?questions?");
 
     private static final Pattern SECTION_DOMAIN_PATTERN = Pattern.compile(
             "(?i)^\\s*section\\s+\\d+\\s*[:.\\-–—]|\\(\\s*~?\\s*\\d{1,3}\\s*%");
@@ -84,20 +88,22 @@ public class CertificationGuidelinesFetcher {
             snapshot = snapshot.substring(0, MAX_SNAPSHOT_CHARS);
         }
 
-        CertificationExamMeta meta = parseMeta(doc, snapshot);
+        CertificationExamMeta parsed = parseMeta(doc, snapshot);
+        CertificationExamMeta meta = OfficialCertificationExamFormat.merge(null, url, parsed);
         return new FetchResult(snapshot, meta);
     }
 
     CertificationExamMeta parseMeta(Document doc, String snapshot) {
-        Integer duration = firstInt(LENGTH_PATTERN, snapshot);
+        String rulesText = standardExamText(snapshot);
+        Integer duration = parseDurationMinutes(rulesText);
         Integer qMin = null;
         Integer qMax = null;
-        Matcher range = QUESTION_RANGE_PATTERN.matcher(snapshot);
+        Matcher range = QUESTION_RANGE_PATTERN.matcher(rulesText);
         if (range.find()) {
             qMin = Integer.parseInt(range.group(1));
             qMax = Integer.parseInt(range.group(2));
         } else {
-            Matcher single = QUESTION_SINGLE_PATTERN.matcher(snapshot);
+            Matcher single = QUESTION_SINGLE_PATTERN.matcher(rulesText);
             if (single.find()) {
                 int n = Integer.parseInt(single.group(1));
                 qMin = n;
@@ -107,7 +113,7 @@ public class CertificationGuidelinesFetcher {
 
         List<String> domains = extractDomains(doc, snapshot);
         String formatNotes = null;
-        String lower = snapshot.toLowerCase(Locale.ROOT);
+        String lower = rulesText.toLowerCase(Locale.ROOT);
         if (lower.contains("multiple select") || lower.contains("multiple-select")) {
             formatNotes = "multiple choice and multiple select questions";
         } else if (lower.contains("multiple choice")) {
@@ -115,13 +121,50 @@ public class CertificationGuidelinesFetcher {
         }
 
         return CertificationExamMeta.builder()
-                .durationMinutes(duration != null ? duration : 90)
-                .questionCountMin(qMin != null ? qMin : 50)
-                .questionCountMax(qMax != null ? qMax : 60)
+                .durationMinutes(duration)
+                .questionCountMin(qMin)
+                .questionCountMax(qMax)
                 .domains(domains)
-                .formatNotes(formatNotes != null ? formatNotes : "multiple choice and multiple select questions")
+                .formatNotes(formatNotes)
                 .fetchedAt(IndiaTime.now())
                 .build();
+    }
+
+    /** Standard-exam block only — GCP pages list a shorter renewal exam afterwards. */
+    static String standardExamText(String snapshot) {
+        if (!StringUtils.hasText(snapshot)) {
+            return "";
+        }
+        Matcher cut = RENEWAL_CUT_PATTERN.matcher(snapshot);
+        if (cut.find()) {
+            return snapshot.substring(0, cut.start());
+        }
+        return snapshot;
+    }
+
+    static Integer parseDurationMinutes(String text) {
+        if (!StringUtils.hasText(text)) {
+            return null;
+        }
+        Matcher hours = DURATION_HOURS_PATTERN.matcher(text);
+        if (hours.find()) {
+            return wordOrInt(hours.group(1)) * 60;
+        }
+        Matcher minutes = DURATION_MINUTES_PATTERN.matcher(text);
+        if (minutes.find()) {
+            return Integer.parseInt(minutes.group(1));
+        }
+        return null;
+    }
+
+    private static int wordOrInt(String raw) {
+        String v = raw.toLowerCase(Locale.ROOT);
+        return switch (v) {
+            case "one" -> 1;
+            case "two" -> 2;
+            case "three" -> 3;
+            default -> Integer.parseInt(v);
+        };
     }
 
     private List<String> extractDomains(Document doc, String snapshot) {
@@ -210,17 +253,6 @@ public class CertificationGuidelinesFetcher {
             }
         }
         return false;
-    }
-
-    private static Integer firstInt(Pattern pattern, String text) {
-        if (!StringUtils.hasText(text)) {
-            return null;
-        }
-        Matcher m = pattern.matcher(text);
-        if (m.find()) {
-            return Integer.parseInt(m.group(1));
-        }
-        return null;
     }
 
     private static void validateHttpUrl(String url) {

@@ -266,6 +266,11 @@ public class CertificationQuestionBankService {
         return Math.max(50, certService.targetQuestionCount(meta) * BANK_MULTIPLIER);
     }
 
+    private CertificationExamMeta examRules(GlobalCertificationExam cert) {
+        CertificationExamMeta resolved = certService.resolvedMeta(cert);
+        return resolved != null ? resolved : (cert != null ? cert.getParsedMeta() : null);
+    }
+
     /** Monthly / batch entry: skip certs already RUNNING. */
     public void rebuildIfIdle(String certificationExamId, String actorId) {
         recoverStaleRunningLocks();
@@ -295,13 +300,14 @@ public class CertificationQuestionBankService {
             existing = certService.require(certificationExamId);
         }
         LocalDateTime now = IndiaTime.now();
-        int examQ = certService.targetQuestionCount(existing.getParsedMeta());
+        CertificationExamMeta examMeta = examRules(existing);
+        int examQ = certService.targetQuestionCount(examMeta);
         if (GlobalCertificationExamService.isRebuildCoolingDown(existing, examQ, now)) {
             throw new IllegalStateException(REBUILD_COOLDOWN_MESSAGE);
         }
         LocalDateTime staleBefore = now.minus(STALE_RUNNING_TIMEOUT);
         int nextBuildVersion = (existing.getBankVersion() != null ? existing.getBankVersion() : 0) + 1;
-        int target = targetBankSize(existing.getParsedMeta());
+        int target = targetBankSize(examMeta);
         // Allow claim when idle/ready/failed, OR when RUNNING but stale (race-safe reclaim).
         Query query = new Query(new Criteria().andOperator(
                 Criteria.where("id").is(certificationExamId),
@@ -352,12 +358,13 @@ public class CertificationQuestionBankService {
             throw new IllegalStateException("Guidelines snapshot is missing; refresh guidelines first.");
         }
 
-        int target = targetBankSize(cert.getParsedMeta());
-        int durationMinutes = cert.getParsedMeta() != null && cert.getParsedMeta().getDurationMinutes() != null
-                ? cert.getParsedMeta().getDurationMinutes() : 90;
-        List<String> domains = cert.getParsedMeta() != null && cert.getParsedMeta().getDomains() != null
-                ? cert.getParsedMeta().getDomains() : List.of();
-        String formatNotes = cert.getParsedMeta() != null ? cert.getParsedMeta().getFormatNotes() : null;
+        CertificationExamMeta examMeta = examRules(cert);
+        int target = targetBankSize(examMeta);
+        int durationMinutes = examMeta != null && examMeta.getDurationMinutes() != null
+                ? examMeta.getDurationMinutes() : 90;
+        List<String> domains = examMeta != null && examMeta.getDomains() != null
+                ? examMeta.getDomains() : List.of();
+        String formatNotes = examMeta != null ? examMeta.getFormatNotes() : null;
         boolean allowMulti = formatNotes == null
                 || formatNotes.toLowerCase(Locale.ROOT).contains("select")
                 || formatNotes.toLowerCase(Locale.ROOT).contains("multi");
@@ -812,7 +819,8 @@ public class CertificationQuestionBankService {
     }
 
     public CertificationBankStatusDTO toStatus(GlobalCertificationExam cert) {
-        int examQ = certService.targetQuestionCount(cert.getParsedMeta());
+        CertificationExamMeta examMeta = examRules(cert);
+        int examQ = certService.targetQuestionCount(examMeta);
         CertificationBankBuildStatus status =
                 GlobalCertificationExamService.effectiveBankStatus(cert, examQ);
         LocalDateTime availableAt =
@@ -825,7 +833,7 @@ public class CertificationQuestionBankService {
                 .bankVersion(cert.getBankVersion())
                 .bankTargetSize(cert.getBankTargetSize() != null
                         ? cert.getBankTargetSize()
-                        : targetBankSize(cert.getParsedMeta()))
+                        : targetBankSize(examMeta))
                 .bankQuestionCount(cert.getBankQuestionCount() != null ? cert.getBankQuestionCount() : 0)
                 .bankBuildQuestionCount(status == CertificationBankBuildStatus.RUNNING
                         ? cert.getBankBuildQuestionCount() : null)

@@ -212,6 +212,41 @@ class GlobalCertificationExamServiceTest {
     }
 
     @Test
+    void resolvedMetaReplacesGenericDefaultWithOfficialGcpRules() {
+        GlobalCertificationExam ace = GlobalCertificationExam.builder()
+                .name("Associate Cloud Engineer")
+                .guidelinesUrl("https://cloud.google.com/certification/cloud-engineer")
+                .parsedMeta(CertificationExamMeta.builder()
+                        .durationMinutes(90).questionCountMin(50).questionCountMax(60).build())
+                .build();
+        CertificationExamMeta meta = service.resolvedMeta(ace);
+        assertEquals(120, meta.getDurationMinutes());
+        assertEquals(50, meta.getQuestionCountMin());
+        assertEquals(60, meta.getQuestionCountMax());
+        assertEquals(120 * 60, service.timeLimitSeconds(meta));
+        assertEquals(55, service.targetQuestionCount(meta));
+    }
+
+    @Test
+    void listAllShowsOfficialLengthNotGenericDefault() {
+        GlobalCertificationExam ace = GlobalCertificationExam.builder()
+                .id("ace")
+                .provider("GCP")
+                .name("Associate Cloud Engineer")
+                .guidelinesUrl("https://cloud.google.com/certification/cloud-engineer")
+                .active(true)
+                .parsedMeta(CertificationExamMeta.builder()
+                        .durationMinutes(90).questionCountMin(50).questionCountMax(60).build())
+                .build();
+        when(repository.findAll()).thenReturn(List.of(ace));
+
+        GlobalCertificationExamDTO dto = service.listAll(false).get(0);
+        assertEquals(120, dto.getParsedMeta().getDurationMinutes());
+        assertEquals(50, dto.getParsedMeta().getQuestionCountMin());
+        assertEquals(60, dto.getParsedMeta().getQuestionCountMax());
+    }
+
+    @Test
     void nameKeyCollapsesWhitespaceAndLowercases() {
         assertEquals("cloud digital leader", GlobalCertificationExamService.nameKey("  Cloud   Digital Leader "));
     }

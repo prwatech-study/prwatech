@@ -78,4 +78,52 @@ class CertificationGuidelinesFetcherTest {
         assertFalse(CertificationGuidelinesFetcher.looksLikeJunk("Training and serving machine learning models"));
         assertFalse(CertificationGuidelinesFetcher.looksLikeJunk("Section 3: Infrastructure and application modernization"));
     }
+
+    @Test
+    void parsesTwoHoursAndStandardRangeNotRenewal() {
+        CertificationExamMeta meta = parse("""
+                <h2>Standard exam information</h2>
+                <p>Length: 2 hours</p>
+                <p>Exam format: 50-60 multiple choice and multiple select questions</p>
+                <h2>Renewal exam information</h2>
+                <p>Length: 1 hour</p>
+                <p>Exam format: 20 multiple choice and multiple select questions</p>
+                """);
+        assertEquals(120, meta.getDurationMinutes());
+        assertEquals(50, meta.getQuestionCountMin());
+        assertEquals(60, meta.getQuestionCountMax());
+    }
+
+    @Test
+    void parsesWrittenHoursAndTildeCount() {
+        CertificationExamMeta meta = parse("""
+                <p>Length: Two hours</p>
+                <p>Exam format: ~80 multiple choice questions</p>
+                """);
+        assertEquals(120, meta.getDurationMinutes());
+        assertEquals(80, meta.getQuestionCountMin());
+        assertEquals(80, meta.getQuestionCountMax());
+    }
+
+    @Test
+    void parsesDataEngineerFortyToFifty() {
+        CertificationExamMeta meta = parse("""
+                <h2>Standard exam information</h2>
+                <p>Length: 2 hours</p>
+                <p>Exam format: 40-50 multiple choice and multiple select questions</p>
+                <h2>Renewal exam information</h2>
+                <p>Length: 1 hour. 20 multiple choice questions.</p>
+                """);
+        assertEquals(120, meta.getDurationMinutes());
+        assertEquals(40, meta.getQuestionCountMin());
+        assertEquals(50, meta.getQuestionCountMax());
+    }
+
+    @Test
+    void doesNotInventCountsWhenPageHasNoExamSize() {
+        CertificationExamMeta meta = parse("<p>The exam assesses your knowledge of cloud security.</p>");
+        assertEquals(null, meta.getDurationMinutes());
+        assertEquals(null, meta.getQuestionCountMin());
+        assertEquals(null, meta.getQuestionCountMax());
+    }
 }

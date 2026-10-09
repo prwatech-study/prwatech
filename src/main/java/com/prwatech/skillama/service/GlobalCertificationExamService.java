@@ -142,15 +142,26 @@ public class GlobalCertificationExamService {
     public GlobalCertificationExam ensureFreshGuidelines(GlobalCertificationExam row) {
         boolean needsFetch = !StringUtils.hasText(row.getGuidelinesSnapshot())
                 || CertificationGuidelinesFetcher.isStale(row.getParsedMeta(), SNAPSHOT_MAX_AGE);
-        if (!needsFetch) {
-            return row;
+        if (needsFetch) {
+            if (!StringUtils.hasText(row.getGuidelinesUrl())) {
+                throw new IllegalStateException("Certification guidelines URL is missing");
+            }
+            applyFetch(row, guidelinesFetcher.fetch(row.getGuidelinesUrl()));
+            row.setUpdatedAt(IndiaTime.now());
+            return repository.save(row);
         }
-        if (!StringUtils.hasText(row.getGuidelinesUrl())) {
-            throw new IllegalStateException("Certification guidelines URL is missing");
+        return persistOfficialRulesIfNeeded(row);
+    }
+
+    /**
+     * Official standard-exam length / count for this catalog row (parser + GCP guide table).
+     * Use this instead of {@code row.getParsedMeta()} when sizing papers or banks.
+     */
+    public CertificationExamMeta resolvedMeta(GlobalCertificationExam row) {
+        if (row == null) {
+            return OfficialCertificationExamFormat.merge(null, null, null);
         }
-        applyFetch(row, guidelinesFetcher.fetch(row.getGuidelinesUrl()));
-        row.setUpdatedAt(IndiaTime.now());
-        return repository.save(row);
+        return OfficialCertificationExamFormat.merge(row.getName(), row.getGuidelinesUrl(), row.getParsedMeta());
     }
 
     public int targetQuestionCount(CertificationExamMeta meta) {
@@ -171,7 +182,19 @@ public class GlobalCertificationExamService {
 
     private void applyFetch(GlobalCertificationExam row, CertificationGuidelinesFetcher.FetchResult fetched) {
         row.setGuidelinesSnapshot(fetched.snapshot());
-        row.setParsedMeta(fetched.meta());
+        row.setParsedMeta(OfficialCertificationExamFormat.merge(
+                row.getName(), row.getGuidelinesUrl(), fetched.meta()));
+    }
+
+    /** Rewrite stored 90 / 50–60 defaults to the official guide when we know this exam. */
+    GlobalCertificationExam persistOfficialRulesIfNeeded(GlobalCertificationExam row) {
+        CertificationExamMeta resolved = resolvedMeta(row);
+        if (OfficialCertificationExamFormat.sameExamRules(row.getParsedMeta(), resolved)) {
+            return row;
+        }
+        row.setParsedMeta(resolved);
+        row.setUpdatedAt(IndiaTime.now());
+        return repository.save(row);
     }
 
     private ValidatedFields validateRequest(GlobalCertificationExamRequestDTO request, boolean creating) {
@@ -232,7 +255,8 @@ public class GlobalCertificationExamService {
     }
 
     private GlobalCertificationExamDTO toDto(GlobalCertificationExam row) {
-        int examQ = targetQuestionCount(row.getParsedMeta());
+        CertificationExamMeta meta = resolvedMeta(row);
+        int examQ = targetQuestionCount(meta);
         CertificationBankBuildStatus bankStatus = effectiveBankStatus(row, examQ);
         int target = requiredBankSize(row, examQ);
         LocalDateTime rebuildAvailableAt = rebuildAvailableAt(row, examQ);
@@ -247,7 +271,7 @@ public class GlobalCertificationExamService {
                 .description(row.getDescription())
                 .active(row.isActive())
                 .guidelinesReady(StringUtils.hasText(row.getGuidelinesSnapshot()))
-                .parsedMeta(row.getParsedMeta())
+                .parsedMeta(meta)
                 .bankStatus(bankStatus)
                 .bankVersion(row.getBankVersion())
                 .bankTargetSize(target)
