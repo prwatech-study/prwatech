@@ -1,5 +1,6 @@
 package com.prwatech.skillama.repository;
 
+import com.prwatech.skillama.model.CertificationBankBuildStatus;
 import com.prwatech.skillama.model.GlobalCertificationExam;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
@@ -15,4 +16,6 @@ public interface GlobalCertificationExamRepository extends MongoRepository<Globa
     Optional<GlobalCertificationExam> findByProviderIgnoreCaseAndNameKey(String provider, String nameKey);
 
     boolean existsByProviderIgnoreCaseAndNameKey(String provider, String nameKey);
+
+    List<GlobalCertificationExam> findByBankStatus(CertificationBankBuildStatus bankStatus);
 }

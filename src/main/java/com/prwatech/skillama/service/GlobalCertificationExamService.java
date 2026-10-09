@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -39,8 +40,9 @@ public class GlobalCertificationExamService {
         List<GlobalCertificationExam> rows = activeOnly
                 ? repository.findByActiveTrue()
                 : repository.findAll();
+        boolean rebuildBusy = hasFreshRunningRebuild();
         return rows.stream()
-                .map(this::toDto)
+                .map(row -> toDto(row, rebuildBusy))
                 .sorted(Comparator
                         .comparing(GlobalCertificationExamDTO::getProvider, Comparator.nullsLast(String::compareToIgnoreCase))
                         .thenComparing(dto -> dto.getTier() == null ? "" : dto.getTier().name())
@@ -49,7 +51,7 @@ public class GlobalCertificationExamService {
     }
 
     public GlobalCertificationExamDTO getById(String id) {
-        return toDto(require(id));
+        return toDto(require(id), hasFreshRunningRebuild());
     }
 
     public GlobalCertificationExam require(String id) {
@@ -78,7 +80,7 @@ public class GlobalCertificationExamService {
                 .updatedAt(IndiaTime.now())
                 .updatedBy(actorId)
                 .build();
-        return toDto(saveUnique(row));
+        return toDto(saveUnique(row), hasFreshRunningRebuild());
     }
 
     public GlobalCertificationExamDTO update(String id, GlobalCertificationExamRequestDTO request, String actorId) {
@@ -111,7 +113,7 @@ public class GlobalCertificationExamService {
         if (urlChanged) {
             applyFetch(row, guidelinesFetcher.fetch(row.getGuidelinesUrl()));
         }
-        return toDto(saveUnique(row));
+        return toDto(saveUnique(row), hasFreshRunningRebuild());
     }
 
     public GlobalCertificationExamDTO refreshGuidelines(String id, String actorId) {
@@ -122,7 +124,7 @@ public class GlobalCertificationExamService {
         applyFetch(row, guidelinesFetcher.fetch(row.getGuidelinesUrl()));
         row.setUpdatedAt(IndiaTime.now());
         row.setUpdatedBy(actorId);
-        return toDto(repository.save(row));
+        return toDto(repository.save(row), hasFreshRunningRebuild());
     }
 
     public void delete(String id) {
@@ -230,12 +232,14 @@ public class GlobalCertificationExamService {
         }
     }
 
-    private GlobalCertificationExamDTO toDto(GlobalCertificationExam row) {
+    private GlobalCertificationExamDTO toDto(GlobalCertificationExam row, boolean rebuildBusy) {
         CertificationBankBuildStatus bankStatus = row.getBankStatus() != null
                 ? row.getBankStatus()
                 : CertificationBankBuildStatus.IDLE;
         int examQ = targetQuestionCount(row.getParsedMeta());
         int target = row.getBankTargetSize() != null ? row.getBankTargetSize() : examQ * BANK_MULTIPLIER;
+        // Single-flight: no new Rebuild while any fresh RUNNING exists (including this row).
+        boolean rebuildAllowed = !rebuildBusy;
         return GlobalCertificationExamDTO.builder()
                 .id(row.getId())
                 .provider(row.getProvider())
@@ -251,7 +255,7 @@ public class GlobalCertificationExamService {
                 .bankTargetSize(target)
                 .bankQuestionCount(row.getBankQuestionCount() != null ? row.getBankQuestionCount() : 0)
                 .bankMultiplier(BANK_MULTIPLIER)
-                .rebuildAllowed(bankStatus != CertificationBankBuildStatus.RUNNING)
+                .rebuildAllowed(rebuildAllowed)
                 .bankReady(isBankReady(row, examQ))
                 .bankBuildStartedAt(row.getBankBuildStartedAt())
                 .bankBuildFinishedAt(row.getBankBuildFinishedAt())
@@ -264,6 +268,18 @@ public class GlobalCertificationExamService {
                 .updatedAt(row.getUpdatedAt())
                 .updatedBy(row.getUpdatedBy())
                 .build();
+    }
+
+    /** True when any cert has a non-stale RUNNING bank rebuild (global single-flight). */
+    private boolean hasFreshRunningRebuild() {
+        LocalDateTime staleBefore = IndiaTime.now()
+                .minus(CertificationQuestionBankService.STALE_RUNNING_TIMEOUT);
+        for (GlobalCertificationExam row : repository.findByBankStatus(CertificationBankBuildStatus.RUNNING)) {
+            if (row.getBankBuildStartedAt() != null && !row.getBankBuildStartedAt().isBefore(staleBefore)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Same readiness bar learners use when assembling a paper. */

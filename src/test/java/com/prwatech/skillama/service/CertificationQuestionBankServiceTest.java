@@ -194,6 +194,8 @@ class CertificationQuestionBankServiceTest {
         when(skillamaMongoTemplate.find(any(Query.class), eq(GlobalCertificationExam.class)))
                 .thenReturn(List.of()); // nothing stale
         when(certService.require("c1")).thenReturn(running);
+        when(skillamaMongoTemplate.exists(any(Query.class), eq(GlobalCertificationExam.class)))
+                .thenReturn(false);
         when(skillamaMongoTemplate.findAndModify(
                 any(Query.class), any(Update.class), any(FindAndModifyOptions.class), eq(GlobalCertificationExam.class)))
                 .thenReturn(null);
@@ -201,6 +203,22 @@ class CertificationQuestionBankServiceTest {
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> service.requestRebuild("c1", "admin-1"));
         assertEquals(CertificationQuestionBankService.ALREADY_RUNNING_MESSAGE, ex.getMessage());
+    }
+
+    @Test
+    void requestRebuildRejectsWhenAnotherCertIsAlreadyRebuilding() {
+        GlobalCertificationExam idle = cert("c2", CertificationBankBuildStatus.READY, 1, 55);
+        when(skillamaMongoTemplate.find(any(Query.class), eq(GlobalCertificationExam.class)))
+                .thenReturn(List.of());
+        when(certService.require("c2")).thenReturn(idle);
+        when(skillamaMongoTemplate.exists(any(Query.class), eq(GlobalCertificationExam.class)))
+                .thenReturn(true);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> service.requestRebuild("c2", "admin-1"));
+        assertEquals(CertificationQuestionBankService.GLOBAL_REBUILD_BUSY_MESSAGE, ex.getMessage());
+        verify(skillamaMongoTemplate, never()).findAndModify(
+                any(Query.class), any(Update.class), any(FindAndModifyOptions.class), eq(GlobalCertificationExam.class));
     }
 
     @Test
@@ -218,9 +236,37 @@ class CertificationQuestionBankServiceTest {
     }
 
     @Test
+    void rebuildIfIdleSkipsWhenGlobalCatalogIsBusy() {
+        GlobalCertificationExam idle = cert("c2", CertificationBankBuildStatus.READY, 1, 55);
+        when(skillamaMongoTemplate.find(any(Query.class), eq(GlobalCertificationExam.class)))
+                .thenReturn(List.of());
+        when(certService.require("c2")).thenReturn(idle);
+        when(skillamaMongoTemplate.exists(any(Query.class), eq(GlobalCertificationExam.class)))
+                .thenReturn(true);
+
+        service.rebuildIfIdle("c2", "monthly-bank-job");
+
+        verify(skillamaMongoTemplate, never()).findAndModify(
+                any(Query.class), any(Update.class), any(FindAndModifyOptions.class), eq(GlobalCertificationExam.class));
+    }
+
+    @Test
+    void hasFreshRunningRebuildReflectsMongoExists() {
+        when(skillamaMongoTemplate.exists(any(Query.class), eq(GlobalCertificationExam.class)))
+                .thenReturn(true);
+        assertTrue(service.hasFreshRunningRebuild());
+
+        when(skillamaMongoTemplate.exists(any(Query.class), eq(GlobalCertificationExam.class)))
+                .thenReturn(false);
+        assertFalse(service.hasFreshRunningRebuild());
+    }
+
+    @Test
     void toStatusAllowsRebuildWhenRunningLockIsStale() {
         GlobalCertificationExam stale = cert("c1", CertificationBankBuildStatus.RUNNING, 1, 55);
         stale.setBankBuildStartedAt(LocalDateTime.now().minusHours(3));
+        when(skillamaMongoTemplate.exists(any(Query.class), eq(GlobalCertificationExam.class)))
+                .thenReturn(false);
 
         CertificationBankStatusDTO status = service.toStatus(stale);
 
@@ -232,6 +278,8 @@ class CertificationQuestionBankServiceTest {
     void toStatusBlocksRebuildWhileFreshRunning() {
         GlobalCertificationExam running = cert("c1", CertificationBankBuildStatus.RUNNING, 1, 55);
         running.setBankBuildStartedAt(LocalDateTime.now().minusMinutes(30));
+        when(skillamaMongoTemplate.exists(any(Query.class), eq(GlobalCertificationExam.class)))
+                .thenReturn(true);
 
         CertificationBankStatusDTO status = service.toStatus(running);
 

@@ -1,6 +1,8 @@
 package com.prwatech.skillama.service;
 
+import com.prwatech.skillama.dto.GlobalCertificationExamDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
+import com.prwatech.skillama.model.CertificationBankBuildStatus;
 import com.prwatech.skillama.model.CertificationExamMeta;
 import com.prwatech.skillama.model.CertificationTier;
 import com.prwatech.skillama.model.GlobalCertificationExam;
@@ -12,6 +14,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -139,5 +144,60 @@ class GlobalCertificationExamServiceTest {
     void requireThrowsWhenMissing() {
         when(repository.findById("x")).thenReturn(java.util.Optional.empty());
         assertThrows(ResourceNotFoundException.class, () -> service.require("x"));
+    }
+
+    @Test
+    void listAllBlocksRebuildOnEveryRowWhileAnotherIsRunning() {
+        GlobalCertificationExam running = GlobalCertificationExam.builder()
+                .id("c1")
+                .provider("GCP")
+                .tier(CertificationTier.FOUNDATIONAL)
+                .name("CDL")
+                .active(true)
+                .bankStatus(CertificationBankBuildStatus.RUNNING)
+                .bankBuildStartedAt(LocalDateTime.now().minusMinutes(5))
+                .bankVersion(0)
+                .bankQuestionCount(0)
+                .build();
+        GlobalCertificationExam idle = GlobalCertificationExam.builder()
+                .id("c2")
+                .provider("GCP")
+                .tier(CertificationTier.ASSOCIATE)
+                .name("ACE")
+                .active(true)
+                .bankStatus(CertificationBankBuildStatus.READY)
+                .bankVersion(1)
+                .bankQuestionCount(55)
+                .build();
+        when(repository.findAll()).thenReturn(List.of(running, idle));
+        when(repository.findByBankStatus(CertificationBankBuildStatus.RUNNING))
+                .thenReturn(List.of(running));
+
+        List<GlobalCertificationExamDTO> dtos = service.listAll(false);
+
+        assertEquals(2, dtos.size());
+        assertTrue(dtos.stream().noneMatch(GlobalCertificationExamDTO::isRebuildAllowed));
+    }
+
+    @Test
+    void listAllAllowsRebuildWhenNoFreshRunning() {
+        GlobalCertificationExam idle = GlobalCertificationExam.builder()
+                .id("c2")
+                .provider("GCP")
+                .tier(CertificationTier.ASSOCIATE)
+                .name("ACE")
+                .active(true)
+                .bankStatus(CertificationBankBuildStatus.READY)
+                .bankVersion(1)
+                .bankQuestionCount(55)
+                .build();
+        when(repository.findAll()).thenReturn(List.of(idle));
+        when(repository.findByBankStatus(CertificationBankBuildStatus.RUNNING))
+                .thenReturn(List.of());
+
+        List<GlobalCertificationExamDTO> dtos = service.listAll(false);
+
+        assertEquals(1, dtos.size());
+        assertTrue(dtos.get(0).isRebuildAllowed());
     }
 }

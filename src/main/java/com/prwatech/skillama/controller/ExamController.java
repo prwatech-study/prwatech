@@ -392,7 +392,8 @@ public class ExamController {
         if (e instanceof IllegalStateException
                 || message.contains("already enabled")
                 || message.contains("already configured")
-                || message.contains("already running")) {
+                || message.contains("already running")
+                || message.contains("one certification bank rebuild")) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("status", "error", "message", message));
         }
