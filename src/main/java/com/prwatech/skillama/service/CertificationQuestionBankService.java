@@ -59,8 +59,14 @@ public class CertificationQuestionBankService {
     /** If a rebuild stays RUNNING longer than this, treat the lock as stale (crash / killed JVM). */
     public static final Duration STALE_RUNNING_TIMEOUT = Duration.ofHours(2);
 
-    private static final int AI_CHUNK_SIZE = 40;
-    private static final int MAX_BUILD_ROUNDS = 20;
+    /**
+     * Keep chunks small — ai-tutor generates ~8 Q per Bedrock call inside one HTTP request.
+     * Large chunks (e.g. 40) amplify timeout/failure risk and used to abort the whole rebuild.
+     */
+    private static final int AI_CHUNK_SIZE = 8;
+    private static final int MAX_BUILD_ROUNDS = 60;
+    private static final int CHUNK_ATTEMPTS = 3;
+    private static final int MAX_CONSECUTIVE_CHUNK_FAILURES = 5;
 
     private final GlobalCertificationExamRepository certRepository;
     private final CertificationBankQuestionRepository bankQuestionRepository;
@@ -281,6 +287,7 @@ public class CertificationQuestionBankService {
 
         int examQ = certService.targetQuestionCount(cert.getParsedMeta());
         int target = targetBankSize(cert.getParsedMeta());
+        int minReady = Math.max(20, examQ);
         int durationMinutes = cert.getParsedMeta() != null && cert.getParsedMeta().getDurationMinutes() != null
                 ? cert.getParsedMeta().getDurationMinutes() : 90;
         List<String> domains = cert.getParsedMeta() != null && cert.getParsedMeta().getDomains() != null
@@ -294,27 +301,47 @@ public class CertificationQuestionBankService {
         List<String> excludeStems = new ArrayList<>();
         List<CertificationBankQuestion> saved = new ArrayList<>();
         String usageCourseId = "cert-bank:" + certId;
+        int consecutiveFailures = 0;
+        String lastChunkError = null;
 
         for (int round = 0; round < MAX_BUILD_ROUNDS && saved.size() < target; round++) {
             int need = target - saved.size();
-            int chunk = Math.min(AI_CHUNK_SIZE, Math.max(10, need));
-            GeneratedCertificationExamDTO generated = skillamaAiClient.generateCertificationExam(
-                    actor,
-                    usageCourseId,
-                    cert.getProvider(),
-                    cert.getName(),
-                    cert.getTier() != null ? cert.getTier().name() : null,
-                    cert.getGuidelinesSnapshot(),
-                    domains,
-                    chunk,
-                    durationMinutes,
-                    allowMulti,
-                    excludeStems);
+            int chunk = Math.min(AI_CHUNK_SIZE, Math.max(5, need));
+            GeneratedCertificationExamDTO generated;
+            try {
+                generated = generateChunkWithRetry(
+                        actor,
+                        usageCourseId,
+                        cert,
+                        domains,
+                        chunk,
+                        durationMinutes,
+                        allowMulti,
+                        excludeStems);
+                consecutiveFailures = 0;
+            } catch (RuntimeException e) {
+                consecutiveFailures++;
+                lastChunkError = e.getMessage();
+                log.warn("Cert bank chunk failed for {} round {} ({}/{}): {}",
+                        certId, round, consecutiveFailures, MAX_CONSECUTIVE_CHUNK_FAILURES, e.toString());
+                if (consecutiveFailures >= MAX_CONSECUTIVE_CHUNK_FAILURES) {
+                    log.error("Stopping bank rebuild for {} after {} consecutive AI failures",
+                            certId, consecutiveFailures);
+                    break;
+                }
+                sleepQuietly(750L * consecutiveFailures);
+                continue;
+            }
             if (generated.getQuestions() == null || generated.getQuestions().isEmpty()) {
                 log.warn("Empty AI chunk for cert {} round {}", certId, round);
+                consecutiveFailures++;
+                if (consecutiveFailures >= MAX_CONSECUTIVE_CHUNK_FAILURES) {
+                    break;
+                }
                 continue;
             }
             LocalDateTime now = IndiaTime.now();
+            int addedThisRound = 0;
             for (ModuleQuizQuestionDTO dto : generated.getQuestions()) {
                 if (!StringUtils.hasText(dto.getQuestion())) {
                     continue;
@@ -351,10 +378,17 @@ public class CertificationQuestionBankService {
                         .createdAt(now)
                         .build();
                 saved.add(bankQuestionRepository.save(row));
+                addedThisRound++;
                 if (excludeStems.size() < 80) {
                     excludeStems.add(trimStem(dto.getQuestion()));
                 }
                 if (saved.size() >= target) {
+                    break;
+                }
+            }
+            if (addedThisRound == 0) {
+                consecutiveFailures++;
+                if (consecutiveFailures >= MAX_CONSECUTIVE_CHUNK_FAILURES) {
                     break;
                 }
             }
@@ -365,12 +399,20 @@ public class CertificationQuestionBankService {
                     GlobalCertificationExam.class);
         }
 
-        if (saved.size() < Math.max(examQ, 20)) {
-            throw new IllegalStateException(
-                    "Bank rebuild produced only " + saved.size() + " unique questions (need ~" + target + ").");
+        // Usable for learners once we have a full exam-sized paper (5× is aspirational).
+        if (saved.size() < minReady) {
+            String detail = lastChunkError != null
+                    ? lastChunkError
+                    : ("Bank rebuild produced only " + saved.size()
+                            + " unique questions (need at least " + minReady + " for one paper).");
+            throw new IllegalStateException(detail);
         }
 
         LocalDateTime finished = IndiaTime.now();
+        String softNote = saved.size() < target
+                ? ("Bank ready with " + saved.size() + "/" + target
+                        + " questions (enough for practice; rebuild later to grow toward 5×).")
+                : null;
         // Promote build version to live bankVersion, then drop older versions.
         skillamaMongoTemplate.updateFirst(
                 new Query(Criteria.where("id").is(certId)),
@@ -381,11 +423,58 @@ public class CertificationQuestionBankService {
                         .set("bankQuestionCount", saved.size())
                         .set("bankTargetSize", target)
                         .set("bankBuildFinishedAt", finished)
-                        .set("bankBuildError", null)
+                        .set("bankBuildError", softNote)
                         .set("updatedAt", finished),
                 GlobalCertificationExam.class);
         bankQuestionRepository.deleteByCertificationExamIdAndBankVersionLessThan(certId, newVersion);
-        log.info("Certification bank READY for {} version {} size {}", certId, newVersion, saved.size());
+        log.info("Certification bank READY for {} version {} size {} (target {})",
+                certId, newVersion, saved.size(), target);
+    }
+
+    private GeneratedCertificationExamDTO generateChunkWithRetry(
+            User actor,
+            String usageCourseId,
+            GlobalCertificationExam cert,
+            List<String> domains,
+            int requestedChunk,
+            int durationMinutes,
+            boolean allowMulti,
+            List<String> excludeStems) {
+        int chunk = Math.max(5, requestedChunk);
+        RuntimeException last = null;
+        for (int attempt = 1; attempt <= CHUNK_ATTEMPTS; attempt++) {
+            try {
+                return skillamaAiClient.generateCertificationExam(
+                        actor,
+                        usageCourseId,
+                        cert.getProvider(),
+                        cert.getName(),
+                        cert.getTier() != null ? cert.getTier().name() : null,
+                        cert.getGuidelinesSnapshot(),
+                        domains,
+                        chunk,
+                        durationMinutes,
+                        allowMulti,
+                        excludeStems);
+            } catch (RuntimeException e) {
+                last = e;
+                log.warn("AI cert chunk attempt {}/{} failed for {} (chunk={}): {}",
+                        attempt, CHUNK_ATTEMPTS, cert.getId(), chunk, e.getMessage());
+                chunk = Math.max(5, chunk / 2);
+                if (attempt < CHUNK_ATTEMPTS) {
+                    sleepQuietly(500L * attempt);
+                }
+            }
+        }
+        throw last != null ? last : new IllegalStateException("Certification bank chunk generation failed");
+    }
+
+    private static void sleepQuietly(long ms) {
+        try {
+            Thread.sleep(Math.max(0, ms));
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void markFailed(String certId, String message) {
@@ -395,11 +484,16 @@ public class CertificationQuestionBankService {
         }
         GlobalCertificationExam before = certRepository.findById(certId).orElse(null);
         Integer buildVersion = before != null ? before.getBankBuildVersion() : null;
+        int readyVersion = before != null && before.getBankVersion() != null ? before.getBankVersion() : 0;
+        long readyCount = readyVersion > 0
+                ? bankQuestionRepository.countByCertificationExamIdAndBankVersionAndActiveTrue(certId, readyVersion)
+                : 0L;
         skillamaMongoTemplate.updateFirst(
                 new Query(Criteria.where("id").is(certId)),
                 new Update()
                         .set("bankStatus", CertificationBankBuildStatus.FAILED)
                         .set("bankBuildVersion", null)
+                        .set("bankQuestionCount", (int) readyCount)
                         .set("bankBuildFinishedAt", IndiaTime.now())
                         .set("bankBuildError", err)
                         .set("updatedAt", IndiaTime.now()),
