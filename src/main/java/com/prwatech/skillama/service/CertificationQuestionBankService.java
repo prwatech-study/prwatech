@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -77,6 +78,12 @@ public class CertificationQuestionBankService {
     static final int MAX_EXCLUDE_STEMS_SENT = 120;
     static final int EXCLUDE_STEM_CHARS = 120;
     static final int MAX_DIVERSITY_LEVEL = 3;
+    /**
+     * A focus domain that yields no new questions this many times in a row is skipped for the
+     * rest of the rebuild — otherwise an exhausted (or mis-parsed) domain stays "least covered"
+     * and gets picked every round until the rebuild stalls.
+     */
+    static final int DOMAIN_RETIRE_STRIKES = 2;
     /**
      * Rotated per chunk so consecutive prompts differ; an identical prompt at low temperature
      * converges on the same ~50 "obvious" questions.
@@ -379,6 +386,8 @@ public class CertificationQuestionBankService {
 
         Set<String> seenNorms = new HashSet<>();
         Map<String, Integer> domainCounts = new HashMap<>();
+        Map<String, Integer> domainStrikes = new HashMap<>();
+        Set<String> retiredDomains = new LinkedHashSet<>();
         int diversityLevel = 0;
         int angleOffset = 0;
         List<CertificationBankQuestion> saved = new ArrayList<>();
@@ -393,7 +402,7 @@ public class CertificationQuestionBankService {
         for (int round = 0; round < MAX_BUILD_ROUNDS && saved.size() < target; round++) {
             int need = target - saved.size();
             int chunk = Math.min(AI_CHUNK_SIZE, Math.max(5, need));
-            String focusDomain = pickFocusDomain(domains, domainCounts, round);
+            String focusDomain = pickFocusDomain(domains, domainCounts, retiredDomains, round);
             String focusAngle = QUESTION_ANGLES.get((round + angleOffset) % QUESTION_ANGLES.size());
             List<String> excludeStems = selectExcludeStems(saved, focusDomain, MAX_EXCLUDE_STEMS_SENT);
             GeneratedCertificationExamDTO generated;
@@ -510,19 +519,33 @@ public class CertificationQuestionBankService {
             } else if (addedThisRound == returned && diversityLevel > 0) {
                 diversityLevel--;
             }
+            if (focusDomain != null) {
+                if (addedThisRound * 2 < returned) {
+                    int strikes = domainStrikes.merge(focusDomain, 1, Integer::sum);
+                    if (strikes >= DOMAIN_RETIRE_STRIKES && retiredDomains.add(focusDomain)) {
+                        log.warn("Cert {} round {}: retiring focus domain '{}' after {} low-yield chunks",
+                                certId, round, focusDomain, strikes);
+                    }
+                } else {
+                    domainStrikes.remove(focusDomain);
+                }
+            }
             // Progress heartbeat for admin UI (+ live rebuild cost)
             refreshBankCosts(certId, rebuildStartedAt, saved.size());
         }
 
+        String retiredNote = retiredDomains.isEmpty() ? ""
+                : " Domains skipped after repeated duplicates: " + String.join("; ", retiredDomains) + ".";
+
         // Promote once we have a usable practice pool; full exam size / 5× are aspirational.
         if (saved.size() < MIN_READY_QUESTIONS) {
             refreshBankCosts(certId, rebuildStartedAt, saved.size());
-            String detail = stopReason != null
+            String detail = (stopReason != null
                     ? stopReason
                     : (lastChunkError != null
                             ? lastChunkError
                             : ("Bank rebuild produced only " + saved.size()
-                                    + " unique questions (need at least " + MIN_READY_QUESTIONS + ")."));
+                                    + " unique questions (need at least " + MIN_READY_QUESTIONS + ")."))) + retiredNote;
             log.error("Certification bank rebuild failed for {}: {}", certId, detail);
             markFailed(certId, detail);
             return;
@@ -540,6 +563,7 @@ public class CertificationQuestionBankService {
             } else if (StringUtils.hasText(lastChunkError)) {
                 softNote = softNote + " Last chunk issue — " + lastChunkError;
             }
+            softNote = softNote + retiredNote;
         }
         double lifetimeCost = aiUsageService.sumCostUsdForCourse(usageCourseId);
         double lastRebuildCost = aiUsageService.sumCostUsdForCourseSince(usageCourseId, rebuildStartedAt);
@@ -736,8 +760,16 @@ public class CertificationQuestionBankService {
         return t.length() > EXCLUDE_STEM_CHARS ? t.substring(0, EXCLUDE_STEM_CHARS) : t;
     }
 
-    /** Least-covered official domain; ties rotate with the round so no domain is starved. */
     static String pickFocusDomain(List<String> domains, Map<String, Integer> domainCounts, int round) {
+        return pickFocusDomain(domains, domainCounts, Set.of(), round);
+    }
+
+    /**
+     * Least-covered official domain, skipping retired ones; ties rotate with the round so no
+     * domain is starved. Returns null (whole syllabus) when every domain is retired.
+     */
+    static String pickFocusDomain(List<String> domains, Map<String, Integer> domainCounts,
+                                  Set<String> retired, int round) {
         if (domains == null || domains.isEmpty()) {
             return null;
         }
@@ -746,6 +778,9 @@ public class CertificationQuestionBankService {
         int bestCount = Integer.MAX_VALUE;
         for (int i = 0; i < n; i++) {
             String d = domains.get((round + i) % n);
+            if (retired.contains(d)) {
+                continue;
+            }
             int c = domainCounts.getOrDefault(d, 0);
             if (c < bestCount) {
                 best = d;

@@ -68,6 +68,7 @@ class CertificationBankRebuildLoopTest {
     private final Executor syncExecutor = Runnable::run;
     private final List<Call> calls = new ArrayList<>();
     private CertificationQuestionBankService service;
+    private GlobalCertificationExam cert;
 
     record Call(int requested, List<String> exclude, String focusDomain, String focusAngle, int diversity) {
     }
@@ -84,7 +85,7 @@ class CertificationBankRebuildLoopTest {
                 userRepository, aiUsageService, skillamaMongoTemplate, syncExecutor);
         service.sleeper = ms -> { };
 
-        GlobalCertificationExam cert = GlobalCertificationExam.builder()
+        cert = GlobalCertificationExam.builder()
                 .id(CERT_ID)
                 .provider("GCP")
                 .name("Cloud Digital Leader")
@@ -268,6 +269,37 @@ class CertificationBankRebuildLoopTest {
         String error = (String) set.get("bankBuildError");
         assertTrue(error.startsWith("STOPPED_AFTER_5_CONSECUTIVE_FAILURES"), error);
         assertTrue(error.contains(longDetail), "error must not be truncated");
+    }
+
+    @Test
+    void exhaustedOrBogusDomainIsRetiredInsteadOfStallingTheRebuild() {
+        String junk = "Prepare with Certification Prep webinars Watch Cloud OnAir";
+        cert.getParsedMeta().setDomains(List.of("Cloud Concepts", junk, "Security"));
+        aiScript((i, call) -> junk.equals(call.focusDomain())
+                ? unique(0, 8, "Cloud Concepts") // AI can't invent new questions for a non-domain
+                : unique(i, call.requested(), call.focusDomain()));
+
+        service.requestRebuild(CERT_ID, "admin-1");
+
+        long junkCalls = calls.stream().filter(c -> junk.equals(c.focusDomain())).count();
+        assertEquals(CertificationQuestionBankService.DOMAIN_RETIRE_STRIKES, junkCalls);
+        Document set = finalSet();
+        assertEquals(CertificationBankBuildStatus.READY, set.get("bankStatus"));
+        assertEquals(50, set.get("bankQuestionCount"));
+    }
+
+    @Test
+    void retiredDomainsAreNamedInTheSoftNoteWhenTheBankEndsShort() {
+        String junk = "Watch Cloud OnAir";
+        cert.getParsedMeta().setDomains(List.of("Cloud Concepts", junk));
+        aiScript((i, call) -> i < 3 && !junk.equals(call.focusDomain())
+                ? unique(i, call.requested(), call.focusDomain())
+                : unique(0, 8, "Cloud Concepts"));
+
+        service.requestRebuild(CERT_ID, "admin-1");
+
+        String note = (String) finalSet().get("bankBuildError");
+        assertTrue(note.contains("Domains skipped after repeated duplicates: Watch Cloud OnAir"), note);
     }
 
     @Test

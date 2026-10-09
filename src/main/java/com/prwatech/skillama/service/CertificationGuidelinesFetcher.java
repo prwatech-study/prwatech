@@ -40,6 +40,14 @@ public class CertificationGuidelinesFetcher {
     private static final Pattern QUESTION_SINGLE_PATTERN = Pattern.compile(
             "(?i)(\\d+)\\s*(?:multiple[- ]choice|multiple[- ]select)?\\s*(?:and\\s+multiple[- ]select\\s+)?questions?");
 
+    private static final Pattern SECTION_DOMAIN_PATTERN = Pattern.compile(
+            "(?i)^\\s*section\\s+\\d+\\s*[:.\\-–—]|\\(\\s*~?\\s*\\d{1,3}\\s*%");
+    private static final List<String> JUNK_DOMAIN_MARKERS = List.of(
+            "webinar", "onair", "register", "sign up", "sign in", "prepare with", "watch ",
+            "learn more", "view faq", "faq", "schedule your exam", "schedule an exam", "renew",
+            "recertif", "learning path", "skills boost", "get started", "explore ", "find a ",
+            "contact us", "privacy", "terms of service", "cookie");
+
     public record FetchResult(String snapshot, CertificationExamMeta meta) {}
 
     public FetchResult fetch(String guidelinesUrl) {
@@ -119,6 +127,20 @@ public class CertificationGuidelinesFetcher {
     private List<String> extractDomains(Document doc, String snapshot) {
         LinkedHashSet<String> domains = new LinkedHashSet<>();
         if (doc != null) {
+            // Official guides label real domains "Section N: … (~X% of the exam)"; when present,
+            // they are authoritative and generic bullets (marketing links) are ignored.
+            for (Element el : doc.select("h1, h2, h3, h4, h5, li, p, strong, b")) {
+                String t = el.ownText() != null && !el.ownText().isBlank() ? el.ownText().trim() : el.text().trim();
+                if (t.length() <= 160 && SECTION_DOMAIN_PATTERN.matcher(t).find() && !looksLikeJunk(t)) {
+                    domains.add(t);
+                }
+                if (domains.size() >= 12) {
+                    break;
+                }
+            }
+            if (!domains.isEmpty()) {
+                return new ArrayList<>(domains);
+            }
             Elements lists = doc.select("ul li, ol li");
             for (Element li : lists) {
                 String t = li.text() != null ? li.text().trim() : "";
@@ -157,7 +179,7 @@ public class CertificationGuidelinesFetcher {
             return false;
         }
         String lower = t.toLowerCase(Locale.ROOT);
-        if (lower.startsWith("http") || lower.startsWith("register") || lower.startsWith("view faq")) {
+        if (lower.startsWith("http") || looksLikeJunk(t)) {
             return false;
         }
         // Prefer topical phrases typical of GCP exam guides
@@ -177,6 +199,17 @@ public class CertificationGuidelinesFetcher {
                 || lower.contains("developer")
                 || lower.contains("architect")
                 || lower.contains("agentic");
+    }
+
+    /** Calls to action and page chrome that mention "cloud" but are not exam domains. */
+    static boolean looksLikeJunk(String t) {
+        String lower = t.toLowerCase(Locale.ROOT);
+        for (String marker : JUNK_DOMAIN_MARKERS) {
+            if (lower.contains(marker)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Integer firstInt(Pattern pattern, String text) {

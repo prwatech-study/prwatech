@@ -33,6 +33,7 @@ import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -102,6 +103,17 @@ class CertificationQuestionBankServiceTest {
         counts.put("Data", 7);
         assertEquals("Security", CertificationQuestionBankService.pickFocusDomain(domains, counts, 0));
         assertEquals(null, CertificationQuestionBankService.pickFocusDomain(List.of(), counts, 0));
+    }
+
+    @Test
+    void pickFocusDomainSkipsRetiredAndFallsBackToWholeSyllabus() {
+        List<String> domains = List.of("Cloud Concepts", "Security");
+        java.util.Map<String, Integer> counts = new java.util.HashMap<>();
+        counts.put("Cloud Concepts", 9);
+        assertEquals("Cloud Concepts", CertificationQuestionBankService.pickFocusDomain(
+                domains, counts, java.util.Set.of("Security"), 0));
+        assertNull(CertificationQuestionBankService.pickFocusDomain(
+                domains, counts, java.util.Set.of("Security", "Cloud Concepts"), 0));
     }
 
     @Test
