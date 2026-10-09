@@ -40,9 +40,8 @@ public class GlobalCertificationExamService {
         List<GlobalCertificationExam> rows = activeOnly
                 ? repository.findByActiveTrue()
                 : repository.findAll();
-        boolean rebuildBusy = hasFreshRunningRebuild();
         return rows.stream()
-                .map(row -> toDto(row, rebuildBusy))
+                .map(this::toDto)
                 .sorted(Comparator
                         .comparing(GlobalCertificationExamDTO::getProvider, Comparator.nullsLast(String::compareToIgnoreCase))
                         .thenComparing(dto -> dto.getTier() == null ? "" : dto.getTier().name())
@@ -51,7 +50,7 @@ public class GlobalCertificationExamService {
     }
 
     public GlobalCertificationExamDTO getById(String id) {
-        return toDto(require(id), hasFreshRunningRebuild());
+        return toDto(require(id));
     }
 
     public GlobalCertificationExam require(String id) {
@@ -80,7 +79,7 @@ public class GlobalCertificationExamService {
                 .updatedAt(IndiaTime.now())
                 .updatedBy(actorId)
                 .build();
-        return toDto(saveUnique(row), hasFreshRunningRebuild());
+        return toDto(saveUnique(row));
     }
 
     public GlobalCertificationExamDTO update(String id, GlobalCertificationExamRequestDTO request, String actorId) {
@@ -113,7 +112,7 @@ public class GlobalCertificationExamService {
         if (urlChanged) {
             applyFetch(row, guidelinesFetcher.fetch(row.getGuidelinesUrl()));
         }
-        return toDto(saveUnique(row), hasFreshRunningRebuild());
+        return toDto(saveUnique(row));
     }
 
     public GlobalCertificationExamDTO refreshGuidelines(String id, String actorId) {
@@ -124,7 +123,7 @@ public class GlobalCertificationExamService {
         applyFetch(row, guidelinesFetcher.fetch(row.getGuidelinesUrl()));
         row.setUpdatedAt(IndiaTime.now());
         row.setUpdatedBy(actorId);
-        return toDto(repository.save(row), hasFreshRunningRebuild());
+        return toDto(repository.save(row));
     }
 
     public void delete(String id) {
@@ -232,12 +231,11 @@ public class GlobalCertificationExamService {
         }
     }
 
-    private GlobalCertificationExamDTO toDto(GlobalCertificationExam row, boolean rebuildBusy) {
+    private GlobalCertificationExamDTO toDto(GlobalCertificationExam row) {
         int examQ = targetQuestionCount(row.getParsedMeta());
         CertificationBankBuildStatus bankStatus = effectiveBankStatus(row, examQ);
         int target = requiredBankSize(row, examQ);
-        // Single-flight: no new Rebuild while any fresh RUNNING exists (including this row).
-        boolean rebuildAllowed = !rebuildBusy;
+        boolean rebuildAllowed = bankStatus != CertificationBankBuildStatus.RUNNING;
         return GlobalCertificationExamDTO.builder()
                 .id(row.getId())
                 .provider(row.getProvider())
@@ -268,18 +266,6 @@ public class GlobalCertificationExamService {
                 .updatedAt(row.getUpdatedAt())
                 .updatedBy(row.getUpdatedBy())
                 .build();
-    }
-
-    /** True when any cert has a non-stale RUNNING bank rebuild (global single-flight). */
-    private boolean hasFreshRunningRebuild() {
-        LocalDateTime staleBefore = IndiaTime.now()
-                .minus(CertificationQuestionBankService.STALE_RUNNING_TIMEOUT);
-        for (GlobalCertificationExam row : repository.findByBankStatus(CertificationBankBuildStatus.RUNNING)) {
-            if (row.getBankBuildStartedAt() != null && !row.getBankBuildStartedAt().isBefore(staleBefore)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**

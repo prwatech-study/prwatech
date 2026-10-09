@@ -307,18 +307,20 @@ class CertificationQuestionBankServiceTest {
     }
 
     @Test
-    void requestRebuildRejectsWhenAnotherCertIsAlreadyRebuilding() {
+    void requestRebuildAllowsASecondCertWhileAnotherIsRebuilding() {
         GlobalCertificationExam idle = cert("c2", CertificationBankBuildStatus.READY, 1, 55);
+        idle.setBankBuildVersion(2);
         when(skillamaMongoTemplate.find(any(Query.class), eq(GlobalCertificationExam.class)))
                 .thenReturn(List.of());
         when(certService.require("c2")).thenReturn(idle);
-        when(skillamaMongoTemplate.exists(any(Query.class), eq(GlobalCertificationExam.class)))
-                .thenReturn(true);
+        when(skillamaMongoTemplate.findAndModify(
+                any(Query.class), any(Update.class), any(FindAndModifyOptions.class), eq(GlobalCertificationExam.class)))
+                .thenReturn(idle);
+        when(certService.getById("c2")).thenReturn(null);
 
-        IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> service.requestRebuild("c2", "admin-1"));
-        assertEquals(CertificationQuestionBankService.GLOBAL_REBUILD_BUSY_MESSAGE, ex.getMessage());
-        verify(skillamaMongoTemplate, never()).findAndModify(
+        service.requestRebuild("c2", "admin-1");
+
+        verify(skillamaMongoTemplate).findAndModify(
                 any(Query.class), any(Update.class), any(FindAndModifyOptions.class), eq(GlobalCertificationExam.class));
     }
 
@@ -337,29 +339,20 @@ class CertificationQuestionBankServiceTest {
     }
 
     @Test
-    void rebuildIfIdleSkipsWhenGlobalCatalogIsBusy() {
+    void rebuildIfIdleStartsASecondCertWhileAnotherIsRebuilding() {
         GlobalCertificationExam idle = cert("c2", CertificationBankBuildStatus.READY, 1, 55);
+        idle.setBankBuildVersion(2);
         when(skillamaMongoTemplate.find(any(Query.class), eq(GlobalCertificationExam.class)))
                 .thenReturn(List.of());
         when(certService.require("c2")).thenReturn(idle);
-        when(skillamaMongoTemplate.exists(any(Query.class), eq(GlobalCertificationExam.class)))
-                .thenReturn(true);
+        when(skillamaMongoTemplate.findAndModify(
+                any(Query.class), any(Update.class), any(FindAndModifyOptions.class), eq(GlobalCertificationExam.class)))
+                .thenReturn(idle);
 
         service.rebuildIfIdle("c2", "monthly-bank-job");
 
-        verify(skillamaMongoTemplate, never()).findAndModify(
+        verify(skillamaMongoTemplate).findAndModify(
                 any(Query.class), any(Update.class), any(FindAndModifyOptions.class), eq(GlobalCertificationExam.class));
-    }
-
-    @Test
-    void hasFreshRunningRebuildReflectsMongoExists() {
-        when(skillamaMongoTemplate.exists(any(Query.class), eq(GlobalCertificationExam.class)))
-                .thenReturn(true);
-        assertTrue(service.hasFreshRunningRebuild());
-
-        when(skillamaMongoTemplate.exists(any(Query.class), eq(GlobalCertificationExam.class)))
-                .thenReturn(false);
-        assertFalse(service.hasFreshRunningRebuild());
     }
 
     @Test
@@ -376,15 +369,14 @@ class CertificationQuestionBankServiceTest {
     }
 
     @Test
-    void toStatusBlocksRebuildWhileFreshRunning() {
+    void toStatusBlocksRebuildOnlyOnTheCertThatIsRunning() {
         GlobalCertificationExam running = cert("c1", CertificationBankBuildStatus.RUNNING, 1, 55);
         running.setBankBuildStartedAt(LocalDateTime.now().minusMinutes(30));
-        when(skillamaMongoTemplate.exists(any(Query.class), eq(GlobalCertificationExam.class)))
-                .thenReturn(true);
+        GlobalCertificationExam idle = cert("c2", CertificationBankBuildStatus.READY, 1, 275);
+        idle.setBankTargetSize(275);
 
-        CertificationBankStatusDTO status = service.toStatus(running);
-
-        assertFalse(status.isRebuildAllowed());
+        assertFalse(service.toStatus(running).isRebuildAllowed());
+        assertTrue(service.toStatus(idle).isRebuildAllowed());
     }
 
     @Test

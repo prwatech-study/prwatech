@@ -56,8 +56,6 @@ public class CertificationQuestionBankService {
     public static final int BANK_MULTIPLIER = 5;
     public static final String ALREADY_RUNNING_MESSAGE =
             "A question-bank rebuild is already running for this certification.";
-    public static final String GLOBAL_REBUILD_BUSY_MESSAGE =
-            "Only one certification bank rebuild can run at a time. Wait for the current rebuild to finish, then try again.";
     public static final String BANK_NOT_READY_MESSAGE =
             "The question bank is not ready yet. Ask an admin to rebuild it, or try again shortly.";
 
@@ -277,8 +275,7 @@ public class CertificationQuestionBankService {
         try {
             requestRebuild(certificationExamId, actorId);
         } catch (IllegalStateException e) {
-            if (ALREADY_RUNNING_MESSAGE.equals(e.getMessage())
-                    || GLOBAL_REBUILD_BUSY_MESSAGE.equals(e.getMessage())) {
+            if (ALREADY_RUNNING_MESSAGE.equals(e.getMessage())) {
                 log.info("Skipping rebuild for {} — {}", certificationExamId, e.getMessage());
             } else {
                 throw e;
@@ -296,10 +293,6 @@ public class CertificationQuestionBankService {
         }
         LocalDateTime now = IndiaTime.now();
         LocalDateTime staleBefore = now.minus(STALE_RUNNING_TIMEOUT);
-        // Global single-flight: only one fresh RUNNING rebuild across the whole catalog.
-        if (hasFreshRunningRebuildExcluding(certificationExamId, staleBefore)) {
-            throw new IllegalStateException(GLOBAL_REBUILD_BUSY_MESSAGE);
-        }
         int nextBuildVersion = (existing.getBankVersion() != null ? existing.getBankVersion() : 0) + 1;
         int target = targetBankSize(existing.getParsedMeta());
         // Allow claim when idle/ready/failed, OR when RUNNING but stale (race-safe reclaim).
@@ -330,31 +323,9 @@ public class CertificationQuestionBankService {
                 FindAndModifyOptions.options().returnNew(true),
                 GlobalCertificationExam.class);
         if (claimed == null) {
-            // Lost the race: this cert or another became RUNNING.
-            if (hasFreshRunningRebuildExcluding(certificationExamId, staleBefore)) {
-                throw new IllegalStateException(GLOBAL_REBUILD_BUSY_MESSAGE);
-            }
             throw new IllegalStateException(ALREADY_RUNNING_MESSAGE);
         }
         return claimed;
-    }
-
-    /** True when any catalog row (optionally excluding one id) has a non-stale RUNNING rebuild. */
-    public boolean hasFreshRunningRebuild() {
-        return hasFreshRunningRebuildExcluding(null, IndiaTime.now().minus(STALE_RUNNING_TIMEOUT));
-    }
-
-    private boolean hasFreshRunningRebuildExcluding(String excludeId, LocalDateTime staleBefore) {
-        Criteria criteria = new Criteria().andOperator(
-                Criteria.where("bankStatus").is(CertificationBankBuildStatus.RUNNING),
-                Criteria.where("bankBuildStartedAt").gte(staleBefore));
-        if (StringUtils.hasText(excludeId)) {
-            criteria = new Criteria().andOperator(
-                    Criteria.where("id").ne(excludeId),
-                    Criteria.where("bankStatus").is(CertificationBankBuildStatus.RUNNING),
-                    Criteria.where("bankBuildStartedAt").gte(staleBefore));
-        }
-        return skillamaMongoTemplate.exists(new Query(criteria), GlobalCertificationExam.class);
     }
 
     private static boolean isStaleRunning(GlobalCertificationExam cert) {
@@ -848,8 +819,7 @@ public class CertificationQuestionBankService {
                 .bankBuildQuestionCount(status == CertificationBankBuildStatus.RUNNING
                         ? cert.getBankBuildQuestionCount() : null)
                 .bankMultiplier(BANK_MULTIPLIER)
-                .rebuildAllowed(!hasFreshRunningRebuild()
-                        || (status == CertificationBankBuildStatus.RUNNING && isStaleRunning(cert)))
+                .rebuildAllowed(status != CertificationBankBuildStatus.RUNNING || isStaleRunning(cert))
                 .bankReady(GlobalCertificationExamService.isBankReady(cert, examQ))
                 .bankBuildStartedAt(cert.getBankBuildStartedAt())
                 .bankBuildFinishedAt(cert.getBankBuildFinishedAt())

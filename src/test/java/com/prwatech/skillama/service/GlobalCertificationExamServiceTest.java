@@ -119,7 +119,6 @@ class GlobalCertificationExamServiceTest {
                 .bankVersion(1).bankTargetSize(275).bankQuestionCount(231)
                 .build();
         when(repository.findAll()).thenReturn(List.of(partial));
-        when(repository.findByBankStatus(CertificationBankBuildStatus.RUNNING)).thenReturn(List.of());
 
         GlobalCertificationExamDTO dto = service.listAll(false).get(0);
 
@@ -144,7 +143,6 @@ class GlobalCertificationExamServiceTest {
                 .bankVersion(1).bankTargetSize(275).bankQuestionCount(275).bankBuildQuestionCount(99)
                 .build();
         when(repository.findAll()).thenReturn(List.of(running, failed));
-        when(repository.findByBankStatus(CertificationBankBuildStatus.RUNNING)).thenReturn(List.of(running));
 
         List<GlobalCertificationExamDTO> dtos = service.listAll(false);
         GlobalCertificationExamDTO runningDto = dtos.stream().filter(d -> "c1".equals(d.getId())).findFirst().orElseThrow();
@@ -199,7 +197,7 @@ class GlobalCertificationExamServiceTest {
     }
 
     @Test
-    void listAllBlocksRebuildOnEveryRowWhileAnotherIsRunning() {
+    void listAllAllowsRebuildOnIdleRowsWhileAnotherIsRunning() {
         GlobalCertificationExam running = GlobalCertificationExam.builder()
                 .id("c1")
                 .provider("GCP")
@@ -219,16 +217,18 @@ class GlobalCertificationExamServiceTest {
                 .active(true)
                 .bankStatus(CertificationBankBuildStatus.READY)
                 .bankVersion(1)
-                .bankQuestionCount(55)
+                .bankTargetSize(275)
+                .bankQuestionCount(275)
                 .build();
         when(repository.findAll()).thenReturn(List.of(running, idle));
-        when(repository.findByBankStatus(CertificationBankBuildStatus.RUNNING))
-                .thenReturn(List.of(running));
 
         List<GlobalCertificationExamDTO> dtos = service.listAll(false);
 
         assertEquals(2, dtos.size());
-        assertTrue(dtos.stream().noneMatch(GlobalCertificationExamDTO::isRebuildAllowed));
+        GlobalCertificationExamDTO runningDto = dtos.stream().filter(d -> "c1".equals(d.getId())).findFirst().orElseThrow();
+        GlobalCertificationExamDTO idleDto = dtos.stream().filter(d -> "c2".equals(d.getId())).findFirst().orElseThrow();
+        assertFalse(runningDto.isRebuildAllowed());
+        assertTrue(idleDto.isRebuildAllowed());
     }
 
     @Test
@@ -244,8 +244,6 @@ class GlobalCertificationExamServiceTest {
                 .bankQuestionCount(55)
                 .build();
         when(repository.findAll()).thenReturn(List.of(idle));
-        when(repository.findByBankStatus(CertificationBankBuildStatus.RUNNING))
-                .thenReturn(List.of());
 
         List<GlobalCertificationExamDTO> dtos = service.listAll(false);
 

@@ -14,9 +14,9 @@ public class CertificationBankAsyncConfig {
     @Bean(name = EXECUTOR_NAME)
     public Executor certificationBankExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        // Global single-flight: only one rebuild runs at a time (matches claim lock).
-        executor.setCorePoolSize(1);
-        executor.setMaxPoolSize(1);
+        // Parallel rebuilds across certifications; per-cert claim still prevents two jobs on the same exam.
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
         executor.setQueueCapacity(50);
         executor.setThreadNamePrefix("cert-bank-");
         executor.initialize();

@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * Monthly rebuild of active certification question banks (5× target).
- * Enforces global single-flight: at most one rebuild starts per run.
+ * Starts every idle cert; the bank executor runs several in parallel.
  */
 @Component
 @RequiredArgsConstructor
@@ -28,20 +28,11 @@ public class CertificationQuestionBankMonthlyJob {
     /** 03:00 Asia/Kolkata on the 1st of each month. */
     @Scheduled(cron = "0 0 3 1 * *", zone = "Asia/Kolkata")
     public void rebuildActiveBanks() {
-        if (bankService.hasFreshRunningRebuild()) {
-            LOGGER.info("Monthly certification bank rebuild skipped — another rebuild is already running");
-            return;
-        }
         List<GlobalCertificationExam> active = certRepository.findByActiveTrue();
-        LOGGER.info("Monthly certification bank rebuild scanning {} active certs (one at a time)", active.size());
+        LOGGER.info("Monthly certification bank rebuild scanning {} active certs", active.size());
         for (GlobalCertificationExam cert : active) {
             try {
                 bankService.rebuildIfIdle(cert.getId(), ACTOR);
-                if (bankService.hasFreshRunningRebuild()) {
-                    LOGGER.info("Monthly job started rebuild for {}; remaining certs wait for a later run",
-                            cert.getId());
-                    return;
-                }
             } catch (Exception e) {
                 LOGGER.warn("Monthly bank rebuild failed for {}: {}", cert.getId(), e.getMessage());
             }
