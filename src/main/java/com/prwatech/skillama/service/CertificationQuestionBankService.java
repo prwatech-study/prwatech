@@ -41,6 +41,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -98,6 +99,8 @@ public class CertificationQuestionBankService {
     private final AiUsageService aiUsageService;
     private final MongoTemplate skillamaMongoTemplate;
     private final Executor bankExecutor;
+    /** Back-off between AI retries; replaced in tests so failure paths run instantly. */
+    LongConsumer sleeper = CertificationQuestionBankService::sleepQuietly;
 
     public CertificationQuestionBankService(
             GlobalCertificationExamRepository certRepository,
@@ -407,7 +410,6 @@ public class CertificationQuestionBankService {
                         focusDomain,
                         focusAngle,
                         diversityLevel);
-                consecutiveFailures = 0;
             } catch (RuntimeException e) {
                 consecutiveFailures++;
                 lastChunkError = "AI_CHUNK_FAILED: " + describeThrowable(e);
@@ -418,7 +420,7 @@ public class CertificationQuestionBankService {
                     log.error("Stopping bank rebuild for {}: {}", certId, stopReason);
                     break;
                 }
-                sleepQuietly(750L * consecutiveFailures);
+                sleeper.accept(750L * consecutiveFailures);
                 continue;
             }
             if (generated.getQuestions() == null || generated.getQuestions().isEmpty()) {
@@ -496,7 +498,12 @@ public class CertificationQuestionBankService {
                     log.error("Stopping bank rebuild for {}: {}", certId, stopReason);
                     break;
                 }
-            } else if (addedThisRound * 2 < returned) {
+            } else {
+                // Only real progress clears the streak; resetting on any successful AI call
+                // meant duplicate-only chunks never stopped the loop before MAX_BUILD_ROUNDS.
+                consecutiveFailures = 0;
+            }
+            if (addedThisRound > 0 && addedThisRound * 2 < returned) {
                 diversityLevel = Math.min(MAX_DIVERSITY_LEVEL, diversityLevel + 1);
                 log.info("Cert {} round {}: only {}/{} unique; raising diversity to {}",
                         certId, round, addedThisRound, returned, diversityLevel);
@@ -516,7 +523,9 @@ public class CertificationQuestionBankService {
                             ? lastChunkError
                             : ("Bank rebuild produced only " + saved.size()
                                     + " unique questions (need at least " + MIN_READY_QUESTIONS + ")."));
-            throw new IllegalStateException(detail);
+            log.error("Certification bank rebuild failed for {}: {}", certId, detail);
+            markFailed(certId, detail);
+            return;
         }
 
         LocalDateTime finished = IndiaTime.now();
@@ -612,7 +621,7 @@ public class CertificationQuestionBankService {
                         attempt, CHUNK_ATTEMPTS, cert.getId(), chunk, describeThrowable(e));
                 chunk = Math.max(5, chunk / 2);
                 if (attempt < CHUNK_ATTEMPTS) {
-                    sleepQuietly(500L * attempt);
+                    sleeper.accept(500L * attempt);
                 }
             }
         }
