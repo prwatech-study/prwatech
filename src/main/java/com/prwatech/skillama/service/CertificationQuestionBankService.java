@@ -33,6 +33,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -71,6 +72,23 @@ public class CertificationQuestionBankService {
     private static final int MAX_CONSECUTIVE_CHUNK_FAILURES = 5;
     /** Same floor learners use in {@link #assemblePaper} / {@link GlobalCertificationExamService#isBankReady}. */
     static final int MIN_READY_QUESTIONS = 20;
+    /** Stems sent per chunk as "do not repeat"; ~120 chars each keeps the prompt to a few k tokens. */
+    static final int MAX_EXCLUDE_STEMS_SENT = 120;
+    static final int EXCLUDE_STEM_CHARS = 120;
+    static final int MAX_DIVERSITY_LEVEL = 3;
+    /**
+     * Rotated per chunk so consecutive prompts differ; an identical prompt at low temperature
+     * converges on the same ~50 "obvious" questions.
+     */
+    static final List<String> QUESTION_ANGLES = List.of(
+            "a realistic business scenario where the candidate must choose the most appropriate service or approach",
+            "security, identity, access control and compliance considerations",
+            "cost management, pricing models and billing optimisation",
+            "reliability, availability, scaling and disaster recovery",
+            "migration and modernisation decisions",
+            "operations, monitoring, logging and troubleshooting",
+            "data storage, analytics and AI/ML use cases",
+            "governance, shared responsibility and organisational best practices");
 
     private final GlobalCertificationExamRepository certRepository;
     private final CertificationBankQuestionRepository bankQuestionRepository;
@@ -357,7 +375,9 @@ public class CertificationQuestionBankService {
                 || formatNotes.toLowerCase(Locale.ROOT).contains("multi");
 
         Set<String> seenNorms = new HashSet<>();
-        List<String> excludeStems = new ArrayList<>();
+        Map<String, Integer> domainCounts = new HashMap<>();
+        int diversityLevel = 0;
+        int angleOffset = 0;
         List<CertificationBankQuestion> saved = new ArrayList<>();
         String usageCourseId = bankUsageCourseId(certId);
         LocalDateTime rebuildStartedAt = cert.getBankBuildStartedAt() != null
@@ -370,6 +390,9 @@ public class CertificationQuestionBankService {
         for (int round = 0; round < MAX_BUILD_ROUNDS && saved.size() < target; round++) {
             int need = target - saved.size();
             int chunk = Math.min(AI_CHUNK_SIZE, Math.max(5, need));
+            String focusDomain = pickFocusDomain(domains, domainCounts, round);
+            String focusAngle = QUESTION_ANGLES.get((round + angleOffset) % QUESTION_ANGLES.size());
+            List<String> excludeStems = selectExcludeStems(saved, focusDomain, MAX_EXCLUDE_STEMS_SENT);
             GeneratedCertificationExamDTO generated;
             try {
                 generated = generateChunkWithRetry(
@@ -380,7 +403,10 @@ public class CertificationQuestionBankService {
                         chunk,
                         durationMinutes,
                         allowMulti,
-                        excludeStems);
+                        excludeStems,
+                        focusDomain,
+                        focusAngle,
+                        diversityLevel);
                 consecutiveFailures = 0;
             } catch (RuntimeException e) {
                 consecutiveFailures++;
@@ -446,16 +472,23 @@ public class CertificationQuestionBankService {
                         .build();
                 saved.add(bankQuestionRepository.save(row));
                 addedThisRound++;
-                if (excludeStems.size() < 80) {
-                    excludeStems.add(trimStem(dto.getQuestion()));
+                String countedDomain = matchDomain(domains, dto.getDomain());
+                if (countedDomain != null) {
+                    domainCounts.merge(countedDomain, 1, Integer::sum);
                 }
                 if (saved.size() >= target) {
                     break;
                 }
             }
+            int returned = generated.getQuestions().size();
             if (addedThisRound == 0) {
                 consecutiveFailures++;
-                lastChunkError = "NO_UNIQUE_QUESTIONS: AI returned only duplicates of existing stems";
+                diversityLevel = Math.min(MAX_DIVERSITY_LEVEL, diversityLevel + 1);
+                angleOffset++;
+                lastChunkError = "NO_UNIQUE_QUESTIONS: AI returned " + returned
+                        + " questions, all duplicates of existing stems (focus domain="
+                        + (focusDomain != null ? focusDomain : "all") + ", angle=" + focusAngle
+                        + ", diversity=" + diversityLevel + ")";
                 log.warn("No unique questions for cert {} round {} ({}/{}): {}",
                         certId, round, consecutiveFailures, MAX_CONSECUTIVE_CHUNK_FAILURES, lastChunkError);
                 if (consecutiveFailures >= MAX_CONSECUTIVE_CHUNK_FAILURES) {
@@ -463,6 +496,12 @@ public class CertificationQuestionBankService {
                     log.error("Stopping bank rebuild for {}: {}", certId, stopReason);
                     break;
                 }
+            } else if (addedThisRound * 2 < returned) {
+                diversityLevel = Math.min(MAX_DIVERSITY_LEVEL, diversityLevel + 1);
+                log.info("Cert {} round {}: only {}/{} unique; raising diversity to {}",
+                        certId, round, addedThisRound, returned, diversityLevel);
+            } else if (addedThisRound == returned && diversityLevel > 0) {
+                diversityLevel--;
             }
             // Progress heartbeat for admin UI (+ live rebuild cost)
             refreshBankCosts(certId, rebuildStartedAt, saved.size());
@@ -544,7 +583,10 @@ public class CertificationQuestionBankService {
             int requestedChunk,
             int durationMinutes,
             boolean allowMulti,
-            List<String> excludeStems) {
+            List<String> excludeStems,
+            String focusDomain,
+            String focusAngle,
+            int diversityLevel) {
         int chunk = Math.max(5, requestedChunk);
         RuntimeException last = null;
         for (int attempt = 1; attempt <= CHUNK_ATTEMPTS; attempt++) {
@@ -560,7 +602,10 @@ public class CertificationQuestionBankService {
                         chunk,
                         durationMinutes,
                         allowMulti,
-                        excludeStems);
+                        excludeStems,
+                        focusDomain,
+                        focusAngle,
+                        diversityLevel);
             } catch (RuntimeException e) {
                 last = e;
                 log.warn("AI cert chunk attempt {}/{} failed for {} (chunk={}): {}",
@@ -679,7 +724,73 @@ public class CertificationQuestionBankService {
 
     private static String trimStem(String question) {
         String t = question.trim();
-        return t.length() > 160 ? t.substring(0, 160) : t;
+        return t.length() > EXCLUDE_STEM_CHARS ? t.substring(0, EXCLUDE_STEM_CHARS) : t;
+    }
+
+    /** Least-covered official domain; ties rotate with the round so no domain is starved. */
+    static String pickFocusDomain(List<String> domains, Map<String, Integer> domainCounts, int round) {
+        if (domains == null || domains.isEmpty()) {
+            return null;
+        }
+        int n = domains.size();
+        String best = null;
+        int bestCount = Integer.MAX_VALUE;
+        for (int i = 0; i < n; i++) {
+            String d = domains.get((round + i) % n);
+            int c = domainCounts.getOrDefault(d, 0);
+            if (c < bestCount) {
+                best = d;
+                bestCount = c;
+            }
+        }
+        return best;
+    }
+
+    /** Maps the AI's free-text domain label onto one of the official domains (case-insensitive). */
+    static String matchDomain(List<String> domains, String aiDomain) {
+        if (domains == null || !StringUtils.hasText(aiDomain)) {
+            return null;
+        }
+        String needle = aiDomain.trim().toLowerCase(Locale.ROOT);
+        for (String d : domains) {
+            String hay = d.toLowerCase(Locale.ROOT);
+            if (hay.equals(needle) || hay.contains(needle) || needle.contains(hay)) {
+                return d;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Stems to forbid in the next chunk: same-domain stems first (the likeliest collisions),
+     * then the newest of the rest. Rebuilt every round so the list never goes stale.
+     */
+    static List<String> selectExcludeStems(List<CertificationBankQuestion> saved, String focusDomain, int cap) {
+        List<String> out = new ArrayList<>();
+        if (saved == null || saved.isEmpty() || cap <= 0) {
+            return out;
+        }
+        List<CertificationBankQuestion> sameDomain = new ArrayList<>();
+        List<CertificationBankQuestion> others = new ArrayList<>();
+        for (int i = saved.size() - 1; i >= 0; i--) {
+            CertificationBankQuestion q = saved.get(i);
+            if (focusDomain != null && focusDomain.equals(matchDomain(List.of(focusDomain), q.getDomain()))) {
+                sameDomain.add(q);
+            } else {
+                others.add(q);
+            }
+        }
+        for (List<CertificationBankQuestion> group : List.of(sameDomain, others)) {
+            for (CertificationBankQuestion q : group) {
+                if (out.size() >= cap) {
+                    return out;
+                }
+                if (StringUtils.hasText(q.getQuestion())) {
+                    out.add(trimStem(q.getQuestion()));
+                }
+            }
+        }
+        return out;
     }
 
     public CertificationBankStatusDTO toStatus(GlobalCertificationExam cert) {

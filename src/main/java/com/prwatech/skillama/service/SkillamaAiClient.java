@@ -343,10 +343,36 @@ public class SkillamaAiClient {
             int durationMinutes,
             boolean allowMultiSelect,
             List<String> excludeStems) {
+        return generateCertificationExam(
+                user, usageCourseId, provider, examName, tier, guidelinesText, domains,
+                numQuestions, durationMinutes, allowMultiSelect, excludeStems, null, null, 0);
+    }
+
+    /**
+     * Bank-rebuild variant: {@code focusDomain} / {@code focusAngle} steer each chunk to a
+     * different slice of the syllabus, and {@code diversityLevel} (0–3) raises sampling
+     * temperature when previous chunks came back as duplicates.
+     */
+    public GeneratedCertificationExamDTO generateCertificationExam(
+            User user,
+            String usageCourseId,
+            String provider,
+            String examName,
+            String tier,
+            String guidelinesText,
+            List<String> domains,
+            int numQuestions,
+            int durationMinutes,
+            boolean allowMultiSelect,
+            List<String> excludeStems,
+            String focusDomain,
+            String focusAngle,
+            int diversityLevel) {
         return meteredCall(user, "generate_certification_exam", usageCourseId,
                 () -> generateCertificationExamRaw(
                         provider, examName, tier, guidelinesText, domains,
-                        numQuestions, durationMinutes, allowMultiSelect, excludeStems));
+                        numQuestions, durationMinutes, allowMultiSelect, excludeStems,
+                        focusDomain, focusAngle, diversityLevel));
     }
 
     private GeneratedCertificationExamDTO generateCertificationExamRaw(
@@ -358,7 +384,10 @@ public class SkillamaAiClient {
             int numQuestions,
             int durationMinutes,
             boolean allowMultiSelect,
-            List<String> excludeStems) {
+            List<String> excludeStems,
+            String focusDomain,
+            String focusAngle,
+            int diversityLevel) {
         String url = resolveBaseUrl() + "/generate_certification_exam";
 
         Map<String, Object> body = new HashMap<>();
@@ -371,6 +400,13 @@ public class SkillamaAiClient {
         body.put("duration_minutes", durationMinutes);
         body.put("allow_multi_select", allowMultiSelect);
         body.put("exclude_stems", excludeStems != null ? excludeStems : new ArrayList<>());
+        if (StringUtils.hasText(focusDomain)) {
+            body.put("focus_domain", focusDomain);
+        }
+        if (StringUtils.hasText(focusAngle)) {
+            body.put("focus_angle", focusAngle);
+        }
+        body.put("diversity_level", Math.max(0, diversityLevel));
 
         HttpHeaders headers = buildHeaders();
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);

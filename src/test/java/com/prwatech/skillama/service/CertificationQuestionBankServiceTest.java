@@ -91,6 +91,59 @@ class CertificationQuestionBankServiceTest {
     }
 
     @Test
+    void pickFocusDomainPrefersLeastCoveredAndRotatesTies() {
+        List<String> domains = List.of("Cloud Concepts", "Security", "Data");
+        java.util.Map<String, Integer> counts = new java.util.HashMap<>();
+        assertEquals("Cloud Concepts", CertificationQuestionBankService.pickFocusDomain(domains, counts, 0));
+        assertEquals("Security", CertificationQuestionBankService.pickFocusDomain(domains, counts, 1));
+
+        counts.put("Cloud Concepts", 10);
+        counts.put("Security", 3);
+        counts.put("Data", 7);
+        assertEquals("Security", CertificationQuestionBankService.pickFocusDomain(domains, counts, 0));
+        assertEquals(null, CertificationQuestionBankService.pickFocusDomain(List.of(), counts, 0));
+    }
+
+    @Test
+    void selectExcludeStemsPutsSameDomainNewestFirstAndCaps() {
+        List<CertificationBankQuestion> saved = new ArrayList<>();
+        for (int i = 1; i <= 6; i++) {
+            saved.add(CertificationBankQuestion.builder()
+                    .question("Q" + i + " stem")
+                    .domain(i % 2 == 0 ? "Security" : "Cloud Concepts")
+                    .build());
+        }
+
+        List<String> out = CertificationQuestionBankService.selectExcludeStems(saved, "Security", 4);
+
+        assertEquals(List.of("Q6 stem", "Q4 stem", "Q2 stem", "Q5 stem"), out);
+    }
+
+    @Test
+    void selectExcludeStemsIsNotLimitedToOldestQuestions() {
+        List<CertificationBankQuestion> saved = new ArrayList<>();
+        for (int i = 1; i <= 200; i++) {
+            saved.add(CertificationBankQuestion.builder().question("Q" + i).domain("Security").build());
+        }
+
+        List<String> out = CertificationQuestionBankService.selectExcludeStems(
+                saved, "Security", CertificationQuestionBankService.MAX_EXCLUDE_STEMS_SENT);
+
+        assertEquals(CertificationQuestionBankService.MAX_EXCLUDE_STEMS_SENT, out.size());
+        assertEquals("Q200", out.get(0));
+    }
+
+    @Test
+    void matchDomainIsCaseInsensitiveAndToleratesPartialLabels() {
+        List<String> domains = List.of("Security and Compliance", "Data");
+        assertEquals("Security and Compliance",
+                CertificationQuestionBankService.matchDomain(domains, "security and compliance"));
+        assertEquals("Security and Compliance",
+                CertificationQuestionBankService.matchDomain(domains, "Security"));
+        assertEquals(null, CertificationQuestionBankService.matchDomain(domains, "Networking"));
+    }
+
+    @Test
     void consecutiveStopReasonIncludesLastChunkError() {
         String reason = CertificationQuestionBankService.consecutiveStopReason(
                 5, "AI_CHUNK_FAILED: OUTPUT_TOKEN_LIMIT: truncated at maxTokens=12000");
