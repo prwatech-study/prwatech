@@ -58,6 +58,8 @@ public class CertificationQuestionBankService {
             "A question-bank rebuild is already running for this certification.";
     public static final String BANK_NOT_READY_MESSAGE =
             "The question bank is not ready yet. Ask an admin to rebuild it, or try again shortly.";
+    public static final String REBUILD_COOLDOWN_MESSAGE =
+            "This complete bank was generated in the last 24 hours. Rebuild is locked until the cooldown ends.";
 
     /** If a rebuild stays RUNNING longer than this, treat the lock as stale (crash / killed JVM). */
     public static final Duration STALE_RUNNING_TIMEOUT = Duration.ofHours(2);
@@ -275,7 +277,8 @@ public class CertificationQuestionBankService {
         try {
             requestRebuild(certificationExamId, actorId);
         } catch (IllegalStateException e) {
-            if (ALREADY_RUNNING_MESSAGE.equals(e.getMessage())) {
+            if (ALREADY_RUNNING_MESSAGE.equals(e.getMessage())
+                    || REBUILD_COOLDOWN_MESSAGE.equals(e.getMessage())) {
                 log.info("Skipping rebuild for {} — {}", certificationExamId, e.getMessage());
             } else {
                 throw e;
@@ -292,6 +295,10 @@ public class CertificationQuestionBankService {
             existing = certService.require(certificationExamId);
         }
         LocalDateTime now = IndiaTime.now();
+        int examQ = certService.targetQuestionCount(existing.getParsedMeta());
+        if (GlobalCertificationExamService.isRebuildCoolingDown(existing, examQ, now)) {
+            throw new IllegalStateException(REBUILD_COOLDOWN_MESSAGE);
+        }
         LocalDateTime staleBefore = now.minus(STALE_RUNNING_TIMEOUT);
         int nextBuildVersion = (existing.getBankVersion() != null ? existing.getBankVersion() : 0) + 1;
         int target = targetBankSize(existing.getParsedMeta());
@@ -808,6 +815,10 @@ public class CertificationQuestionBankService {
         int examQ = certService.targetQuestionCount(cert.getParsedMeta());
         CertificationBankBuildStatus status =
                 GlobalCertificationExamService.effectiveBankStatus(cert, examQ);
+        LocalDateTime availableAt =
+                GlobalCertificationExamService.rebuildAvailableAt(cert, examQ);
+        boolean coolingDown = GlobalCertificationExamService.isRebuildCoolingDown(
+                cert, examQ, IndiaTime.now());
         return CertificationBankStatusDTO.builder()
                 .certificationExamId(cert.getId())
                 .bankStatus(status)
@@ -819,7 +830,9 @@ public class CertificationQuestionBankService {
                 .bankBuildQuestionCount(status == CertificationBankBuildStatus.RUNNING
                         ? cert.getBankBuildQuestionCount() : null)
                 .bankMultiplier(BANK_MULTIPLIER)
-                .rebuildAllowed(status != CertificationBankBuildStatus.RUNNING || isStaleRunning(cert))
+                .rebuildAllowed((status != CertificationBankBuildStatus.RUNNING || isStaleRunning(cert))
+                        && !coolingDown)
+                .rebuildAvailableAt(availableAt)
                 .bankReady(GlobalCertificationExamService.isBankReady(cert, examQ))
                 .bankBuildStartedAt(cert.getBankBuildStartedAt())
                 .bankBuildFinishedAt(cert.getBankBuildFinishedAt())

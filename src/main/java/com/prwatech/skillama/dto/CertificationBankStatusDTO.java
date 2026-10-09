@@ -23,6 +23,8 @@ public class CertificationBankStatusDTO {
     private Integer bankBuildQuestionCount;
     private int bankMultiplier;
     private boolean rebuildAllowed;
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime rebuildAvailableAt;
     private boolean bankReady;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")

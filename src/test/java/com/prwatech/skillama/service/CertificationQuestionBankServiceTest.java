@@ -289,6 +289,23 @@ class CertificationQuestionBankServiceTest {
     }
 
     @Test
+    void requestRebuildRejectsCompleteBankDuring24HourCooldown() {
+        GlobalCertificationExam ready = cert("c1", CertificationBankBuildStatus.READY, 1, 275);
+        ready.setBankTargetSize(275);
+        ready.setBankBuildFinishedAt(LocalDateTime.now().minusHours(2));
+        when(skillamaMongoTemplate.find(any(Query.class), eq(GlobalCertificationExam.class)))
+                .thenReturn(List.of());
+        when(certService.require("c1")).thenReturn(ready);
+        when(certService.targetQuestionCount(any())).thenReturn(55);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> service.requestRebuild("c1", "admin-1"));
+        assertEquals(CertificationQuestionBankService.REBUILD_COOLDOWN_MESSAGE, ex.getMessage());
+        verify(skillamaMongoTemplate, never()).findAndModify(
+                any(Query.class), any(Update.class), any(FindAndModifyOptions.class), eq(GlobalCertificationExam.class));
+    }
+
+    @Test
     void requestRebuildRejectsWhenFreshRebuildAlreadyRunning() {
         GlobalCertificationExam running = cert("c1", CertificationBankBuildStatus.RUNNING, 1, 55);
         running.setBankBuildStartedAt(LocalDateTime.now().minusMinutes(10));

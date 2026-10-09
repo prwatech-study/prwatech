@@ -8,6 +8,7 @@ import com.prwatech.skillama.model.CertificationTier;
 import com.prwatech.skillama.model.GlobalCertificationExam;
 import com.prwatech.skillama.repository.CertificationBankQuestionRepository;
 import com.prwatech.skillama.repository.GlobalCertificationExamRepository;
+import com.prwatech.skillama.util.IndiaTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -75,6 +76,43 @@ class GlobalCertificationExamServiceTest {
                 .bankVersion(1).bankTargetSize(275).bankQuestionCount(275).build();
         assertEquals(CertificationBankBuildStatus.READY,
                 GlobalCertificationExamService.effectiveBankStatus(complete, 55));
+    }
+
+    @Test
+    void completeBankIsLockedFor24HoursAfterFinish() {
+        LocalDateTime finished = LocalDateTime.now().minusHours(3);
+        GlobalCertificationExam complete = GlobalCertificationExam.builder()
+                .bankStatus(CertificationBankBuildStatus.READY)
+                .bankVersion(1).bankTargetSize(275).bankQuestionCount(275)
+                .bankBuildFinishedAt(finished)
+                .build();
+        assertTrue(GlobalCertificationExamService.isRebuildCoolingDown(complete, 55, finished.plusHours(3)));
+        assertEquals(finished.plusHours(24), GlobalCertificationExamService.rebuildAvailableAt(complete, 55));
+        assertFalse(GlobalCertificationExamService.isRebuildCoolingDown(complete, 55, finished.plusHours(24)));
+
+        GlobalCertificationExam incomplete = GlobalCertificationExam.builder()
+                .bankVersion(1).bankTargetSize(275).bankQuestionCount(231)
+                .bankBuildFinishedAt(finished)
+                .build();
+        assertFalse(GlobalCertificationExamService.isRebuildCoolingDown(incomplete, 55, finished.plusHours(1)));
+    }
+
+    @Test
+    void listAllBlocksRebuildDuringCompleteBankCooldown() {
+        LocalDateTime finished = IndiaTime.now().minusHours(2);
+        GlobalCertificationExam complete = GlobalCertificationExam.builder()
+                .id("c1").provider("GCP").tier(CertificationTier.FOUNDATIONAL).name("CDL").active(true)
+                .bankStatus(CertificationBankBuildStatus.READY)
+                .bankVersion(1).bankTargetSize(275).bankQuestionCount(275)
+                .bankBuildFinishedAt(finished)
+                .build();
+        when(repository.findAll()).thenReturn(List.of(complete));
+
+        GlobalCertificationExamDTO dto = service.listAll(false).get(0);
+
+        assertTrue(dto.isBankReady());
+        assertFalse(dto.isRebuildAllowed());
+        assertEquals(finished.plusHours(24), dto.getRebuildAvailableAt());
     }
 
     @Test

@@ -35,6 +35,9 @@ public class GlobalCertificationExamDTO {
     private Integer bankBuildQuestionCount;
     private int bankMultiplier;
     private boolean rebuildAllowed;
+    /** When a complete bank may be rebuilt again; null if no 24h cooldown is active. */
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime rebuildAvailableAt;
     /** True when learners can assemble an exam from the current bank. */
     private boolean bankReady;
 

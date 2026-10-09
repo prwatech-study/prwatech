@@ -235,7 +235,9 @@ public class GlobalCertificationExamService {
         int examQ = targetQuestionCount(row.getParsedMeta());
         CertificationBankBuildStatus bankStatus = effectiveBankStatus(row, examQ);
         int target = requiredBankSize(row, examQ);
-        boolean rebuildAllowed = bankStatus != CertificationBankBuildStatus.RUNNING;
+        LocalDateTime rebuildAvailableAt = rebuildAvailableAt(row, examQ);
+        boolean coolingDown = isRebuildCoolingDown(row, examQ, IndiaTime.now());
+        boolean rebuildAllowed = bankStatus != CertificationBankBuildStatus.RUNNING && !coolingDown;
         return GlobalCertificationExamDTO.builder()
                 .id(row.getId())
                 .provider(row.getProvider())
@@ -254,6 +256,7 @@ public class GlobalCertificationExamService {
                         ? row.getBankBuildQuestionCount() : null)
                 .bankMultiplier(BANK_MULTIPLIER)
                 .rebuildAllowed(rebuildAllowed)
+                .rebuildAvailableAt(rebuildAvailableAt)
                 .bankReady(isBankReady(row, examQ))
                 .bankBuildStartedAt(row.getBankBuildStartedAt())
                 .bankBuildFinishedAt(row.getBankBuildFinishedAt())
@@ -285,6 +288,22 @@ public class GlobalCertificationExamService {
             return CertificationBankBuildStatus.FAILED;
         }
         return status;
+    }
+
+    /** How long a complete bank stays locked against another rebuild. */
+    public static final Duration REBUILD_COOLDOWN = Duration.ofHours(24);
+
+    public static LocalDateTime rebuildAvailableAt(GlobalCertificationExam row, int examQuestionCount) {
+        if (!isBankReady(row, examQuestionCount) || row.getBankBuildFinishedAt() == null) {
+            return null;
+        }
+        return row.getBankBuildFinishedAt().plus(REBUILD_COOLDOWN);
+    }
+
+    public static boolean isRebuildCoolingDown(
+            GlobalCertificationExam row, int examQuestionCount, LocalDateTime now) {
+        LocalDateTime until = rebuildAvailableAt(row, examQuestionCount);
+        return until != null && now != null && now.isBefore(until);
     }
 
     public static boolean isBankReady(GlobalCertificationExam row, int examQuestionCount) {
