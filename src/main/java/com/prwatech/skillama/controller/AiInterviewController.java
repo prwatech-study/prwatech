@@ -1,6 +1,7 @@
 package com.prwatech.skillama.controller;
 
 import com.prwatech.skillama.service.AiInterviewService;
+import com.prwatech.skillama.service.PlatformFeatureRolloutService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -32,13 +33,14 @@ public class AiInterviewController {
 
     private final AiInterviewService aiInterviewService;
     private final SkillamaAuthSupport skillamaAuthSupport;
+    private final PlatformFeatureRolloutService platformFeatureRolloutService;
 
     @GetMapping("/questions")
     public ResponseEntity<?> listQuestions(
             @RequestParam(required = false) String tag,
             @RequestParam(required = false) String q,
             HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -47,7 +49,7 @@ public class AiInterviewController {
 
     @PostMapping("/questions")
     public ResponseEntity<?> createQuestion(@RequestBody Map<String, Object> body, HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -59,7 +61,7 @@ public class AiInterviewController {
             @PathVariable String questionId,
             @RequestBody Map<String, Object> body,
             HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -68,7 +70,7 @@ public class AiInterviewController {
 
     @DeleteMapping("/questions/{questionId}")
     public ResponseEntity<?> deleteQuestion(@PathVariable String questionId, HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -78,7 +80,7 @@ public class AiInterviewController {
     @GetMapping("/schedules")
     public ResponseEntity<?> listSchedules(
             @RequestParam(required = false) String status, HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -87,7 +89,7 @@ public class AiInterviewController {
 
     @PostMapping("/schedules")
     public ResponseEntity<?> createSchedule(@RequestBody Map<String, Object> body, HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -99,7 +101,7 @@ public class AiInterviewController {
             @PathVariable String scheduleId,
             @RequestBody Map<String, Object> body,
             HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -108,7 +110,7 @@ public class AiInterviewController {
 
     @GetMapping("/schedules/{scheduleId}/admin-detail")
     public ResponseEntity<?> adminDetail(@PathVariable String scheduleId, HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -120,7 +122,7 @@ public class AiInterviewController {
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
             HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -129,7 +131,7 @@ public class AiInterviewController {
 
     @GetMapping("/my")
     public ResponseEntity<?> mine(HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -138,11 +140,13 @@ public class AiInterviewController {
 
     @GetMapping("/invite/{token}")
     public ResponseEntity<?> preview(@PathVariable String token) {
+        platformFeatureRolloutService.assertPubliclyLive(PlatformFeatureRolloutService.AI_INTERVIEW);
         return ResponseEntity.ok(aiInterviewService.preview(token));
     }
 
     @GetMapping("/invite/{token}/calendar.ics")
     public ResponseEntity<byte[]> calendarInvite(@PathVariable String token) {
+        platformFeatureRolloutService.assertPubliclyLive(PlatformFeatureRolloutService.AI_INTERVIEW);
         byte[] ics = aiInterviewService.calendarInviteIcs(token);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"interview.ics\"")
@@ -152,6 +156,7 @@ public class AiInterviewController {
 
     @PostMapping("/invite/{token}/join")
     public ResponseEntity<?> join(@PathVariable String token, @RequestBody Map<String, Object> body) {
+        platformFeatureRolloutService.assertPubliclyLive(PlatformFeatureRolloutService.AI_INTERVIEW);
         return ResponseEntity.ok(aiInterviewService.join(token, body == null ? Map.of() : body));
     }
 
@@ -188,10 +193,16 @@ public class AiInterviewController {
         return ResponseEntity.ok(aiInterviewService.addSnapshot(sessionToken, file, offsetMinutes));
     }
 
-    private String requireUser(HttpServletRequest request) {
+    private String requireLearnerFeature(HttpServletRequest request) {
         try {
-            return skillamaAuthSupport.resolveUserIdFromRequest(request);
+            String userId = skillamaAuthSupport.resolveUserIdFromRequest(request);
+            platformFeatureRolloutService.assertAccessible(
+                    PlatformFeatureRolloutService.AI_INTERVIEW, userId);
+            return userId;
         } catch (RuntimeException ex) {
+            if (ex instanceof com.prwatech.skillama.exception.FeatureNotLiveException) {
+                throw ex;
+            }
             return null;
         }
     }

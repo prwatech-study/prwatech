@@ -1,13 +1,19 @@
 package com.prwatech.skillama.controller;
 
 import com.prwatech.skillama.dto.GlobalAiExamCourseRequestDTO;
+import com.prwatech.skillama.dto.GlobalCertificationExamRequestDTO;
+import com.prwatech.skillama.dto.StartCertificationExamRequestDTO;
 import com.prwatech.skillama.dto.StartExamRequestDTO;
 import com.prwatech.skillama.dto.SubmitExamAttemptRequestDTO;
 import com.prwatech.skillama.exception.AiBudgetLimitException;
+import com.prwatech.skillama.exception.FeatureNotLiveException;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.service.AdminPermissionService;
 import com.prwatech.skillama.service.ExamService;
 import com.prwatech.skillama.service.GlobalAiExamCourseService;
+import com.prwatech.skillama.service.CertificationQuestionBankService;
+import com.prwatech.skillama.service.GlobalCertificationExamService;
+import com.prwatech.skillama.service.PlatformFeatureRolloutService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -35,7 +41,167 @@ public class ExamController {
     private final ExamService examService;
     private final SkillamaAuthSupport skillamaAuthSupport;
     private final GlobalAiExamCourseService globalAiExamCourseService;
+    private final GlobalCertificationExamService globalCertificationExamService;
+    private final CertificationQuestionBankService certificationQuestionBankService;
     private final AdminPermissionService adminPermissionService;
+    private final PlatformFeatureRolloutService platformFeatureRolloutService;
+
+    @GetMapping("/certifications")
+    public ResponseEntity<?> listCertifications(
+            @RequestParam(required = false, defaultValue = "true") boolean activeOnly,
+            HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        boolean admin = false;
+        try {
+            adminPermissionService.requireAdminOrOwner(userId);
+            admin = true;
+        } catch (RuntimeException ignored) {
+            // learners only see active certifications
+        }
+        return ResponseEntity.ok(globalCertificationExamService.listAll(admin ? activeOnly : true));
+    }
+
+    @GetMapping("/certifications/{id}")
+    public ResponseEntity<?> getCertification(@PathVariable String id, HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        try {
+            return ResponseEntity.ok(globalCertificationExamService.getById(id));
+        } catch (RuntimeException e) {
+            return mapGlobalCourseWriteError(e);
+        }
+    }
+
+    @PostMapping("/certifications")
+    public ResponseEntity<?> createCertification(
+            @RequestBody GlobalCertificationExamRequestDTO request, HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        try {
+            adminPermissionService.requireAdminOrOwner(userId);
+            return ResponseEntity.ok(globalCertificationExamService.create(request, userId));
+        } catch (RuntimeException e) {
+            return mapGlobalCourseWriteError(e);
+        }
+    }
+
+    @PutMapping("/certifications/{id}")
+    public ResponseEntity<?> updateCertification(
+            @PathVariable String id,
+            @RequestBody GlobalCertificationExamRequestDTO request,
+            HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        try {
+            adminPermissionService.requireAdminOrOwner(userId);
+            return ResponseEntity.ok(globalCertificationExamService.update(id, request, userId));
+        } catch (RuntimeException e) {
+            return mapGlobalCourseWriteError(e);
+        }
+    }
+
+    @DeleteMapping("/certifications/{id}")
+    public ResponseEntity<?> deleteCertification(
+            @PathVariable String id, HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        try {
+            adminPermissionService.requireAdminOrOwner(userId);
+            globalCertificationExamService.delete(id);
+            return ResponseEntity.noContent().build();
+        } catch (RuntimeException e) {
+            return mapGlobalCourseWriteError(e);
+        }
+    }
+
+    @PostMapping("/certifications/{id}/refresh-guidelines")
+    public ResponseEntity<?> refreshCertificationGuidelines(
+            @PathVariable String id, HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        try {
+            adminPermissionService.requireAdminOrOwner(userId);
+            return ResponseEntity.ok(globalCertificationExamService.refreshGuidelines(id, userId));
+        } catch (RuntimeException e) {
+            return mapGlobalCourseWriteError(e);
+        }
+    }
+
+    @GetMapping("/certifications/{id}/bank")
+    public ResponseEntity<?> getCertificationBankStatus(
+            @PathVariable String id, HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        try {
+            adminPermissionService.requireAdminOrOwner(userId);
+            return ResponseEntity.ok(certificationQuestionBankService.getBankStatus(id));
+        } catch (RuntimeException e) {
+            return mapGlobalCourseWriteError(e);
+        }
+    }
+
+    @GetMapping("/certifications/{id}/bank/questions")
+    public ResponseEntity<?> listCertificationBankQuestions(
+            @PathVariable String id, HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        try {
+            adminPermissionService.requireAdminOrOwner(userId);
+            return ResponseEntity.ok(certificationQuestionBankService.listBankQuestions(id));
+        } catch (RuntimeException e) {
+            return mapGlobalCourseWriteError(e);
+        }
+    }
+
+    @PostMapping("/certifications/{id}/bank/rebuild")
+    public ResponseEntity<?> rebuildCertificationBank(
+            @PathVariable String id, HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        try {
+            adminPermissionService.requireAdminOrOwner(userId);
+            return ResponseEntity.ok(certificationQuestionBankService.requestRebuild(id, userId));
+        } catch (RuntimeException e) {
+            return mapGlobalCourseWriteError(e);
+        }
+    }
+
+    @PostMapping("/certifications/start")
+    public ResponseEntity<?> startCertificationExam(
+            @RequestBody StartCertificationExamRequestDTO request, HttpServletRequest httpRequest) {
+        String userId = resolveUserId(httpRequest);
+        if (userId == null) {
+            return unauthorized();
+        }
+        try {
+            return ResponseEntity.ok(examService.startCertificationExam(userId, request));
+        } catch (AiBudgetLimitException e) {
+            return ResponseEntity.status(429).body(e.toResponseBody());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(502).body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
 
     @GetMapping("/global-courses")
     public ResponseEntity<?> listGlobalCourses(HttpServletRequest httpRequest) {
@@ -202,7 +368,11 @@ public class ExamController {
             return null;
         }
         try {
-            return skillamaAuthSupport.resolveUserIdFromRequest(request);
+            String userId = skillamaAuthSupport.resolveUserIdFromRequest(request);
+            platformFeatureRolloutService.assertAccessible(PlatformFeatureRolloutService.AI_EXAM, userId);
+            return userId;
+        } catch (FeatureNotLiveException e) {
+            throw e;
         } catch (Exception e) {
             return null;
         }
@@ -219,7 +389,10 @@ public class ExamController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("status", "error", "message", message));
         }
-        if (e instanceof IllegalStateException || message.contains("already enabled")) {
+        if (e instanceof IllegalStateException
+                || message.contains("already enabled")
+                || message.contains("already configured")
+                || message.contains("already running")) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(Map.of("status", "error", "message", message));
         }

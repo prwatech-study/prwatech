@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
 public class ExamAttemptSummaryDTO {
     private String attemptId;
     private String courseId;
+    private String certificationExamId;
+    private String provider;
     private String moduleId;
     private String topic;
     private ExamDifficulty difficulty;

@@ -40,6 +40,13 @@ public class ExamSession {
     @Indexed
     private String courseId;
 
+    /** Set for {@link ExamType#GLOBAL_CERTIFICATION} — catalog row id. */
+    @Indexed
+    private String certificationExamId;
+
+    private String provider;
+    private CertificationTier certificationTier;
+
     /** Null for a course/topic-wide exam (not scoped to a single module). */
     private String moduleId;
     private String topic;
@@ -76,8 +83,13 @@ public class ExamSession {
         private Integer id;
         private String question;
         private List<ExamOption> options;
+        /** SINGLE (default) or MULTI. */
+        private ExamQuestionType questionType;
         private String correctKey;
+        /** For MULTI questions — exact set match when grading. */
+        private List<String> correctKeys;
         private String explanation;
+        private String domain;
     }
 
     @Getter

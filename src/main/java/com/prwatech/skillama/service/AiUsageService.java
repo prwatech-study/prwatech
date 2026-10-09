@@ -90,6 +90,7 @@ public class AiUsageService {
             Map.entry("ai_mentor_follow_up", cat("Ai-Tutor", "AI Mentor")),
             Map.entry("generate_module_quiz", cat("Ai-Tutor", "Module quizzes")),
             Map.entry("generate_exam", cat("Ai-Tutor", "Exams")),
+            Map.entry("generate_certification_exam", cat("Ai-Tutor", "Global certification exams")),
             Map.entry("ai_exam_recommendation", cat("Ai-Tutor", "Exams")),
             Map.entry("ai_exam_feedback", cat("Ai-Tutor", "Exams")),
             Map.entry("lecture_generation", cat("Lecture Generation", "Lecture audio and script")),

@@ -24,6 +24,7 @@ import com.prwatech.skillama.service.ModuleQuizService;
 import com.prwatech.skillama.service.NotificationSettingsService;
 import com.prwatech.skillama.service.PlatformAiSettingsService;
 import com.prwatech.skillama.service.PlatformDemoVideoService;
+import com.prwatech.skillama.service.PlatformFeatureRolloutService;
 import com.prwatech.skillama.service.PlatformThemeSettingsService;
 import com.prwatech.skillama.service.ProgressReconciliationService;
 import com.prwatech.skillama.service.ReferralShareService;
@@ -78,6 +79,7 @@ class AdminCourseAnalyticsControllerTest {
                 mock(IssueReportService.class),
                 mock(PlatformDemoVideoService.class),
                 mock(PlatformAiSettingsService.class),
+                mock(PlatformFeatureRolloutService.class),
                 mock(PlatformThemeSettingsService.class),
                 mock(ReferralShareService.class),
                 mock(NotificationSettingsService.class),

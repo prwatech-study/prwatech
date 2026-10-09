@@ -8,7 +8,9 @@ import com.prwatech.skillama.dto.DoubtFollowUpRequestDTO;
 import com.prwatech.skillama.dto.DoubtResponseDTO;
 import com.prwatech.skillama.dto.DoubtStatusUpdateRequestDTO;
 import com.prwatech.skillama.dto.ProxiedAudioDTO;
+import com.prwatech.skillama.exception.FeatureNotLiveException;
 import com.prwatech.skillama.service.DoubtService;
+import com.prwatech.skillama.service.PlatformFeatureRolloutService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -38,6 +40,7 @@ public class DoubtController {
 
     private final DoubtService doubtService;
     private final SkillamaAuthSupport skillamaAuthSupport;
+    private final PlatformFeatureRolloutService platformFeatureRolloutService;
 
     @PostMapping("/doubts")
     public ResponseEntity<?> askDoubt(
@@ -163,7 +166,11 @@ public class DoubtController {
             return null;
         }
         try {
-            return skillamaAuthSupport.resolveUserIdFromRequest(request);
+            String userId = skillamaAuthSupport.resolveUserIdFromRequest(request);
+            platformFeatureRolloutService.assertAccessible(PlatformFeatureRolloutService.AI_MENTOR, userId);
+            return userId;
+        } catch (FeatureNotLiveException e) {
+            throw e;
         } catch (Exception e) {
             return null;
         }

@@ -51,6 +51,7 @@ public final class SkillamaAnonymousRequestMatchers {
             new Route(HttpMethod.GET, "/skillama/platform/freemium-offering"),
             new Route(HttpMethod.GET, "/skillama/platform/ai-settings"),
             new Route(HttpMethod.GET, "/skillama/platform/theme-settings"),
+            new Route(HttpMethod.GET, "/skillama/platform/features"),
             new Route(HttpMethod.GET, "/skillama/platform/public-stats"),
             new Route(HttpMethod.GET, "/skillama/platform/referral-share"),
             new Route(HttpMethod.GET, "/skillama/platform/org/*/branding"),

@@ -4,7 +4,9 @@ import com.prwatech.common.exception.NotFoundException;
 import com.prwatech.skillama.dto.CodeAssistRequestDTO;
 import com.prwatech.skillama.dto.ProxiedAudioDTO;
 import com.prwatech.skillama.exception.AiBudgetLimitException;
+import com.prwatech.skillama.exception.FeatureNotLiveException;
 import com.prwatech.skillama.service.CodeAssistService;
+import com.prwatech.skillama.service.PlatformFeatureRolloutService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -32,10 +34,11 @@ public class CodeAssistController {
 
     private final CodeAssistService codeAssistService;
     private final SkillamaAuthSupport skillamaAuthSupport;
+    private final PlatformFeatureRolloutService platformFeatureRolloutService;
 
     @PostMapping("/debug")
     public ResponseEntity<?> debug(@RequestBody CodeAssistRequestDTO request, HttpServletRequest httpRequest) {
-        String userId = resolveUserId(httpRequest);
+        String userId = resolveUserId(httpRequest, PlatformFeatureRolloutService.DEBUG_ASSISTANT);
         if (userId == null) {
             return unauthorized();
         }
@@ -54,7 +57,7 @@ public class CodeAssistController {
 
     @PostMapping("/execute")
     public ResponseEntity<?> execute(@RequestBody CodeAssistRequestDTO request, HttpServletRequest httpRequest) {
-        String userId = resolveUserId(httpRequest);
+        String userId = resolveUserId(httpRequest, PlatformFeatureRolloutService.CODE_LAB);
         if (userId == null) {
             return unauthorized();
         }
@@ -76,7 +79,7 @@ public class CodeAssistController {
     @GetMapping("/interactions/{interactionId}/audio")
     public ResponseEntity<?> getInteractionAudio(
             @PathVariable String interactionId, HttpServletRequest httpRequest) {
-        String userId = resolveUserId(httpRequest);
+        String userId = resolveUserIdOnly(httpRequest);
         if (userId == null) {
             return unauthorized();
         }
@@ -92,7 +95,23 @@ public class CodeAssistController {
         }
     }
 
-    private String resolveUserId(HttpServletRequest request) {
+    private String resolveUserId(HttpServletRequest request, String featureCode) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        try {
+            String userId = skillamaAuthSupport.resolveUserIdFromRequest(request);
+            platformFeatureRolloutService.assertAccessible(featureCode, userId);
+            return userId;
+        } catch (FeatureNotLiveException e) {
+            throw e;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String resolveUserIdOnly(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return null;

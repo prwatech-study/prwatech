@@ -24,4 +24,7 @@ public class StartExamResponseDTO {
     private Integer remainingSeconds;
     private ExamDifficulty difficulty;
     private ExamType examType;
+    private String certificationExamId;
+    private String provider;
+    private String certificationTier;
 }

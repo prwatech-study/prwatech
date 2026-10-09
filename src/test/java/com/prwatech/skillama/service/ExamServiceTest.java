@@ -11,17 +11,21 @@ import com.prwatech.skillama.dto.GeneratedQuizDTO;
 import com.prwatech.skillama.dto.ModuleQuizAttemptSummaryDTO;
 import com.prwatech.skillama.dto.ModuleQuizOptionDTO;
 import com.prwatech.skillama.dto.ModuleQuizQuestionDTO;
+import com.prwatech.skillama.dto.StartCertificationExamRequestDTO;
 import com.prwatech.skillama.dto.StartExamRequestDTO;
 import com.prwatech.skillama.dto.StartExamResponseDTO;
 import com.prwatech.skillama.dto.SubmitExamAttemptRequestDTO;
 import com.prwatech.skillama.exception.AiBudgetLimitException;
+import com.prwatech.skillama.model.CertificationTier;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.ExamAttempt;
 import com.prwatech.skillama.model.ExamDifficulty;
+import com.prwatech.skillama.model.ExamQuestionType;
 import com.prwatech.skillama.model.ExamRecommendationLog;
 import com.prwatech.skillama.model.ExamSession;
 import com.prwatech.skillama.model.ExamType;
+import com.prwatech.skillama.model.GlobalCertificationExam;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import com.prwatech.skillama.repository.CourseRepository;
@@ -76,6 +80,8 @@ class ExamServiceTest {
     @Mock private ExamRecommendationLogRepository recommendationLogRepository;
     @Mock private CourseCurriculumRepository curriculumRepository;
     @Mock private GlobalAiExamCourseService globalAiExamCourseService;
+    @Mock private GlobalCertificationExamService globalCertificationExamService;
+    @Mock private CertificationQuestionBankService certificationQuestionBankService;
     @Mock private UserCourseAccessService userCourseAccessService;
 
     private ExamService service;
@@ -88,7 +94,7 @@ class ExamServiceTest {
         service = new ExamService(sessionRepository, attemptRepository, courseRepository,
                 skillamaAiClient, userRepository, moduleQuizService,
                 recommendationLogRepository, curriculumRepository, globalAiExamCourseService,
-                userCourseAccessService);
+                globalCertificationExamService, certificationQuestionBankService, userCourseAccessService);
 
         when(globalAiExamCourseService.isEnabled(anyString())).thenReturn(true);
         when(globalAiExamCourseService.resolveDisplayName(anyString())).thenReturn("Python");
@@ -865,5 +871,132 @@ class ExamServiceTest {
         verify(attemptRepository).save(org.mockito.ArgumentMatchers.argThat(saved ->
                 "Nicely done.".equals(saved.getOverallFeedback())
                         && "Try harder questions next.".equals(saved.getRecommendationText())));
+    }
+
+    // ---------- startCertificationExam ----------
+
+    @Test
+    void startCertificationExamRejectsMissingCertificationId() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.startCertificationExam(USER, new StartCertificationExamRequestDTO()));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.startCertificationExam(USER, null));
+    }
+
+    @Test
+    void startCertificationExamRejectsInactiveCatalogRow() {
+        GlobalCertificationExam inactive = GlobalCertificationExam.builder()
+                .id("cert-1").provider("GCP").name("CDL").active(false).build();
+        when(globalCertificationExamService.require("cert-1")).thenReturn(inactive);
+
+        StartCertificationExamRequestDTO req = new StartCertificationExamRequestDTO();
+        req.setCertificationExamId("cert-1");
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.startCertificationExam(USER, req));
+        assertTrue(ex.getMessage().toLowerCase().contains("not currently available"));
+        verify(certificationQuestionBankService, never()).assemblePaper(any(), anyInt());
+    }
+
+    @Test
+    void startCertificationExamFailsFastWhenBankNotReady() {
+        GlobalCertificationExam cert = GlobalCertificationExam.builder()
+                .id("cert-1").provider("GCP").name("CDL").active(true)
+                .tier(CertificationTier.FOUNDATIONAL).build();
+        when(globalCertificationExamService.require("cert-1")).thenReturn(cert);
+        when(globalCertificationExamService.targetQuestionCount(any())).thenReturn(50);
+        when(globalCertificationExamService.timeLimitSeconds(any())).thenReturn(5400);
+        when(certificationQuestionBankService.assemblePaper(eq(cert), eq(50)))
+                .thenThrow(new IllegalStateException(CertificationQuestionBankService.BANK_NOT_READY_MESSAGE));
+
+        StartCertificationExamRequestDTO req = new StartCertificationExamRequestDTO();
+        req.setCertificationExamId("cert-1");
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> service.startCertificationExam(USER, req));
+        assertEquals(CertificationQuestionBankService.BANK_NOT_READY_MESSAGE, ex.getMessage());
+        verify(sessionRepository, never()).save(any(ExamSession.class));
+    }
+
+    @Test
+    void startCertificationExamAssemblesFromBankAndScopesUsageToCertCourseId() {
+        GlobalCertificationExam cert = GlobalCertificationExam.builder()
+                .id("cert-1").provider("GCP").name("Cloud Digital Leader").active(true)
+                .tier(CertificationTier.FOUNDATIONAL).build();
+        when(globalCertificationExamService.require("cert-1")).thenReturn(cert);
+        when(globalCertificationExamService.targetQuestionCount(any())).thenReturn(2);
+        when(globalCertificationExamService.timeLimitSeconds(any())).thenReturn(5400);
+        when(certificationQuestionBankService.assemblePaper(eq(cert), eq(2)))
+                .thenReturn(List.of(question(1, "A"), question(2, "B")));
+
+        StartCertificationExamRequestDTO req = new StartCertificationExamRequestDTO();
+        req.setCertificationExamId("cert-1");
+
+        StartExamResponseDTO res = service.startCertificationExam(USER, req);
+
+        assertEquals(ExamType.GLOBAL_CERTIFICATION, res.getExamType());
+        assertEquals("cert-1", res.getCertificationExamId());
+        assertEquals("GCP", res.getProvider());
+        assertEquals(2, res.getTotalQuestions());
+        assertEquals(5400, res.getTimeLimitSeconds());
+
+        ArgumentCaptor<ExamSession> saved = ArgumentCaptor.forClass(ExamSession.class);
+        verify(sessionRepository).save(saved.capture());
+        assertEquals("cert:cert-1", saved.getValue().getCourseId());
+        assertEquals(ExamType.GLOBAL_CERTIFICATION, saved.getValue().getExamType());
+        assertEquals(2, saved.getValue().getQuestions().size());
+    }
+
+    // ---------- MULTI exact-set grading ----------
+
+    @Test
+    void submitAttemptRequiresExactKeySetForMultiSelect() {
+        ExamSession session = ExamSession.builder()
+                .examSessionId("exam-multi").userId(USER).courseId(COURSE)
+                .difficulty(ExamDifficulty.ADVANCED).examType(ExamType.GLOBAL_CERTIFICATION)
+                .expiresAt(LocalDateTime.now().plusHours(1))
+                .startedAt(LocalDateTime.now())
+                .timeLimitSeconds(600)
+                .questions(List.of(
+                        ExamSession.ExamQuestion.builder()
+                                .id(1)
+                                .question("Select two")
+                                .questionType(ExamQuestionType.MULTI)
+                                .correctKeys(List.of("A", "C"))
+                                .options(List.of(
+                                        ExamSession.ExamOption.builder().key("A").text("a").build(),
+                                        ExamSession.ExamOption.builder().key("B").text("b").build(),
+                                        ExamSession.ExamOption.builder().key("C").text("c").build()))
+                                .build()))
+                .build();
+        when(sessionRepository.findByExamSessionId("exam-multi")).thenReturn(Optional.of(session));
+
+        // Exact set (any order) — correct
+        ExamAttemptResultDTO exact = service.submitAttempt(USER, SubmitExamAttemptRequestDTO.builder()
+                .examSessionId("exam-multi")
+                .answers(Map.of("1", List.of("C", "A")))
+                .build());
+        assertEquals(1, exact.getScore());
+
+        // Partial / extra — incorrect
+        ExamAttemptResultDTO partial = service.submitAttempt(USER, SubmitExamAttemptRequestDTO.builder()
+                .examSessionId("exam-multi")
+                .answers(Map.of("1", List.of("A")))
+                .build());
+        assertEquals(0, partial.getScore());
+
+        ExamAttemptResultDTO extras = service.submitAttempt(USER, SubmitExamAttemptRequestDTO.builder()
+                .examSessionId("exam-multi")
+                .answers(Map.of("1", List.of("A", "B", "C")))
+                .build());
+        assertEquals(0, extras.getScore());
+    }
+
+    @Test
+    void normalizeSelectedKeysAcceptsListAndDelimitedStrings() {
+        assertEquals(List.of("A", "C"), ExamService.normalizeSelectedKeys(List.of("a", " C ", "a")));
+        assertEquals(List.of("A", "B"), ExamService.normalizeSelectedKeys("A,b"));
+        assertEquals(List.of(), ExamService.normalizeSelectedKeys(null));
+        assertEquals(List.of(), ExamService.normalizeSelectedKeys(""));
     }
 }

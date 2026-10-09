@@ -31,12 +31,14 @@ class CodeAssistControllerTest {
 
     @Mock private CodeAssistService codeAssistService;
     @Mock private SkillamaAuthSupport skillamaAuthSupport;
+    @Mock private com.prwatech.skillama.service.PlatformFeatureRolloutService platformFeatureRolloutService;
 
     private static final String TOKEN = "Bearer valid.jwt.token";
 
     @BeforeEach
     void setUp() {
-        CodeAssistController controller = new CodeAssistController(codeAssistService, skillamaAuthSupport);
+        CodeAssistController controller = new CodeAssistController(
+                codeAssistService, skillamaAuthSupport, platformFeatureRolloutService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();

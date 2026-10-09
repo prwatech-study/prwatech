@@ -10,4 +10,6 @@ public interface PlatformFeatureRepository extends MongoRepository<PlatformFeatu
     Optional<PlatformFeature> findByCode(String code);
 
     List<PlatformFeature> findByActiveTrueOrderBySortOrderAsc();
+
+    List<PlatformFeature> findByLearnerVisibleTrueAndActiveTrueOrderBySortOrderAsc();
 }

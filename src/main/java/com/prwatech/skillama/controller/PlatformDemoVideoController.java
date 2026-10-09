@@ -3,12 +3,14 @@ package com.prwatech.skillama.controller;
 import com.prwatech.skillama.dto.AiSettingsDTO;
 import com.prwatech.skillama.dto.DemoVideoDTO;
 import com.prwatech.skillama.dto.FreemiumOfferingDTO;
+import com.prwatech.skillama.dto.PlatformFeatureRolloutDTO;
 import com.prwatech.skillama.dto.PlatformThemeSettingsDTO;
 import com.prwatech.skillama.dto.PublicStatsDTO;
 import com.prwatech.skillama.dto.UpgradeContactDTO;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.PlatformAiSettingsService;
 import com.prwatech.skillama.service.PlatformDemoVideoService;
+import com.prwatech.skillama.service.PlatformFeatureRolloutService;
 import com.prwatech.skillama.service.PlatformPublicStatsService;
 import com.prwatech.skillama.service.PlatformThemeSettingsService;
 import com.prwatech.skillama.service.SkillamaPlatformConfigService;
@@ -17,6 +19,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * Public read of platform demo video config (no auth required for learners).
@@ -30,6 +34,7 @@ public class PlatformDemoVideoController {
     private final SkillamaPlatformConfigService platformConfigService;
     private final PlatformAiSettingsService platformAiSettingsService;
     private final PlatformThemeSettingsService platformThemeSettingsService;
+    private final PlatformFeatureRolloutService platformFeatureRolloutService;
     private final FreemiumService freemiumService;
     private final PlatformPublicStatsService platformPublicStatsService;
 
@@ -60,6 +65,12 @@ public class PlatformDemoVideoController {
     @GetMapping("/theme-settings")
     public ResponseEntity<PlatformThemeSettingsDTO> getThemeSettings() {
         return ResponseEntity.ok(platformThemeSettingsService.getPublicSettings());
+    }
+
+    /** Learner-visible platform features with rollout status (Upcoming / Live / New). */
+    @GetMapping("/features")
+    public ResponseEntity<List<PlatformFeatureRolloutDTO>> getPlatformFeatures() {
+        return ResponseEntity.ok(platformFeatureRolloutService.listLearnerCatalog());
     }
 
     /** Public marketing aggregates for homepage social proof (cached). */

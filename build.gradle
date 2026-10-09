@@ -69,6 +69,7 @@ dependencies {
     implementation 'software.amazon.awssdk:s3'
     implementation 'software.amazon.awssdk:lambda'
     implementation 'com.nimbusds:nimbus-jose-jwt:9.37.3'
+    implementation 'org.jsoup:jsoup:1.17.2'
 }
 
 tasks.named('test') {

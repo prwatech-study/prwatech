@@ -34,12 +34,14 @@ class DoubtControllerTest {
 
     @Mock private DoubtService doubtService;
     @Mock private SkillamaAuthSupport skillamaAuthSupport;
+    @Mock private com.prwatech.skillama.service.PlatformFeatureRolloutService platformFeatureRolloutService;
 
     private static final String TOKEN = "Bearer valid.jwt.token";
 
     @BeforeEach
     void setUp() {
-        DoubtController controller = new DoubtController(doubtService, skillamaAuthSupport);
+        DoubtController controller = new DoubtController(
+                doubtService, skillamaAuthSupport, platformFeatureRolloutService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();

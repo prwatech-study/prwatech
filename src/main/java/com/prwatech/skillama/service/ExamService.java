@@ -17,6 +17,7 @@ import com.prwatech.skillama.dto.GeneratedQuizDTO;
 import com.prwatech.skillama.dto.ModuleQuizAttemptSummaryDTO;
 import com.prwatech.skillama.dto.ModuleQuizOptionDTO;
 import com.prwatech.skillama.dto.ModuleQuizQuestionDTO;
+import com.prwatech.skillama.dto.StartCertificationExamRequestDTO;
 import com.prwatech.skillama.dto.StartExamRequestDTO;
 import com.prwatech.skillama.dto.StartExamResponseDTO;
 import com.prwatech.skillama.dto.SubmitExamAttemptRequestDTO;
@@ -26,9 +27,11 @@ import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.CourseCurriculum;
 import com.prwatech.skillama.model.ExamAttempt;
 import com.prwatech.skillama.model.ExamDifficulty;
+import com.prwatech.skillama.model.ExamQuestionType;
 import com.prwatech.skillama.model.ExamRecommendationLog;
 import com.prwatech.skillama.model.ExamSession;
 import com.prwatech.skillama.model.ExamType;
+import com.prwatech.skillama.model.GlobalCertificationExam;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.CourseCurriculumRepository;
 import com.prwatech.skillama.repository.CourseRepository;
@@ -47,11 +50,15 @@ import org.springframework.util.StringUtils;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -84,7 +91,73 @@ public class ExamService {
     private final ExamRecommendationLogRepository recommendationLogRepository;
     private final CourseCurriculumRepository curriculumRepository;
     private final GlobalAiExamCourseService globalAiExamCourseService;
+    private final GlobalCertificationExamService globalCertificationExamService;
+    private final CertificationQuestionBankService certificationQuestionBankService;
     private final UserCourseAccessService userCourseAccessService;
+
+    /**
+     * Starts a global certification practice exam by assembling a paper from the
+     * 5× question bank (no live Bedrock generation on the learner path).
+     */
+    public StartExamResponseDTO startCertificationExam(String userId, StartCertificationExamRequestDTO request) {
+        if (request == null || !StringUtils.hasText(request.getCertificationExamId())) {
+            throw new IllegalArgumentException("certificationExamId is required");
+        }
+        userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        GlobalCertificationExam cert = globalCertificationExamService.require(request.getCertificationExamId());
+        if (!cert.isActive()) {
+            throw new IllegalArgumentException("This certification exam is not currently available.");
+        }
+
+        int numQuestions = globalCertificationExamService.targetQuestionCount(cert.getParsedMeta());
+        int timeLimitSeconds = globalCertificationExamService.timeLimitSeconds(cert.getParsedMeta());
+        List<com.prwatech.skillama.dto.ModuleQuizQuestionDTO> paper =
+                certificationQuestionBankService.assemblePaper(cert, numQuestions);
+        if (paper == null || paper.isEmpty()) {
+            throw new IllegalStateException(CertificationQuestionBankService.BANK_NOT_READY_MESSAGE);
+        }
+
+        String usageCourseId = "cert:" + cert.getId();
+        String examSessionId = "exam-" + UUID.randomUUID();
+        LocalDateTime now = IndiaTime.now();
+        List<ExamSession.ExamQuestion> questions = paper.stream()
+                .map(this::toSessionQuestion)
+                .collect(Collectors.toList());
+
+        ExamSession session = ExamSession.builder()
+                .examSessionId(examSessionId)
+                .userId(userId)
+                .courseId(usageCourseId)
+                .certificationExamId(cert.getId())
+                .provider(cert.getProvider())
+                .certificationTier(cert.getTier())
+                .difficulty(ExamDifficulty.ADVANCED)
+                .examType(ExamType.GLOBAL_CERTIFICATION)
+                .examTitle(cert.getProvider() + " " + cert.getName() + " Practice Exam")
+                .questions(questions)
+                .createdAt(now)
+                .startedAt(now)
+                .timeLimitSeconds(timeLimitSeconds)
+                .expiresAt(now.plusHours(SESSION_EXPIRY_HOURS))
+                .build();
+        int bufferHours = Math.max(SESSION_EXPIRY_HOURS, (timeLimitSeconds / 3600) + 2);
+        session.setExpiresAt(now.plusHours(bufferHours));
+        sessionRepository.save(session);
+
+        return StartExamResponseDTO.builder()
+                .examSessionId(examSessionId)
+                .examTitle(session.getExamTitle())
+                .totalQuestions(questions.size())
+                .timeLimitSeconds(timeLimitSeconds)
+                .difficulty(session.getDifficulty())
+                .examType(ExamType.GLOBAL_CERTIFICATION)
+                .certificationExamId(cert.getId())
+                .provider(cert.getProvider())
+                .certificationTier(cert.getTier() != null ? cert.getTier().name() : null)
+                .build();
+    }
 
     public StartExamResponseDTO startExam(String userId, StartExamRequestDTO request) {
         validateStartRequest(request);
@@ -190,6 +263,10 @@ public class ExamService {
                 .remainingSeconds(Math.max(0, timeLimit - elapsed))
                 .difficulty(session.getDifficulty())
                 .examType(session.getExamType())
+                .certificationExamId(session.getCertificationExamId())
+                .provider(session.getProvider())
+                .certificationTier(session.getCertificationTier() != null
+                        ? session.getCertificationTier().name() : null)
                 .build();
     }
 
@@ -218,32 +295,48 @@ public class ExamService {
 
         for (ExamSession.ExamQuestion question : session.getQuestions()) {
             String questionKey = String.valueOf(question.getId());
-            String selectedKey = request.getAnswers().get(questionKey);
-            boolean isCorrect = question.getCorrectKey() != null
-                    && question.getCorrectKey().equalsIgnoreCase(selectedKey);
+            List<String> selectedKeys = normalizeSelectedKeys(request.getAnswers().get(questionKey));
+            ExamQuestionType qType = question.getQuestionType() != null
+                    ? question.getQuestionType()
+                    : ExamQuestionType.SINGLE;
+            List<String> correctKeys = resolveCorrectKeys(question);
+            boolean isCorrect = keysMatch(correctKeys, selectedKeys);
             if (isCorrect) {
                 score++;
             }
 
+            String selectedKey = selectedKeys.size() == 1 ? selectedKeys.get(0)
+                    : (selectedKeys.isEmpty() ? null : String.join(",", selectedKeys));
+            String correctKey = correctKeys.size() == 1 ? correctKeys.get(0)
+                    : (correctKeys.isEmpty() ? question.getCorrectKey() : String.join(",", correctKeys));
+
             answerRecords.add(ExamAttempt.AnswerRecord.builder()
                     .questionId(question.getId())
                     .questionText(question.getQuestion())
+                    .questionType(qType)
                     .selectedKey(selectedKey)
-                    .correctKey(question.getCorrectKey())
+                    .selectedKeys(selectedKeys)
+                    .correctKey(correctKey)
+                    .correctKeys(correctKeys)
                     .isCorrect(isCorrect)
                     .explanation(question.getExplanation())
+                    .domain(question.getDomain())
                     .options(question.getOptions())
                     .build());
 
             answerResults.add(ExamAnswerResultDTO.builder()
                     .questionId(question.getId())
                     .questionText(question.getQuestion())
+                    .questionType(qType)
                     .selectedKey(selectedKey)
-                    .selectedOptionText(resolveOptionText(question.getOptions(), selectedKey))
-                    .correctKey(question.getCorrectKey())
-                    .correctOptionText(resolveOptionText(question.getOptions(), question.getCorrectKey()))
+                    .selectedKeys(selectedKeys)
+                    .selectedOptionText(resolveOptionTexts(question.getOptions(), selectedKeys))
+                    .correctKey(correctKey)
+                    .correctKeys(correctKeys)
+                    .correctOptionText(resolveOptionTexts(question.getOptions(), correctKeys))
                     .isCorrect(isCorrect)
                     .explanation(question.getExplanation())
+                    .domain(question.getDomain())
                     .options(toOptionDtos(question.getOptions()))
                     .build());
         }
@@ -262,11 +355,16 @@ public class ExamService {
 
         List<String> wrongTopics = answerRecords.stream()
                 .filter(a -> !Boolean.TRUE.equals(a.getIsCorrect()))
-                .map(a -> StringUtils.hasText(session.getTopic()) ? session.getTopic() : session.getModuleId())
+                .map(a -> StringUtils.hasText(a.getDomain())
+                        ? a.getDomain()
+                        : (StringUtils.hasText(session.getTopic()) ? session.getTopic() : session.getModuleId()))
                 .filter(StringUtils::hasText)
                 .distinct()
                 .collect(Collectors.toList());
-        String courseName = globalAiExamCourseService.resolveDisplayName(session.getCourseId());
+        String courseName = session.getExamType() == ExamType.GLOBAL_CERTIFICATION
+                && StringUtils.hasText(session.getExamTitle())
+                ? session.getExamTitle()
+                : globalAiExamCourseService.resolveDisplayName(session.getCourseId());
         String topicOrModule = StringUtils.hasText(session.getTopic())
                 ? session.getTopic()
                 : StringUtils.hasText(session.getModuleId()) ? session.getModuleId() : courseName;
@@ -290,6 +388,9 @@ public class ExamService {
         ExamAttempt attempt = ExamAttempt.builder()
                 .userId(userId)
                 .courseId(session.getCourseId())
+                .certificationExamId(session.getCertificationExamId())
+                .provider(session.getProvider())
+                .certificationTier(session.getCertificationTier())
                 .moduleId(session.getModuleId())
                 .topic(session.getTopic())
                 .curriculumModuleId(session.getCurriculumModuleId())
@@ -688,15 +789,25 @@ public class ExamService {
     }
 
     private ExamAnswerResultDTO toAnswerResult(ExamAttempt.AnswerRecord record) {
+        List<String> selectedKeys = record.getSelectedKeys() != null && !record.getSelectedKeys().isEmpty()
+                ? record.getSelectedKeys()
+                : normalizeSelectedKeys(record.getSelectedKey());
+        List<String> correctKeys = record.getCorrectKeys() != null && !record.getCorrectKeys().isEmpty()
+                ? record.getCorrectKeys()
+                : normalizeSelectedKeys(record.getCorrectKey());
         return ExamAnswerResultDTO.builder()
                 .questionId(record.getQuestionId())
                 .questionText(record.getQuestionText())
+                .questionType(record.getQuestionType())
                 .selectedKey(record.getSelectedKey())
-                .selectedOptionText(resolveOptionText(record.getOptions(), record.getSelectedKey()))
+                .selectedKeys(selectedKeys)
+                .selectedOptionText(resolveOptionTexts(record.getOptions(), selectedKeys))
                 .correctKey(record.getCorrectKey())
-                .correctOptionText(resolveOptionText(record.getOptions(), record.getCorrectKey()))
+                .correctKeys(correctKeys)
+                .correctOptionText(resolveOptionTexts(record.getOptions(), correctKeys))
                 .isCorrect(record.getIsCorrect())
                 .explanation(record.getExplanation())
+                .domain(record.getDomain())
                 .options(toOptionDtos(record.getOptions()))
                 .build();
     }
@@ -878,12 +989,25 @@ public class ExamService {
                         .map(o -> ExamSession.ExamOption.builder().key(o.getKey()).text(o.getText()).build())
                         .collect(Collectors.toList());
 
+        ExamQuestionType type = dto.getQuestionType() != null ? dto.getQuestionType() : ExamQuestionType.SINGLE;
+        List<String> correctKeys = dto.getCorrectKeys() != null && !dto.getCorrectKeys().isEmpty()
+                ? dto.getCorrectKeys().stream()
+                        .filter(StringUtils::hasText)
+                        .map(k -> k.trim().toUpperCase(Locale.ROOT))
+                        .collect(Collectors.toList())
+                : (StringUtils.hasText(dto.getCorrectKey())
+                        ? List.of(dto.getCorrectKey().trim().toUpperCase(Locale.ROOT))
+                        : List.of());
+
         return ExamSession.ExamQuestion.builder()
                 .id(dto.getId())
                 .question(dto.getQuestion())
                 .options(options)
-                .correctKey(dto.getCorrectKey())
+                .questionType(type)
+                .correctKey(correctKeys.isEmpty() ? dto.getCorrectKey() : correctKeys.get(0))
+                .correctKeys(correctKeys)
                 .explanation(dto.getExplanation())
+                .domain(dto.getDomain())
                 .build();
     }
 
@@ -898,7 +1022,69 @@ public class ExamService {
                 .id(q.getId())
                 .question(q.getQuestion())
                 .options(options)
+                .questionType(q.getQuestionType() != null ? q.getQuestionType() : ExamQuestionType.SINGLE)
+                .domain(q.getDomain())
                 .build();
+    }
+
+    static List<String> normalizeSelectedKeys(Object raw) {
+        if (raw == null) {
+            return List.of();
+        }
+        LinkedHashSet<String> keys = new LinkedHashSet<>();
+        if (raw instanceof Collection<?> collection) {
+            for (Object item : collection) {
+                if (item != null && StringUtils.hasText(String.valueOf(item))) {
+                    keys.add(String.valueOf(item).trim().toUpperCase(Locale.ROOT));
+                }
+            }
+        } else {
+            String text = String.valueOf(raw).trim();
+            if (StringUtils.hasText(text)) {
+                for (String part : text.split("[,|;\\s]+")) {
+                    if (StringUtils.hasText(part)) {
+                        keys.add(part.trim().toUpperCase(Locale.ROOT));
+                    }
+                }
+            }
+        }
+        return new ArrayList<>(keys);
+    }
+
+    private static List<String> resolveCorrectKeys(ExamSession.ExamQuestion question) {
+        if (question.getCorrectKeys() != null && !question.getCorrectKeys().isEmpty()) {
+            return question.getCorrectKeys().stream()
+                    .filter(StringUtils::hasText)
+                    .map(k -> k.trim().toUpperCase(Locale.ROOT))
+                    .collect(Collectors.toList());
+        }
+        if (StringUtils.hasText(question.getCorrectKey())) {
+            return List.of(question.getCorrectKey().trim().toUpperCase(Locale.ROOT));
+        }
+        return List.of();
+    }
+
+    private static boolean keysMatch(List<String> correct, List<String> selected) {
+        if (correct == null || correct.isEmpty()) {
+            return false;
+        }
+        TreeSet<String> a = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        a.addAll(correct);
+        TreeSet<String> b = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        if (selected != null) {
+            b.addAll(selected);
+        }
+        return a.equals(b);
+    }
+
+    private String resolveOptionTexts(List<ExamSession.ExamOption> options, List<String> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return null;
+        }
+        return keys.stream()
+                .map(k -> resolveOptionText(options, k))
+                .filter(StringUtils::hasText)
+                .collect(Collectors.joining("; "));
     }
 
     private List<ModuleQuizOptionDTO> toOptionDtos(List<ExamSession.ExamOption> options) {
@@ -925,6 +1111,8 @@ public class ExamService {
         return ExamAttemptSummaryDTO.builder()
                 .attemptId(attempt.getId())
                 .courseId(attempt.getCourseId())
+                .certificationExamId(attempt.getCertificationExamId())
+                .provider(attempt.getProvider())
                 .moduleId(attempt.getModuleId())
                 .topic(attempt.getTopic())
                 .difficulty(attempt.getDifficulty())

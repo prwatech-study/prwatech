@@ -1,6 +1,7 @@
 package com.prwatech.skillama.controller;
 
 import com.prwatech.skillama.service.AiMockInterviewService;
+import com.prwatech.skillama.service.PlatformFeatureRolloutService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,10 +25,11 @@ public class AiMockInterviewController {
 
     private final AiMockInterviewService aiMockInterviewService;
     private final SkillamaAuthSupport skillamaAuthSupport;
+    private final PlatformFeatureRolloutService platformFeatureRolloutService;
 
     @GetMapping("/configs")
     public ResponseEntity<?> configs(HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -36,7 +38,7 @@ public class AiMockInterviewController {
 
     @PostMapping("/start")
     public ResponseEntity<?> start(@RequestBody Map<String, Object> body, HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -45,7 +47,7 @@ public class AiMockInterviewController {
 
     @GetMapping("/my")
     public ResponseEntity<?> mine(HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -54,7 +56,7 @@ public class AiMockInterviewController {
 
     @GetMapping("/sessions/{sessionId}")
     public ResponseEntity<?> detail(@PathVariable String sessionId, HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -63,7 +65,7 @@ public class AiMockInterviewController {
 
     @PostMapping("/sessions/{sessionId}/join")
     public ResponseEntity<?> join(@PathVariable String sessionId, HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -75,7 +77,7 @@ public class AiMockInterviewController {
             @PathVariable String sessionId,
             @RequestBody Map<String, Object> body,
             HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -84,7 +86,7 @@ public class AiMockInterviewController {
 
     @PostMapping("/sessions/{sessionId}/next")
     public ResponseEntity<?> next(@PathVariable String sessionId, HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -93,7 +95,7 @@ public class AiMockInterviewController {
 
     @PostMapping("/sessions/{sessionId}/end")
     public ResponseEntity<?> end(@PathVariable String sessionId, HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -104,7 +106,7 @@ public class AiMockInterviewController {
     public ResponseEntity<?> adminSessions(
             @RequestParam(required = false) String status,
             HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
@@ -115,17 +117,23 @@ public class AiMockInterviewController {
     public ResponseEntity<?> adminSessionDetail(
             @PathVariable String sessionId,
             HttpServletRequest request) {
-        String userId = requireUser(request);
+        String userId = requireLearnerFeature(request);
         if (userId == null) {
             return unauthorized();
         }
         return ResponseEntity.ok(aiMockInterviewService.adminDetail(userId, sessionId));
     }
 
-    private String requireUser(HttpServletRequest request) {
+    private String requireLearnerFeature(HttpServletRequest request) {
         try {
-            return skillamaAuthSupport.resolveUserIdFromRequest(request);
+            String userId = skillamaAuthSupport.resolveUserIdFromRequest(request);
+            platformFeatureRolloutService.assertAccessible(
+                    PlatformFeatureRolloutService.AI_MOCK_INTERVIEW, userId);
+            return userId;
         } catch (RuntimeException ex) {
+            if (ex instanceof com.prwatech.skillama.exception.FeatureNotLiveException) {
+                throw ex;
+            }
             return null;
         }
     }

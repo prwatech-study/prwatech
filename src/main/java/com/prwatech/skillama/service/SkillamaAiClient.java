@@ -18,7 +18,9 @@ import com.prwatech.skillama.dto.TextToAudioResponseDTO;
 import com.prwatech.skillama.dto.TranscribedAudioDTO;
 import com.prwatech.skillama.dto.TutorIntroResponseDTO;
 import com.prwatech.skillama.dto.GeneratedQuizDTO;
+import com.prwatech.skillama.dto.GeneratedCertificationExamDTO;
 import com.prwatech.skillama.dto.GeneratedCourseDetailDTO;
+import com.prwatech.skillama.model.ExamQuestionType;
 import com.prwatech.skillama.dto.CourseOutlineModuleDTO;
 import com.prwatech.skillama.dto.ModuleQuizQuestionDTO;
 import com.prwatech.skillama.dto.ProxiedAudioDTO;
@@ -58,15 +60,18 @@ public class SkillamaAiClient {
 
     private static final int AI_CONNECT_TIMEOUT_MS = 5_000;
     private static final int AI_READ_TIMEOUT_MS = 60_000;
+    /** Batched certification exams (~50–60 Q) can take several minutes. */
+    private static final int CERT_EXAM_READ_TIMEOUT_MS = 600_000;
 
     private final AiUsageService aiUsageService;
     private final ObjectMapper objectMapper;
-    private final RestTemplate restTemplate = buildRestTemplate();
+    private final RestTemplate restTemplate = buildRestTemplate(AI_READ_TIMEOUT_MS);
+    private final RestTemplate certExamRestTemplate = buildRestTemplate(CERT_EXAM_READ_TIMEOUT_MS);
 
-    private static RestTemplate buildRestTemplate() {
+    private static RestTemplate buildRestTemplate(int readTimeoutMs) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(AI_CONNECT_TIMEOUT_MS);
-        factory.setReadTimeout(AI_READ_TIMEOUT_MS);
+        factory.setReadTimeout(readTimeoutMs);
         return new RestTemplate(factory);
     }
 
@@ -302,6 +307,150 @@ public class SkillamaAiClient {
             String course, String moduleName, List<String> topics, int numQuestions, String difficulty) {
         return meteredCall(user, endpoint, courseId,
                 () -> generateQuizQuestionsRaw(course, moduleName, topics, numQuestions, difficulty));
+    }
+
+    /**
+     * Generates a full certification practice exam from official guideline text.
+     * Calls ai-tutor {@code POST /generate_certification_exam} (batched server-side).
+     */
+    public GeneratedCertificationExamDTO generateCertificationExam(
+            User user,
+            String usageCourseId,
+            String provider,
+            String examName,
+            String tier,
+            String guidelinesText,
+            List<String> domains,
+            int numQuestions,
+            int durationMinutes,
+            boolean allowMultiSelect) {
+        return generateCertificationExam(
+                user, usageCourseId, provider, examName, tier, guidelinesText, domains,
+                numQuestions, durationMinutes, allowMultiSelect, List.of());
+    }
+
+    public GeneratedCertificationExamDTO generateCertificationExam(
+            User user,
+            String usageCourseId,
+            String provider,
+            String examName,
+            String tier,
+            String guidelinesText,
+            List<String> domains,
+            int numQuestions,
+            int durationMinutes,
+            boolean allowMultiSelect,
+            List<String> excludeStems) {
+        return meteredCall(user, "generate_certification_exam", usageCourseId,
+                () -> generateCertificationExamRaw(
+                        provider, examName, tier, guidelinesText, domains,
+                        numQuestions, durationMinutes, allowMultiSelect, excludeStems));
+    }
+
+    private GeneratedCertificationExamDTO generateCertificationExamRaw(
+            String provider,
+            String examName,
+            String tier,
+            String guidelinesText,
+            List<String> domains,
+            int numQuestions,
+            int durationMinutes,
+            boolean allowMultiSelect,
+            List<String> excludeStems) {
+        String url = resolveBaseUrl() + "/generate_certification_exam";
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("provider", provider != null ? provider : "");
+        body.put("exam_name", examName != null ? examName : "");
+        body.put("tier", tier != null ? tier : "");
+        body.put("guidelines_text", guidelinesText != null ? guidelinesText : "");
+        body.put("domains", domains != null ? domains : new ArrayList<>());
+        body.put("num_questions", numQuestions);
+        body.put("duration_minutes", durationMinutes);
+        body.put("allow_multi_select", allowMultiSelect);
+        body.put("exclude_stems", excludeStems != null ? excludeStems : new ArrayList<>());
+
+        HttpHeaders headers = buildHeaders();
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+
+        ResponseEntity<String> response;
+        try {
+            response = certExamRestTemplate.postForEntity(url, entity, String.class);
+        } catch (org.springframework.web.client.RestClientException e) {
+            log.error("Certification exam generation request to {} failed", url, e);
+            String message = isTimeout(e)
+                    ? "The certification exam is taking longer than expected to generate. Please try again."
+                    : "We couldn't generate the certification exam right now. Please try again in a moment.";
+            throw new IllegalStateException(message, e);
+        }
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            log.error("AI certification exam service returned {} for {}", response.getStatusCode(), url);
+            throw new IllegalStateException(
+                    "We couldn't generate the certification exam right now. Please try again in a moment.");
+        }
+        try {
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode data = root.has("data") ? root.path("data") : root;
+            if (data.hasNonNull("error")) {
+                throw new IllegalStateException("AI certification exam error: " + data.path("error").asText());
+            }
+
+            List<ModuleQuizQuestionDTO> questions = new ArrayList<>();
+            for (JsonNode q : data.path("questions")) {
+                ModuleQuizQuestionDTO dto = objectMapper.treeToValue(q, ModuleQuizQuestionDTO.class);
+                normalizeCertificationQuestion(dto, q);
+                questions.add(dto);
+            }
+
+            JsonNode usage = data.path("usage");
+            int timeLimitSeconds = data.path("time_limit_seconds").asInt(durationMinutes * 60);
+            return GeneratedCertificationExamDTO.builder()
+                    .examTitle(data.path("exam_title").asText(null))
+                    .timeLimitSeconds(timeLimitSeconds > 0 ? timeLimitSeconds : durationMinutes * 60)
+                    .questions(questions)
+                    .modelId(data.path("model_id").asText(null))
+                    .inputTokens(usage.path("inputTokens").asInt(0))
+                    .outputTokens(usage.path("outputTokens").asInt(0))
+                    .totalTokens(usage.path("totalTokens").asInt(0))
+                    .build();
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to parse AI certification exam response", e);
+        }
+    }
+
+    private static void normalizeCertificationQuestion(ModuleQuizQuestionDTO dto, JsonNode q) {
+        if (dto == null) {
+            return;
+        }
+        String typeRaw = q.path("questionType").asText(q.path("question_type").asText("SINGLE"));
+        ExamQuestionType type = "MULTI".equalsIgnoreCase(typeRaw) ? ExamQuestionType.MULTI : ExamQuestionType.SINGLE;
+        dto.setQuestionType(type);
+        if (type == ExamQuestionType.MULTI) {
+            if (dto.getCorrectKeys() == null || dto.getCorrectKeys().isEmpty()) {
+                if (q.has("correctKeys") && q.get("correctKeys").isArray()) {
+                    List<String> keys = new ArrayList<>();
+                    q.get("correctKeys").forEach(n -> keys.add(n.asText().toUpperCase()));
+                    dto.setCorrectKeys(keys);
+                } else if (dto.getCorrectKey() != null) {
+                    dto.setCorrectKeys(List.of(dto.getCorrectKey().toUpperCase()));
+                }
+            } else {
+                List<String> normalized = new ArrayList<>();
+                for (String k : dto.getCorrectKeys()) {
+                    if (k != null && !k.isBlank()) {
+                        normalized.add(k.toUpperCase());
+                    }
+                }
+                dto.setCorrectKeys(normalized);
+            }
+        } else if (dto.getCorrectKey() != null) {
+            dto.setCorrectKey(dto.getCorrectKey().toUpperCase());
+        }
+        if (dto.getDomain() == null && q.hasNonNull("domain")) {
+            dto.setDomain(q.path("domain").asText(null));
+        }
     }
 
     private GeneratedQuizDTO generateQuizQuestionsRaw(

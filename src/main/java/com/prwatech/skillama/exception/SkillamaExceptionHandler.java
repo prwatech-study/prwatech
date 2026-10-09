@@ -66,6 +66,18 @@ public class SkillamaExceptionHandler {
         return ResponseEntity.status(ex.getStatus()).body(body);
     }
 
+    @ExceptionHandler(FeatureNotLiveException.class)
+    public ResponseEntity<Map<String, Object>> handleFeatureNotLive(FeatureNotLiveException ex) {
+        LOGGER.warn("Feature not live {}: {}", ex.getFeatureCode(), ex.getMessage());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", ex.getStatus().value());
+        body.put("error", FeatureNotLiveException.CODE);
+        body.put("message", ex.getMessage());
+        body.put("code", FeatureNotLiveException.CODE);
+        body.put("featureCode", ex.getFeatureCode());
+        return ResponseEntity.status(ex.getStatus()).body(body);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
         LOGGER.error("Bad request: {}", ex.getMessage());

@@ -5,5 +5,7 @@ public enum ExamType {
     PRACTICE,
     TOPIC_WISE,
     MODULE_WISE,
-    AI_RECOMMENDED
+    AI_RECOMMENDED,
+    /** Official-guideline-backed global certification practice exam. */
+    GLOBAL_CERTIFICATION
 }

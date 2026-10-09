@@ -31,6 +31,12 @@ public class ExamAttempt {
     @Indexed
     private String courseId;
 
+    @Indexed
+    private String certificationExamId;
+
+    private String provider;
+    private CertificationTier certificationTier;
+
     private String moduleId;
     private String topic;
     /** Real FK to CourseCurriculum, set only when the picker resolved a real module. */
@@ -70,10 +76,14 @@ public class ExamAttempt {
     public static class AnswerRecord {
         private Integer questionId;
         private String questionText;
+        private ExamQuestionType questionType;
         private String selectedKey;
+        private List<String> selectedKeys;
         private String correctKey;
+        private List<String> correctKeys;
         private Boolean isCorrect;
         private String explanation;
+        private String domain;
         private List<ExamSession.ExamOption> options;
     }
 }

@@ -9,6 +9,9 @@ import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.AdminPermissionService;
 import com.prwatech.skillama.service.ExamService;
 import com.prwatech.skillama.service.GlobalAiExamCourseService;
+import com.prwatech.skillama.service.CertificationQuestionBankService;
+import com.prwatech.skillama.service.GlobalCertificationExamService;
+import com.prwatech.skillama.service.PlatformFeatureRolloutService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,14 +46,23 @@ class ExamControllerTest {
     @Mock private ExamService examService;
     @Mock private SkillamaAuthSupport skillamaAuthSupport;
     @Mock private GlobalAiExamCourseService globalAiExamCourseService;
+    @Mock private GlobalCertificationExamService globalCertificationExamService;
+    @Mock private CertificationQuestionBankService certificationQuestionBankService;
     @Mock private AdminPermissionService adminPermissionService;
+    @Mock private PlatformFeatureRolloutService platformFeatureRolloutService;
 
     private static final String TOKEN = "Bearer valid.jwt.token";
 
     @BeforeEach
     void setUp() {
         ExamController controller = new ExamController(
-                examService, skillamaAuthSupport, globalAiExamCourseService, adminPermissionService);
+                examService,
+                skillamaAuthSupport,
+                globalAiExamCourseService,
+                globalCertificationExamService,
+                certificationQuestionBankService,
+                adminPermissionService,
+                platformFeatureRolloutService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();
