@@ -109,18 +109,26 @@ public class AdminController {
                     paramType = Constants.AUTH_PARAM_TYPE)
     })
     @GetMapping("/check-access")
-    public ResponseEntity<ApiResponse<AdminAccessDTO>> checkAccess(HttpServletRequest request) {
+    public ResponseEntity<?> checkAccess(HttpServletRequest request) {
         try {
             String userId = extractUserIdFromRequest(request);
             if (userId == null || userId.isBlank()) {
+                // Structured reason so the LMS can clear a dead local token instead of
+                // looping login → /admin → Retry forever.
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new ApiResponse<>(401, null));
+                    .body(Map.of(
+                            "status", "error",
+                            "reason", "AUTH_FAILED",
+                            "message", "Unauthorized"));
             }
             AdminAccessDTO access = adminService.checkAdminAccess(userId, adminPermissionService);
             return ResponseEntity.ok(new ApiResponse<>(200, access));
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(new ApiResponse<>(401, null));
+                .body(Map.of(
+                        "status", "error",
+                        "reason", "AUTH_FAILED",
+                        "message", "Unauthorized"));
         } catch (Exception e) {
             // Do not map infra/unexpected errors to 401 — that clears or flutters
             // the admin↔login loop when the session is still valid.
