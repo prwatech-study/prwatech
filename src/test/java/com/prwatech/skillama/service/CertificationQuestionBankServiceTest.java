@@ -170,6 +170,24 @@ class CertificationQuestionBankServiceTest {
     }
 
     @Test
+    void cancelAllRunningRebuildsClearsFreshLocksWithoutWaitingForStaleTimeout() {
+        GlobalCertificationExam fresh = cert("c1", CertificationBankBuildStatus.RUNNING, 0, 8);
+        fresh.setBankBuildVersion(1);
+        fresh.setBankBuildStartedAt(LocalDateTime.now().minusMinutes(5));
+        when(skillamaMongoTemplate.find(any(Query.class), eq(GlobalCertificationExam.class)))
+                .thenReturn(List.of(fresh));
+        when(certRepository.findById("c1")).thenReturn(Optional.of(fresh));
+        when(aiUsageService.sumCostUsdForCourse(anyString())).thenReturn(0.12);
+        when(aiUsageService.sumCostUsdForCourseSince(anyString(), any())).thenReturn(0.12);
+
+        int cancelled = service.cancelAllRunningRebuilds("Bank rebuild cancelled after service restart.");
+
+        assertEquals(1, cancelled);
+        verify(bankQuestionRepository).deleteByCertificationExamIdAndBankVersion("c1", 1);
+        verify(skillamaMongoTemplate).updateFirst(any(Query.class), any(Update.class), eq(GlobalCertificationExam.class));
+    }
+
+    @Test
     void requestRebuildRejectsWhenFreshRebuildAlreadyRunning() {
         GlobalCertificationExam running = cert("c1", CertificationBankBuildStatus.RUNNING, 1, 55);
         running.setBankBuildStartedAt(LocalDateTime.now().minusMinutes(10));

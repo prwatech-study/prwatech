@@ -133,6 +133,26 @@ public class CertificationQuestionBankService {
         return recovered;
     }
 
+    /**
+     * Cancels every RUNNING rebuild immediately (e.g. after JVM redeploy).
+     * In-flight async workers die with the process; without this, Mongo stays
+     * RUNNING for up to {@link #STALE_RUNNING_TIMEOUT}.
+     */
+    public int cancelAllRunningRebuilds(String reason) {
+        String message = StringUtils.hasText(reason)
+                ? reason
+                : "Bank rebuild cancelled. Click Rebuild to start again.";
+        Query query = new Query(Criteria.where("bankStatus").is(CertificationBankBuildStatus.RUNNING));
+        List<GlobalCertificationExam> running = skillamaMongoTemplate.find(query, GlobalCertificationExam.class);
+        int cancelled = 0;
+        for (GlobalCertificationExam cert : running) {
+            markFailed(cert.getId(), message);
+            cancelled++;
+            log.warn("Cancelled RUNNING bank rebuild for cert {} ({})", cert.getId(), message);
+        }
+        return cancelled;
+    }
+
     public List<CertificationBankQuestionDTO> listBankQuestions(String certificationExamId) {
         GlobalCertificationExam cert = certService.require(certificationExamId);
         int version = cert.getBankVersion() != null ? cert.getBankVersion() : 0;
