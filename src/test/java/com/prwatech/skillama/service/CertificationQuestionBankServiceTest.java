@@ -51,6 +51,7 @@ class CertificationQuestionBankServiceTest {
     @Mock private GlobalCertificationExamService certService;
     @Mock private SkillamaAiClient skillamaAiClient;
     @Mock private SkillamaUserRepository userRepository;
+    @Mock private AiUsageService aiUsageService;
     @Mock private MongoTemplate skillamaMongoTemplate;
 
     private final Executor syncExecutor = Runnable::run;
@@ -65,9 +66,15 @@ class CertificationQuestionBankServiceTest {
                 certService,
                 skillamaAiClient,
                 userRepository,
+                aiUsageService,
                 skillamaMongoTemplate,
                 syncExecutor);
         when(certService.targetQuestionCount(any())).thenReturn(50);
+    }
+
+    @Test
+    void minReadyQuestionsMatchesLearnerUsabilityFloor() {
+        assertEquals(20, CertificationQuestionBankService.MIN_READY_QUESTIONS);
     }
 
     private GlobalCertificationExam cert(String id, CertificationBankBuildStatus status,

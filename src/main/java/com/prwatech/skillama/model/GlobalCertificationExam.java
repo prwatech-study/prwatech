@@ -74,6 +74,15 @@ public class GlobalCertificationExam {
     private String bankBuildTriggeredBy;
     private String bankBuildError;
 
+    /**
+     * Rate-card AWS cost (USD) of all {@code generate_certification_exam} usage for
+     * {@code cert-bank:{id}} — includes failed rebuild attempts.
+     */
+    private Double bankLifetimeCostUsd;
+
+    /** Rate-card AWS cost (USD) of the most recent rebuild window (success or fail). */
+    private Double bankLastRebuildCostUsd;
+
     private LocalDateTime createdAt;
     private String createdBy;
     private LocalDateTime updatedAt;

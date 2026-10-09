@@ -64,6 +64,13 @@ class GlobalCertificationExamServiceTest {
                 .build();
         assertTrue(GlobalCertificationExamService.isBankReady(ready, 55));
 
+        // Partial bank (>=20) is usable even when under full exam size (55).
+        GlobalCertificationExam partial = GlobalCertificationExam.builder()
+                .bankVersion(1)
+                .bankQuestionCount(32)
+                .build();
+        assertTrue(GlobalCertificationExamService.isBankReady(partial, 55));
+
         GlobalCertificationExam thin = GlobalCertificationExam.builder()
                 .bankVersion(1)
                 .bankQuestionCount(10)

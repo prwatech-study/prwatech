@@ -67,12 +67,15 @@ public class CertificationQuestionBankService {
     private static final int MAX_BUILD_ROUNDS = 60;
     private static final int CHUNK_ATTEMPTS = 3;
     private static final int MAX_CONSECUTIVE_CHUNK_FAILURES = 5;
+    /** Same floor learners use in {@link #assemblePaper} / {@link GlobalCertificationExamService#isBankReady}. */
+    static final int MIN_READY_QUESTIONS = 20;
 
     private final GlobalCertificationExamRepository certRepository;
     private final CertificationBankQuestionRepository bankQuestionRepository;
     private final GlobalCertificationExamService certService;
     private final SkillamaAiClient skillamaAiClient;
     private final SkillamaUserRepository userRepository;
+    private final AiUsageService aiUsageService;
     private final MongoTemplate skillamaMongoTemplate;
     private final Executor bankExecutor;
 
@@ -82,6 +85,7 @@ public class CertificationQuestionBankService {
             GlobalCertificationExamService certService,
             SkillamaAiClient skillamaAiClient,
             SkillamaUserRepository userRepository,
+            AiUsageService aiUsageService,
             @Qualifier("skillamaMongoTemplate") MongoTemplate skillamaMongoTemplate,
             @Qualifier(CertificationBankAsyncConfig.EXECUTOR_NAME) Executor bankExecutor) {
         this.certRepository = certRepository;
@@ -89,8 +93,14 @@ public class CertificationQuestionBankService {
         this.certService = certService;
         this.skillamaAiClient = skillamaAiClient;
         this.userRepository = userRepository;
+        this.aiUsageService = aiUsageService;
         this.skillamaMongoTemplate = skillamaMongoTemplate;
         this.bankExecutor = bankExecutor;
+    }
+
+    /** Usage courseId used when metering bank rebuild AI calls. */
+    public static String bankUsageCourseId(String certificationExamId) {
+        return "cert-bank:" + certificationExamId;
     }
 
     public CertificationBankStatusDTO getBankStatus(String certificationExamId) {
@@ -287,7 +297,6 @@ public class CertificationQuestionBankService {
 
         int examQ = certService.targetQuestionCount(cert.getParsedMeta());
         int target = targetBankSize(cert.getParsedMeta());
-        int minReady = Math.max(20, examQ);
         int durationMinutes = cert.getParsedMeta() != null && cert.getParsedMeta().getDurationMinutes() != null
                 ? cert.getParsedMeta().getDurationMinutes() : 90;
         List<String> domains = cert.getParsedMeta() != null && cert.getParsedMeta().getDomains() != null
@@ -300,7 +309,10 @@ public class CertificationQuestionBankService {
         Set<String> seenNorms = new HashSet<>();
         List<String> excludeStems = new ArrayList<>();
         List<CertificationBankQuestion> saved = new ArrayList<>();
-        String usageCourseId = "cert-bank:" + certId;
+        String usageCourseId = bankUsageCourseId(certId);
+        LocalDateTime rebuildStartedAt = cert.getBankBuildStartedAt() != null
+                ? cert.getBankBuildStartedAt()
+                : IndiaTime.now();
         int consecutiveFailures = 0;
         String lastChunkError = null;
 
@@ -392,27 +404,30 @@ public class CertificationQuestionBankService {
                     break;
                 }
             }
-            // Progress heartbeat for admin UI
-            skillamaMongoTemplate.updateFirst(
-                    new Query(Criteria.where("id").is(certId)),
-                    new Update().set("bankQuestionCount", saved.size()).set("updatedAt", IndiaTime.now()),
-                    GlobalCertificationExam.class);
+            // Progress heartbeat for admin UI (+ live rebuild cost)
+            refreshBankCosts(certId, rebuildStartedAt, saved.size());
         }
 
-        // Usable for learners once we have a full exam-sized paper (5× is aspirational).
-        if (saved.size() < minReady) {
+        // Promote once we have a usable practice pool; full exam size / 5× are aspirational.
+        if (saved.size() < MIN_READY_QUESTIONS) {
+            refreshBankCosts(certId, rebuildStartedAt, saved.size());
             String detail = lastChunkError != null
                     ? lastChunkError
                     : ("Bank rebuild produced only " + saved.size()
-                            + " unique questions (need at least " + minReady + " for one paper).");
+                            + " unique questions (need at least " + MIN_READY_QUESTIONS + ").");
             throw new IllegalStateException(detail);
         }
 
         LocalDateTime finished = IndiaTime.now();
-        String softNote = saved.size() < target
-                ? ("Bank ready with " + saved.size() + "/" + target
-                        + " questions (enough for practice; rebuild later to grow toward 5×).")
-                : null;
+        String softNote = null;
+        if (saved.size() < target) {
+            softNote = "Bank ready with " + saved.size() + "/" + target
+                    + " questions (practice papers use available questions"
+                    + (saved.size() < examQ ? "; under full exam size of " + examQ : "")
+                    + "; rebuild later to grow toward 5×).";
+        }
+        double lifetimeCost = aiUsageService.sumCostUsdForCourse(usageCourseId);
+        double lastRebuildCost = aiUsageService.sumCostUsdForCourseSince(usageCourseId, rebuildStartedAt);
         // Promote build version to live bankVersion, then drop older versions.
         skillamaMongoTemplate.updateFirst(
                 new Query(Criteria.where("id").is(certId)),
@@ -424,11 +439,34 @@ public class CertificationQuestionBankService {
                         .set("bankTargetSize", target)
                         .set("bankBuildFinishedAt", finished)
                         .set("bankBuildError", softNote)
+                        .set("bankLifetimeCostUsd", lifetimeCost)
+                        .set("bankLastRebuildCostUsd", lastRebuildCost)
                         .set("updatedAt", finished),
                 GlobalCertificationExam.class);
         bankQuestionRepository.deleteByCertificationExamIdAndBankVersionLessThan(certId, newVersion);
-        log.info("Certification bank READY for {} version {} size {} (target {})",
-                certId, newVersion, saved.size(), target);
+        log.info("Certification bank READY for {} version {} size {} (target {}) lifetime=${} last=${}",
+                certId, newVersion, saved.size(), target, lifetimeCost, lastRebuildCost);
+    }
+
+    /**
+     * Persists lifetime + current-rebuild cost from {@link AiUsageEvent} rows tagged
+     * {@code cert-bank:{id}}. Safe to call during RUNNING heartbeats and on failure.
+     */
+    private void refreshBankCosts(String certId, LocalDateTime rebuildStartedAt, Integer questionCount) {
+        String usageCourseId = bankUsageCourseId(certId);
+        double lifetimeCost = aiUsageService.sumCostUsdForCourse(usageCourseId);
+        double lastRebuildCost = aiUsageService.sumCostUsdForCourseSince(usageCourseId, rebuildStartedAt);
+        Update update = new Update()
+                .set("bankLifetimeCostUsd", lifetimeCost)
+                .set("bankLastRebuildCostUsd", lastRebuildCost)
+                .set("updatedAt", IndiaTime.now());
+        if (questionCount != null) {
+            update.set("bankQuestionCount", questionCount);
+        }
+        skillamaMongoTemplate.updateFirst(
+                new Query(Criteria.where("id").is(certId)),
+                update,
+                GlobalCertificationExam.class);
     }
 
     private GeneratedCertificationExamDTO generateChunkWithRetry(
@@ -488,6 +526,10 @@ public class CertificationQuestionBankService {
         long readyCount = readyVersion > 0
                 ? bankQuestionRepository.countByCertificationExamIdAndBankVersionAndActiveTrue(certId, readyVersion)
                 : 0L;
+        String usageCourseId = bankUsageCourseId(certId);
+        LocalDateTime rebuildStartedAt = before != null ? before.getBankBuildStartedAt() : null;
+        double lifetimeCost = aiUsageService.sumCostUsdForCourse(usageCourseId);
+        double lastRebuildCost = aiUsageService.sumCostUsdForCourseSince(usageCourseId, rebuildStartedAt);
         skillamaMongoTemplate.updateFirst(
                 new Query(Criteria.where("id").is(certId)),
                 new Update()
@@ -496,6 +538,8 @@ public class CertificationQuestionBankService {
                         .set("bankQuestionCount", (int) readyCount)
                         .set("bankBuildFinishedAt", IndiaTime.now())
                         .set("bankBuildError", err)
+                        .set("bankLifetimeCostUsd", lifetimeCost)
+                        .set("bankLastRebuildCostUsd", lastRebuildCost)
                         .set("updatedAt", IndiaTime.now()),
                 GlobalCertificationExam.class);
         // Drop partial questions for the failed build version; keep last READY version intact.

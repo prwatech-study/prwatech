@@ -31,6 +31,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import javax.annotation.PostConstruct;
 import java.io.InputStream;
@@ -999,6 +1000,26 @@ public class AiUsageService {
                 .outputTokens(out)
                 .totalTokens(in + out)
                 .build();
+    }
+
+    /** Sum of rate-card {@code costUsd} for all events tagged with this courseId. */
+    public double sumCostUsdForCourse(String courseId) {
+        if (!StringUtils.hasText(courseId)) {
+            return 0.0;
+        }
+        return round(aiUsageEventRepository.findByCourseId(courseId).stream()
+                .mapToDouble(AiUsageEvent::getCostUsd)
+                .sum());
+    }
+
+    /** Sum of rate-card {@code costUsd} for events on this courseId since {@code since} (inclusive). */
+    public double sumCostUsdForCourseSince(String courseId, LocalDateTime since) {
+        if (!StringUtils.hasText(courseId) || since == null) {
+            return sumCostUsdForCourse(courseId);
+        }
+        return round(aiUsageEventRepository.findByCourseIdAndCreatedAtGreaterThanEqual(courseId, since).stream()
+                .mapToDouble(AiUsageEvent::getCostUsd)
+                .sum());
     }
 
     private double computeCostUsd(String modelId, int inputTokens, int outputTokens) {

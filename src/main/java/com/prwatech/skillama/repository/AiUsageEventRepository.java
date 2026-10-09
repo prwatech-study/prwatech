@@ -16,4 +16,8 @@ public interface AiUsageEventRepository extends MongoRepository<AiUsageEvent, St
 
     List<AiUsageEvent> findByCourseIdAndCreatedAtBetween(
             String courseId, LocalDateTime start, LocalDateTime end);
+
+    List<AiUsageEvent> findByCourseId(String courseId);
+
+    List<AiUsageEvent> findByCourseIdAndCreatedAtGreaterThanEqual(String courseId, LocalDateTime since);
 }

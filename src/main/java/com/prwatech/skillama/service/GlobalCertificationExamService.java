@@ -257,6 +257,8 @@ public class GlobalCertificationExamService {
                 .bankBuildFinishedAt(row.getBankBuildFinishedAt())
                 .bankBuildTriggeredBy(row.getBankBuildTriggeredBy())
                 .bankBuildError(row.getBankBuildError())
+                .bankLifetimeCostUsd(row.getBankLifetimeCostUsd())
+                .bankLastRebuildCostUsd(row.getBankLastRebuildCostUsd())
                 .createdAt(row.getCreatedAt())
                 .createdBy(row.getCreatedBy())
                 .updatedAt(row.getUpdatedAt())

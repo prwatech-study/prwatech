@@ -45,6 +45,11 @@ public class GlobalCertificationExamDTO {
     private String bankBuildTriggeredBy;
     private String bankBuildError;
 
+    /** Lifetime rate-card cost (USD) for building this cert's question bank. */
+    private Double bankLifetimeCostUsd;
+    /** Most recent rebuild window cost (USD). */
+    private Double bankLastRebuildCostUsd;
+
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
 

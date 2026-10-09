@@ -31,6 +31,7 @@ public class AiUsageEvent {
 
     private String modelId;
 
+    @Indexed
     private String courseId;
 
     private int inputTokens;
