@@ -77,6 +77,27 @@ class CertificationQuestionBankServiceTest {
         assertEquals(20, CertificationQuestionBankService.MIN_READY_QUESTIONS);
     }
 
+    @Test
+    void describeThrowableKeepsFullCauseChainWithoutTruncating() {
+        String longDetail = "BEDROCK_THROTTLE: " + "x".repeat(600);
+        RuntimeException nested = new RuntimeException(longDetail);
+        IllegalStateException outer = new IllegalStateException("AI_CHUNK_FAILED wrapper", nested);
+
+        String described = CertificationQuestionBankService.describeThrowable(outer);
+
+        assertTrue(described.contains("IllegalStateException: AI_CHUNK_FAILED wrapper"));
+        assertTrue(described.contains("caused by: RuntimeException: " + longDetail));
+        assertTrue(described.length() > 500);
+    }
+
+    @Test
+    void consecutiveStopReasonIncludesLastChunkError() {
+        String reason = CertificationQuestionBankService.consecutiveStopReason(
+                5, "AI_CHUNK_FAILED: OUTPUT_TOKEN_LIMIT: truncated at maxTokens=12000");
+        assertTrue(reason.startsWith("STOPPED_AFTER_5_CONSECUTIVE_FAILURES"));
+        assertTrue(reason.contains("OUTPUT_TOKEN_LIMIT"));
+    }
+
     private GlobalCertificationExam cert(String id, CertificationBankBuildStatus status,
                                          Integer version, Integer count) {
         return GlobalCertificationExam.builder()

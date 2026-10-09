@@ -39,6 +39,8 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.util.StringUtils;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
 import java.net.SocketTimeoutException;
@@ -376,23 +378,32 @@ public class SkillamaAiClient {
         ResponseEntity<String> response;
         try {
             response = certExamRestTemplate.postForEntity(url, entity, String.class);
+        } catch (HttpStatusCodeException e) {
+            String detail = formatCertificationAiErrorBody(e.getStatusCode().value(), e.getResponseBodyAsString());
+            log.error("Certification exam generation request to {} failed: {}", url, detail, e);
+            throw new IllegalStateException(detail, e);
         } catch (org.springframework.web.client.RestClientException e) {
             log.error("Certification exam generation request to {} failed", url, e);
+            String root = mostSpecificMessage(e);
             String message = isTimeout(e)
-                    ? "The certification exam is taking longer than expected to generate. Please try again."
-                    : "We couldn't generate the certification exam right now. Please try again in a moment.";
+                    ? "CERT_AI_TIMEOUT: certification exam generation timed out after "
+                            + (CERT_EXAM_READ_TIMEOUT_MS / 1000) + "s"
+                            + (StringUtils.hasText(root) ? (" — " + root) : "")
+                    : "CERT_AI_HTTP_ERROR: " + (StringUtils.hasText(root) ? root
+                            : "We couldn't generate the certification exam right now.");
             throw new IllegalStateException(message, e);
         }
         if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
-            log.error("AI certification exam service returned {} for {}", response.getStatusCode(), url);
-            throw new IllegalStateException(
-                    "We couldn't generate the certification exam right now. Please try again in a moment.");
+            String detail = formatCertificationAiErrorBody(
+                    response.getStatusCode().value(), response.getBody());
+            log.error("AI certification exam service returned non-2xx for {}: {}", url, detail);
+            throw new IllegalStateException(detail);
         }
         try {
             JsonNode root = objectMapper.readTree(response.getBody());
             JsonNode data = root.has("data") ? root.path("data") : root;
-            if (data.hasNonNull("error")) {
-                throw new IllegalStateException("AI certification exam error: " + data.path("error").asText());
+            if (data.hasNonNull("error") || root.hasNonNull("error")) {
+                throw new IllegalStateException(formatCertificationAiErrorNode(root, data));
             }
 
             List<ModuleQuizQuestionDTO> questions = new ArrayList<>();
@@ -416,8 +427,65 @@ public class SkillamaAiClient {
         } catch (IllegalStateException e) {
             throw e;
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to parse AI certification exam response", e);
+            throw new IllegalStateException(
+                    "Failed to parse AI certification exam response"
+                            + (StringUtils.hasText(e.getMessage()) ? (": " + e.getMessage()) : ""),
+                    e);
         }
+    }
+
+    private static String mostSpecificMessage(Throwable e) {
+        if (e == null) {
+            return null;
+        }
+        Throwable cur = e;
+        String last = null;
+        while (cur != null) {
+            if (StringUtils.hasText(cur.getMessage())) {
+                last = cur.getMessage();
+            }
+            cur = cur.getCause();
+        }
+        return last;
+    }
+
+    private String formatCertificationAiErrorBody(int status, String body) {
+        if (!StringUtils.hasText(body)) {
+            return "CERT_AI_HTTP_" + status + ": empty response body";
+        }
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.path("data") : root;
+            return formatCertificationAiErrorNode(root, data) + " (HTTP " + status + ")";
+        } catch (Exception ignored) {
+            return "CERT_AI_HTTP_" + status + ": " + body;
+        }
+    }
+
+    private static String formatCertificationAiErrorNode(JsonNode root, JsonNode data) {
+        String error = firstNonBlank(
+                textOrNull(data, "error"),
+                textOrNull(root, "error"),
+                "AI certification exam error");
+        String details = firstNonBlank(
+                textOrNull(data, "details"),
+                textOrNull(root, "details"));
+        if (StringUtils.hasText(details) && !details.equals(error)) {
+            return error + " — " + details;
+        }
+        return error;
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String v : values) {
+            if (StringUtils.hasText(v)) {
+                return v;
+            }
+        }
+        return null;
     }
 
     private static void normalizeCertificationQuestion(ModuleQuizQuestionDTO dto, JsonNode q) {

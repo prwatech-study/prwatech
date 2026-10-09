@@ -185,8 +185,9 @@ public class CertificationQuestionBankService {
             try {
                 runRebuild(certId, buildVersion, actor);
             } catch (Exception e) {
-                log.error("Certification bank rebuild failed for {}", certId, e);
-                markFailed(certId, e.getMessage());
+                String detail = describeThrowable(e);
+                log.error("Certification bank rebuild failed for {}: {}", certId, detail, e);
+                markFailed(certId, detail);
             }
         });
         return certService.getById(certId);
@@ -364,6 +365,7 @@ public class CertificationQuestionBankService {
                 : IndiaTime.now();
         int consecutiveFailures = 0;
         String lastChunkError = null;
+        String stopReason = null;
 
         for (int round = 0; round < MAX_BUILD_ROUNDS && saved.size() < target; round++) {
             int need = target - saved.size();
@@ -382,21 +384,25 @@ public class CertificationQuestionBankService {
                 consecutiveFailures = 0;
             } catch (RuntimeException e) {
                 consecutiveFailures++;
-                lastChunkError = e.getMessage();
+                lastChunkError = "AI_CHUNK_FAILED: " + describeThrowable(e);
                 log.warn("Cert bank chunk failed for {} round {} ({}/{}): {}",
-                        certId, round, consecutiveFailures, MAX_CONSECUTIVE_CHUNK_FAILURES, e.toString());
+                        certId, round, consecutiveFailures, MAX_CONSECUTIVE_CHUNK_FAILURES, lastChunkError);
                 if (consecutiveFailures >= MAX_CONSECUTIVE_CHUNK_FAILURES) {
-                    log.error("Stopping bank rebuild for {} after {} consecutive AI failures",
-                            certId, consecutiveFailures);
+                    stopReason = consecutiveStopReason(consecutiveFailures, lastChunkError);
+                    log.error("Stopping bank rebuild for {}: {}", certId, stopReason);
                     break;
                 }
                 sleepQuietly(750L * consecutiveFailures);
                 continue;
             }
             if (generated.getQuestions() == null || generated.getQuestions().isEmpty()) {
-                log.warn("Empty AI chunk for cert {} round {}", certId, round);
                 consecutiveFailures++;
+                lastChunkError = "EMPTY_AI_CHUNK: AI returned no questions";
+                log.warn("Empty AI chunk for cert {} round {} ({}/{}): {}",
+                        certId, round, consecutiveFailures, MAX_CONSECUTIVE_CHUNK_FAILURES, lastChunkError);
                 if (consecutiveFailures >= MAX_CONSECUTIVE_CHUNK_FAILURES) {
+                    stopReason = consecutiveStopReason(consecutiveFailures, lastChunkError);
+                    log.error("Stopping bank rebuild for {}: {}", certId, stopReason);
                     break;
                 }
                 continue;
@@ -449,7 +455,12 @@ public class CertificationQuestionBankService {
             }
             if (addedThisRound == 0) {
                 consecutiveFailures++;
+                lastChunkError = "NO_UNIQUE_QUESTIONS: AI returned only duplicates of existing stems";
+                log.warn("No unique questions for cert {} round {} ({}/{}): {}",
+                        certId, round, consecutiveFailures, MAX_CONSECUTIVE_CHUNK_FAILURES, lastChunkError);
                 if (consecutiveFailures >= MAX_CONSECUTIVE_CHUNK_FAILURES) {
+                    stopReason = consecutiveStopReason(consecutiveFailures, lastChunkError);
+                    log.error("Stopping bank rebuild for {}: {}", certId, stopReason);
                     break;
                 }
             }
@@ -460,10 +471,12 @@ public class CertificationQuestionBankService {
         // Promote once we have a usable practice pool; full exam size / 5× are aspirational.
         if (saved.size() < MIN_READY_QUESTIONS) {
             refreshBankCosts(certId, rebuildStartedAt, saved.size());
-            String detail = lastChunkError != null
-                    ? lastChunkError
-                    : ("Bank rebuild produced only " + saved.size()
-                            + " unique questions (need at least " + MIN_READY_QUESTIONS + ").");
+            String detail = stopReason != null
+                    ? stopReason
+                    : (lastChunkError != null
+                            ? lastChunkError
+                            : ("Bank rebuild produced only " + saved.size()
+                                    + " unique questions (need at least " + MIN_READY_QUESTIONS + ")."));
             throw new IllegalStateException(detail);
         }
 
@@ -474,6 +487,11 @@ public class CertificationQuestionBankService {
                     + " questions (practice papers use available questions"
                     + (saved.size() < examQ ? "; under full exam size of " + examQ : "")
                     + "; rebuild later to grow toward 5×).";
+            if (StringUtils.hasText(stopReason)) {
+                softNote = softNote + " Stopped early — " + stopReason;
+            } else if (StringUtils.hasText(lastChunkError)) {
+                softNote = softNote + " Last chunk issue — " + lastChunkError;
+            }
         }
         double lifetimeCost = aiUsageService.sumCostUsdForCourse(usageCourseId);
         double lastRebuildCost = aiUsageService.sumCostUsdForCourseSince(usageCourseId, rebuildStartedAt);
@@ -546,7 +564,7 @@ public class CertificationQuestionBankService {
             } catch (RuntimeException e) {
                 last = e;
                 log.warn("AI cert chunk attempt {}/{} failed for {} (chunk={}): {}",
-                        attempt, CHUNK_ATTEMPTS, cert.getId(), chunk, e.getMessage());
+                        attempt, CHUNK_ATTEMPTS, cert.getId(), chunk, describeThrowable(e));
                 chunk = Math.max(5, chunk / 2);
                 if (attempt < CHUNK_ATTEMPTS) {
                     sleepQuietly(500L * attempt);
@@ -564,11 +582,39 @@ public class CertificationQuestionBankService {
         }
     }
 
-    private void markFailed(String certId, String message) {
-        String err = message != null ? message : "Bank rebuild failed";
-        if (err.length() > 500) {
-            err = err.substring(0, 500);
+    static String consecutiveStopReason(int consecutiveFailures, String lastChunkError) {
+        return "STOPPED_AFTER_" + consecutiveFailures + "_CONSECUTIVE_FAILURES"
+                + (StringUtils.hasText(lastChunkError) ? (" — " + lastChunkError) : "");
+    }
+
+    /**
+     * Full exception chain for bankBuildError / logs — do not truncate (admin needs root cause).
+     */
+    static String describeThrowable(Throwable t) {
+        if (t == null) {
+            return "unknown";
         }
+        StringBuilder sb = new StringBuilder();
+        Throwable cur = t;
+        int depth = 0;
+        while (cur != null && depth < 8) {
+            if (depth > 0) {
+                sb.append(" | caused by: ");
+            }
+            sb.append(cur.getClass().getSimpleName());
+            String msg = cur.getMessage();
+            if (StringUtils.hasText(msg)) {
+                sb.append(": ").append(msg);
+            }
+            cur = cur.getCause();
+            depth++;
+        }
+        return sb.toString();
+    }
+
+    private void markFailed(String certId, String message) {
+        // Keep the full stop reason — truncation hid Bedrock throttle / max_tokens / budget detail.
+        String err = StringUtils.hasText(message) ? message : "Bank rebuild failed";
         GlobalCertificationExam before = certRepository.findById(certId).orElse(null);
         Integer buildVersion = before != null ? before.getBankBuildVersion() : null;
         int readyVersion = before != null && before.getBankVersion() != null ? before.getBankVersion() : 0;
