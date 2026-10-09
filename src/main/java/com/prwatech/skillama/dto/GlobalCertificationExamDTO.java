@@ -31,6 +31,8 @@ public class GlobalCertificationExamDTO {
     private Integer bankVersion;
     private Integer bankTargetSize;
     private Integer bankQuestionCount;
+    /** Progress of an in-flight rebuild; null when not RUNNING. */
+    private Integer bankBuildQuestionCount;
     private int bankMultiplier;
     private boolean rebuildAllowed;
     /** True when learners can assemble an exam from the current bank. */

@@ -20,6 +20,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.inOrder;
@@ -62,45 +63,96 @@ class GlobalCertificationExamServiceTest {
     }
 
     @Test
-    void isBankReadyRequiresVersionAndEnoughQuestions() {
-        GlobalCertificationExam ready = GlobalCertificationExam.builder()
-                .bankVersion(1)
-                .bankQuestionCount(55)
-                .build();
-        assertTrue(GlobalCertificationExamService.isBankReady(ready, 55));
-
-        // Partial bank (>=20) is usable even when under full exam size (55).
+    void effectiveBankStatusDemotesIncompleteReadyRows() {
         GlobalCertificationExam partial = GlobalCertificationExam.builder()
-                .bankVersion(1)
-                .bankQuestionCount(32)
-                .build();
-        assertTrue(GlobalCertificationExamService.isBankReady(partial, 55));
+                .bankStatus(CertificationBankBuildStatus.READY)
+                .bankVersion(1).bankTargetSize(275).bankQuestionCount(231).build();
+        assertEquals(CertificationBankBuildStatus.FAILED,
+                GlobalCertificationExamService.effectiveBankStatus(partial, 55));
 
-        GlobalCertificationExam thin = GlobalCertificationExam.builder()
-                .bankVersion(1)
-                .bankQuestionCount(10)
-                .build();
-        // need=55 → min(55,20)=20 threshold
-        assertFalse(GlobalCertificationExamService.isBankReady(thin, 55));
-
-        GlobalCertificationExam noVersion = GlobalCertificationExam.builder()
-                .bankVersion(0)
-                .bankQuestionCount(100)
-                .build();
-        assertFalse(GlobalCertificationExamService.isBankReady(noVersion, 50));
-
-        assertFalse(GlobalCertificationExamService.isBankReady(null, 50));
+        GlobalCertificationExam complete = GlobalCertificationExam.builder()
+                .bankStatus(CertificationBankBuildStatus.READY)
+                .bankVersion(1).bankTargetSize(275).bankQuestionCount(275).build();
+        assertEquals(CertificationBankBuildStatus.READY,
+                GlobalCertificationExamService.effectiveBankStatus(complete, 55));
     }
 
     @Test
-    void isBankReadyUsesLowerThresholdWhenExamIsSmall() {
+    void isBankReadyOnlyForACompleteBank() {
+        GlobalCertificationExam complete = GlobalCertificationExam.builder()
+                .bankVersion(1).bankTargetSize(275).bankQuestionCount(275).build();
+        assertTrue(GlobalCertificationExamService.isBankReady(complete, 55));
+
+        GlobalCertificationExam partial = GlobalCertificationExam.builder()
+                .bankVersion(1).bankTargetSize(275).bankQuestionCount(231).build();
+        assertFalse(GlobalCertificationExamService.isBankReady(partial, 55));
+
+        GlobalCertificationExam noVersion = GlobalCertificationExam.builder()
+                .bankVersion(0).bankTargetSize(275).bankQuestionCount(275).build();
+        assertFalse(GlobalCertificationExamService.isBankReady(noVersion, 55));
+
+        assertFalse(GlobalCertificationExamService.isBankReady(null, 55));
+    }
+
+    @Test
+    void isBankReadyFallsBackToRebuildTargetFormulaWhenTargetMissing() {
+        GlobalCertificationExam full = GlobalCertificationExam.builder()
+                .bankVersion(1).bankQuestionCount(275).build();
+        GlobalCertificationExam oneShort = GlobalCertificationExam.builder()
+                .bankVersion(1).bankQuestionCount(274).build();
+        assertTrue(GlobalCertificationExamService.isBankReady(full, 55));
+        assertFalse(GlobalCertificationExamService.isBankReady(oneShort, 55));
+
+        // Small exams still need the 50-question floor the rebuild targets.
         GlobalCertificationExam small = GlobalCertificationExam.builder()
-                .bankVersion(1)
-                .bankQuestionCount(12)
+                .bankVersion(1).bankQuestionCount(25).build();
+        assertFalse(GlobalCertificationExamService.isBankReady(small, 5));
+        small.setBankQuestionCount(50);
+        assertTrue(GlobalCertificationExamService.isBankReady(small, 5));
+    }
+
+    @Test
+    void listAllReportsOldPartialReadyBankAsNotReady() {
+        GlobalCertificationExam partial = GlobalCertificationExam.builder()
+                .id("c3").provider("GCP").tier(CertificationTier.FOUNDATIONAL).name("CDL").active(true)
+                .bankStatus(CertificationBankBuildStatus.READY)
+                .bankVersion(1).bankTargetSize(275).bankQuestionCount(231)
                 .build();
-        // need=12 → min(12,20)=12
-        assertTrue(GlobalCertificationExamService.isBankReady(small, 12));
-        assertFalse(GlobalCertificationExamService.isBankReady(small, 15));
+        when(repository.findAll()).thenReturn(List.of(partial));
+        when(repository.findByBankStatus(CertificationBankBuildStatus.RUNNING)).thenReturn(List.of());
+
+        GlobalCertificationExamDTO dto = service.listAll(false).get(0);
+
+        assertFalse(dto.isBankReady());
+        assertEquals(CertificationBankBuildStatus.FAILED, dto.getBankStatus(),
+                "incomplete banks must not be reported as READY");
+        assertEquals(231, dto.getBankQuestionCount());
+        assertEquals(275, dto.getBankTargetSize());
+    }
+
+    @Test
+    void listAllExposesBuildProgressOnlyWhileRunning() {
+        GlobalCertificationExam running = GlobalCertificationExam.builder()
+                .id("c1").provider("GCP").tier(CertificationTier.FOUNDATIONAL).name("CDL").active(true)
+                .bankStatus(CertificationBankBuildStatus.RUNNING)
+                .bankBuildStartedAt(LocalDateTime.now().minusMinutes(5))
+                .bankVersion(1).bankTargetSize(275).bankQuestionCount(275).bankBuildQuestionCount(40)
+                .build();
+        GlobalCertificationExam failed = GlobalCertificationExam.builder()
+                .id("c2").provider("GCP").tier(CertificationTier.ASSOCIATE).name("ACE").active(true)
+                .bankStatus(CertificationBankBuildStatus.FAILED)
+                .bankVersion(1).bankTargetSize(275).bankQuestionCount(275).bankBuildQuestionCount(99)
+                .build();
+        when(repository.findAll()).thenReturn(List.of(running, failed));
+        when(repository.findByBankStatus(CertificationBankBuildStatus.RUNNING)).thenReturn(List.of(running));
+
+        List<GlobalCertificationExamDTO> dtos = service.listAll(false);
+        GlobalCertificationExamDTO runningDto = dtos.stream().filter(d -> "c1".equals(d.getId())).findFirst().orElseThrow();
+        GlobalCertificationExamDTO failedDto = dtos.stream().filter(d -> "c2".equals(d.getId())).findFirst().orElseThrow();
+
+        assertEquals(40, runningDto.getBankBuildQuestionCount());
+        assertTrue(runningDto.isBankReady(), "complete live bank stays usable during a rebuild");
+        assertNull(failedDto.getBankBuildQuestionCount());
     }
 
     @Test

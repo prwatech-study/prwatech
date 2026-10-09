@@ -69,11 +69,14 @@ public class CertificationQuestionBankService {
      * Large chunks (e.g. 40) amplify timeout/failure risk and used to abort the whole rebuild.
      */
     private static final int AI_CHUNK_SIZE = 8;
-    private static final int MAX_BUILD_ROUNDS = 60;
+    /**
+     * A 275-question bank needs ~35 clean rounds; headroom for duplicate rounds matters because a
+     * build that runs out of rounds is discarded (only complete banks go live). Real stalls still
+     * stop early via {@link #MAX_CONSECUTIVE_CHUNK_FAILURES}.
+     */
+    static final int MAX_BUILD_ROUNDS = 90;
     private static final int CHUNK_ATTEMPTS = 3;
     private static final int MAX_CONSECUTIVE_CHUNK_FAILURES = 5;
-    /** Same floor learners use in {@link #assemblePaper} / {@link GlobalCertificationExamService#isBankReady}. */
-    static final int MIN_READY_QUESTIONS = 20;
     /** Stems sent per chunk as "do not repeat"; ~120 chars each keeps the prompt to a few k tokens. */
     static final int MAX_EXCLUDE_STEMS_SENT = 120;
     static final int EXCLUDE_STEM_CHARS = 120;
@@ -226,18 +229,15 @@ public class CertificationQuestionBankService {
      */
     public List<ModuleQuizQuestionDTO> assemblePaper(GlobalCertificationExam cert, int examQuestionCount) {
         int version = cert.getBankVersion() != null ? cert.getBankVersion() : 0;
-        int available = cert.getBankQuestionCount() != null ? cert.getBankQuestionCount() : 0;
-        // Prefer READY banks; allow a READY-sized pool even if status briefly lags.
-        // Serve from last READY version even while a rebuild is RUNNING.
-        boolean usable = version > 0 && available >= Math.min(examQuestionCount, 20);
-        if (!usable) {
+        // Only a complete bank is served; the last complete version stays live while a rebuild RUNs.
+        if (!GlobalCertificationExamService.isBankReady(cert, examQuestionCount)) {
             throw new IllegalStateException(BANK_NOT_READY_MESSAGE);
         }
 
         List<CertificationBankQuestion> pool = bankQuestionRepository
                 .findByCertificationExamIdAndBankVersionAndActiveTrueOrderByCreatedAtAsc(
                         cert.getId(), version);
-        if (pool.size() < Math.min(examQuestionCount, 10)) {
+        if (pool.size() < examQuestionCount) {
             throw new IllegalStateException(BANK_NOT_READY_MESSAGE);
         }
 
@@ -319,6 +319,7 @@ public class CertificationQuestionBankService {
                 .set("bankBuildStartedAt", now)
                 .set("bankBuildFinishedAt", null)
                 .set("bankBuildError", null)
+                .set("bankBuildQuestionCount", 0)
                 .set("bankBuildTriggeredBy", actorId)
                 .set("updatedAt", now)
                 .set("updatedBy", actorId);
@@ -373,7 +374,6 @@ public class CertificationQuestionBankService {
             throw new IllegalStateException("Guidelines snapshot is missing; refresh guidelines first.");
         }
 
-        int examQ = certService.targetQuestionCount(cert.getParsedMeta());
         int target = targetBankSize(cert.getParsedMeta());
         int durationMinutes = cert.getParsedMeta() != null && cert.getParsedMeta().getDurationMinutes() != null
                 ? cert.getParsedMeta().getDurationMinutes() : 90;
@@ -537,34 +537,21 @@ public class CertificationQuestionBankService {
         String retiredNote = retiredDomains.isEmpty() ? ""
                 : " Domains skipped after repeated duplicates: " + String.join("; ", retiredDomains) + ".";
 
-        // Promote once we have a usable practice pool; full exam size / 5× are aspirational.
-        if (saved.size() < MIN_READY_QUESTIONS) {
+        // Only a complete bank is promoted; a short build fails and the previous complete bank stays live.
+        if (saved.size() < target) {
             refreshBankCosts(certId, rebuildStartedAt, saved.size());
-            String detail = (stopReason != null
+            String cause = stopReason != null
                     ? stopReason
                     : (lastChunkError != null
-                            ? lastChunkError
-                            : ("Bank rebuild produced only " + saved.size()
-                                    + " unique questions (need at least " + MIN_READY_QUESTIONS + ")."))) + retiredNote;
+                            ? "reached the " + MAX_BUILD_ROUNDS + "-round limit; last chunk issue — " + lastChunkError
+                            : "reached the " + MAX_BUILD_ROUNDS + "-round limit");
+            String detail = incompleteBankMessage(saved.size(), target, cause) + retiredNote;
             log.error("Certification bank rebuild failed for {}: {}", certId, detail);
             markFailed(certId, detail);
             return;
         }
 
         LocalDateTime finished = IndiaTime.now();
-        String softNote = null;
-        if (saved.size() < target) {
-            softNote = "Bank ready with " + saved.size() + "/" + target
-                    + " questions (practice papers use available questions"
-                    + (saved.size() < examQ ? "; under full exam size of " + examQ : "")
-                    + "; rebuild later to grow toward 5×).";
-            if (StringUtils.hasText(stopReason)) {
-                softNote = softNote + " Stopped early — " + stopReason;
-            } else if (StringUtils.hasText(lastChunkError)) {
-                softNote = softNote + " Last chunk issue — " + lastChunkError;
-            }
-            softNote = softNote + retiredNote;
-        }
         double lifetimeCost = aiUsageService.sumCostUsdForCourse(usageCourseId);
         double lastRebuildCost = aiUsageService.sumCostUsdForCourseSince(usageCourseId, rebuildStartedAt);
         // Promote build version to live bankVersion, then drop older versions.
@@ -575,9 +562,10 @@ public class CertificationQuestionBankService {
                         .set("bankVersion", newVersion)
                         .set("bankBuildVersion", null)
                         .set("bankQuestionCount", saved.size())
+                        .set("bankBuildQuestionCount", null)
                         .set("bankTargetSize", target)
                         .set("bankBuildFinishedAt", finished)
-                        .set("bankBuildError", softNote)
+                        .set("bankBuildError", null)
                         .set("bankLifetimeCostUsd", lifetimeCost)
                         .set("bankLastRebuildCostUsd", lastRebuildCost)
                         .set("updatedAt", finished),
@@ -600,7 +588,8 @@ public class CertificationQuestionBankService {
                 .set("bankLastRebuildCostUsd", lastRebuildCost)
                 .set("updatedAt", IndiaTime.now());
         if (questionCount != null) {
-            update.set("bankQuestionCount", questionCount);
+            // Build progress only — bankQuestionCount describes the live bank learners use.
+            update.set("bankBuildQuestionCount", questionCount);
         }
         skillamaMongoTemplate.updateFirst(
                 new Query(Criteria.where("id").is(certId)),
@@ -660,6 +649,12 @@ public class CertificationQuestionBankService {
         }
     }
 
+    static String incompleteBankMessage(int generated, int target, String cause) {
+        return "INCOMPLETE_BANK: generated " + generated + "/" + target
+                + " questions — a bank is only marked ready when every question is generated."
+                + " The previous complete bank (if any) stays live. Cause: " + cause;
+    }
+
     static String consecutiveStopReason(int consecutiveFailures, String lastChunkError) {
         return "STOPPED_AFTER_" + consecutiveFailures + "_CONSECUTIVE_FAILURES"
                 + (StringUtils.hasText(lastChunkError) ? (" — " + lastChunkError) : "");
@@ -709,6 +704,7 @@ public class CertificationQuestionBankService {
                         .set("bankStatus", CertificationBankBuildStatus.FAILED)
                         .set("bankBuildVersion", null)
                         .set("bankQuestionCount", (int) readyCount)
+                        .set("bankBuildQuestionCount", null)
                         .set("bankBuildFinishedAt", IndiaTime.now())
                         .set("bankBuildError", err)
                         .set("bankLifetimeCostUsd", lifetimeCost)
@@ -838,9 +834,9 @@ public class CertificationQuestionBankService {
     }
 
     public CertificationBankStatusDTO toStatus(GlobalCertificationExam cert) {
-        CertificationBankBuildStatus status = cert.getBankStatus() != null
-                ? cert.getBankStatus() : CertificationBankBuildStatus.IDLE;
         int examQ = certService.targetQuestionCount(cert.getParsedMeta());
+        CertificationBankBuildStatus status =
+                GlobalCertificationExamService.effectiveBankStatus(cert, examQ);
         return CertificationBankStatusDTO.builder()
                 .certificationExamId(cert.getId())
                 .bankStatus(status)
@@ -849,6 +845,8 @@ public class CertificationQuestionBankService {
                         ? cert.getBankTargetSize()
                         : targetBankSize(cert.getParsedMeta()))
                 .bankQuestionCount(cert.getBankQuestionCount() != null ? cert.getBankQuestionCount() : 0)
+                .bankBuildQuestionCount(status == CertificationBankBuildStatus.RUNNING
+                        ? cert.getBankBuildQuestionCount() : null)
                 .bankMultiplier(BANK_MULTIPLIER)
                 .rebuildAllowed(!hasFreshRunningRebuild()
                         || (status == CertificationBankBuildStatus.RUNNING && isStaleRunning(cert)))

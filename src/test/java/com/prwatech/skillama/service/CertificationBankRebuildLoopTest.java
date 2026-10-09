@@ -196,7 +196,7 @@ class CertificationBankRebuildLoopTest {
     }
 
     @Test
-    void duplicateChunksRaiseDiversityThenStopEarlyButKeepAUsableBank() {
+    void duplicateChunksRaiseDiversityThenStopAndFailAsIncomplete() {
         aiScript((i, call) -> i < 3
                 ? unique(i, call.requested(), call.focusDomain())
                 : unique(0, 8, "Cloud Concepts")); // exact repeats of the first chunk
@@ -207,17 +207,20 @@ class CertificationBankRebuildLoopTest {
         assertEquals(List.of(0, 1, 2, 3, 3),
                 calls.subList(3, 8).stream().map(Call::diversity).collect(Collectors.toList()));
         Document set = finalSet();
-        assertEquals(CertificationBankBuildStatus.READY, set.get("bankStatus"));
-        assertEquals(24, set.get("bankQuestionCount"));
-        String note = (String) set.get("bankBuildError");
-        assertTrue(note.startsWith("Bank ready with 24/50"), note);
-        assertTrue(note.contains("STOPPED_AFTER_5_CONSECUTIVE_FAILURES"), note);
-        assertTrue(note.contains("NO_UNIQUE_QUESTIONS: AI returned 8 questions"), note);
-        assertTrue(note.contains("diversity=3"), note);
+        assertEquals(CertificationBankBuildStatus.FAILED, set.get("bankStatus"));
+        String error = (String) set.get("bankBuildError");
+        assertTrue(error.startsWith("INCOMPLETE_BANK: generated 24/50 questions"), error);
+        assertTrue(error.contains("STOPPED_AFTER_5_CONSECUTIVE_FAILURES"), error);
+        assertTrue(error.contains("NO_UNIQUE_QUESTIONS: AI returned 8 questions"), error);
+        assertTrue(error.contains("diversity=3"), error);
     }
 
     @Test
-    void duplicateStallBelowMinimumFailsWithFullReasonAndDropsPartialBuild() {
+    void incompleteBuildIsDiscardedAndPreviousCompleteBankStaysLive() {
+        cert.setBankVersion(3);
+        cert.setBankBuildVersion(4);
+        when(bankQuestionRepository.countByCertificationExamIdAndBankVersionAndActiveTrue(CERT_ID, 3))
+                .thenReturn(50L);
         aiScript((i, call) -> i < 2
                 ? unique(i, call.requested(), call.focusDomain())
                 : unique(0, 8, "Cloud Concepts"));
@@ -226,11 +229,49 @@ class CertificationBankRebuildLoopTest {
 
         Document set = finalSet();
         assertEquals(CertificationBankBuildStatus.FAILED, set.get("bankStatus"));
-        String error = (String) set.get("bankBuildError");
-        assertTrue(error.contains("STOPPED_AFTER_5_CONSECUTIVE_FAILURES"), error);
-        assertTrue(error.contains("NO_UNIQUE_QUESTIONS"), error);
-        verify(bankQuestionRepository).deleteByCertificationExamIdAndBankVersion(CERT_ID, 1);
+        assertEquals(50, set.get("bankQuestionCount"), "live count is the previous complete version");
+        assertTrue(set.containsKey("bankBuildQuestionCount"));
+        assertNull(set.get("bankBuildQuestionCount"));
+        assertTrue(!set.containsKey("bankVersion"), "failed build must not change the live version");
+        verify(bankQuestionRepository).deleteByCertificationExamIdAndBankVersion(CERT_ID, 4);
         verify(bankQuestionRepository, never()).deleteByCertificationExamIdAndBankVersionLessThan(any(), anyInt());
+    }
+
+    @Test
+    void slowButSteadyBuildThatRunsOutOfRoundsFailsAsIncomplete() {
+        // One new question every third call: never 5 dead rounds in a row, but too slow to finish.
+        aiScript((i, call) -> i % 3 == 0
+                ? unique(i, 1, call.focusDomain() != null ? call.focusDomain() : "Cloud Concepts")
+                : List.of(question("Q0-0 about Cloud Concepts?", "Cloud Concepts")));
+
+        service.requestRebuild(CERT_ID, "admin-1");
+
+        assertEquals(CertificationQuestionBankService.MAX_BUILD_ROUNDS, calls.size());
+        String error = (String) finalSet().get("bankBuildError");
+        assertTrue(error.startsWith("INCOMPLETE_BANK: generated 30/50 questions"), error);
+        assertTrue(error.contains("reached the " + CertificationQuestionBankService.MAX_BUILD_ROUNDS + "-round limit"), error);
+        assertEquals(CertificationBankBuildStatus.FAILED, finalSet().get("bankStatus"));
+    }
+
+    @Test
+    void progressHeartbeatsNeverTouchTheLiveQuestionCount() {
+        aiScript((i, call) -> unique(i, call.requested(), call.focusDomain()));
+
+        service.requestRebuild(CERT_ID, "admin-1");
+
+        ArgumentCaptor<Update> captor = ArgumentCaptor.forClass(Update.class);
+        verify(skillamaMongoTemplate, atLeastOnce())
+                .updateFirst(any(Query.class), captor.capture(), eq(GlobalCertificationExam.class));
+        List<Update> updates = captor.getAllValues();
+        List<Document> heartbeats = updates.subList(0, updates.size() - 1).stream()
+                .map(u -> (Document) u.getUpdateObject().get("$set"))
+                .collect(Collectors.toList());
+        assertTrue(heartbeats.size() >= 6);
+        assertTrue(heartbeats.stream().noneMatch(s -> s.containsKey("bankQuestionCount")));
+        assertEquals(50, heartbeats.get(heartbeats.size() - 1).get("bankBuildQuestionCount"));
+        Document done = (Document) updates.get(updates.size() - 1).getUpdateObject().get("$set");
+        assertEquals(50, done.get("bankQuestionCount"));
+        assertNull(done.get("bankBuildQuestionCount"));
     }
 
     @Test
@@ -267,7 +308,8 @@ class CertificationBankRebuildLoopTest {
         Document set = finalSet();
         assertEquals(CertificationBankBuildStatus.FAILED, set.get("bankStatus"));
         String error = (String) set.get("bankBuildError");
-        assertTrue(error.startsWith("STOPPED_AFTER_5_CONSECUTIVE_FAILURES"), error);
+        assertTrue(error.startsWith("INCOMPLETE_BANK: generated 0/50"), error);
+        assertTrue(error.contains("Cause: STOPPED_AFTER_5_CONSECUTIVE_FAILURES"), error);
         assertTrue(error.contains(longDetail), "error must not be truncated");
     }
 
@@ -289,7 +331,7 @@ class CertificationBankRebuildLoopTest {
     }
 
     @Test
-    void retiredDomainsAreNamedInTheSoftNoteWhenTheBankEndsShort() {
+    void retiredDomainsAreNamedInTheFailureReasonWhenTheBankEndsShort() {
         String junk = "Watch Cloud OnAir";
         cert.getParsedMeta().setDomains(List.of("Cloud Concepts", junk));
         aiScript((i, call) -> i < 3 && !junk.equals(call.focusDomain())

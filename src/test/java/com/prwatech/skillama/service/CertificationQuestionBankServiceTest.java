@@ -74,8 +74,11 @@ class CertificationQuestionBankServiceTest {
     }
 
     @Test
-    void minReadyQuestionsMatchesLearnerUsabilityFloor() {
-        assertEquals(20, CertificationQuestionBankService.MIN_READY_QUESTIONS);
+    void incompleteBankMessageStatesCountsAndCause() {
+        String msg = CertificationQuestionBankService.incompleteBankMessage(231, 275, "STOPPED_AFTER_5");
+        assertTrue(msg.startsWith("INCOMPLETE_BANK: generated 231/275 questions"), msg);
+        assertTrue(msg.contains("previous complete bank (if any) stays live"), msg);
+        assertTrue(msg.endsWith("Cause: STOPPED_AFTER_5"), msg);
     }
 
     @Test
@@ -214,11 +217,22 @@ class CertificationQuestionBankServiceTest {
     }
 
     @Test
+    void assemblePaperRejectsAnIncompleteBank() {
+        GlobalCertificationExam partial = cert("c1", CertificationBankBuildStatus.READY, 1, 231);
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> service.assemblePaper(partial, 50));
+        assertEquals(CertificationQuestionBankService.BANK_NOT_READY_MESSAGE, ex.getMessage());
+        verify(bankQuestionRepository, never())
+                .findByCertificationExamIdAndBankVersionAndActiveTrueOrderByCreatedAtAsc(anyString(), any(Integer.class));
+    }
+
+    @Test
     void assemblePaperFailsWhenPoolTooThinEvenIfCountsLookReady() {
-        GlobalCertificationExam ready = cert("c1", CertificationBankBuildStatus.READY, 1, 55);
+        GlobalCertificationExam ready = cert("c1", CertificationBankBuildStatus.READY, 1, 250);
         when(bankQuestionRepository
                 .findByCertificationExamIdAndBankVersionAndActiveTrueOrderByCreatedAtAsc("c1", 1))
-                .thenReturn(pool("c1", 5)); // below min(50,10)=10
+                .thenReturn(pool("c1", 5)); // fewer rows than one exam paper
 
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> service.assemblePaper(ready, 50));
@@ -227,10 +241,11 @@ class CertificationQuestionBankServiceTest {
 
     @Test
     void assemblePaperServesLastReadyVersionEvenWhileRebuildRunning() {
-        GlobalCertificationExam rebuilding = cert("c1", CertificationBankBuildStatus.RUNNING, 1, 55);
+        GlobalCertificationExam rebuilding = cert("c1", CertificationBankBuildStatus.RUNNING, 1, 250);
+        rebuilding.setBankBuildQuestionCount(12);
         when(bankQuestionRepository
                 .findByCertificationExamIdAndBankVersionAndActiveTrueOrderByCreatedAtAsc("c1", 1))
-                .thenReturn(pool("c1", 55));
+                .thenReturn(pool("c1", 250));
 
         List<ModuleQuizQuestionDTO> paper = service.assemblePaper(rebuilding, 50);
 

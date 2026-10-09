@@ -66,8 +66,11 @@ public class GlobalCertificationExam {
     /** Target bank size = exam question count × multiplier (default 5). */
     private Integer bankTargetSize;
 
-    /** Active questions in the current bank version. */
+    /** Active questions in the live (last READY) bank version. Not touched by an in-flight rebuild. */
     private Integer bankQuestionCount;
+
+    /** Questions saved so far by the RUNNING rebuild (admin progress); null when idle. */
+    private Integer bankBuildQuestionCount;
 
     private LocalDateTime bankBuildStartedAt;
     private LocalDateTime bankBuildFinishedAt;

@@ -233,11 +233,9 @@ public class GlobalCertificationExamService {
     }
 
     private GlobalCertificationExamDTO toDto(GlobalCertificationExam row, boolean rebuildBusy) {
-        CertificationBankBuildStatus bankStatus = row.getBankStatus() != null
-                ? row.getBankStatus()
-                : CertificationBankBuildStatus.IDLE;
         int examQ = targetQuestionCount(row.getParsedMeta());
-        int target = row.getBankTargetSize() != null ? row.getBankTargetSize() : examQ * BANK_MULTIPLIER;
+        CertificationBankBuildStatus bankStatus = effectiveBankStatus(row, examQ);
+        int target = requiredBankSize(row, examQ);
         // Single-flight: no new Rebuild while any fresh RUNNING exists (including this row).
         boolean rebuildAllowed = !rebuildBusy;
         return GlobalCertificationExamDTO.builder()
@@ -254,6 +252,8 @@ public class GlobalCertificationExamService {
                 .bankVersion(row.getBankVersion())
                 .bankTargetSize(target)
                 .bankQuestionCount(row.getBankQuestionCount() != null ? row.getBankQuestionCount() : 0)
+                .bankBuildQuestionCount(bankStatus == CertificationBankBuildStatus.RUNNING
+                        ? row.getBankBuildQuestionCount() : null)
                 .bankMultiplier(BANK_MULTIPLIER)
                 .rebuildAllowed(rebuildAllowed)
                 .bankReady(isBankReady(row, examQ))
@@ -282,15 +282,40 @@ public class GlobalCertificationExamService {
         return false;
     }
 
-    /** Same readiness bar learners use when assembling a paper. */
+    /**
+     * Learners may only use a COMPLETE bank: every question of the target (exam size × 5)
+     * generated. Same bar {@link CertificationQuestionBankService#assemblePaper} enforces.
+     */
+    /**
+     * Stored READY on a short bank (from the old min-20 promote) is reported as FAILED so
+     * clients never treat it as live.
+     */
+    public static CertificationBankBuildStatus effectiveBankStatus(
+            GlobalCertificationExam row, int examQuestionCount) {
+        CertificationBankBuildStatus status = row != null && row.getBankStatus() != null
+                ? row.getBankStatus()
+                : CertificationBankBuildStatus.IDLE;
+        if (status == CertificationBankBuildStatus.READY && !isBankReady(row, examQuestionCount)) {
+            return CertificationBankBuildStatus.FAILED;
+        }
+        return status;
+    }
+
     public static boolean isBankReady(GlobalCertificationExam row, int examQuestionCount) {
         if (row == null) {
             return false;
         }
         int version = row.getBankVersion() != null ? row.getBankVersion() : 0;
         int available = row.getBankQuestionCount() != null ? row.getBankQuestionCount() : 0;
-        int need = Math.max(1, examQuestionCount);
-        return version > 0 && available >= Math.min(need, 20);
+        return version > 0 && available >= requiredBankSize(row, examQuestionCount);
+    }
+
+    /** Stored target when present, else the same formula the rebuild uses (min 50). */
+    static int requiredBankSize(GlobalCertificationExam row, int examQuestionCount) {
+        if (row != null && row.getBankTargetSize() != null && row.getBankTargetSize() > 0) {
+            return row.getBankTargetSize();
+        }
+        return Math.max(50, Math.max(1, examQuestionCount) * BANK_MULTIPLIER);
     }
 
     public static String nameKey(String name) {
