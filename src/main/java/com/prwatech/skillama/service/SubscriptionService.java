@@ -174,14 +174,21 @@ public class SubscriptionService {
                 .build();
         txn = transactionRepository.save(txn);
 
+        long amountPaise = BigDecimal.valueOf(plan.getPriceInr())
+                .movePointRight(2)
+                .setScale(0, RoundingMode.HALF_UP)
+                .longValueExact();
+
         return BillingCheckoutResponseDTO.builder()
                 .orderId(order.orderId())
                 .provider(order.provider())
                 .amountInr(plan.getPriceInr())
+                .amountPaise(amountPaise)
                 .currency(order.currency())
                 .planCode(plan.getCode())
                 .transactionId(txn.getId())
                 .demoPayment("MOCK".equalsIgnoreCase(order.provider()))
+                .razorpayKeyId(order.publicKeyId())
                 .build();
     }
 
@@ -212,8 +219,15 @@ public class SubscriptionService {
             txn.setFailureReason(verification.failureReason());
             txn.setUpdatedAt(IndiaTime.now());
             transactionRepository.save(txn);
-            throw new IllegalStateException(
-                    verification.failureReason() != null ? verification.failureReason() : "Payment failed");
+            String reason = verification.failureReason() != null
+                    ? verification.failureReason()
+                    : "Payment failed";
+            // Signature / missing-field failures are client errors (400); other declines stay 402.
+            String lower = reason.toLowerCase();
+            if (lower.contains("signature") || lower.contains("missing")) {
+                throw new IllegalArgumentException(reason);
+            }
+            throw new IllegalStateException(reason);
         }
 
         txn.setProviderPaymentId(verification.paymentId());

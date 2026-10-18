@@ -13,7 +13,19 @@ public interface PaymentProvider {
 
     PaymentVerification verifyAndCapture(String orderId, String paymentId, String signature);
 
-    record PaymentOrder(String orderId, String provider, BigDecimal amountInr, String currency) {}
+    /**
+     * @param publicKeyId Razorpay Key ID for Checkout.js (null for mock). Never include the secret.
+     */
+    record PaymentOrder(
+            String orderId,
+            String provider,
+            BigDecimal amountInr,
+            String currency,
+            String publicKeyId) {
+        public PaymentOrder(String orderId, String provider, BigDecimal amountInr, String currency) {
+            this(orderId, provider, amountInr, currency, null);
+        }
+    }
 
     record PaymentVerification(
             boolean success,

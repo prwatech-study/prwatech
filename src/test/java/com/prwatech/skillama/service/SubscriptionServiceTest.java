@@ -188,6 +188,24 @@ class SubscriptionServiceTest {
     }
 
     @Test
+    void confirmInvalidSignatureThrowsIllegalArgumentException() {
+        PaymentTransaction txn = PaymentTransaction.builder()
+                .id("t1").userId("u1").providerOrderId("ord_1").planCode("PULSE")
+                .status(PaymentTransaction.TransactionStatus.PENDING).build();
+        when(transactionRepository.findByProviderOrderId("ord_1")).thenReturn(Optional.of(txn));
+        when(planRepository.findByCode("PULSE")).thenReturn(Optional.of(pulsePlan()));
+        when(paymentProvider.verifyAndCapture(eq("ord_1"), any(), any()))
+                .thenReturn(new PaymentProvider.PaymentVerification(
+                        false, "ord_1", "pay_1", "bad", "Invalid payment signature"));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.confirm("u1", BillingConfirmRequestDTO.builder()
+                        .orderId("ord_1").paymentId("pay_1").signature("bad").build()));
+        assertTrue(ex.getMessage().toLowerCase().contains("signature"));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
     void confirmAlreadySuccessfulIsIdempotent() {
         PaymentTransaction txn = PaymentTransaction.builder()
                 .id("t1").userId("u1").providerOrderId("ord_1").planCode("PULSE")

@@ -47,6 +47,12 @@ public class BillingController {
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (IllegalStateException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "Checkout failed";
+            if (msg.toLowerCase().contains("authentication")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", msg));
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", msg));
         }
     }
 
