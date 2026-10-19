@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
 @Slf4j
 public class SkillamaHtmlMailer {
 
-private static final String CANVAS = "#06080f";
+    private static final String PAGE = "#f4f6f8";
     private static final String CARD = "#0b1018";
     private static final String ACCENT = "#34d399";
     private static final String CYAN = "#22d3ee";
@@ -84,10 +84,10 @@ private static final String CANVAS = "#06080f";
 
     static String verificationHtml(String code, int expiryMinutes) {
         String safeCode = escape(code);
-        return "<!DOCTYPE html><html><body style=\"margin:0;background:" + CANVAS + ";font-family:Arial,Helvetica,sans-serif;\">"
-                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:" + CANVAS + ";padding:24px 12px;\">"
-                + "<tr><td align=\"center\">"
-                + "<table role=\"presentation\" width=\"100%\" style=\"max-width:480px;background:" + CARD + ";border-radius:12px;overflow:hidden;\">"
+        return "<!DOCTYPE html><html><body bgcolor=\"" + PAGE + "\" style=\"margin:0;background:" + PAGE + ";font-family:Arial,Helvetica,sans-serif;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" bgcolor=\"" + PAGE + "\" style=\"background:" + PAGE + ";padding:24px 12px;\">"
+                + "<tr><td align=\"center\" bgcolor=\"" + PAGE + "\">"
+                + "<table role=\"presentation\" width=\"100%\" bgcolor=\"" + CARD + "\" style=\"max-width:480px;background:" + CARD + ";border-radius:12px;overflow:hidden;\">"
                 + "<tr><td style=\"height:4px;background:" + ACCENT + ";font-size:0;line-height:0;\">&nbsp;</td>"
                 + "<td style=\"height:4px;background:" + CYAN + ";font-size:0;line-height:0;\">&nbsp;</td></tr>"
                 + "<tr><td colspan=\"2\" style=\"padding:28px 24px;color:" + TEXT + ";font-size:15px;line-height:1.5;\">"
@@ -113,10 +113,10 @@ private static final String CANVAS = "#06080f";
         String safeName = escape(displayName(name));
         String safeCredits = escape(creditsLeft);
         String safeUrl = escape(rechargeUrl);
-        return "<!DOCTYPE html><html><body style=\"margin:0;background:" + CANVAS + ";font-family:Arial,Helvetica,sans-serif;\">"
-                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:" + CANVAS + ";padding:24px 12px;\">"
-                + "<tr><td align=\"center\">"
-                + "<table role=\"presentation\" width=\"100%\" style=\"max-width:520px;background:" + CARD + ";border-radius:12px;overflow:hidden;\">"
+        return "<!DOCTYPE html><html><body bgcolor=\"" + PAGE + "\" style=\"margin:0;background:" + PAGE + ";font-family:Arial,Helvetica,sans-serif;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" bgcolor=\"" + PAGE + "\" style=\"background:" + PAGE + ";padding:24px 12px;\">"
+                + "<tr><td align=\"center\" bgcolor=\"" + PAGE + "\">"
+                + "<table role=\"presentation\" width=\"100%\" bgcolor=\"" + CARD + "\" style=\"max-width:520px;background:" + CARD + ";border-radius:12px;overflow:hidden;\">"
                 + "<tr><td style=\"height:4px;background:" + ACCENT + ";font-size:0;line-height:0;\">&nbsp;</td>"
                 + "<td style=\"height:4px;background:" + CYAN + ";font-size:0;line-height:0;\">&nbsp;</td></tr>"
                 + "<tr><td colspan=\"2\" style=\"padding:24px;color:" + TEXT + ";font-size:15px;line-height:1.5;\">"
