@@ -23,6 +23,9 @@ class SkillamaHtmlMailerTest {
         assertTrue(html.contains("923037"));
         assertTrue(html.contains("Skillama verification code"));
         assertTrue(html.contains("10 minutes"));
+        assertTrue(html.contains("#06080f"));
+        assertTrue(html.contains("#34d399"));
+        assertFalse(html.contains("#0f766e"));
         assertFalse(html.contains("<script"));
     }
 

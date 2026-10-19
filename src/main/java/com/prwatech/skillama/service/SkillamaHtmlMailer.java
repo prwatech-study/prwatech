@@ -20,8 +20,14 @@ import java.nio.charset.StandardCharsets;
 @Slf4j
 public class SkillamaHtmlMailer {
 
-    private static final String HEADER = "#0f766e";
-    private static final String BUTTON = "#0d9488";
+private static final String CANVAS = "#06080f";
+    private static final String CARD = "#0b1018";
+    private static final String ACCENT = "#34d399";
+    private static final String CYAN = "#22d3ee";
+    private static final String TEXT = "#e5e7eb";
+    private static final String MUTED = "#94a3b8";
+    private static final String BUTTON = "#10b981";
+    private static final String BUTTON_TEXT = "#042f2e";
 
     private final JavaMailSender mailSender;
 
@@ -78,19 +84,20 @@ public class SkillamaHtmlMailer {
 
     static String verificationHtml(String code, int expiryMinutes) {
         String safeCode = escape(code);
-        return "<!DOCTYPE html><html><body style=\"margin:0;background:#f4f6f8;font-family:Arial,Helvetica,sans-serif;\">"
-                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f4f6f8;padding:24px 12px;\">"
+        return "<!DOCTYPE html><html><body style=\"margin:0;background:" + CANVAS + ";font-family:Arial,Helvetica,sans-serif;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:" + CANVAS + ";padding:24px 12px;\">"
                 + "<tr><td align=\"center\">"
-                + "<table role=\"presentation\" width=\"100%\" style=\"max-width:480px;background:#ffffff;border-radius:12px;overflow:hidden;\">"
-                + "<tr><td style=\"background:" + HEADER + ";padding:28px 24px;\">"
-                + "<div style=\"color:#ffffff;font-size:22px;font-weight:700;\">Skillama verification code</div>"
-                + "</td></tr>"
-                + "<tr><td style=\"padding:28px 24px;color:#1f2937;font-size:15px;line-height:1.5;\">"
+                + "<table role=\"presentation\" width=\"100%\" style=\"max-width:480px;background:" + CARD + ";border-radius:12px;overflow:hidden;\">"
+                + "<tr><td style=\"height:4px;background:" + ACCENT + ";font-size:0;line-height:0;\">&nbsp;</td>"
+                + "<td style=\"height:4px;background:" + CYAN + ";font-size:0;line-height:0;\">&nbsp;</td></tr>"
+                + "<tr><td colspan=\"2\" style=\"padding:28px 24px;color:" + TEXT + ";font-size:15px;line-height:1.5;\">"
+                + "<div style=\"color:" + ACCENT + ";font-size:13px;font-weight:700;letter-spacing:0.08em;\">SKILLAMA</div>"
+                + "<div style=\"color:#ffffff;font-size:22px;font-weight:700;padding:8px 0 16px;\">Skillama verification code</div>"
                 + "<p style=\"margin:0 0 16px;\">We received a request to sign in to your Skillama account.</p>"
-                + "<p style=\"margin:0 0 8px;color:#6b7280;font-size:13px;\">Your code</p>"
-                + "<div style=\"font-size:36px;font-weight:700;letter-spacing:8px;color:#111827;padding:8px 0 16px;\">"
+                + "<p style=\"margin:0 0 8px;color:" + MUTED + ";font-size:13px;\">Your code</p>"
+                + "<div style=\"font-size:36px;font-weight:700;letter-spacing:8px;color:" + ACCENT + ";padding:8px 0 16px;\">"
                 + safeCode + "</div>"
-                + "<p style=\"margin:0;color:#6b7280;font-size:13px;\">This code expires in "
+                + "<p style=\"margin:0;color:" + MUTED + ";font-size:13px;\">This code expires in "
                 + expiryMinutes + " minutes. If you did not ask for it, you can ignore this email.</p>"
                 + "</td></tr></table></td></tr></table></body></html>";
     }
@@ -106,28 +113,28 @@ public class SkillamaHtmlMailer {
         String safeName = escape(displayName(name));
         String safeCredits = escape(creditsLeft);
         String safeUrl = escape(rechargeUrl);
-        return "<!DOCTYPE html><html><body style=\"margin:0;background:#f4f6f8;font-family:Arial,Helvetica,sans-serif;\">"
-                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f4f6f8;padding:24px 12px;\">"
+        return "<!DOCTYPE html><html><body style=\"margin:0;background:" + CANVAS + ";font-family:Arial,Helvetica,sans-serif;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:" + CANVAS + ";padding:24px 12px;\">"
                 + "<tr><td align=\"center\">"
-                + "<table role=\"presentation\" width=\"100%\" style=\"max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;\">"
-                + "<tr><td style=\"background:" + HEADER + ";padding:22px 24px;\">"
-                + "<div style=\"color:#ffffff;font-size:20px;font-weight:700;\">Skillama</div>"
-                + "</td></tr>"
-                + "<tr><td style=\"padding:24px;color:#1f2937;font-size:15px;line-height:1.5;\">"
-                + "<p style=\"margin:0 0 16px;\">Hi " + safeName + ",</p>"
-                + "<div style=\"background:#fef2f2;color:#b91c1c;font-size:12px;font-weight:700;letter-spacing:0.04em;"
+                + "<table role=\"presentation\" width=\"100%\" style=\"max-width:520px;background:" + CARD + ";border-radius:12px;overflow:hidden;\">"
+                + "<tr><td style=\"height:4px;background:" + ACCENT + ";font-size:0;line-height:0;\">&nbsp;</td>"
+                + "<td style=\"height:4px;background:" + CYAN + ";font-size:0;line-height:0;\">&nbsp;</td></tr>"
+                + "<tr><td colspan=\"2\" style=\"padding:24px;color:" + TEXT + ";font-size:15px;line-height:1.5;\">"
+                + "<div style=\"color:" + ACCENT + ";font-size:13px;font-weight:700;letter-spacing:0.08em;\">SKILLAMA</div>"
+                + "<p style=\"margin:16px 0;\">Hi " + safeName + ",</p>"
+                + "<div style=\"background:#3f1d24;color:#fecaca;font-size:12px;font-weight:700;letter-spacing:0.04em;"
                 + "padding:8px 12px;border-radius:8px;display:inline-block;\">LOW CREDITS</div>"
                 + "<p style=\"margin:16px 0 8px;\">You have low AI credits remaining.</p>"
                 + "<p style=\"margin:0 0 16px;\">Only <strong>" + safeCredits + "</strong> credits left.</p>"
-                + "<table role=\"presentation\" style=\"background:#f0fdfa;border-radius:10px;margin:0 0 16px;\"><tr>"
-                + "<td style=\"padding:14px 18px;color:#115e59;font-size:13px;\">Credits remaining</td>"
-                + "<td style=\"padding:14px 18px;font-size:28px;font-weight:700;color:#0f766e;\">" + safeCredits + "</td>"
+                + "<table role=\"presentation\" style=\"background:#111827;border-radius:10px;margin:0 0 16px;\"><tr>"
+                + "<td style=\"padding:14px 18px;color:" + MUTED + ";font-size:13px;\">Credits remaining</td>"
+                + "<td style=\"padding:14px 18px;font-size:28px;font-weight:700;color:" + ACCENT + ";\">" + safeCredits + "</td>"
                 + "</tr></table>"
                 + "<p style=\"margin:0 0 16px;\">Recharge now to avoid any interruption in your learning.</p>"
-                + "<a href=\"" + safeUrl + "\" style=\"display:inline-block;background:" + BUTTON + ";color:#ffffff;"
+                + "<a href=\"" + safeUrl + "\" style=\"display:inline-block;background:" + BUTTON + ";color:" + BUTTON_TEXT + ";"
                 + "text-decoration:none;font-weight:700;padding:12px 18px;border-radius:8px;\">Recharge credits</a>"
                 + "</td></tr>"
-                + "<tr><td style=\"padding:0 24px 20px;color:#9ca3af;font-size:12px;\">Skillama · hello@skillama.co.in</td>"
+                + "<tr><td colspan=\"2\" style=\"padding:0 24px 20px;color:" + MUTED + ";font-size:12px;\">Skillama · hello@skillama.co.in</td>"
                 + "</tr></table></td></tr></table></body></html>";
     }
 
