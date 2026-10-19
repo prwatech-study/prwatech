@@ -27,6 +27,8 @@ public class PlatformFeatureRolloutService {
     public static final String CODE_LAB = "code_lab";
     public static final String DEBUG_ASSISTANT = "debug_assistant";
     public static final String AI_EXAM = "ai_exam";
+    /** Nested under AI Exam — Global certifications mode (not a separate home tile). */
+    public static final String GLOBAL_CERTIFICATION = "global_certification";
     public static final String AI_INTERVIEW = "ai_interview";
     public static final String AI_MOCK_INTERVIEW = "ai_mock_interview";
     public static final String LEARNER_ANALYTICS = "learner_analytics";
@@ -37,6 +39,7 @@ public class PlatformFeatureRolloutService {
             CODE_LAB,
             DEBUG_ASSISTANT,
             AI_EXAM,
+            GLOBAL_CERTIFICATION,
             AI_INTERVIEW,
             AI_MOCK_INTERVIEW,
             LEARNER_ANALYTICS);

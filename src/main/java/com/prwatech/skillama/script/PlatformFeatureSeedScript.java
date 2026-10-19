@@ -91,6 +91,11 @@ public class PlatformFeatureSeedScript implements CommandLineRunner {
                         null,
                         agedLiveAt),
                 learnerLive("ai_exam", "AI Exams", PlatformFeature.FeatureCategory.LMS, 50, null, agedLiveAt),
+                learnerHidden(
+                        "global_certification",
+                        "Global certifications",
+                        PlatformFeature.FeatureCategory.LMS,
+                        52),
                 learnerUpcoming("ai_interview", "AI Interview", PlatformFeature.FeatureCategory.LMS, 55),
                 learnerUpcoming("ai_mock_interview", "AI Mock Interview", PlatformFeature.FeatureCategory.LMS, 56),
                 feature("module_quiz", "Module Quizzes", PlatformFeature.FeatureCategory.LMS, 60, null, agedLiveAt),
@@ -202,6 +207,16 @@ public class PlatformFeatureSeedScript implements CommandLineRunner {
         return base(code, name, category, sort, null)
                 .learnerVisible(true)
                 .rolloutStatus(PlatformFeature.RolloutStatus.UPCOMING)
+                .liveAt(null)
+                .build();
+    }
+
+    /** Learner catalog entry that stays invisible until Owner sets LIVE (no Upcoming tile). */
+    private PlatformFeature learnerHidden(
+            String code, String name, PlatformFeature.FeatureCategory category, int sort) {
+        return base(code, name, category, sort, null)
+                .learnerVisible(true)
+                .rolloutStatus(PlatformFeature.RolloutStatus.HIDDEN)
                 .liveAt(null)
                 .build();
     }

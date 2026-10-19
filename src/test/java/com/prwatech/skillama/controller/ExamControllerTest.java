@@ -3,6 +3,8 @@ package com.prwatech.skillama.controller;
 import com.prwatech.common.Constants;
 import com.prwatech.skillama.dto.GlobalAiExamCourseDTO;
 import com.prwatech.skillama.dto.StartExamResponseDTO;
+import com.prwatech.skillama.exception.FeatureNotLiveException;
+import com.prwatech.skillama.exception.SkillamaExceptionHandler;
 import com.prwatech.skillama.model.ExamDifficulty;
 import com.prwatech.skillama.model.ExamType;
 import com.prwatech.skillama.model.User;
@@ -26,7 +28,10 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -64,6 +69,7 @@ class ExamControllerTest {
                 adminPermissionService,
                 platformFeatureRolloutService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new SkillamaExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();
     }
@@ -186,5 +192,48 @@ class ExamControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":\"c2\"}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void listCertifications_returns403WhenGlobalCertificationNotLive() throws Exception {
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
+        stubGlobalCertificationBlocked("u1");
+
+        mockMvc.perform(get("/skillama/ai-exam/certifications")
+                        .header(Constants.AUTH, TOKEN))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(FeatureNotLiveException.CODE))
+                .andExpect(jsonPath("$.featureCode").value("global_certification"));
+
+        verify(globalCertificationExamService, never()).listAll(anyBoolean());
+    }
+
+    @Test
+    void startCertificationExam_returns403WhenGlobalCertificationNotLive() throws Exception {
+        when(skillamaAuthSupport.resolveUserIdFromRequest(any())).thenReturn("u1");
+        stubGlobalCertificationBlocked("u1");
+
+        mockMvc.perform(post("/skillama/ai-exam/certifications/start")
+                        .header(Constants.AUTH, TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"certificationId\":\"cert-1\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(FeatureNotLiveException.CODE))
+                .andExpect(jsonPath("$.featureCode").value("global_certification"));
+
+        verify(examService, never()).startCertificationExam(any(), any());
+    }
+
+    /** AI Exam stays allowed; only Global Examination is blocked (two assertAccessible calls). */
+    private void stubGlobalCertificationBlocked(String userId) {
+        doAnswer(invocation -> {
+            String code = invocation.getArgument(0);
+            if (PlatformFeatureRolloutService.GLOBAL_CERTIFICATION.equals(code)) {
+                throw new FeatureNotLiveException(
+                        PlatformFeatureRolloutService.GLOBAL_CERTIFICATION,
+                        "This feature is not available yet. Check back soon.");
+            }
+            return null;
+        }).when(platformFeatureRolloutService).assertAccessible(anyString(), eq(userId));
     }
 }

@@ -54,6 +54,7 @@ public class ExamController {
         if (userId == null) {
             return unauthorized();
         }
+        requireGlobalCertification(userId);
         boolean admin = false;
         try {
             adminPermissionService.requireAdminOrOwner(userId);
@@ -70,6 +71,7 @@ public class ExamController {
         if (userId == null) {
             return unauthorized();
         }
+        requireGlobalCertification(userId);
         try {
             return ResponseEntity.ok(globalCertificationExamService.getById(id));
         } catch (RuntimeException e) {
@@ -192,6 +194,7 @@ public class ExamController {
         if (userId == null) {
             return unauthorized();
         }
+        requireGlobalCertification(userId);
         try {
             return ResponseEntity.ok(examService.startCertificationExam(userId, request));
         } catch (AiBudgetLimitException e) {
@@ -376,6 +379,12 @@ public class ExamController {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /** Global certifications mode — HIDDEN until Owner sets LIVE; staff (ADMIN/OWNER/TESTER) may test. */
+    private void requireGlobalCertification(String userId) {
+        platformFeatureRolloutService.assertAccessible(
+                PlatformFeatureRolloutService.GLOBAL_CERTIFICATION, userId);
     }
 
     private ResponseEntity<Map<String, Object>> unauthorized() {

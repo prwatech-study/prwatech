@@ -82,6 +82,43 @@ class PlatformFeatureRolloutServiceTest {
     }
 
     @Test
+    void assertAccessibleBlocksUserWhenHidden() {
+        PlatformFeature feature = upcomingFeature();
+        feature.setCode(PlatformFeatureRolloutService.GLOBAL_CERTIFICATION);
+        feature.setRolloutStatus(PlatformFeature.RolloutStatus.HIDDEN);
+        when(platformFeatureRepository.findByCode(PlatformFeatureRolloutService.GLOBAL_CERTIFICATION))
+                .thenReturn(Optional.of(feature));
+        User learner = new User();
+        learner.setId("user-1");
+        learner.setRole(User.UserRole.USER);
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(learner));
+
+        FeatureNotLiveException ex = assertThrows(
+                FeatureNotLiveException.class,
+                () -> service.assertAccessible(
+                        PlatformFeatureRolloutService.GLOBAL_CERTIFICATION, "user-1"));
+        assertEquals(PlatformFeatureRolloutService.GLOBAL_CERTIFICATION, ex.getFeatureCode());
+    }
+
+    @Test
+    void assertAccessibleAllowsStaffWhenHidden() {
+        PlatformFeature feature = upcomingFeature();
+        feature.setCode(PlatformFeatureRolloutService.GLOBAL_CERTIFICATION);
+        feature.setRolloutStatus(PlatformFeature.RolloutStatus.HIDDEN);
+        when(platformFeatureRepository.findByCode(PlatformFeatureRolloutService.GLOBAL_CERTIFICATION))
+                .thenReturn(Optional.of(feature));
+        for (User.UserRole role : new User.UserRole[] {
+                User.UserRole.ADMIN, User.UserRole.OWNER, User.UserRole.TESTER
+        }) {
+            User staff = new User();
+            staff.setId("staff-" + role);
+            staff.setRole(role);
+            when(userRepository.findById(staff.getId())).thenReturn(Optional.of(staff));
+            service.assertAccessible(PlatformFeatureRolloutService.GLOBAL_CERTIFICATION, staff.getId());
+        }
+    }
+
+    @Test
     void updateRolloutToLiveSetsLiveAt() {
         PlatformFeature feature = upcomingFeature();
         when(platformFeatureRepository.findByCode("ai_interview")).thenReturn(Optional.of(feature));
