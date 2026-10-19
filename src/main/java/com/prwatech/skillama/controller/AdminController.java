@@ -28,7 +28,9 @@ import com.prwatech.skillama.model.AdminModule;
 import com.prwatech.skillama.model.AdminPermissionAction;
 import com.prwatech.skillama.service.ReviewService;
 import com.prwatech.skillama.service.IssueReportService;
+import com.prwatech.skillama.service.LowCreditMailer;
 import com.prwatech.skillama.model.IssueReport;
+import com.prwatech.skillama.model.LowCreditEmailLog;
 import com.prwatech.skillama.service.SalesLeadService;
 import com.prwatech.skillama.service.LmsThemeService;
 import com.prwatech.skillama.service.UpgradeRequestService;
@@ -69,6 +71,7 @@ public class AdminController {
     private final SalesLeadService salesLeadService;
     private final ReviewService reviewService;
     private final IssueReportService issueReportService;
+    private final LowCreditMailer lowCreditMailer;
     private final PlatformDemoVideoService platformDemoVideoService;
     private final PlatformAiSettingsService platformAiSettingsService;
     private final PlatformFeatureRolloutService platformFeatureRolloutService;
@@ -1977,6 +1980,46 @@ public class AdminController {
             return ResponseEntity.ok(new ApiResponse<>(200, updated));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /** Low-credit recharge emails: who was mailed, and whether delivery succeeded. */
+    @GetMapping("/low-credit-emails")
+    public ResponseEntity<ApiResponse<Page<LowCreditEmailLog>>> listLowCreditEmails(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.SETTINGS_NOTIFICATIONS, AdminPermissionAction.READ);
+            return ResponseEntity.ok(new ApiResponse<>(200, lowCreditMailer.list(status, page, size)));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
+
+    /** Resend a low-credit email from hello@skillama.co.in. */
+    @PostMapping("/low-credit-emails/{id}/resend")
+    public ResponseEntity<ApiResponse<LowCreditEmailLog>> resendLowCreditEmail(
+            @PathVariable String id,
+            HttpServletRequest request) {
+        try {
+            assertModulePermission(request, AdminModule.SETTINGS_NOTIFICATIONS, AdminPermissionAction.UPDATE);
+            LowCreditEmailLog updated = lowCreditMailer.resend(id);
+            adminAuditService.log(
+                    extractUserIdFromRequest(request),
+                    "LOW_CREDIT_EMAIL_RESEND",
+                    "LOW_CREDIT_EMAIL",
+                    id,
+                    "Resent low-credit email to " + updated.getEmail() + " (" + updated.getStatus() + ")",
+                    null);
+            return ResponseEntity.ok(new ApiResponse<>(200, updated));
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, null));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
         }

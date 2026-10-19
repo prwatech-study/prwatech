@@ -3,8 +3,8 @@ package com.prwatech.skillama.service;
 import com.prwatech.common.dto.EmailSendDto;
 import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.util.IndiaTime;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -24,7 +24,6 @@ import java.util.Locale;
  * so that path includes a download link instead of pasting raw VCALENDAR into the body.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class InterviewInviteMailer {
 
@@ -37,11 +36,18 @@ public class InterviewInviteMailer {
     private final JavaMailSender mailSender;
     private final EmailServiceImpl emailService;
 
-    @Value("${prwatech.default.email.id:}")
+    @Value("${skillama.mail.from:hello@skillama.co.in}")
     private String fromAddress;
 
     @Value("${skillama.app.public-url:https://skillama.co.in}")
     private String publicUrl;
+
+    public InterviewInviteMailer(
+            @Qualifier("skillamaMailSender") JavaMailSender mailSender,
+            EmailServiceImpl emailService) {
+        this.mailSender = mailSender;
+        this.emailService = emailService;
+    }
 
     public boolean sendInvite(String email, String token, Instant start, Instant end, String orgName) {
         String link = inviteLink(publicUrl, token);
@@ -127,7 +133,7 @@ public class InterviewInviteMailer {
 
     private boolean trySmtp(String email, String subject, String body, String ics) {
         if (fromAddress == null || fromAddress.isBlank()) {
-            log.warn("SMTP interview invite skipped: prwatech.default.email.id is blank");
+            log.warn("SMTP interview invite skipped: skillama.mail.from is blank");
             return false;
         }
         try {

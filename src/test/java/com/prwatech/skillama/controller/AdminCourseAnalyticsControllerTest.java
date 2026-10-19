@@ -20,6 +20,7 @@ import com.prwatech.skillama.service.ExamService;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.IssueReportService;
 import com.prwatech.skillama.service.LmsThemeService;
+import com.prwatech.skillama.service.LowCreditMailer;
 import com.prwatech.skillama.service.ModuleQuizService;
 import com.prwatech.skillama.service.NotificationSettingsService;
 import com.prwatech.skillama.service.PlatformAiSettingsService;
@@ -77,6 +78,7 @@ class AdminCourseAnalyticsControllerTest {
                 mock(SalesLeadService.class),
                 mock(ReviewService.class),
                 mock(IssueReportService.class),
+                mock(LowCreditMailer.class),
                 mock(PlatformDemoVideoService.class),
                 mock(PlatformAiSettingsService.class),
                 mock(PlatformFeatureRolloutService.class),

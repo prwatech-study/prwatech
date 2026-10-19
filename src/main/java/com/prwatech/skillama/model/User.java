@@ -82,6 +82,12 @@ public class User {
     private Double shareBonusUsd = 0.0;
 
     /**
+     * Wallet limit (USD) we already emailed a low-credit notice for.
+     * A later recharge raises the limit, so the notice can send again.
+     */
+    private Double lowCreditNoticeLimitUsd;
+
+    /**
      * B2B time-based seat: total learning minutes granted to this user (admin-allocated,
      * topped up on request). Null or <= 0 = not a time-based user — the USD credit wallet
      * governs instead. When set, TIME replaces the credit wallet as the platform gate.

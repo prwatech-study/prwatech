@@ -1,8 +1,6 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.common.configuration.PasswordEncode;
-import com.prwatech.common.dto.EmailSendDto;
-import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.dto.OtpVerifyResponseDTO;
 import com.prwatech.skillama.model.EmailOtp;
 import com.prwatech.skillama.repository.EmailOtpRepository;
@@ -27,7 +25,7 @@ public class OtpService {
     private static final int VERIFICATION_TOKEN_EXPIRY_MINUTES = 30;
 
     private final EmailOtpRepository emailOtpRepository;
-    private final EmailServiceImpl emailService;
+    private final SkillamaHtmlMailer mailer;
     private final PasswordEncode passwordEncode;
     private final UserService userService;
     private final UserContactService userContactService;
@@ -39,11 +37,12 @@ public class OtpService {
             purpose = EmailOtp.OtpPurpose.SIGNUP;
         }
 
+        String normalizedEmail = email.trim().toLowerCase();
         String otp = generateOtp();
         String otpHash = passwordEncode.getEncryptedPassword(otp);
 
         EmailOtp record = EmailOtp.builder()
-                .email(email.trim().toLowerCase())
+                .email(normalizedEmail)
                 .otpHash(otpHash)
                 .purpose(purpose)
                 .expiresAt(IndiaTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
@@ -52,10 +51,7 @@ public class OtpService {
         emailOtpRepository.save(record);
 
         try {
-            emailService.sendEmail(new EmailSendDto(
-                    email,
-                    "Skillama verification code",
-                    "Your verification code is: " + otp + "\n\nThis code expires in " + OTP_EXPIRY_MINUTES + " minutes."));
+            mailer.sendVerificationCode(normalizedEmail, otp, OTP_EXPIRY_MINUTES);
         } catch (Exception e) {
             LOGGER.warn("Failed to send OTP email to {}", email);
         }

@@ -1,8 +1,6 @@
 package com.prwatech.skillama.service;
 
 import com.prwatech.common.configuration.PasswordEncode;
-import com.prwatech.common.dto.EmailSendDto;
-import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.dto.OtpVerifyResponseDTO;
 import com.prwatech.skillama.model.EmailOtp;
 import com.prwatech.skillama.repository.EmailOtpRepository;
@@ -27,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -37,7 +36,7 @@ import static org.mockito.Mockito.when;
 class OtpServiceTest {
 
     @Mock private EmailOtpRepository emailOtpRepository;
-    @Mock private EmailServiceImpl emailService;
+    @Mock private SkillamaHtmlMailer mailer;
     @Mock private PasswordEncode passwordEncode;
     @Mock private UserService userService;
     @Mock private UserContactService userContactService;
@@ -46,7 +45,7 @@ class OtpServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new OtpService(emailOtpRepository, emailService, passwordEncode,
+        service = new OtpService(emailOtpRepository, mailer, passwordEncode,
                 userService, userContactService);
         when(emailOtpRepository.save(any(EmailOtp.class))).thenAnswer(inv -> inv.getArgument(0));
         when(passwordEncode.getEncryptedPassword(anyString())).thenReturn("otp-hash");
@@ -75,12 +74,13 @@ class OtpServiceTest {
         assertEquals("user@x.com", captor.getValue().getEmail()); // normalized (trim + lowercase)
         assertEquals("otp-hash", captor.getValue().getOtpHash()); // stored hashed, not raw
         assertEquals(EmailOtp.OtpPurpose.LOGIN, captor.getValue().getPurpose());
-        verify(emailService).sendEmail(any(EmailSendDto.class));
+        verify(mailer).sendVerificationCode(eq("user@x.com"), anyString(), eq(10));
     }
 
     @Test
     void sendOtpSucceedsEvenIfEmailFails() {
-        doThrow(new RuntimeException("smtp")).when(emailService).sendEmail(any(EmailSendDto.class));
+        doThrow(new RuntimeException("smtp")).when(mailer)
+                .sendVerificationCode(anyString(), anyString(), eq(10));
         service.sendOtp("u@x.com", null); // purpose null → defaults to SIGNUP, must not throw
         verify(emailOtpRepository).save(any(EmailOtp.class));
     }
@@ -92,12 +92,12 @@ class OtpServiceTest {
         appender.start();
         logger.addAppender(appender);
         try {
-            doThrow(new RuntimeException("smtp")).when(emailService).sendEmail(any(EmailSendDto.class));
+            doThrow(new RuntimeException("smtp")).when(mailer)
+                    .sendVerificationCode(anyString(), anyString(), eq(10));
             service.sendOtp("u@x.com", EmailOtp.OtpPurpose.SIGNUP);
-            ArgumentCaptor<EmailSendDto> emailCaptor = ArgumentCaptor.forClass(EmailSendDto.class);
-            verify(emailService).sendEmail(emailCaptor.capture());
-            String emailedBody = emailCaptor.getValue().getMessage();
-            String otp = emailedBody.replaceAll("(?s).*verification code is: (\\d+).*", "$1");
+            ArgumentCaptor<String> otpCaptor = ArgumentCaptor.forClass(String.class);
+            verify(mailer).sendVerificationCode(eq("u@x.com"), otpCaptor.capture(), eq(10));
+            String otp = otpCaptor.getValue();
             org.junit.jupiter.api.Assertions.assertTrue(otp.matches("\\d{6}"));
             for (ILoggingEvent event : appender.list) {
                 String message = event.getFormattedMessage();

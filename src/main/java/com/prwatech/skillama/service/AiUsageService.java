@@ -125,6 +125,7 @@ public class AiUsageService {
     private final ObjectMapper objectMapper;
     private final UsdInrExchangeRateService usdInrExchangeRateService;
     private final TimeWalletService timeWalletService;
+    private final LowCreditMailer lowCreditMailer;
 
     @Value("${skillama.ai-usage.internal-api-key:}")
     private String internalApiKey;
@@ -363,13 +364,39 @@ public class AiUsageService {
             if (user != null) {
                 ensureUsageAnchor(user);
                 double used = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
-                user.setAiCostUsdThisPeriod(round(used + billedUsd));
+                double nextUsed = round(used + billedUsd);
+                user.setAiCostUsdThisPeriod(nextUsed);
+                stampLowCreditNotice(user, nextUsed);
                 user.setUpdatedAt(IndiaTime.now());
                 userRepository.save(user);
             }
         }
 
         return event;
+    }
+
+    /**
+     * Marks the wallet ceiling once usage crosses 75%, then emails the learner.
+     * Called before the usage save so the marker and the new balance persist together.
+     */
+    private void stampLowCreditNotice(User user, double usedUsd) {
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            return;
+        }
+        if (timeWalletService.isTimeWalletActive(user) || isUnlimitedForBudget(user)) {
+            return;
+        }
+        double limitUsd = resolveBudgetLimitUsd(user, loadSettings());
+        if (!LowCreditNotice.shouldNotify(usedUsd, limitUsd, user.getLowCreditNoticeLimitUsd())) {
+            return;
+        }
+        user.setLowCreditNoticeLimitUsd(limitUsd);
+        double remainingCredits = usdToCredits(Math.max(0, limitUsd - usedUsd));
+        lowCreditMailer.send(
+                user.getId(),
+                user.getEmail(),
+                user.getName(),
+                LowCreditNotice.formatCredits(remainingCredits));
     }
 
     public void assertWithinBudget(User user) {

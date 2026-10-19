@@ -39,6 +39,7 @@ class AiUsageServiceTimeGateTest {
     @Mock private PlatformEfficiencyAssumptionsRepository platformEfficiencyAssumptionsRepository;
     @Mock private SkillamaUserRepository userRepository;
     @Mock private UsdInrExchangeRateService usdInrExchangeRateService;
+    @Mock private LowCreditMailer lowCreditMailer;
     @Mock private TimeWalletAdjustmentEventRepository timeWalletAdjustmentEventRepository;
     @Mock private com.prwatech.skillama.repository.TimeConsumptionEventRepository timeConsumptionEventRepository;
 
@@ -50,7 +51,8 @@ class AiUsageServiceTimeGateTest {
                 userRepository, timeWalletAdjustmentEventRepository, timeConsumptionEventRepository);
         service = new AiUsageService(aiUsageEventRepository, platformAiSettingsRepository,
                 platformEfficiencyAssumptionsRepository,
-                userRepository, new ObjectMapper(), usdInrExchangeRateService, timeWalletService);
+                userRepository, new ObjectMapper(), usdInrExchangeRateService, timeWalletService,
+                lowCreditMailer);
 
         PlatformAiSettings settings = new PlatformAiSettings();
         settings.setAiUsageTrackingEnabled(true);

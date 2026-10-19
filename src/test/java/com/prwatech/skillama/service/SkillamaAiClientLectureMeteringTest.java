@@ -49,6 +49,7 @@ class SkillamaAiClientLectureMeteringTest {
     @Mock private SkillamaUserRepository userRepository;
     @Mock private UsdInrExchangeRateService usdInrExchangeRateService;
     @Mock private TimeWalletService timeWalletService;
+    @Mock private LowCreditMailer lowCreditMailer;
     @Mock private RestTemplate restTemplate;
 
     private AiUsageService aiUsageService;
@@ -60,7 +61,8 @@ class SkillamaAiClientLectureMeteringTest {
 
         aiUsageService = new AiUsageService(aiUsageEventRepository, platformAiSettingsRepository,
                 platformEfficiencyAssumptionsRepository,
-                userRepository, objectMapper, usdInrExchangeRateService, timeWalletService);
+                userRepository, objectMapper, usdInrExchangeRateService, timeWalletService,
+                lowCreditMailer);
         aiUsageService.loadRateCard();
         when(usdInrExchangeRateService.getUsdToInrRate()).thenReturn(83.0);
 
