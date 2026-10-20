@@ -59,7 +59,8 @@ class DoubtServiceTest {
         when(doubtRepository.save(any(Doubt.class))).thenAnswer(inv -> inv.getArgument(0));
         when(skillamaAiClient.answerQuery(
                         any(User.class), eq("ai_mentor_ask"), eq("course-1"),
-                        eq("What is a DataFrame?"), anyString(), anyString(), anyList(), isNull()))
+                        eq("What is a DataFrame?"), anyString(), anyString(), anyList(), isNull(),
+                        eq("en"), isNull(), isNull()))
                 .thenReturn(AiQueryReplyDTO.builder()
                         .responseText("A DataFrame is a 2D labeled data structure.")
                         .audioUrl("https://cdn.example.com/answer-1.mp3")
@@ -83,6 +84,31 @@ class DoubtServiceTest {
         request.setCourseId("course-1");
 
         assertThrows(IllegalArgumentException.class, () -> doubtService.askDoubt("user-1", request));
+    }
+
+    @Test
+    void askDoubt_withImage_forwardsBase64AndMarksMessage() {
+        AskDoubtRequestDTO request = new AskDoubtRequestDTO();
+        request.setCourseId("course-1");
+        request.setQuestion("What is wrong in this diagram?");
+        request.setImageBase64("YWJjZGVm"); // "abcdef"
+        request.setImageContentType("image/png");
+
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(existingUser("user-1")));
+        when(doubtRepository.save(any(Doubt.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(skillamaAiClient.answerQuery(
+                        any(User.class), eq("ai_mentor_ask"), eq("course-1"),
+                        eq("What is wrong in this diagram?"), anyString(), anyString(), anyList(), isNull(),
+                        eq("en"), eq("YWJjZGVm"), eq("image/png")))
+                .thenReturn(AiQueryReplyDTO.builder()
+                        .responseText("The loop condition is inverted.")
+                        .build());
+
+        DoubtResponseDTO response = doubtService.askDoubt("user-1", request);
+
+        assertTrue(Boolean.TRUE.equals(response.getMessages().get(0).getHasImage()));
+        assertTrue(response.getMessages().get(0).getContent().contains("[Image attached]"));
+        assertEquals("The loop condition is inverted.", response.getMessages().get(1).getContent());
     }
 
     @Test

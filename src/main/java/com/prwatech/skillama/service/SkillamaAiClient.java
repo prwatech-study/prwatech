@@ -800,7 +800,9 @@ public class SkillamaAiClient {
      * <p><b>ai-tutor (Flask) contract — POST {aiBaseUrl}/handle_query</b>
      * <pre>
      * Request JSON:  { "query": String, "topic": String, "course": String,
-     *                  "prev_topic_list": [String], "last_ai_reply": String (optional) }
+     *                  "prev_topic_list": [String], "last_ai_reply": String (optional),
+     *                  "preferred_language": String (optional),
+     *                  "image_base64": String (optional), "image_content_type": String (optional) }
      * Response JSON: { "response_text": String, "audio_url": String, "subtitle_path": String,
      *                  "usage": { "inputTokens": int, "outputTokens": int, "totalTokens": int },
      *                  "error": String  // optional; present on failure
@@ -810,22 +812,31 @@ public class SkillamaAiClient {
     public AiQueryReplyDTO answerQuery(
             User user, String endpoint, String courseId,
             String query, String topic, String course, List<String> prevTopicList, String lastAiReply) {
-        return answerQuery(user, endpoint, courseId, query, topic, course, prevTopicList, lastAiReply, "en");
+        return answerQuery(user, endpoint, courseId, query, topic, course, prevTopicList, lastAiReply, "en", null, null);
     }
 
     public AiQueryReplyDTO answerQuery(
             User user, String endpoint, String courseId,
             String query, String topic, String course, List<String> prevTopicList, String lastAiReply,
             String preferredLanguage) {
+        return answerQuery(user, endpoint, courseId, query, topic, course, prevTopicList, lastAiReply,
+                preferredLanguage, null, null);
+    }
+
+    public AiQueryReplyDTO answerQuery(
+            User user, String endpoint, String courseId,
+            String query, String topic, String course, List<String> prevTopicList, String lastAiReply,
+            String preferredLanguage, String imageBase64, String imageContentType) {
         AiQueryReplyDTO result = meteredCall(user, endpoint, courseId,
-                () -> answerQueryRaw(query, topic, course, prevTopicList, lastAiReply, preferredLanguage));
+                () -> answerQueryRaw(query, topic, course, prevTopicList, lastAiReply, preferredLanguage,
+                        imageBase64, imageContentType));
         aiUsageService.recordSpeechUsage(user, courseId, result.getResponseText());
         return result;
     }
 
     private AiQueryReplyDTO answerQueryRaw(
             String query, String topic, String course, List<String> prevTopicList, String lastAiReply,
-            String preferredLanguage) {
+            String preferredLanguage, String imageBase64, String imageContentType) {
         String url = resolveBaseUrl() + "/handle_query";
 
         Map<String, Object> body = new HashMap<>();
@@ -838,6 +849,13 @@ public class SkillamaAiClient {
         }
         if (preferredLanguage != null && !preferredLanguage.isBlank()) {
             body.put("preferred_language", preferredLanguage.trim().toLowerCase());
+        }
+        if (imageBase64 != null && !imageBase64.isBlank()) {
+            body.put("image_base64", stripDataUrlPrefix(imageBase64.trim()));
+            body.put("image_content_type",
+                    imageContentType != null && !imageContentType.isBlank()
+                            ? imageContentType.trim().toLowerCase().split(";")[0].trim()
+                            : "image/jpeg");
         }
 
         HttpHeaders headers = buildHeaders();
@@ -877,6 +895,19 @@ public class SkillamaAiClient {
         } catch (Exception e) {
             throw new IllegalStateException("Failed to parse AI query service response", e);
         }
+    }
+
+    /** Strip {@code data:image/...;base64,} prefix if the client sent a data URL. */
+    static String stripDataUrlPrefix(String imageBase64) {
+        if (imageBase64 == null) {
+            return null;
+        }
+        String raw = imageBase64.trim();
+        int comma = raw.indexOf(',');
+        if (comma > 0 && raw.regionMatches(true, 0, "data:", 0, 5)) {
+            return raw.substring(comma + 1);
+        }
+        return raw;
     }
 
     private ExamDifficulty parseDifficulty(String text) {

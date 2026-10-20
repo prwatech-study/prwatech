@@ -44,8 +44,10 @@ public class PlatformFeatureRolloutService {
             AI_MOCK_INTERVIEW,
             LEARNER_ANALYTICS);
 
-    /** Empty — interview tools ship LIVE by default (Owner can still set UPCOMING/HIDDEN). */
-    private static final Set<String> INITIAL_UPCOMING = Set.of();
+    /** Interview tools stay UPCOMING until Owner activates LIVE after team testing. */
+    private static final Set<String> INITIAL_UPCOMING = Set.of(
+            AI_INTERVIEW,
+            AI_MOCK_INTERVIEW);
 
     private final PlatformFeatureRepository platformFeatureRepository;
     private final SkillamaUserRepository userRepository;

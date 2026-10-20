@@ -59,6 +59,9 @@ public class Doubt {
         private Sender sender;
         private String content;
 
+        /** True when the learner attached an image (bytes are not stored). */
+        private Boolean hasImage;
+
         /** AI's spoken answer audio URL — null for user messages and text-only answers. */
         private String audioUrl;
 

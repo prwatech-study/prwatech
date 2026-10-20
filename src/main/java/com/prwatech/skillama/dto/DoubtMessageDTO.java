@@ -17,6 +17,8 @@ public class DoubtMessageDTO {
     private String id;
     private String sender;
     private String content;
+    /** True when the learner attached an image with this message (bytes are not returned). */
+    private Boolean hasImage;
     /** True when an audio answer exists — fetch it via the message audio endpoint, never a raw URL. */
     private Boolean hasAudio;
     private String nudgeType;

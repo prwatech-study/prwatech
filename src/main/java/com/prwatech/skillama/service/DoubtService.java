@@ -41,6 +41,10 @@ import java.util.stream.Collectors;
 public class DoubtService {
 
     private static final String DEFAULT_COURSE_NAME = "Python";
+    /** Decoded image size cap (~3.5 MiB) — matches ai-tutor mentor_vision.MAX_IMAGE_BYTES. */
+    private static final int MAX_IMAGE_BASE64_CHARS = 5_000_000;
+    private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of(
+            "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp");
 
     private final DoubtRepository doubtRepository;
     private final SkillamaUserRepository userRepository;
@@ -50,11 +54,23 @@ public class DoubtService {
 
     @Transactional
     public DoubtResponseDTO askDoubt(String userId, AskDoubtRequestDTO request) {
-        if (request == null || request.getQuestion() == null || request.getQuestion().isBlank()) {
-            throw new IllegalArgumentException("question is required");
+        if (request == null) {
+            throw new IllegalArgumentException("request is required");
         }
         if (request.getCourseId() == null || request.getCourseId().isBlank()) {
             throw new IllegalArgumentException("courseId is required");
+        }
+
+        String imageBase64 = normalizeImageBase64(request.getImageBase64());
+        String imageContentType = normalizeImageContentType(request.getImageContentType(), imageBase64 != null);
+        boolean hasImage = imageBase64 != null;
+
+        String rawQuestion = request.getQuestion() != null ? request.getQuestion().trim() : "";
+        if (rawQuestion.isBlank() && !hasImage) {
+            throw new IllegalArgumentException("question is required");
+        }
+        if (rawQuestion.isBlank()) {
+            rawQuestion = "Please explain what is shown in this image.";
         }
 
         User user = userRepository.findById(userId)
@@ -63,18 +79,23 @@ public class DoubtService {
         String courseName = courseRepository.findById(request.getCourseId())
                 .map(Course::getName)
                 .orElse(DEFAULT_COURSE_NAME);
-        String question = PiiRedactor.redact(request.getQuestion());
+        String question = PiiRedactor.redact(rawQuestion);
+        String persistedContent = hasImage
+                ? (question + "\n\n[Image attached]").trim()
+                : question;
 
         AiQueryReplyDTO reply = skillamaAiClient.answerQuery(
                 user, "ai_mentor_ask", request.getCourseId(),
-                question, "General " + courseName, courseName, List.of(), null);
+                question, "General " + courseName, courseName, List.of(), null,
+                "en", imageBase64, imageContentType);
 
         var now = IndiaTime.now();
         List<Doubt.DoubtMessage> messages = new ArrayList<>();
         messages.add(Doubt.DoubtMessage.builder()
                 .id(UUID.randomUUID().toString())
                 .sender(Doubt.Sender.USER)
-                .content(question)
+                .content(persistedContent)
+                .hasImage(hasImage ? Boolean.TRUE : null)
                 .timestamp(now)
                 .build());
         String answer = PiiRedactor.redact(reply.getResponseText() != null ? reply.getResponseText() : "");
@@ -100,6 +121,34 @@ public class DoubtService {
                 .build();
         doubtRepository.save(doubt);
         return toResponseDto(doubt);
+    }
+
+    private static String normalizeImageBase64(String imageBase64) {
+        if (imageBase64 == null || imageBase64.isBlank()) {
+            return null;
+        }
+        String stripped = SkillamaAiClient.stripDataUrlPrefix(imageBase64);
+        if (stripped == null || stripped.isBlank()) {
+            return null;
+        }
+        if (stripped.length() > MAX_IMAGE_BASE64_CHARS) {
+            throw new IllegalArgumentException("Image is too large (max ~3.5 MB)");
+        }
+        return stripped;
+    }
+
+    private static String normalizeImageContentType(String contentType, boolean requireType) {
+        if (contentType == null || contentType.isBlank()) {
+            if (requireType) {
+                throw new IllegalArgumentException("imageContentType is required when attaching an image");
+            }
+            return null;
+        }
+        String normalized = contentType.trim().toLowerCase().split(";")[0].trim();
+        if (!ALLOWED_IMAGE_TYPES.contains(normalized)) {
+            throw new IllegalArgumentException("Unsupported image type. Use JPEG, PNG, GIF, or WebP.");
+        }
+        return "image/jpg".equals(normalized) ? "image/jpeg" : normalized;
     }
 
     @Transactional
@@ -330,6 +379,7 @@ public class DoubtService {
                                 .id(m.getId())
                                 .sender(m.getSender() != null ? m.getSender().name() : null)
                                 .content(m.getContent())
+                                .hasImage(Boolean.TRUE.equals(m.getHasImage()) ? Boolean.TRUE : null)
                                 .hasAudio(m.getAudioUrl() != null && !m.getAudioUrl().isBlank())
                                 .nudgeType(m.getNudgeType())
                                 .helpful(m.getHelpful())
