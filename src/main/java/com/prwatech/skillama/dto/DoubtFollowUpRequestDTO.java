@@ -17,4 +17,7 @@ public class DoubtFollowUpRequestDTO {
     private String nudgeType;
     private String question;
     private String query;
+
+    /** Optional learner locale: {@code en} | {@code hi}. */
+    private String preferredLanguage;
 }

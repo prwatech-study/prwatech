@@ -104,7 +104,8 @@ public class AiUtilityController {
         try {
             User user = optionalLearner(httpRequest);
             assertMediaBudget(user);
-            var dto = skillamaAiClient.textToAudio(request.getText());
+            var dto = skillamaAiClient.textToAudio(
+                    request.getText(), request.getPreferredLanguage());
             aiUsageService.recordSpeechUsage(user, null, request.getText());
             return ResponseEntity.ok(dto);
         } catch (SkillamaAuthException e) {
@@ -143,12 +144,14 @@ public class AiUtilityController {
     @PostMapping("/confirmation")
     public ResponseEntity<?> confirmation(
             @RequestParam("audio") MultipartFile audio,
+            @RequestParam(value = "preferred_language", required = false) String preferredLanguage,
             HttpServletRequest httpRequest) {
         try {
             User user = optionalLearner(httpRequest);
             assertMediaBudget(user);
             ConfirmationResponseDTO dto =
-                    skillamaAiClient.confirmAgreement(audio.getBytes(), audio.getOriginalFilename());
+                    skillamaAiClient.confirmAgreement(
+                            audio.getBytes(), audio.getOriginalFilename(), preferredLanguage);
             aiUsageService.recordTranscribeUsage(user, null, dto.getAudioSeconds());
             if (dto.getPollyCharacters() != null && dto.getPollyCharacters() > 0) {
                 aiUsageService.recordSpeechUsage(user, null, dto.getPollyCharacters());
@@ -168,12 +171,14 @@ public class AiUtilityController {
     @PostMapping("/get-user-name")
     public ResponseEntity<?> getUserName(
             @RequestParam("audio") MultipartFile audio,
+            @RequestParam(value = "preferred_language", required = false) String preferredLanguage,
             HttpServletRequest httpRequest) {
         try {
             User user = optionalLearner(httpRequest);
             assertMediaBudget(user);
             UserNameResponseDTO dto =
-                    skillamaAiClient.extractUserName(audio.getBytes(), audio.getOriginalFilename());
+                    skillamaAiClient.extractUserName(
+                            audio.getBytes(), audio.getOriginalFilename(), preferredLanguage);
             aiUsageService.recordTranscribeUsage(user, null, dto.getAudioSeconds());
             if (dto.getPollyCharacters() != null && dto.getPollyCharacters() > 0) {
                 aiUsageService.recordSpeechUsage(user, null, dto.getPollyCharacters());

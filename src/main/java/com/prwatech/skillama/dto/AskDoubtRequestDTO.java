@@ -18,4 +18,7 @@ public class AskDoubtRequestDTO {
 
     /** e.g. {@code image/png}, {@code image/jpeg}, {@code image/webp}. Required when imageBase64 is set. */
     private String imageContentType;
+
+    /** Optional learner locale: {@code en} | {@code hi} (Hindi tutor replies + Polly). */
+    private String preferredLanguage;
 }

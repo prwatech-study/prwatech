@@ -84,10 +84,11 @@ public class DoubtService {
                 ? (question + "\n\n[Image attached]").trim()
                 : question;
 
+        String preferredLanguage = normalizePreferredLanguage(request.getPreferredLanguage());
         AiQueryReplyDTO reply = skillamaAiClient.answerQuery(
                 user, "ai_mentor_ask", request.getCourseId(),
                 question, "General " + courseName, courseName, List.of(), null,
-                "en", imageBase64, imageContentType);
+                preferredLanguage, imageBase64, imageContentType);
 
         var now = IndiaTime.now();
         List<Doubt.DoubtMessage> messages = new ArrayList<>();
@@ -173,9 +174,11 @@ public class DoubtService {
                 ? request.getQuery()
                 : userContent;
 
+        String preferredLanguage = normalizePreferredLanguage(request.getPreferredLanguage());
         AiQueryReplyDTO reply = skillamaAiClient.answerQuery(
                 user, "ai_mentor_follow_up", doubt.getCourseId(),
-                queryText, "General " + courseName, courseName, List.of(), null);
+                queryText, "General " + courseName, courseName, List.of(), null,
+                preferredLanguage);
 
         var now = IndiaTime.now();
         doubt.getMessages().add(Doubt.DoubtMessage.builder()
@@ -397,5 +400,13 @@ public class DoubtService {
                 .updatedAt(doubt.getUpdatedAt())
                 .resolvedAt(doubt.getResolvedAt())
                 .build();
+    }
+
+    /** Normalize LMS locale to Flask {@code preferred_language} ({@code en}|{@code hi}). */
+    private static String normalizePreferredLanguage(String preferredLanguage) {
+        if (preferredLanguage != null && preferredLanguage.trim().toLowerCase().startsWith("hi")) {
+            return "hi";
+        }
+        return "en";
     }
 }

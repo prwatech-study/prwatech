@@ -1441,9 +1441,16 @@ public class SkillamaAiClient {
      * </pre>
      */
     public TextToAudioResponseDTO textToAudio(String text) {
+        return textToAudio(text, null);
+    }
+
+    public TextToAudioResponseDTO textToAudio(String text, String preferredLanguage) {
         String url = resolveBaseUrl() + "/text_to_audio";
         Map<String, Object> body = new HashMap<>();
         body.put("code", text != null ? text : "");
+        if (preferredLanguage != null && !preferredLanguage.isBlank()) {
+            body.put("preferred_language", preferredLanguage.trim().toLowerCase());
+        }
         JsonNode data = postForJson(url, body, "text-to-audio");
         return TextToAudioResponseDTO.builder()
                 .audioUrl(data.path("audio_url").asText(null))
@@ -1573,9 +1580,16 @@ public class SkillamaAiClient {
      * </pre>
      */
     public ConfirmationResponseDTO confirmAgreement(byte[] audioBytes, String filename) {
+        return confirmAgreement(audioBytes, filename, null);
+    }
+
+    public ConfirmationResponseDTO confirmAgreement(
+            byte[] audioBytes, String filename, String preferredLanguage) {
         String url = resolveBaseUrl() + "/confirmation";
         HttpEntity<MultiValueMap<String, Object>> entity =
-                new HttpEntity<>(audioBody(audioBytes, filename), buildMultipartHeaders());
+                new HttpEntity<>(
+                        audioBody(audioBytes, filename, preferredLanguage),
+                        buildMultipartHeaders());
 
         ResponseEntity<String> response;
         try {
@@ -1621,9 +1635,16 @@ public class SkillamaAiClient {
      * </pre>
      */
     public UserNameResponseDTO extractUserName(byte[] audioBytes, String filename) {
+        return extractUserName(audioBytes, filename, null);
+    }
+
+    public UserNameResponseDTO extractUserName(
+            byte[] audioBytes, String filename, String preferredLanguage) {
         String url = resolveBaseUrl() + "/get_user_name";
         HttpEntity<MultiValueMap<String, Object>> entity =
-                new HttpEntity<>(audioBody(audioBytes, filename), buildMultipartHeaders());
+                new HttpEntity<>(
+                        audioBody(audioBytes, filename, preferredLanguage),
+                        buildMultipartHeaders());
 
         ResponseEntity<String> response;
         try {
