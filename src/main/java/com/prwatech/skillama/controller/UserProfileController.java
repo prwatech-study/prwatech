@@ -41,6 +41,8 @@ public class UserProfileController {
     private final JwtUtils jwtUtils;
     private final SkillamaAuthSupport skillamaAuthSupport;
     private final com.prwatech.skillama.service.AiUsageService aiUsageService;
+    private final com.prwatech.skillama.service.SkillamaCertificateService skillamaCertificateService;
+    private final com.prwatech.skillama.service.LearnerEngagementService learnerEngagementService;
     
     private static final String SESSION_COOKIE_NAME = "skillama_session_id";
     
@@ -515,6 +517,68 @@ public class UserProfileController {
     public ResponseEntity<List<CourseShareHistoryItemDTO>> getCourseShareHistory(HttpServletRequest request) {
         String userId = extractUserIdFromRequest(request);
         return ResponseEntity.ok(courseShareService.getShareHistory(userId));
+    }
+
+    // ========== Learner engagement (memory / streak / locale) ==========
+
+    @GetMapping("/engagement")
+    public ResponseEntity<LearnerEngagementDTO> getEngagement(HttpServletRequest request) {
+        String userId = extractUserIdFromRequest(request);
+        return ResponseEntity.ok(learnerEngagementService.getEngagement(userId));
+    }
+
+    @PutMapping("/engagement")
+    public ResponseEntity<?> updateEngagement(
+            @RequestBody UpdateLearnerEngagementDTO body,
+            HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            return ResponseEntity.ok(learnerEngagementService.updateEngagement(userId, body));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/engagement/activity")
+    public ResponseEntity<?> recordLearningActivity(HttpServletRequest request) {
+        try {
+            String userId = extractUserIdFromRequest(request);
+            return ResponseEntity.ok(learnerEngagementService.recordActivity(userId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    // ========== Certificates ==========
+
+    /**
+     * Certificate metadata for a completed Skillama course (JSON).
+     */
+    @GetMapping("/certificate")
+    public ResponseEntity<com.prwatech.skillama.dto.SkillamaCertificateDetailsDTO> getCertificateDetails(
+            @RequestParam String courseId,
+            HttpServletRequest request) {
+        String userId = extractUserIdFromRequest(request);
+        return ResponseEntity.ok(skillamaCertificateService.getDetails(userId, courseId));
+    }
+
+    /**
+     * Downloadable PDF certificate for a completed Skillama course.
+     */
+    @GetMapping("/certificate/pdf")
+    public ResponseEntity<org.springframework.core.io.ByteArrayResource> downloadCertificatePdf(
+            @RequestParam String courseId,
+            HttpServletRequest request) throws java.io.IOException {
+        String userId = extractUserIdFromRequest(request);
+        java.io.ByteArrayInputStream pdfStream =
+                skillamaCertificateService.generatePdf(userId, courseId);
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.add("Content-Disposition", "inline; filename=skillama-certificate.pdf");
+        return ResponseEntity.ok()
+                .headers(headers)
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .body(new org.springframework.core.io.ByteArrayResource(
+                        org.apache.commons.io.IOUtils.toByteArray(pdfStream)));
     }
 
     // ========== Helper Methods ==========

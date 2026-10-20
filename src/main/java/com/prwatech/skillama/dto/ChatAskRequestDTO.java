@@ -17,4 +17,8 @@ public class ChatAskRequestDTO {
     /** "text" (default) or "audio" — the learner's original input modality, for analytics;
      *  the AI call itself is always text-based (see SkillamaAiClient#answerQuery). */
     private String questionType;
+    /** Optional client-side learner memory summary (pace, weak topics, facts). */
+    private String learnerContext;
+    /** "explain" (default) or "socratic" — teaching style hint from the LMS chat toggle. */
+    private String tutorMode;
 }

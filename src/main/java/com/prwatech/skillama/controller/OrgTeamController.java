@@ -36,6 +36,21 @@ public class OrgTeamController {
     private final SkillamaAuthSupport skillamaAuthSupport;
     private final TenantSecurityService tenantSecurityService;
     private final OrgPermissionService orgPermissionService;
+    private final com.prwatech.skillama.service.OrgManagerDigestService orgManagerDigestService;
+
+    /** Preview weekly manager digest (team heatmap summary) for the current actor. */
+    @GetMapping("/digest/preview")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> digestPreview(
+            HttpServletRequest request) {
+        try {
+            User actor = requireTeamAnalyticsActor(request);
+            return ResponseEntity.ok(new ApiResponse<>(200, orgManagerDigestService.buildDigest(actor)));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiResponse<>(403, null));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse<>(401, null));
+        }
+    }
 
     @GetMapping("/progress")
     public ResponseEntity<ApiResponse<TeamProgressSummaryDTO>> teamProgress(HttpServletRequest request) {

@@ -58,7 +58,22 @@ public enum NotificationEventType {
             "Organization contract alert",
             "Contract expiry, grace period, or suspension notices for corporate accounts.",
             NotificationAudience.TEAM,
-            NotificationCategory.SALES);
+            NotificationCategory.SALES),
+    LEARNING_STREAK_REMINDER(
+            "Learning streak reminder",
+            "Daily email when a learner is at risk of losing their streak.",
+            NotificationAudience.LEARNER,
+            NotificationCategory.GENERAL),
+    LEARNING_STREAK_LOST(
+            "Learning streak lost",
+            "Email when a learner's daily streak has ended.",
+            NotificationAudience.LEARNER,
+            NotificationCategory.GENERAL),
+    ORG_MANAGER_DIGEST(
+            "Manager weekly digest",
+            "Weekly team progress digest for org managers / admins / owners.",
+            NotificationAudience.LEARNER,
+            NotificationCategory.OPERATIONS);
 
     private final String label;
     private final String description;

@@ -62,26 +62,30 @@ public class CodeAssistService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-        String courseName = request.getCourseId() != null
-                ? courseRepository.findById(request.getCourseId()).map(Course::getName).orElse("Python")
-                : "Python";
+        Course courseEntity = request.getCourseId() != null
+                ? courseRepository.findById(request.getCourseId()).orElse(null)
+                : null;
+        String courseName = courseEntity != null && courseEntity.getAiCourseName() != null
+                && !courseEntity.getAiCourseName().isBlank()
+                ? courseEntity.getAiCourseName()
+                : (courseEntity != null && courseEntity.getName() != null
+                        ? courseEntity.getName()
+                        : "Python");
 
         String endpoint = feature == CodeAssistFeature.DEBUG ? "debug_assist" : "code_execution_assist";
 
-        // Python courses: actually run the code in the sandbox and hand ai-tutor the real
-        // result instead of letting it hallucinate one. Every other language is untouched —
-        // there's no sandbox for them yet, so they keep today's AI-simulated behavior exactly
-        // as before.
+        // Prefer Course.codeOutputMode=compiler; fall back to name heuristic for legacy docs.
+        // Real sandbox output is handed to ai-tutor so explanations stay grounded.
         String realOutput = null;
         String realError = null;
         String datasetFilename = null;
         List<String> datasetColumns = List.of();
         // True whenever we got a real verdict back from the sandbox — success, a rejected
         // (blocked) run, or a genuine execution error all count, since all three are real
-        // signals rather than an ai-tutor guess. Only false for non-Python courses and for
+        // signals rather than an ai-tutor guess. Only false for non-compiler courses and for
         // the exception-fallback case below, where nothing real was ever obtained.
         boolean sandboxVerified = false;
-        if (isPythonCourse(courseName)) {
+        if (usesRealCompiler(courseEntity, courseName)) {
             try {
                 SandboxRunResult run = resolveSandboxResult(userId, request);
                 sandboxVerified = true;
@@ -153,11 +157,23 @@ public class CodeAssistService {
                 .build();
     }
 
-    /** Same free-text course-name heuristic ai-tutor's own prompt already relies on ({@code "You
-     * are a {course} interpreter"}) — there is no structured language field on Course, only this
-     * display name. */
-    private boolean isPythonCourse(String courseName) {
-        return courseName != null && courseName.toLowerCase().contains("python");
+    /**
+     * Real Python sandbox when {@code codeOutputMode=compiler}, or legacy name heuristic
+     * (course name contains "python" / data science) when the field is unset/ai.
+     */
+    private boolean usesRealCompiler(Course course, String courseName) {
+        if (course != null && course.getCodeOutputMode() != null) {
+            String mode = course.getCodeOutputMode().trim().toLowerCase();
+            if ("compiler".equals(mode)) return true;
+            if ("ai".equals(mode)) return false;
+        }
+        return isPythonCourseName(courseName);
+    }
+
+    private boolean isPythonCourseName(String courseName) {
+        if (courseName == null) return false;
+        String n = courseName.toLowerCase();
+        return n.contains("python") || n.contains("data science") || n.contains("data-science");
     }
 
     /**

@@ -76,8 +76,12 @@ class CodeAssistServiceTest {
     void runDebug_persistsInteractionAndRecordsUsage_hidesRawAudioUrl() {
         when(userRepository.findById("user-1")).thenReturn(Optional.of(existingUser("user-1")));
         when(courseRepository.findById("course-1"))
-                .thenReturn(Optional.of(Course.builder().id("course-1").name("Python Basics").build()));
-        // "Python Basics" matches the Python-course real-execution path; sandbox integration
+                .thenReturn(Optional.of(Course.builder()
+                        .id("course-1")
+                        .name("Python Basics")
+                        .codeOutputMode("compiler")
+                        .build()));
+        // codeOutputMode=compiler takes the real-execution path; sandbox integration
         // itself isn't under test here, so simulate it being unavailable — CodeAssistService
         // degrades gracefully and calls ai-tutor with no real_output/real_error, same as before.
         when(practicalSandboxService.executeAdHoc(anyString()))

@@ -65,6 +65,14 @@ public class Course {
     private String detailAiTutorHelp;
     /** SHA-256 of the public curriculum outline used to generate the stored copy. */
     private String detailCurriculumHash;
+    /**
+     * How Code / Debug tabs produce output for this course.
+     * {@code compiler} = real Python sandbox; {@code ai} = AI-simulated (default).
+     */
+    @Builder.Default
+    private String codeOutputMode = "ai";
+    /** Optional AI Tutor course label when it must differ from the display {@link #name}. */
+    private String aiCourseName;
     /** When set, course is hidden from learners and admins; only Owner can restore. */
     private java.time.LocalDateTime deletedAt;
     private String deletedBy;

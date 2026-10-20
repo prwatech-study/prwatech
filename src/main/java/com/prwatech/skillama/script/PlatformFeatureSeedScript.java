@@ -38,11 +38,39 @@ public class PlatformFeatureSeedScript implements CommandLineRunner {
         if (backfilled > 0) {
             LOGGER.info("Backfilled rollout fields on {} platform_features", backfilled);
         }
+
+        int promoted = promoteInterviewToolsLive();
+        if (promoted > 0) {
+            LOGGER.info("Promoted {} interview platform_features to LIVE", promoted);
+        }
+    }
+
+    /** GA: flip seeded UPCOMING interview tools to LIVE (Owner may still hide later). */
+    private int promoteInterviewToolsLive() {
+        LocalDateTime agedLiveAt = IndiaTime.now().minusDays(PlatformFeatureRolloutService.NEW_BADGE_DAYS + 1);
+        int updated = 0;
+        for (String code : List.of(
+                PlatformFeatureRolloutService.AI_INTERVIEW,
+                PlatformFeatureRolloutService.AI_MOCK_INTERVIEW)) {
+            var opt = platformFeatureRepository.findByCode(code);
+            if (opt.isEmpty()) continue;
+            PlatformFeature f = opt.get();
+            if (f.getRolloutStatus() == PlatformFeature.RolloutStatus.UPCOMING) {
+                f.setRolloutStatus(PlatformFeature.RolloutStatus.LIVE);
+                if (f.getLiveAt() == null) {
+                    f.setLiveAt(agedLiveAt);
+                }
+                f.setLearnerVisible(true);
+                platformFeatureRepository.save(f);
+                updated++;
+            }
+        }
+        return updated;
     }
 
     /**
      * One-time defaults for docs created before rolloutStatus existed.
-     * Interview tools → UPCOMING; other learner tools → LIVE with aged liveAt; rest → LIVE.
+     * Missing status → LIVE (interview tools were historically UPCOMING; promoteInterviewToolsLive handles GA).
      */
     private int backfillRolloutFields() {
         LocalDateTime agedLiveAt = IndiaTime.now().minusDays(PlatformFeatureRolloutService.NEW_BADGE_DAYS + 1);
@@ -96,8 +124,8 @@ public class PlatformFeatureSeedScript implements CommandLineRunner {
                         "Global certifications",
                         PlatformFeature.FeatureCategory.LMS,
                         52),
-                learnerUpcoming("ai_interview", "AI Interview", PlatformFeature.FeatureCategory.LMS, 55),
-                learnerUpcoming("ai_mock_interview", "AI Mock Interview", PlatformFeature.FeatureCategory.LMS, 56),
+                learnerLive("ai_interview", "AI Interview", PlatformFeature.FeatureCategory.LMS, 55, null, agedLiveAt),
+                learnerLive("ai_mock_interview", "AI Mock Interview", PlatformFeature.FeatureCategory.LMS, 56, null, agedLiveAt),
                 feature("module_quiz", "Module Quizzes", PlatformFeature.FeatureCategory.LMS, 60, null, agedLiveAt),
                 feature("study_materials", "Study Materials", PlatformFeature.FeatureCategory.LMS, 70, null, agedLiveAt),
                 learnerLive(

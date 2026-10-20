@@ -48,6 +48,15 @@ public class AdminAuditService {
     public static final String MODULE_QUIZ_MONITOR_VIEW = "MODULE_QUIZ_MONITOR_VIEW";
     public static final String CODE_ASSIST_MONITOR_VIEW = "CODE_ASSIST_MONITOR_VIEW";
 
+    // Learner engagement (auditable proof of preference / habit / memory changes)
+    public static final String LEARNER_MEMORY_UPDATE = "LEARNER_MEMORY_UPDATE";
+    public static final String LEARNER_LOCALE_UPDATE = "LEARNER_LOCALE_UPDATE";
+    public static final String LEARNER_STREAK_UPDATE = "LEARNER_STREAK_UPDATE";
+    public static final String LEARNER_STREAK_REMINDER = "LEARNER_STREAK_REMINDER";
+    public static final String LEARNER_STREAK_LOST = "LEARNER_STREAK_LOST";
+    public static final String ORG_MANAGER_DIGEST_SENT = "ORG_MANAGER_DIGEST_SENT";
+    public static final String PLATFORM_HINDI_TUTOR_UPDATE = "PLATFORM_HINDI_TUTOR_UPDATE";
+
     private final AdminAuditLogRepository auditLogRepository;
     private final SkillamaUserRepository userRepository;
 

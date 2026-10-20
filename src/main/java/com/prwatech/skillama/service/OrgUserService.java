@@ -51,7 +51,7 @@ public class OrgUserService {
                 .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a));
         return users.stream()
                 .sorted(Comparator.comparing(User::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
-                .map(user -> toDto(user, managers))
+                .map(user -> toDto(user, managers, org))
                 .toList();
     }
 
@@ -93,7 +93,7 @@ public class OrgUserService {
         }
         User newOwner = requireOrgUser(org.getId(), newOwnerUserId);
         if (newOwner.getOrgRole() == OrgRole.ORG_OWNER) {
-            return toDto(newOwner, managerMap(org.getId()));
+            return toDto(newOwner, managerMap(org.getId()), org);
         }
 
         User previousOwner = userRepository.findById(org.getRootOwnerUserId()).orElse(null);
@@ -117,7 +117,7 @@ public class OrgUserService {
                 "Organization ownership transferred to " + newOwner.getEmail(),
                 null,
                 actor);
-        return toDto(newOwner, managerMap(org.getId()));
+        return toDto(newOwner, managerMap(org.getId()), org);
     }
 
     @Transactional
@@ -289,7 +289,7 @@ public class OrgUserService {
                 "User " + user.getEmail() + " added to organization",
                 Map.of("userId", user.getId(), "orgRole", role.name()),
                 actor);
-        return toDto(user, managerMap(org.getId()));
+        return toDto(user, managerMap(org.getId()), org);
     }
 
     private OrgUserDTO applyUpdate(
@@ -348,7 +348,7 @@ public class OrgUserService {
                 "User " + target.getEmail() + " updated",
                 Map.of("userId", target.getId()),
                 actor);
-        return toDto(target, managerMap(org.getId()));
+        return toDto(target, managerMap(org.getId()), org);
     }
 
     private void validateCreateRequest(Organization org, CreateOrgUserRequestDTO request) {
@@ -380,13 +380,23 @@ public class OrgUserService {
         }
     }
 
+    /**
+     * Seat check before create/import. Synchronized per org id to reduce TOCTOU overshoot
+     * under concurrent CSV imports (checklist: seat limit was race-prone).
+     */
     private void assertSeatAvailable(String organizationId) {
-        int active = (int) userRepository.countByOrganizationIdAndActiveTrue(organizationId);
-        int maxSeats = orgFeatureService.getMaxSeats(organizationId);
-        if (active >= maxSeats) {
-            throw new IllegalStateException("Organization seat limit reached (" + maxSeats + ")");
+        Object lock = seatLocks.computeIfAbsent(organizationId, k -> new Object());
+        synchronized (lock) {
+            int active = (int) userRepository.countByOrganizationIdAndActiveTrue(organizationId);
+            int maxSeats = orgFeatureService.getMaxSeats(organizationId);
+            if (active >= maxSeats) {
+                throw new IllegalStateException("Organization seat limit reached (" + maxSeats + ")");
+            }
         }
     }
+
+    private static final java.util.concurrent.ConcurrentHashMap<String, Object> seatLocks =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     private void assertCanListUsers(User actor) {
         if (TenantSecurityService.isPlatformStaff(actor)) {
@@ -440,7 +450,7 @@ public class OrgUserService {
                 .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a));
     }
 
-    private OrgUserDTO toDto(User user, Map<String, User> managers) {
+    private OrgUserDTO toDto(User user, Map<String, User> managers, Organization org) {
         String managerName = null;
         if (user.getManagerUserId() != null && managers.containsKey(user.getManagerUserId())) {
             managerName = managers.get(user.getManagerUserId()).getName();
@@ -449,6 +459,7 @@ public class OrgUserService {
                 .userId(user.getId())
                 .name(user.getName())
                 .email(user.getEmail())
+                .phone(resolveVisiblePhone(org, user))
                 .orgRole(user.getOrgRole() != null ? user.getOrgRole() : OrgRole.LEARNER)
                 .managerUserId(user.getManagerUserId())
                 .managerName(managerName)
@@ -457,6 +468,20 @@ public class OrgUserService {
                 .lastLoginAt(user.getLastLoginAt())
                 .createdAt(user.getCreatedAt())
                 .build();
+    }
+
+    /** Phone is omitted unless org PII policy explicitly allows managers to see it. */
+    static String resolveVisiblePhone(Organization org, User user) {
+        if (org == null || user == null) {
+            return null;
+        }
+        var security = org.getSecurity();
+        var pii = security != null ? security.getPiiPolicy() : null;
+        if (pii == null || !pii.isShowPhoneToManagers()) {
+            return null;
+        }
+        String phone = user.getPhone();
+        return phone == null || phone.isBlank() ? null : phone.trim();
     }
 
     private String blankToNull(String value) {

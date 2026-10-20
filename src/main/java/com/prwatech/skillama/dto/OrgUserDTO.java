@@ -16,6 +16,8 @@ public class OrgUserDTO {
     private String userId;
     private String name;
     private String email;
+    /** Present only when org PII policy allows managers to see phone numbers. */
+    private String phone;
     private OrgRole orgRole;
     private String managerUserId;
     private String managerName;

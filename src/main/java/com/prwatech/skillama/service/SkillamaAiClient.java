@@ -810,14 +810,22 @@ public class SkillamaAiClient {
     public AiQueryReplyDTO answerQuery(
             User user, String endpoint, String courseId,
             String query, String topic, String course, List<String> prevTopicList, String lastAiReply) {
+        return answerQuery(user, endpoint, courseId, query, topic, course, prevTopicList, lastAiReply, "en");
+    }
+
+    public AiQueryReplyDTO answerQuery(
+            User user, String endpoint, String courseId,
+            String query, String topic, String course, List<String> prevTopicList, String lastAiReply,
+            String preferredLanguage) {
         AiQueryReplyDTO result = meteredCall(user, endpoint, courseId,
-                () -> answerQueryRaw(query, topic, course, prevTopicList, lastAiReply));
+                () -> answerQueryRaw(query, topic, course, prevTopicList, lastAiReply, preferredLanguage));
         aiUsageService.recordSpeechUsage(user, courseId, result.getResponseText());
         return result;
     }
 
     private AiQueryReplyDTO answerQueryRaw(
-            String query, String topic, String course, List<String> prevTopicList, String lastAiReply) {
+            String query, String topic, String course, List<String> prevTopicList, String lastAiReply,
+            String preferredLanguage) {
         String url = resolveBaseUrl() + "/handle_query";
 
         Map<String, Object> body = new HashMap<>();
@@ -827,6 +835,9 @@ public class SkillamaAiClient {
         body.put("prev_topic_list", prevTopicList != null ? prevTopicList : new ArrayList<>());
         if (lastAiReply != null && !lastAiReply.isBlank()) {
             body.put("last_ai_reply", lastAiReply);
+        }
+        if (preferredLanguage != null && !preferredLanguage.isBlank()) {
+            body.put("preferred_language", preferredLanguage.trim().toLowerCase());
         }
 
         HttpHeaders headers = buildHeaders();
@@ -1676,6 +1687,33 @@ public class SkillamaAiClient {
             return objectMapper.convertValue(data, Map.class);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to parse knowledge base sync response", e);
+        }
+    }
+
+    /**
+     * Draft a full curriculum outline from a prompt. Does not persist — admin commits via curriculum CRUD.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> draftCurriculum(String prompt, String courseName) {
+        String url = resolveBaseUrl() + "/draft_curriculum";
+        Map<String, Object> body = new HashMap<>();
+        body.put("prompt", prompt);
+        body.put("course", courseName != null ? courseName : "Course");
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                    url, new HttpEntity<>(body, buildHeaders()), String.class);
+            if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+                throw new IllegalStateException("Curriculum draft service returned " + response.getStatusCode());
+            }
+            JsonNode root = objectMapper.readTree(response.getBody());
+            if (root.hasNonNull("error")) {
+                throw new IllegalStateException(root.path("error").asText());
+            }
+            return objectMapper.convertValue(root, Map.class);
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Curriculum draft failed: " + e.getMessage(), e);
         }
     }
 }

@@ -6,15 +6,19 @@ import com.prwatech.skillama.dto.TeamMemberDTO;
 import com.prwatech.skillama.dto.TeamProgressSummaryDTO;
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.model.OrgRole;
+import com.prwatech.skillama.model.Organization;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserCourseProgress;
 import com.prwatech.skillama.repository.CourseRepository;
+import com.prwatech.skillama.repository.OrganizationRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserCourseProgressRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +33,7 @@ public class OrgAnalyticsService {
     private final SkillamaUserRepository userRepository;
     private final UserCourseProgressRepository progressRepository;
     private final CourseRepository courseRepository;
+    private final OrganizationRepository organizationRepository;
     private final TenantSecurityService tenantSecurityService;
 
     public TeamProgressSummaryDTO getTeamProgress(User actor) {
@@ -43,10 +48,14 @@ public class OrgAnalyticsService {
                     .build();
         }
 
+        Organization org = organizationRepository.findById(actor.getOrganizationId()).orElse(null);
+
         List<User> users = StreamSupport.stream(userRepository.findAllById(visibleIds).spliterator(), false)
                 .collect(Collectors.toList());
         Map<String, User> managerById = userRepository.findByOrganizationId(actor.getOrganizationId()).stream()
                 .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a));
+
+        Map<String, List<UserCourseProgress>> progressByUser = progressByUserId(visibleIds);
 
         List<TeamMemberDTO> members = new ArrayList<>();
         double progressSum = 0;
@@ -58,7 +67,7 @@ public class OrgAnalyticsService {
                 continue;
             }
             activeCount++;
-            double avg = averageProgressForUser(user.getId());
+            double avg = averageProgress(progressByUser.getOrDefault(user.getId(), List.of()));
             progressSum += avg;
             progressCount++;
 
@@ -72,6 +81,7 @@ public class OrgAnalyticsService {
                     .userId(user.getId())
                     .name(user.getName())
                     .email(user.getEmail())
+                    .phone(OrgUserService.resolveVisiblePhone(org, user))
                     .orgRole(user.getOrgRole() != null ? user.getOrgRole() : OrgRole.LEARNER)
                     .managerUserId(user.getManagerUserId())
                     .managerName(managerName)
@@ -98,14 +108,12 @@ public class OrgAnalyticsService {
             return List.of();
         }
 
-        Map<String, List<UserCourseProgress>> byCourse = new java.util.HashMap<>();
-        for (String userId : visibleIds) {
-            for (UserCourseProgress row : progressRepository.findByUserId(userId)) {
-                if (row.getCourseId() == null) {
-                    continue;
-                }
-                byCourse.computeIfAbsent(row.getCourseId(), k -> new ArrayList<>()).add(row);
+        Map<String, List<UserCourseProgress>> byCourse = new HashMap<>();
+        for (UserCourseProgress row : progressRepository.findByUserIdIn(visibleIds)) {
+            if (row.getCourseId() == null) {
+                continue;
             }
+            byCourse.computeIfAbsent(row.getCourseId(), k -> new ArrayList<>()).add(row);
         }
 
         List<TeamCourseProgressDTO> result = new ArrayList<>();
@@ -160,6 +168,15 @@ public class OrgAnalyticsService {
                 .toList();
     }
 
+    private Map<String, List<UserCourseProgress>> progressByUserId(Set<String> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return progressRepository.findByUserIdIn(userIds).stream()
+                .filter(row -> row.getUserId() != null)
+                .collect(Collectors.groupingBy(UserCourseProgress::getUserId));
+    }
+
     private String resolveCourseName(String courseId) {
         if (courseId == null) {
             return "Unknown course";
@@ -169,9 +186,8 @@ public class OrgAnalyticsService {
                 .orElse("Course");
     }
 
-    private double averageProgressForUser(String userId) {
-        List<UserCourseProgress> rows = progressRepository.findByUserId(userId);
-        if (rows.isEmpty()) {
+    private double averageProgress(List<UserCourseProgress> rows) {
+        if (rows == null || rows.isEmpty()) {
             return 0;
         }
         return rows.stream()

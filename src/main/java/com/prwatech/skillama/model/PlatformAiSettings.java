@@ -15,6 +15,11 @@ public class PlatformAiSettings {
     @Id
     private String id = SINGLETON_ID;
     private boolean devModeEnabled;
+    /**
+     * When true, learners may choose Hindi (hi) for tutor UI + Polly voice.
+     * English remains the default. Owner/Admin toggles this.
+     */
+    private boolean hindiTutorEnabled = false;
     private boolean aiUsageTrackingEnabled = true;
     private double platformMonthlyBudgetUsd = 1000.0;
     private double freemiumMonthlyBudgetUsdPerUser = 0.30;

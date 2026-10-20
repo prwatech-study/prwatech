@@ -45,6 +45,7 @@ public class UserProfileService {
     private final ModuleQuizService moduleQuizService;
     private final AiUsageService aiUsageService;
     private final SkillamaAiClient skillamaAiClient;
+    private final LearnerEngagementService learnerEngagementService;
     
     // ========== Session Management ==========
     
@@ -1101,13 +1102,35 @@ public class UserProfileService {
                 ? request.getTopic()
                 : "General " + courseName;
         String query = PiiRedactor.redact(request.getQuery());
+        // Enrich with server learner memory (source of truth) + optional LMS context + Socratic mode.
+        StringBuilder enriched = new StringBuilder(query);
+        String serverContext = learnerEngagementService.buildContextPrompt(profile);
+        if (serverContext != null && !serverContext.isBlank()) {
+            enriched.append("\n\n[Learner context: ").append(serverContext).append("]");
+        } else if (request.getLearnerContext() != null && !request.getLearnerContext().isBlank()) {
+            // Guests / legacy clients: accept client-provided context only when server has none.
+            enriched.append("\n\n[Learner context: ").append(request.getLearnerContext().trim()).append("]");
+        }
+        if ("socratic".equalsIgnoreCase(request.getTutorMode())) {
+            enriched.append("\n\n[Teaching mode: SOCRATIC. Guide with questions; do not give the full answer immediately.]");
+        }
+        query = enriched.toString();
 
         // user is nullable here (guests) — SkillamaAiClient's metered wrapper skips the
         // budget-check/recordUsage pair entirely when null, matching guests being governed
         // by MAX_GUEST_QUESTIONS above instead of the AI wallet.
+        String tutorLocale = learnerEngagementService.resolveTutorLocale(profile);
         AiQueryReplyDTO reply = skillamaAiClient.answerQuery(
                 user, "chat_ask", request.getCourseId(),
-                query, topic, courseName, request.getPrevTopicList(), request.getLastAiReply());
+                query, topic, courseName, request.getPrevTopicList(), request.getLastAiReply(),
+                tutorLocale);
+        if (userId != null) {
+            try {
+                learnerEngagementService.recordActivity(userId);
+            } catch (Exception ignored) {
+                // streak sync is best-effort during chat
+            }
+        }
 
         String answer = PiiRedactor.redact(reply.getResponseText() != null ? reply.getResponseText() : "");
 

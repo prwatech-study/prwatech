@@ -27,12 +27,13 @@ import static org.mockito.Mockito.when;
 class PlatformAiSettingsServiceTest {
 
     @Mock private PlatformAiSettingsRepository repository;
+    @Mock private AdminAuditService adminAuditService;
 
     private PlatformAiSettingsService service;
 
     @BeforeEach
     void setUp() {
-        service = new PlatformAiSettingsService(repository);
+        service = new PlatformAiSettingsService(repository, adminAuditService);
     }
 
     @Test

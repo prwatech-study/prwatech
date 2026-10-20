@@ -33,6 +33,28 @@ public class CourseCurriculumController {
     private final JwtUtils jwtUtils;
     private final UserService userService;
     private final SkillamaAuthSupport skillamaAuthSupport;
+    private final com.prwatech.skillama.service.SkillamaAiClient skillamaAiClient;
+
+    /**
+     * AI draft of full curriculum outline. Returns modules/submodules JSON only — does not persist.
+     * Admin commits each module via existing {@code POST /module} CRUD.
+     */
+    @PostMapping("/draft")
+    public ResponseEntity<?> draftCurriculum(
+            @RequestBody java.util.Map<String, String> body,
+            HttpServletRequest request) {
+        try {
+            assertCurriculumPermission(request, AdminPermissionAction.CREATE);
+            String prompt = body != null ? body.get("prompt") : null;
+            String courseName = body != null ? body.get("courseName") : null;
+            if (prompt == null || prompt.isBlank()) {
+                return ResponseEntity.badRequest().body(java.util.Map.of("message", "prompt is required"));
+            }
+            return ResponseEntity.ok(skillamaAiClient.draftCurriculum(prompt, courseName));
+        } catch (RuntimeException e) {
+            return curriculumErrorResponse(e);
+        }
+    }
 
     @PostMapping("/module")
     public ResponseEntity<CourseCurriculum> addModule(

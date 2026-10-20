@@ -70,6 +70,21 @@ public class UserProfile {
     @Builder.Default
     private List<QuizGenerationFailure> quizGenerationFailures = new ArrayList<>();
 
+    /**
+     * Server-side learner memory (source of truth for logged-in users).
+     * Injected into chat/tutor context; audited via updates + chat history.
+     */
+    @Builder.Default
+    private LearnerMemory learnerMemory = new LearnerMemory();
+
+    /** Daily learning streak persisted for email reminders / loss notices. */
+    @Builder.Default
+    private LearningStreak learningStreak = new LearningStreak();
+
+    /** UI + tutor locale: {@code en} (default) or {@code hi}. Gated by platform hindiTutorEnabled. */
+    @Builder.Default
+    private String preferredLocale = "en";
+
     // Metadata
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -162,6 +177,42 @@ public class UserProfile {
         private String moduleName;
         private Integer failureCount;
         private LocalDateTime lastFailedAt;
+    }
+
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class LearnerMemory {
+        private String preferredPace;
+        @Builder.Default
+        private List<String> facts = new ArrayList<>();
+        @Builder.Default
+        private List<String> weakTopics = new ArrayList<>();
+        /** Optional rolling summary derived from recent chat (kept short). */
+        private String summary;
+        private LocalDateTime updatedAt;
+    }
+
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class LearningStreak {
+        @Builder.Default
+        private Integer currentStreak = 0;
+        @Builder.Default
+        private Integer longestStreak = 0;
+        /** India calendar day yyyy-MM-dd of last learning activity. */
+        private String lastActiveDate;
+        @Builder.Default
+        private Integer totalActiveDays = 0;
+        private LocalDateTime lastReminderSentAt;
+        private LocalDateTime lastLostEmailSentAt;
+        /** Streak length captured when a loss email was sent (dedupe). */
+        private Integer lostNotifiedForStreak;
     }
 }
 

@@ -12,6 +12,7 @@ import com.prwatech.skillama.service.AdminAuditService;
 import com.prwatech.skillama.service.AdminPermissionService;
 import com.prwatech.skillama.service.CourseCurriculumService;
 import com.prwatech.skillama.service.CourseService;
+import com.prwatech.skillama.service.SkillamaAiClient;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +47,7 @@ class CourseCurriculumControllerAuthTest {
     @Mock private JwtUtils jwtUtils;
     @Mock private UserService userService;
     @Mock private SkillamaAuthSupport skillamaAuthSupport;
+    @Mock private SkillamaAiClient skillamaAiClient;
 
     private static final String TOKEN = "Bearer valid.jwt.token";
 
@@ -53,7 +55,7 @@ class CourseCurriculumControllerAuthTest {
     void setUp() {
         CourseCurriculumController controller = new CourseCurriculumController(
                 curriculumService, courseService, curriculumRepo, adminAuditService,
-                adminPermissionService, jwtUtils, userService, skillamaAuthSupport);
+                adminPermissionService, jwtUtils, userService, skillamaAuthSupport, skillamaAiClient);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
                 .build();

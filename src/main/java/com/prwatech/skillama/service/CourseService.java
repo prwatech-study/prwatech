@@ -166,6 +166,15 @@ public class CourseService {
             if (updated.getDetailAiTutorHelp() != null) {
                 existing.setDetailAiTutorHelp(updated.getDetailAiTutorHelp());
             }
+            if (updated.getCodeOutputMode() != null && !updated.getCodeOutputMode().isBlank()) {
+                String mode = updated.getCodeOutputMode().trim().toLowerCase();
+                existing.setCodeOutputMode(
+                        "compiler".equals(mode) ? "compiler" : "ai");
+            }
+            if (updated.getAiCourseName() != null) {
+                existing.setAiCourseName(
+                        updated.getAiCourseName().isBlank() ? null : updated.getAiCourseName().trim());
+            }
             // Hash is owned by AI generation (saveAiGeneratedDetail). Stamping it on
             // every PUT would mark stale copy as current after a curriculum edit.
             if (updated.getIsGuestCourse() != null) {
