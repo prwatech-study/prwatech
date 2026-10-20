@@ -56,7 +56,9 @@ public class AiUtilityController {
             User user = optionalLearner(httpRequest);
             assertMediaBudget(user);
             String courseId = request != null ? request.getCourseId() : null;
-            TutorIntroResponseDTO dto = skillamaAiClient.introduceTutor(resolveCourseName(courseId));
+            String preferredLanguage = request != null ? request.getPreferredLanguage() : null;
+            TutorIntroResponseDTO dto =
+                    skillamaAiClient.introduceTutor(resolveCourseName(courseId), preferredLanguage);
             aiUsageService.recordSpeechUsage(user, courseId, dto.getIntroductionText());
             return ResponseEntity.ok(dto);
         } catch (SkillamaAuthException e) {
@@ -79,7 +81,8 @@ public class AiUtilityController {
             User user = optionalLearner(httpRequest);
             assertMediaBudget(user);
             LectureStartInstructionResponseDTO dto =
-                    skillamaAiClient.lectureStartInstruction(request.getTopics());
+                    skillamaAiClient.lectureStartInstruction(
+                            request.getTopics(), request.getPreferredLanguage());
             aiUsageService.recordSpeechUsage(user, null, dto.getLectureIntroductionText());
             return ResponseEntity.ok(dto);
         } catch (SkillamaAuthException e) {

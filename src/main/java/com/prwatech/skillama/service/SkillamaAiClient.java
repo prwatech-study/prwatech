@@ -1119,13 +1119,19 @@ public class SkillamaAiClient {
      * </pre>
      */
     public GeneratedLectureDTO generateLecture(User user, String courseId, String section, String course) {
+        return generateLecture(user, courseId, section, course, null);
+    }
+
+    public GeneratedLectureDTO generateLecture(
+            User user, String courseId, String section, String course, String preferredLanguage) {
         GeneratedLectureDTO result = meteredCall(user, "lecture_generation", courseId,
-                () -> generateLectureRaw(section, course, courseId));
+                () -> generateLectureRaw(section, course, courseId, preferredLanguage));
         aiUsageService.recordSpeechUsage(user, courseId, result.getLectureText());
         return result;
     }
 
-    private GeneratedLectureDTO generateLectureRaw(String section, String course, String courseId) {
+    private GeneratedLectureDTO generateLectureRaw(
+            String section, String course, String courseId, String preferredLanguage) {
         String url = resolveBaseUrl() + "/generate_lecture";
 
         Map<String, Object> body = new HashMap<>();
@@ -1133,6 +1139,9 @@ public class SkillamaAiClient {
         body.put("course", course != null ? course : "");
         if (courseId != null && !courseId.isBlank()) {
             body.put("courseId", courseId);
+        }
+        if (preferredLanguage != null && !preferredLanguage.isBlank()) {
+            body.put("preferred_language", preferredLanguage.trim().toLowerCase());
         }
 
         HttpHeaders headers = buildHeaders();
@@ -1372,9 +1381,16 @@ public class SkillamaAiClient {
      * </pre>
      */
     public TutorIntroResponseDTO introduceTutor(String course) {
+        return introduceTutor(course, null);
+    }
+
+    public TutorIntroResponseDTO introduceTutor(String course, String preferredLanguage) {
         String url = resolveBaseUrl() + "/introduce_tutor";
         Map<String, Object> body = new HashMap<>();
         body.put("course", course != null ? course : "");
+        if (preferredLanguage != null && !preferredLanguage.isBlank()) {
+            body.put("preferred_language", preferredLanguage.trim().toLowerCase());
+        }
         JsonNode data = postForJson(url, body, "tutor introduction");
         return TutorIntroResponseDTO.builder()
                 .introductionText(data.path("introduction_text").asText(null))
@@ -1395,9 +1411,17 @@ public class SkillamaAiClient {
      * </pre>
      */
     public LectureStartInstructionResponseDTO lectureStartInstruction(List<String> topics) {
+        return lectureStartInstruction(topics, null);
+    }
+
+    public LectureStartInstructionResponseDTO lectureStartInstruction(
+            List<String> topics, String preferredLanguage) {
         String url = resolveBaseUrl() + "/lecture_start_instruction";
         Map<String, Object> body = new HashMap<>();
         body.put("topics", topics != null ? topics : new ArrayList<>());
+        if (preferredLanguage != null && !preferredLanguage.isBlank()) {
+            body.put("preferred_language", preferredLanguage.trim().toLowerCase());
+        }
         JsonNode data = postForJson(url, body, "lecture start instruction");
         return LectureStartInstructionResponseDTO.builder()
                 .lectureIntroductionText(data.path("lecture_introduction_text").asText(null))

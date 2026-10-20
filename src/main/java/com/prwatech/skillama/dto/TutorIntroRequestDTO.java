@@ -5,4 +5,6 @@ import lombok.Data;
 @Data
 public class TutorIntroRequestDTO {
     private String courseId;
+    /** Optional {@code en} or {@code hi}. */
+    private String preferredLanguage;
 }

@@ -40,7 +40,11 @@ public class LectureService {
                 : DEFAULT_COURSE_NAME;
 
         GeneratedLectureDTO generated = skillamaAiClient.generateLecture(
-                user, request.getCourseId(), request.getSection(), courseName);
+                user,
+                request.getCourseId(),
+                request.getSection(),
+                courseName,
+                request.getPreferredLanguage());
 
         return LectureResponseDTO.builder()
                 .lectureText(generated.getLectureText())
