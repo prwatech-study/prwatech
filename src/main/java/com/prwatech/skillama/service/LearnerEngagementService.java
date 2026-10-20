@@ -187,6 +187,11 @@ public class LearnerEngagementService {
         return "en";
     }
 
+    /** Whether the platform owner has enabled Hindi tutor opt-in. */
+    public boolean isHindiTutorAvailable() {
+        return platformAiSettingsService.isHindiTutorEnabled();
+    }
+
     /** Daily cron: remind learners at risk; notify when streak is lost. */
     public void processStreakEmails() {
         LocalDate today = IndiaTime.now().toLocalDate();

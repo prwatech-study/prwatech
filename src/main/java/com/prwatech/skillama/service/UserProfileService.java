@@ -1119,7 +1119,16 @@ public class UserProfileService {
         // user is nullable here (guests) — SkillamaAiClient's metered wrapper skips the
         // budget-check/recordUsage pair entirely when null, matching guests being governed
         // by MAX_GUEST_QUESTIONS above instead of the AI wallet.
+        // LMS Hindi toggle can override for this request when platform Hindi is enabled.
         String tutorLocale = learnerEngagementService.resolveTutorLocale(profile);
+        if (request.getPreferredLanguage() != null
+                && request.getPreferredLanguage().trim().toLowerCase().startsWith("hi")
+                && learnerEngagementService.isHindiTutorAvailable()) {
+            tutorLocale = "hi";
+        } else if (request.getPreferredLanguage() != null
+                && request.getPreferredLanguage().trim().toLowerCase().startsWith("en")) {
+            tutorLocale = "en";
+        }
         AiQueryReplyDTO reply = skillamaAiClient.answerQuery(
                 user, "chat_ask", request.getCourseId(),
                 query, topic, courseName, request.getPrevTopicList(), request.getLastAiReply(),

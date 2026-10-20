@@ -21,4 +21,9 @@ public class ChatAskRequestDTO {
     private String learnerContext;
     /** "explain" (default) or "socratic" — teaching style hint from the LMS chat toggle. */
     private String tutorMode;
+    /**
+     * Optional {@code en} or {@code hi} from the LMS Hindi toggle.
+     * When {@code hi} and platform Hindi tutor is enabled, overrides profile locale for this ask.
+     */
+    private String preferredLanguage;
 }
