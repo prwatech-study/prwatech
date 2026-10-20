@@ -119,7 +119,8 @@ class DoubtServiceTest {
         when(userRepository.findById("user-1")).thenReturn(Optional.of(existingUser("user-1")));
         when(skillamaAiClient.answerQuery(
                         any(User.class), eq("ai_mentor_follow_up"), eq("course-1"),
-                        anyString(), anyString(), anyString(), anyList(), isNull()))
+                        anyString(), anyString(), anyString(), anyList(), isNull(),
+                        eq("en")))
                 .thenReturn(AiQueryReplyDTO.builder()
                         .responseText("Here is a more detailed explanation.")
                         .audioUrl("https://cdn.example.com/answer-2.mp3")
