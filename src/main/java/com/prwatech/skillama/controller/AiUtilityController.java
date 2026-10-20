@@ -116,12 +116,14 @@ public class AiUtilityController {
     @PostMapping("/audio-to-text")
     public ResponseEntity<?> audioToText(
             @RequestParam("audio") MultipartFile audio,
+            @RequestParam(value = "preferred_language", required = false) String preferredLanguage,
             HttpServletRequest httpRequest) {
         try {
             User user = optionalLearner(httpRequest);
             assertMediaBudget(user);
             TranscribedAudioDTO result =
-                    skillamaAiClient.transcribeAudio(audio.getBytes(), audio.getOriginalFilename());
+                    skillamaAiClient.transcribeAudio(
+                            audio.getBytes(), audio.getOriginalFilename(), preferredLanguage);
             aiUsageService.recordTranscribeUsage(user, null, result.getAudioSeconds());
             return ResponseEntity.ok(Map.of("transcript", result.getTranscript() != null ? result.getTranscript() : ""));
         } catch (SkillamaAuthException e) {

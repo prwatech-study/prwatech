@@ -1466,6 +1466,11 @@ public class SkillamaAiClient {
     }
 
     private MultiValueMap<String, Object> audioBody(byte[] audioBytes, String filename) {
+        return audioBody(audioBytes, filename, null);
+    }
+
+    private MultiValueMap<String, Object> audioBody(
+            byte[] audioBytes, String filename, String preferredLanguage) {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         ByteArrayResource resource = new ByteArrayResource(audioBytes) {
             @Override
@@ -1474,6 +1479,9 @@ public class SkillamaAiClient {
             }
         };
         body.add("audio", resource);
+        if (preferredLanguage != null && !preferredLanguage.isBlank()) {
+            body.add("preferred_language", preferredLanguage.trim().toLowerCase());
+        }
         return body;
     }
 
@@ -1483,14 +1491,22 @@ public class SkillamaAiClient {
      *
      * <p><b>ai-tutor (Flask) contract — POST {aiBaseUrl}/audio_to_text</b>
      * <pre>
-     * Request: multipart/form-data, field "audio" = recording bytes
+     * Request: multipart/form-data, field "audio" = recording bytes,
+     *          optional "preferred_language" = "en" | "hi"
      * Response JSON: { "transcript": String, "usage": { "audioSeconds": number }, "error": String }
      * </pre>
      */
     public TranscribedAudioDTO transcribeAudio(byte[] audioBytes, String filename) {
+        return transcribeAudio(audioBytes, filename, null);
+    }
+
+    public TranscribedAudioDTO transcribeAudio(
+            byte[] audioBytes, String filename, String preferredLanguage) {
         String url = resolveBaseUrl() + "/audio_to_text";
         HttpEntity<MultiValueMap<String, Object>> entity =
-                new HttpEntity<>(audioBody(audioBytes, filename), buildMultipartHeaders());
+                new HttpEntity<>(
+                        audioBody(audioBytes, filename, preferredLanguage),
+                        buildMultipartHeaders());
 
         ResponseEntity<String> response;
         try {
