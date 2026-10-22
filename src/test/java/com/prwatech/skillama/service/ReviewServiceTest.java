@@ -1,6 +1,5 @@
 package com.prwatech.skillama.service;
 
-import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.dto.AdminReviewReplyRequestDTO;
 import com.prwatech.skillama.dto.CreateReviewRequestDTO;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
@@ -36,7 +35,6 @@ class ReviewServiceTest {
     @Mock private ReviewRepository reviewRepository;
     @Mock private CourseRepository courseRepository;
     @Mock private UserService userService;
-    @Mock private EmailServiceImpl emailService;
     @Mock private NotificationSettingsService notificationSettingsService;
 
     private ReviewService service;
@@ -44,7 +42,7 @@ class ReviewServiceTest {
     @BeforeEach
     void setUp() {
         service = new ReviewService(reviewRepository, courseRepository, userService,
-                emailService, notificationSettingsService);
+                notificationSettingsService);
         when(reviewRepository.save(any(Review.class))).thenAnswer(inv -> {
             Review r = inv.getArgument(0);
             if (r.getId() == null) {

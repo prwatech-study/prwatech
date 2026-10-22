@@ -1,7 +1,5 @@
 package com.prwatech.skillama.service;
 
-import com.prwatech.common.dto.EmailSendDto;
-import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.dto.AdminReviewReplyRequestDTO;
 import com.prwatech.skillama.notification.NotificationEventType;
 import com.prwatech.skillama.dto.CreateReviewRequestDTO;
@@ -31,7 +29,6 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final CourseRepository courseRepository;
     private final UserService userService;
-    private final EmailServiceImpl emailService;
     private final NotificationSettingsService notificationSettingsService;
 
     public Review saveReview(String userId, CreateReviewRequestDTO request) {
@@ -197,18 +194,16 @@ public class ReviewService {
 
     private void sendTeamNotificationEmail(Review review, User user) {
         try {
-            String subject = "New Skillama feedback — " + review.getRating() + "★";
-            String message = "A user submitted feedback on Skillama.\n\n"
-                    + "User: " + (user.getName() != null ? user.getName() : "N/A") + "\n"
+            String subject = "New Skillama feedback — " + review.getRating() + " out of 5";
+            String message = "A learner left feedback. Reply from the admin panel and they will get your note by email.\n\n"
+                    + "Learner: " + (user.getName() != null ? user.getName() : "—") + "\n"
                     + "Email: " + user.getEmail() + "\n"
-                    + "Phone: " + (user.getPhone() != null ? user.getPhone() : "N/A") + "\n"
-                    + "Course ID: " + (review.getCourseId() != null ? review.getCourseId() : "N/A") + "\n"
-                    + "Scope: " + (review.getScope() != null ? review.getScope() : "COURSE") + "\n"
-                    + "Rating: " + review.getRating() + "/5\n"
-                    + "Status: " + review.getStatus() + "\n"
-                    + "Review ID: " + review.getId() + "\n\n"
-                    + "Feedback:\n" + review.getComment() + "\n\n"
-                    + "Reply from the admin panel to respond to the user.";
+                    + "Phone: " + (user.getPhone() != null ? user.getPhone() : "—") + "\n"
+                    + "Rating: " + review.getRating() + " out of 5\n"
+                    + "Course: " + (review.getCourseName() != null ? review.getCourseName() : "—") + "\n\n"
+                    + "What they wrote\n"
+                    + review.getComment() + "\n\n"
+                    + "— Skillama";
 
             notificationSettingsService.sendTeamNotification(
                     NotificationEventType.FEEDBACK_NEW, subject, message);
@@ -224,18 +219,17 @@ public class ReviewService {
             return;
         }
         try {
-            String subject = "Skillama team replied to your feedback";
-            String message = "Hello"
+            String subject = "We replied to your Skillama feedback";
+            String message = "Hi"
                     + (StringUtils.hasText(review.getUserName()) ? " " + review.getUserName() : "")
                     + ",\n\n"
-                    + "Our team has responded to your feedback"
-                    + (review.getCourseId() != null ? " (course: " + review.getCourseId() + ")" : "")
-                    + ".\n\n"
-                    + "Your message:\n" + review.getComment() + "\n\n"
-                    + "Team reply:\n" + review.getTeamReply() + "\n\n"
-                    + "You can also view this reply when you sign in to Skillama LMS "
-                    + "(Feedback panel on your profile or in the learning area).\n\n"
-                    + "Thank you,\nSkillama Team";
+                    + "We read your note and replied.\n\n"
+                    + "You wrote\n"
+                    + review.getComment() + "\n\n"
+                    + "Our reply\n"
+                    + review.getTeamReply() + "\n\n"
+                    + "You can also see this reply in Skillama, under Feedback on your profile.\n\n"
+                    + "— Skillama";
 
             notificationSettingsService.sendLearnerNotification(
                     NotificationEventType.FEEDBACK_REPLY,

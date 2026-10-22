@@ -2,8 +2,6 @@ package com.prwatech.skillama.service;
 
 import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.configuration.PasswordEncode;
-import com.prwatech.common.dto.EmailSendDto;
-import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.notification.NotificationEventType;
 import com.prwatech.skillama.model.UserLoginEvent;
@@ -41,7 +39,6 @@ public class UserService {
 
     private final SkillamaUserRepository userRepository;
     private final UserLoginEventRepository userLoginEventRepository;
-    private final EmailServiceImpl emailService;
     private final AppContext appContext;
     private final PasswordEncode passwordEncode;
     private final NotificationSettingsService notificationSettingsService;
@@ -51,7 +48,6 @@ public class UserService {
     public UserService(
             SkillamaUserRepository userRepository,
             UserLoginEventRepository userLoginEventRepository,
-            EmailServiceImpl emailService,
             AppContext appContext,
             PasswordEncode passwordEncode,
             NotificationSettingsService notificationSettingsService,
@@ -59,7 +55,6 @@ public class UserService {
             @Qualifier("skillamaMongoTemplate") MongoTemplate skillamaMongoTemplate) {
         this.userRepository = userRepository;
         this.userLoginEventRepository = userLoginEventRepository;
-        this.emailService = emailService;
         this.appContext = appContext;
         this.passwordEncode = passwordEncode;
         this.notificationSettingsService = notificationSettingsService;
@@ -93,15 +88,14 @@ public class UserService {
             String activationUrl = baseUrl + "/skillama/users/admin/activate?email=" 
                     + URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8);
             
-            String emailMessage = "A new user has registered on Skillama.\n\n"
-                    + "User Details:\n"
-                    + "Name: " + (user.getName() != null ? user.getName() : "N/A") + "\n"
-                    + "Email: " + user.getEmail() + "\n"
-                    + "Gender: " + (user.getGender() != null ? user.getGender() : "N/A") + "\n\n"
-                    + "Please activate the user using the following URL:\n"
-                    + activationUrl;
-            
-            String subject = "New User Registration - Activation Required";
+            String emailMessage = "A new learner registered and is waiting to be activated.\n\n"
+                    + "Name: " + (user.getName() != null ? user.getName() : "—") + "\n"
+                    + "Email: " + user.getEmail() + "\n\n"
+                    + "Activate their account:\n"
+                    + activationUrl + "\n\n"
+                    + "— Skillama";
+
+            String subject = "New Skillama learner needs activation";
 
             notificationSettingsService.sendTeamNotification(
                     NotificationEventType.USER_REGISTRATION, subject, emailMessage);

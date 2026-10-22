@@ -11,10 +11,12 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * Skillama learner mail only, from hello@skillama.co.in.
- * Prwatech mail does not use this sender.
+ * Every Skillama email, learner and team, from hello@skillama.co.in.
+ * Prwatech product mail does not use this sender.
  */
 @Service
 @Slf4j
@@ -28,6 +30,7 @@ public class SkillamaHtmlMailer {
     private static final String MUTED = "#94a3b8";
     private static final String BUTTON = "#10b981";
     private static final String BUTTON_TEXT = "#042f2e";
+    private static final Pattern URL = Pattern.compile("https?://\\S+");
 
     private final JavaMailSender mailSender;
 
@@ -75,6 +78,13 @@ public class SkillamaHtmlMailer {
         return send(email, subject, plain, html);
     }
 
+    /** Any Skillama message, from hello@skillama.co.in, with a readable HTML body. */
+    public MailSendResult sendMessage(String email, String subject, String plain) {
+        String safeSubject = subject == null || subject.isBlank() ? "Skillama" : subject;
+        String safePlain = plain == null ? "" : plain;
+        return send(email, safeSubject, safePlain, learnerMessageHtml(safeSubject, safePlain));
+    }
+
     static String verificationPlain(String code, int expiryMinutes) {
         return code + "\n\n"
                 + "Your Skillama verification code is " + code + ".\n\n"
@@ -98,7 +108,8 @@ public class SkillamaHtmlMailer {
                 + "<div style=\"font-size:36px;font-weight:700;letter-spacing:8px;color:" + ACCENT + ";padding:8px 0 16px;\">"
                 + safeCode + "</div>"
                 + "<p style=\"margin:0;color:" + MUTED + ";font-size:13px;\">This code expires in "
-                + expiryMinutes + " minutes. If you did not ask for it, you can ignore this email.</p>"
+                + expiryMinutes + " minutes. If you did not ask for it, you can ignore this email. "
+                + "Skillama will never ask you to share this code.</p>"
                 + "</td></tr></table></td></tr></table></body></html>";
     }
 
@@ -107,6 +118,70 @@ public class SkillamaHtmlMailer {
                 + "You have low AI credits remaining. Only " + creditsLeft + " credits left.\n\n"
                 + "Recharge now so learning is not interrupted:\n"
                 + rechargeUrl + "\n";
+    }
+
+    static String learnerMessageHtml(String subject, String plain) {
+        String safeSubject = escape(subject == null ? "Skillama" : subject);
+        String preview = escape(previewText(plain));
+        return "<!DOCTYPE html><html><body bgcolor=\"" + PAGE + "\" style=\"margin:0;background:" + PAGE + ";font-family:Arial,Helvetica,sans-serif;\">"
+                + "<div style=\"display:none;max-height:0;overflow:hidden;color:" + PAGE + ";\">" + preview + "</div>"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" bgcolor=\"" + PAGE + "\" style=\"background:" + PAGE + ";padding:24px 12px;\">"
+                + "<tr><td align=\"center\" bgcolor=\"" + PAGE + "\">"
+                + "<table role=\"presentation\" width=\"100%\" bgcolor=\"" + CARD + "\" style=\"max-width:520px;background:" + CARD + ";border-radius:12px;overflow:hidden;\">"
+                + "<tr><td style=\"height:4px;background:" + ACCENT + ";font-size:0;line-height:0;\">&nbsp;</td>"
+                + "<td style=\"height:4px;background:" + CYAN + ";font-size:0;line-height:0;\">&nbsp;</td></tr>"
+                + "<tr><td colspan=\"2\" style=\"padding:24px 24px 8px;color:" + TEXT + ";font-size:15px;line-height:1.5;\">"
+                + "<div style=\"color:" + ACCENT + ";font-size:13px;font-weight:700;letter-spacing:0.08em;\">SKILLAMA</div>"
+                + "<div style=\"color:#ffffff;font-size:22px;font-weight:700;padding:8px 0 16px;\">" + safeSubject + "</div>"
+                + formatPlainAsHtml(plain)
+                + "</td></tr>"
+                + "<tr><td colspan=\"2\" style=\"padding:8px 24px 20px;color:" + MUTED + ";font-size:12px;\">"
+                + "Skillama · hello@skillama.co.in</td>"
+                + "</tr></table></td></tr></table></body></html>";
+    }
+
+    /** Turns blank-line paragraphs, bullet lines, and a lone URL into email-safe HTML. */
+    static String formatPlainAsHtml(String plain) {
+        if (plain == null || plain.isBlank()) {
+            return "";
+        }
+        StringBuilder html = new StringBuilder();
+        for (String block : plain.replace("\r\n", "\n").split("\n\\s*\n")) {
+            String trimmed = block.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            String[] lines = trimmed.split("\n");
+            if (isBulletList(lines)) {
+                html.append("<ul style=\"margin:0 0 16px;padding-left:18px;color:").append(TEXT).append(";\">");
+                for (String line : lines) {
+                    String item = stripBullet(line.trim());
+                    if (item.isEmpty()) {
+                        continue;
+                    }
+                    html.append("<li style=\"margin:0 0 6px;\">").append(linkify(escape(item))).append("</li>");
+                }
+                html.append("</ul>");
+            } else if (lines.length == 1 && isLoneUrl(lines[0].trim())) {
+                String url = stripTrailingPunctuation(lines[0].trim());
+                String label = url.contains("skillama") ? "Open Skillama" : url;
+                html.append("<p style=\"margin:0 0 16px;\"><a href=\"").append(escape(url))
+                        .append("\" style=\"display:inline-block;background:").append(BUTTON)
+                        .append(";color:").append(BUTTON_TEXT)
+                        .append(";text-decoration:none;font-weight:700;padding:12px 18px;border-radius:8px;\">")
+                        .append(escape(label)).append("</a></p>");
+            } else {
+                html.append("<p style=\"margin:0 0 16px;color:").append(TEXT).append(";\">");
+                for (int i = 0; i < lines.length; i++) {
+                    if (i > 0) {
+                        html.append("<br>");
+                    }
+                    html.append(linkify(escape(lines[i].trim())));
+                }
+                html.append("</p>");
+            }
+        }
+        return html.toString();
     }
 
     static String lowCreditHtml(String name, String creditsLeft, String rechargeUrl) {
@@ -170,6 +245,62 @@ public class SkillamaHtmlMailer {
             base = base.substring(0, base.length() - 1);
         }
         return base;
+    }
+
+    private static String previewText(String plain) {
+        if (plain == null) {
+            return "";
+        }
+        for (String line : plain.replace("\r\n", "\n").split("\n")) {
+            String trimmed = line.trim();
+            if (!trimmed.isEmpty() && !isLoneUrl(trimmed)) {
+                return trimmed.length() > 140 ? trimmed.substring(0, 140) : trimmed;
+            }
+        }
+        return "";
+    }
+
+    private static boolean isBulletList(String[] lines) {
+        boolean any = false;
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            if (!trimmed.startsWith("• ") && !trimmed.startsWith("- ") && !trimmed.startsWith("* ")) {
+                return false;
+            }
+            any = true;
+        }
+        return any;
+    }
+
+    private static String stripBullet(String line) {
+        if (line.startsWith("• ") || line.startsWith("- ") || line.startsWith("* ")) {
+            return line.substring(2).trim();
+        }
+        return line;
+    }
+
+    private static boolean isLoneUrl(String line) {
+        return URL.matcher(stripTrailingPunctuation(line)).matches();
+    }
+
+    private static String stripTrailingPunctuation(String value) {
+        return value.replaceAll("[.,;:)]+$", "");
+    }
+
+    private static String linkify(String escaped) {
+        Matcher matcher = URL.matcher(escaped);
+        StringBuilder out = new StringBuilder();
+        while (matcher.find()) {
+            String url = stripTrailingPunctuation(matcher.group());
+            String tail = matcher.group().substring(url.length());
+            matcher.appendReplacement(out, Matcher.quoteReplacement(
+                    "<a href=\"" + url + "\" style=\"color:" + ACCENT + ";\">" + url + "</a>" + tail));
+        }
+        matcher.appendTail(out);
+        return out.toString();
     }
 
     static String escape(String value) {

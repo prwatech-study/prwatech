@@ -1,7 +1,5 @@
 package com.prwatech.skillama.service;
 
-import com.prwatech.common.dto.EmailSendDto;
-import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.dto.NotificationSettingsDTO;
 import com.prwatech.skillama.dto.NotificationTypeSettingDTO;
 import com.prwatech.skillama.dto.UpdateNotificationSettingsDTO;
@@ -31,7 +29,7 @@ public class NotificationSettingsService {
     private static final Logger LOGGER = LoggerFactory.getLogger(NotificationSettingsService.class);
 
     private final PlatformNotificationSettingsRepository settingsRepository;
-    private final EmailServiceImpl emailService;
+    private final SkillamaHtmlMailer skillamaHtmlMailer;
 
     public NotificationSettingsDTO getAdminSettings() {
         PlatformNotificationSettings persisted = loadPersisted();
@@ -120,11 +118,7 @@ public class NotificationSettingsService {
             return;
         }
         for (String email : recipients) {
-            try {
-                emailService.sendEmail(new EmailSendDto(email, subject, body));
-            } catch (Exception e) {
-                LOGGER.warn("Failed to send {} notification to {}: {}", type, email, e.getMessage());
-            }
+            deliver(type, email, subject, body);
         }
     }
 
@@ -141,10 +135,17 @@ public class NotificationSettingsService {
             LOGGER.warn("Skipping {} — no learner email", type);
             return;
         }
+        deliver(type, learnerEmail.trim(), subject, body);
+    }
+
+    private void deliver(NotificationEventType type, String email, String subject, String body) {
         try {
-            emailService.sendEmail(new EmailSendDto(learnerEmail.trim(), subject, body));
+            SkillamaHtmlMailer.MailSendResult result = skillamaHtmlMailer.sendMessage(email, subject, body);
+            if (!result.isDelivered()) {
+                LOGGER.warn("Failed to send {} to {}: {}", type, email, result.getError());
+            }
         } catch (Exception e) {
-            LOGGER.warn("Failed to send {} to {}: {}", type, learnerEmail, e.getMessage());
+            LOGGER.warn("Failed to send {} to {}: {}", type, email, e.getMessage());
         }
     }
 

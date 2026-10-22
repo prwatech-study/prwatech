@@ -9,6 +9,7 @@ import com.prwatech.skillama.repository.UserProfileRepository;
 import com.prwatech.skillama.util.IndiaTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -34,7 +35,11 @@ public class LearnerEngagementService {
     private final SkillamaUserRepository userRepository;
     private final PlatformAiSettingsService platformAiSettingsService;
     private final NotificationSettingsService notificationSettingsService;
+    private final SkillamaHtmlMailer skillamaHtmlMailer;
     private final AdminAuditService adminAuditService;
+
+    @Value("${skillama.app.public-url:https://skillama.co.in}")
+    private String publicUrl;
 
     public LearnerEngagementDTO getEngagement(String userId) {
         UserProfile profile = requireUserProfile(userId);
@@ -220,15 +225,16 @@ public class LearnerEngagementService {
                     // Active yesterday, not today → at risk reminder (once per day)
                     if (streak.getLastReminderSentAt() == null
                             || !streak.getLastReminderSentAt().toLocalDate().equals(today)) {
-                        notificationSettingsService.sendLearnerNotification(
+                        String name = user.getName() != null ? user.getName() : "there";
+                        sendStreakEmail(
                                 NotificationEventType.LEARNING_STREAK_REMINDER,
                                 user.getEmail(),
-                                "Don't lose your " + current + "-day Skillama streak",
-                                "Hi "
-                                        + (user.getName() != null ? user.getName() : "there")
-                                        + ",\n\nYou have a "
-                                        + current
-                                        + "-day learning streak. Complete a short lecture or quiz today to keep it going.\n\n— Skillama");
+                                "Your " + current + "-day streak is waiting",
+                                "Hi " + name + ",\n\n"
+                                        + "Your " + current + "-day streak is still alive, but only until the end of today.\n\n"
+                                        + "Finish one short lecture or quiz and it continues.\n\n"
+                                        + appUrl() + "/lms\n\n"
+                                        + "— Skillama");
                         streak.setLastReminderSentAt(IndiaTime.now());
                         profile.setUpdatedAt(IndiaTime.now());
                         userProfileRepository.save(profile);
@@ -244,15 +250,17 @@ public class LearnerEngagementService {
                     // Missed a day → streak lost
                     Integer notifiedFor = streak.getLostNotifiedForStreak();
                     if (notifiedFor == null || notifiedFor != current) {
-                        notificationSettingsService.sendLearnerNotification(
+                        String name = user.getName() != null ? user.getName() : "there";
+                        sendStreakEmail(
                                 NotificationEventType.LEARNING_STREAK_LOST,
                                 user.getEmail(),
-                                "Your Skillama streak ended",
-                                "Hi "
-                                        + (user.getName() != null ? user.getName() : "there")
-                                        + ",\n\nYour "
-                                        + current
-                                        + "-day learning streak ended. Start a new one today — even one lecture counts.\n\n— Skillama");
+                                "Your " + current + "-day streak ended",
+                                "Hi " + name + ",\n\n"
+                                        + "Your " + current + "-day streak ended yesterday. "
+                                        + "That run still counts toward your longest streak.\n\n"
+                                        + "Start again today. One lecture is enough.\n\n"
+                                        + appUrl() + "/lms\n\n"
+                                        + "— Skillama");
                         streak.setLostNotifiedForStreak(current);
                         streak.setLastLostEmailSentAt(IndiaTime.now());
                         streak.setCurrentStreak(0);
@@ -270,6 +278,25 @@ public class LearnerEngagementService {
             } catch (Exception e) {
                 log.warn("Streak email failed for user {}: {}", profile.getUserId(), e.getMessage());
             }
+        }
+    }
+
+    private String appUrl() {
+        String base = publicUrl == null || publicUrl.isBlank() ? "https://skillama.co.in" : publicUrl.trim();
+        if (base.endsWith("/")) {
+            base = base.substring(0, base.length() - 1);
+        }
+        return base;
+    }
+
+    private void sendStreakEmail(NotificationEventType type, String email, String subject, String body) {
+        if (!notificationSettingsService.isEnabled(type)) {
+            log.debug("Skipping disabled streak email: {}", type);
+            return;
+        }
+        SkillamaHtmlMailer.MailSendResult result = skillamaHtmlMailer.sendMessage(email, subject, body);
+        if (!result.isDelivered()) {
+            log.warn("Streak email {} failed for {}: {}", type, email, result.getError());
         }
     }
 

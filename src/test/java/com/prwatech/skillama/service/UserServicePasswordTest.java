@@ -3,7 +3,6 @@ package com.prwatech.skillama.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.configuration.PasswordEncode;
-import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.repository.UserLoginEventRepository;
@@ -39,7 +38,6 @@ class UserServicePasswordTest {
 
     @Mock private SkillamaUserRepository userRepository;
     @Mock private UserLoginEventRepository userLoginEventRepository;
-    @Mock private EmailServiceImpl emailService;
     @Mock private AppContext appContext;
     @Mock private NotificationSettingsService notificationSettingsService;
     @Mock private UserContactService userContactService;
@@ -56,7 +54,6 @@ class UserServicePasswordTest {
         userService = new UserService(
                 userRepository,
                 userLoginEventRepository,
-                emailService,
                 appContext,
                 passwordEncode,
                 notificationSettingsService,

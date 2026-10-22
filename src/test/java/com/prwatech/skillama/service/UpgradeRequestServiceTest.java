@@ -1,6 +1,5 @@
 package com.prwatech.skillama.service;
 
-import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.dto.UpdateUpgradeRequestDTO;
 import com.prwatech.skillama.dto.UpgradeInterestRequestDTO;
 import com.prwatech.skillama.dto.UpgradeRequestDTO;
@@ -38,7 +37,6 @@ class UpgradeRequestServiceTest {
 
     @Mock private UpgradeRequestRepository upgradeRequestRepository;
     @Mock private SkillamaUserRepository userRepository;
-    @Mock private EmailServiceImpl emailService;
     @Mock private SkillamaPlatformConfigService platformConfigService;
     @Mock private NotificationSettingsService notificationSettingsService;
 
@@ -47,7 +45,7 @@ class UpgradeRequestServiceTest {
     @BeforeEach
     void setUp() {
         service = new UpgradeRequestService(upgradeRequestRepository, userRepository,
-                emailService, platformConfigService, notificationSettingsService);
+                platformConfigService, notificationSettingsService);
         when(upgradeRequestRepository.save(any(UpgradeRequest.class))).thenAnswer(inv -> {
             UpgradeRequest r = inv.getArgument(0);
             if (r.getId() == null) {

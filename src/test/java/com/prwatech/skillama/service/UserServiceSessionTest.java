@@ -3,7 +3,6 @@ package com.prwatech.skillama.service;
 import com.mongodb.client.result.UpdateResult;
 import com.prwatech.common.configuration.AppContext;
 import com.prwatech.common.configuration.PasswordEncode;
-import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.model.UserSession;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
@@ -44,7 +43,6 @@ class UserServiceSessionTest {
 
     @Mock private SkillamaUserRepository userRepository;
     @Mock private UserLoginEventRepository userLoginEventRepository;
-    @Mock private EmailServiceImpl emailService;
     @Mock private AppContext appContext;
     @Mock private PasswordEncode passwordEncode;
     @Mock private NotificationSettingsService notificationSettingsService;
@@ -58,7 +56,6 @@ class UserServiceSessionTest {
         userService = new UserService(
                 userRepository,
                 userLoginEventRepository,
-                emailService,
                 appContext,
                 passwordEncode,
                 notificationSettingsService,

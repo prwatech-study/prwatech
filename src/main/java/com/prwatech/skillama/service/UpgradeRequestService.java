@@ -1,7 +1,5 @@
 package com.prwatech.skillama.service;
 
-import com.prwatech.common.dto.EmailSendDto;
-import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.dto.UpgradeInterestRequestDTO;
 import com.prwatech.skillama.notification.NotificationEventType;
 import com.prwatech.skillama.dto.UpgradeRequestDTO;
@@ -32,7 +30,6 @@ public class UpgradeRequestService {
 
     private final UpgradeRequestRepository upgradeRequestRepository;
     private final SkillamaUserRepository userRepository;
-    private final EmailServiceImpl emailService;
     private final SkillamaPlatformConfigService platformConfigService;
     private final NotificationSettingsService notificationSettingsService;
 
@@ -64,15 +61,20 @@ public class UpgradeRequestService {
     }
 
     private void notifySalesTeam(UpgradeRequest entry, User user) {
-        String subject = "Skillama upgrade request: " + (user.getEmail() != null ? user.getEmail() : user.getId());
-        String body = "A freemium user requested full access.\n\n"
-                + "Name: " + user.getName() + "\n"
-                + "Email: " + user.getEmail() + "\n"
+        String subject = "Skillama upgrade request from " + (user.getEmail() != null ? user.getEmail() : user.getId());
+        String note = entry.getMessage() != null && !entry.getMessage().isBlank()
+                ? entry.getMessage().trim()
+                : "No extra note.";
+        String body = "A learner asked for full access.\n\n"
+                + "Name: " + (user.getName() != null ? user.getName() : "—") + "\n"
+                + "Email: " + (user.getEmail() != null ? user.getEmail() : "—") + "\n"
                 + "Phone: " + (user.getPhone() != null ? user.getPhone() : "—") + "\n"
-                + "Source: " + entry.getSource() + "\n"
                 + "Course: " + (entry.getCourseName() != null ? entry.getCourseName() : "—") + "\n"
-                + "Request ID: " + entry.getId() + "\n"
-                + "Contact: " + platformConfigService.getUpgradeContactEmail() + "\n";
+                + "Reply to: " + platformConfigService.getUpgradeContactEmail() + "\n\n"
+                + "What they said\n"
+                + note + "\n\n"
+                + "Reference: " + entry.getId() + "\n\n"
+                + "— Skillama";
         try {
             notificationSettingsService.sendTeamNotification(
                     NotificationEventType.UPGRADE_REQUEST, subject, body);

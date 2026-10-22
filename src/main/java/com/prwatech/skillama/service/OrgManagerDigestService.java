@@ -123,13 +123,13 @@ public class OrgManagerDigestService {
     private static String formatEmailBody(Map<String, Object> digest) {
         StringBuilder sb = new StringBuilder();
         sb.append("Hi ").append(digest.getOrDefault("managerName", "there")).append(",\n\n");
-        sb.append("Weekly Skillama team snapshot for ")
+        sb.append("Here is this week's snapshot for ")
                 .append(digest.get("organizationName"))
-                .append(":\n\n");
+                .append(".\n\n");
         sb.append("- Members: ").append(digest.get("totalMembers")).append("\n");
-        sb.append("- Active: ").append(digest.get("activeMembers")).append("\n");
+        sb.append("- Active this period: ").append(digest.get("activeMembers")).append("\n");
         sb.append("- Average progress: ").append(digest.get("averageProgress")).append("%\n\n");
-        sb.append("Top learners (skills heatmap):\n");
+        sb.append("Learners furthest along\n\n");
         Object heat = digest.get("skillsHeatmap");
         if (heat instanceof List<?> list && !list.isEmpty()) {
             for (Object row : list) {

@@ -67,8 +67,12 @@ public class OrgNotificationService {
 
     private void sendOrgEmails(Organization org, String eventType, String summary, String activityLogId) {
         Map<String, OrganizationNotificationLog.RecipientType> recipients = resolveOrgRecipients(org);
-        String subject = "[" + org.getName() + "] " + summary;
-        String body = summary + "\n\nOrganization: " + org.getName() + " (" + org.getSlug() + ")";
+        String subject = org.getName() + " — " + summary;
+        String body = "Hi,\n\n"
+                + summary + "\n\n"
+                + "Organization: " + org.getName() + "\n"
+                + "Workspace: " + org.getSlug() + "\n\n"
+                + "— Skillama";
         NotificationEventType notificationType = mapToNotificationType(eventType);
 
         for (Map.Entry<String, OrganizationNotificationLog.RecipientType> entry : recipients.entrySet()) {
@@ -104,9 +108,12 @@ public class OrgNotificationService {
         if (!isContractAlert(eventType)) {
             return;
         }
-        String subject = "[Skillama Sales] " + org.getName() + " — " + summary;
-        String body = summary + "\n\nOrganization: " + org.getName() + " (" + org.getSlug() + ")\n"
-                + "Contact: " + org.getContactEmail();
+        String subject = "Skillama contract alert — " + org.getName();
+        String body = summary + "\n\n"
+                + "Organization: " + org.getName() + "\n"
+                + "Workspace: " + org.getSlug() + "\n"
+                + "Contact: " + (org.getContactEmail() != null ? org.getContactEmail() : "—") + "\n\n"
+                + "— Skillama";
         try {
             notificationSettingsService.sendTeamNotification(
                     NotificationEventType.ORG_CONTRACT_ALERT, subject, body);

@@ -1,7 +1,5 @@
 package com.prwatech.skillama.service;
 
-import com.prwatech.common.dto.EmailSendDto;
-import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.dto.UpdateNotificationSettingsDTO;
 import com.prwatech.skillama.model.PlatformNotificationSettings;
 import com.prwatech.skillama.notification.NotificationEventType;
@@ -33,13 +31,13 @@ import static org.mockito.Mockito.when;
 class NotificationSettingsServiceTest {
 
     @Mock private PlatformNotificationSettingsRepository settingsRepository;
-    @Mock private EmailServiceImpl emailService;
+    @Mock private SkillamaHtmlMailer skillamaHtmlMailer;
 
     private NotificationSettingsService service;
 
     @BeforeEach
     void setUp() {
-        service = new NotificationSettingsService(settingsRepository, emailService);
+        service = new NotificationSettingsService(settingsRepository, skillamaHtmlMailer);
     }
 
     private PlatformNotificationSettings settingsWith(Map<String, Boolean> enabled,
@@ -75,7 +73,7 @@ class NotificationSettingsServiceTest {
         when(settingsRepository.findById(PlatformNotificationSettings.SINGLETON_ID))
                 .thenReturn(Optional.of(settingsWith(null, Map.of())));
         service.sendTeamNotification(NotificationEventType.FEEDBACK_NEW, "s", "b");
-        verify(emailService, never()).sendEmail(any());
+        verify(skillamaHtmlMailer, never()).sendMessage(any(), any(), any());
     }
 
     @Test
@@ -85,7 +83,7 @@ class NotificationSettingsServiceTest {
                         Map.of(NotificationEventType.FEEDBACK_NEW.name(), false),
                         Map.of(NotificationEventType.FEEDBACK_NEW.name(), List.of("team@x.com")))));
         service.sendTeamNotification(NotificationEventType.FEEDBACK_NEW, "s", "b");
-        verify(emailService, never()).sendEmail(any());
+        verify(skillamaHtmlMailer, never()).sendMessage(any(), any(), any());
     }
 
     @Test
@@ -94,10 +92,10 @@ class NotificationSettingsServiceTest {
                 .thenReturn(Optional.of(settingsWith(null,
                         Map.of(NotificationEventType.FEEDBACK_NEW.name(),
                                 List.of("a@x.com", "b@x.com")))));
-        doThrow(new RuntimeException("smtp")).when(emailService).sendEmail(any(EmailSendDto.class));
+        doThrow(new RuntimeException("smtp")).when(skillamaHtmlMailer).sendMessage(any(), any(), any());
 
         service.sendTeamNotification(NotificationEventType.FEEDBACK_NEW, "s", "b"); // must not throw
-        verify(emailService, times(2)).sendEmail(any(EmailSendDto.class));
+        verify(skillamaHtmlMailer, times(2)).sendMessage(any(), any(), any());
     }
 
     @Test
@@ -110,14 +108,16 @@ class NotificationSettingsServiceTest {
     void sendLearnerNotificationSkipsBlankEmail() {
         when(settingsRepository.findById(PlatformNotificationSettings.SINGLETON_ID)).thenReturn(Optional.empty());
         service.sendLearnerNotification(NotificationEventType.FEEDBACK_REPLY, "  ", "s", "b");
-        verify(emailService, never()).sendEmail(any());
+        verify(skillamaHtmlMailer, never()).sendMessage(any(), any(), any());
     }
 
     @Test
     void sendLearnerNotificationSendsToLearner() {
         when(settingsRepository.findById(PlatformNotificationSettings.SINGLETON_ID)).thenReturn(Optional.empty());
+        when(skillamaHtmlMailer.sendMessage(any(), any(), any()))
+                .thenReturn(SkillamaHtmlMailer.MailSendResult.sent());
         service.sendLearnerNotification(NotificationEventType.FEEDBACK_REPLY, "u@x.com", "s", "b");
-        verify(emailService).sendEmail(any(EmailSendDto.class));
+        verify(skillamaHtmlMailer).sendMessage("u@x.com", "s", "b");
     }
 
     @Test

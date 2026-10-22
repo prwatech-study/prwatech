@@ -2,8 +2,6 @@ package com.prwatech.skillama.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.prwatech.common.dto.EmailSendDto;
-import com.prwatech.common.service.impl.EmailServiceImpl;
 import com.prwatech.skillama.dto.IssueReportResponseDTO;
 import com.prwatech.skillama.notification.NotificationEventType;
 import com.prwatech.skillama.dto.ReportIssueRequestDTO;
@@ -34,7 +32,7 @@ public class IssueReportService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(IssueReportService.class);
     private final IssueReportRepository issueReportRepository;
-    private final EmailServiceImpl emailService;
+    private final SkillamaHtmlMailer skillamaHtmlMailer;
     private final ObjectMapper objectMapper;
     private final NotificationSettingsService notificationSettingsService;
 
@@ -78,16 +76,22 @@ public class IssueReportService {
         try {
             String ref = report.getId();
             String reported = StringUtils.hasText(report.getUserDescription())
-                    ? report.getUserDescription()
+                    ? report.getUserDescription().trim()
                     : nullToDash(report.getIssueCategory());
-            String subject = "Your reported issue has been resolved — " + ref;
+            String subject = "We fixed the issue you reported";
             String message = "Hi,\n\n"
-                    + "Good news — the issue you reported on Skillama has been marked as RESOLVED.\n\n"
-                    + "Your report: " + reported + "\n"
+                    + "The problem you reported on Skillama is fixed.\n\n"
+                    + "What you told us\n"
+                    + reported + "\n\n"
                     + "Reference: " + ref + "\n\n"
-                    + "If you're still seeing the problem, just report it again and we'll take another look.\n\n"
-                    + "— Team Skillama";
-            emailService.sendEmail(new EmailSendDto(to.trim(), subject, message));
+                    + "If it is still happening, report it again from the same screen and we will take another look.\n\n"
+                    + "— Skillama";
+            SkillamaHtmlMailer.MailSendResult result =
+                    skillamaHtmlMailer.sendMessage(to.trim(), subject, message);
+            if (!result.isDelivered()) {
+                LOGGER.warn("Resolved email for issue {} was not sent: {}", ref, result.getError());
+                return;
+            }
             LOGGER.info("Resolved-notification email sent to reporter for issue {}", ref);
         } catch (Exception e) {
             LOGGER.error("Failed to send resolved email to reporter for issue {}", report.getId(), e);
@@ -204,14 +208,58 @@ public class IssueReportService {
         return StringUtils.hasText(s) ? s : "—";
     }
 
+    private static String summaryLine(String summary, String label) {
+        if (summary == null) {
+            return "—";
+        }
+        for (String line : summary.split("\n")) {
+            if (line.startsWith(label)) {
+                String value = line.substring(label.length()).trim();
+                return value.isEmpty() ? "—" : value;
+            }
+        }
+        return "—";
+    }
+
+    private static String friendlyCategory(String category) {
+        if (!StringUtils.hasText(category)) {
+            return "General";
+        }
+        String[] parts = category.trim().toLowerCase(java.util.Locale.ROOT).split("_");
+        StringBuilder label = new StringBuilder();
+        for (String part : parts) {
+            if (part.isEmpty()) {
+                continue;
+            }
+            if (label.length() > 0) {
+                label.append(' ');
+            }
+            label.append(Character.toUpperCase(part.charAt(0)));
+            if (part.length() > 1) {
+                label.append(part.substring(1));
+            }
+        }
+        return label.length() == 0 ? "General" : label.toString();
+    }
+
     private void sendTeamEmail(IssueReport report) {
         try {
-            String subject = "Skillama issue report — " + nullToDash(report.getIssueCategory()) + " — " + report.getId();
-            String message = report.getHumanReadableSummary()
-                    + "\n\n----- stack-trace style (duplicate) -----\n\n"
-                    + report.getStackTraceFormatSummary()
-                    + "\n\n----- raw client JSON -----\n\n"
-                    + (report.getRawClientPayloadJson() != null ? report.getRawClientPayloadJson() : "");
+            String subject = "Skillama issue — " + friendlyCategory(report.getIssueCategory());
+            String message = "A learner reported a problem. The short version is below. "
+                    + "Logs and the raw payload are in Admin → Issue reports.\n\n"
+                    + "What they said\n"
+                    + nullToDash(report.getUserDescription()) + "\n\n"
+                    + "Where\n"
+                    + "Page: " + nullToDash(report.getClientPagePath()) + "\n"
+                    + "Course: " + summaryLine(report.getHumanReadableSummary(), "Course name: ") + "\n"
+                    + "Module: " + summaryLine(report.getHumanReadableSummary(), "Module: ") + "\n"
+                    + "Lecture: " + summaryLine(report.getHumanReadableSummary(), "Lecture / topic label: ") + "\n"
+                    + "Category: " + friendlyCategory(report.getIssueCategory()) + "\n\n"
+                    + "Reporter\n"
+                    + "Email: " + nullToDash(report.getReporterEmail()) + "\n"
+                    + "User id: " + nullToDash(report.getReporterUserId()) + "\n\n"
+                    + "Reference: " + report.getId() + "\n\n"
+                    + "— Skillama";
 
             notificationSettingsService.sendTeamNotification(
                     NotificationEventType.ISSUE_REPORT, subject, message);
