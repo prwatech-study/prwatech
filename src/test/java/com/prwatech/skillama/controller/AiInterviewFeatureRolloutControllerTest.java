@@ -69,7 +69,8 @@ class AiInterviewFeatureRolloutControllerTest {
                         PlatformFeatureRolloutService.AI_INTERVIEW,
                         "This feature is not available yet. Check back soon."))
                 .when(platformFeatureRolloutService)
-                .assertPubliclyLive(PlatformFeatureRolloutService.AI_INTERVIEW);
+                .assertPubliclyLive(
+                        eq(PlatformFeatureRolloutService.AI_INTERVIEW), eq("opaque-token"));
 
         mockMvc.perform(get("/skillama/ai-interview/invite/opaque-token"))
                 .andExpect(status().isForbidden())
