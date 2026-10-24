@@ -140,13 +140,15 @@ public class AiInterviewController {
 
     @GetMapping("/invite/{token}")
     public ResponseEntity<?> preview(@PathVariable String token) {
-        platformFeatureRolloutService.assertPubliclyLive(PlatformFeatureRolloutService.AI_INTERVIEW);
+        platformFeatureRolloutService.assertPubliclyLive(
+                PlatformFeatureRolloutService.AI_INTERVIEW, token);
         return ResponseEntity.ok(aiInterviewService.preview(token));
     }
 
     @GetMapping("/invite/{token}/calendar.ics")
     public ResponseEntity<byte[]> calendarInvite(@PathVariable String token) {
-        platformFeatureRolloutService.assertPubliclyLive(PlatformFeatureRolloutService.AI_INTERVIEW);
+        platformFeatureRolloutService.assertPubliclyLive(
+                PlatformFeatureRolloutService.AI_INTERVIEW, token);
         byte[] ics = aiInterviewService.calendarInviteIcs(token);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"interview.ics\"")
@@ -156,7 +158,8 @@ public class AiInterviewController {
 
     @PostMapping("/invite/{token}/join")
     public ResponseEntity<?> join(@PathVariable String token, @RequestBody Map<String, Object> body) {
-        platformFeatureRolloutService.assertPubliclyLive(PlatformFeatureRolloutService.AI_INTERVIEW);
+        platformFeatureRolloutService.assertPubliclyLive(
+                PlatformFeatureRolloutService.AI_INTERVIEW, token);
         return ResponseEntity.ok(aiInterviewService.join(token, body == null ? Map.of() : body));
     }
 

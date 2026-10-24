@@ -17,4 +17,8 @@ public interface AiInterviewScheduleRepository extends MongoRepository<AiIntervi
     List<AiInterviewSchedule> findByCandidateEmailOrderByScheduledAtDesc(String candidateEmail);
 
     List<AiInterviewSchedule> findByCandidateEmailAndStatusIn(String candidateEmail, Collection<String> statuses);
+
+    boolean existsByCandidateEmail(String candidateEmail);
+
+    boolean existsByInviteToken(String inviteToken);
 }

@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -21,4 +22,6 @@ public class PlatformFeatureRolloutDTO {
     private boolean newBadge;
     private int sortOrder;
     private boolean active;
+    /** Owner-facing pilot allowlist; omitted/empty on anonymous learner catalog. */
+    private List<String> pilotUserIds;
 }

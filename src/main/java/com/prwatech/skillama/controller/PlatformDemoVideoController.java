@@ -7,12 +7,14 @@ import com.prwatech.skillama.dto.PlatformFeatureRolloutDTO;
 import com.prwatech.skillama.dto.PlatformThemeSettingsDTO;
 import com.prwatech.skillama.dto.PublicStatsDTO;
 import com.prwatech.skillama.dto.UpgradeContactDTO;
+import com.prwatech.skillama.exception.SkillamaAuthException;
 import com.prwatech.skillama.service.FreemiumService;
 import com.prwatech.skillama.service.PlatformAiSettingsService;
 import com.prwatech.skillama.service.PlatformDemoVideoService;
 import com.prwatech.skillama.service.PlatformFeatureRolloutService;
 import com.prwatech.skillama.service.PlatformPublicStatsService;
 import com.prwatech.skillama.service.PlatformThemeSettingsService;
+import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.service.SkillamaPlatformConfigService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 
 /**
@@ -37,6 +40,7 @@ public class PlatformDemoVideoController {
     private final PlatformFeatureRolloutService platformFeatureRolloutService;
     private final FreemiumService freemiumService;
     private final PlatformPublicStatsService platformPublicStatsService;
+    private final SkillamaAuthSupport skillamaAuthSupport;
 
     @GetMapping("/demo-video")
     public ResponseEntity<DemoVideoDTO> getDemoVideo() {
@@ -67,10 +71,23 @@ public class PlatformDemoVideoController {
         return ResponseEntity.ok(platformThemeSettingsService.getPublicSettings());
     }
 
-    /** Learner-visible platform features with rollout status (Upcoming / Live / New). */
+    /**
+     * Learner-visible platform features with rollout status (Upcoming / Live / New).
+     * When Authorization is present, Mock pilots and AI Interview assignees see LIVE
+     * for those codes only; anonymous callers get the global status.
+     */
     @GetMapping("/features")
-    public ResponseEntity<List<PlatformFeatureRolloutDTO>> getPlatformFeatures() {
-        return ResponseEntity.ok(platformFeatureRolloutService.listLearnerCatalog());
+    public ResponseEntity<List<PlatformFeatureRolloutDTO>> getPlatformFeatures(
+            HttpServletRequest request) {
+        String viewerUserId = null;
+        try {
+            viewerUserId = skillamaAuthSupport.resolveUserIdFromRequest(request);
+        } catch (SkillamaAuthException ignored) {
+            // Public catalog — ignore missing/invalid token.
+        } catch (RuntimeException ignored) {
+            // Same — do not fail the public endpoint on auth noise.
+        }
+        return ResponseEntity.ok(platformFeatureRolloutService.listLearnerCatalog(viewerUserId));
     }
 
     /** Public marketing aggregates for homepage social proof (cached). */

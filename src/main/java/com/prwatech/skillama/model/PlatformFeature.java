@@ -62,6 +62,13 @@ public class PlatformFeature {
     @Builder.Default
     private boolean learnerVisible = false;
 
+    /**
+     * While rollout is UPCOMING/HIDDEN, these user ids may still use the feature
+     * (owner pilot list — used for Mock Interview).
+     */
+    @Builder.Default
+    private List<String> pilotUserIds = new ArrayList<>();
+
     public RolloutStatus getEffectiveRolloutStatus() {
         return rolloutStatus != null ? rolloutStatus : RolloutStatus.LIVE;
     }

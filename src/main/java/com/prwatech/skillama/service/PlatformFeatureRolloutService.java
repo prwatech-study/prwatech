@@ -6,6 +6,7 @@ import com.prwatech.skillama.exception.FeatureNotLiveException;
 import com.prwatech.skillama.exception.ResourceNotFoundException;
 import com.prwatech.skillama.model.PlatformFeature;
 import com.prwatech.skillama.model.User;
+import com.prwatech.skillama.repository.AiInterviewScheduleRepository;
 import com.prwatech.skillama.repository.PlatformFeatureRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.util.IndiaTime;
@@ -13,8 +14,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -51,41 +55,59 @@ public class PlatformFeatureRolloutService {
 
     private final PlatformFeatureRepository platformFeatureRepository;
     private final SkillamaUserRepository userRepository;
+    private final AiInterviewScheduleRepository aiInterviewScheduleRepository;
 
     public List<PlatformFeatureRolloutDTO> listLearnerCatalog() {
+        return listLearnerCatalog(null);
+    }
+
+    /**
+     * Learner catalog. When {@code viewerUserId} is set, effective status may be LIVE for
+     * that user only (Mock pilots / AI Interview assignees) while global stays UPCOMING.
+     */
+    public List<PlatformFeatureRolloutDTO> listLearnerCatalog(String viewerUserId) {
         return platformFeatureRepository.findByLearnerVisibleTrueAndActiveTrueOrderBySortOrderAsc().stream()
-                .map(this::toDto)
+                .map(f -> toLearnerDto(f, viewerUserId))
                 .toList();
     }
 
     public List<PlatformFeatureRolloutDTO> listAllForOwner() {
         return platformFeatureRepository.findByActiveTrueOrderBySortOrderAsc().stream()
-                .map(this::toDto)
+                .map(this::toOwnerDto)
                 .toList();
     }
 
     public PlatformFeatureRolloutDTO updateRollout(String code, UpdateFeatureRolloutDTO body, String ownerUserId) {
-        if (body == null || body.getRolloutStatus() == null) {
-            throw new IllegalArgumentException("rolloutStatus is required");
+        if (body == null
+                || (body.getRolloutStatus() == null && body.getPilotUserIds() == null)) {
+            throw new IllegalArgumentException("rolloutStatus or pilotUserIds is required");
         }
         PlatformFeature feature = platformFeatureRepository.findByCode(code)
                 .orElseThrow(() -> new ResourceNotFoundException("Feature not found: " + code));
 
-        PlatformFeature.RolloutStatus next = body.getRolloutStatus();
-        PlatformFeature.RolloutStatus previous = feature.getEffectiveRolloutStatus();
-        feature.setRolloutStatus(next);
-        if (next == PlatformFeature.RolloutStatus.LIVE) {
-            if (previous != PlatformFeature.RolloutStatus.LIVE || feature.getLiveAt() == null) {
-                feature.setLiveAt(IndiaTime.now());
+        if (body.getRolloutStatus() != null) {
+            PlatformFeature.RolloutStatus next = body.getRolloutStatus();
+            PlatformFeature.RolloutStatus previous = feature.getEffectiveRolloutStatus();
+            feature.setRolloutStatus(next);
+            if (next == PlatformFeature.RolloutStatus.LIVE) {
+                if (previous != PlatformFeature.RolloutStatus.LIVE || feature.getLiveAt() == null) {
+                    feature.setLiveAt(IndiaTime.now());
+                }
+            } else {
+                feature.setLiveAt(null);
             }
-        } else {
-            feature.setLiveAt(null);
         }
-        return toDto(platformFeatureRepository.save(feature));
+
+        if (body.getPilotUserIds() != null) {
+            feature.setPilotUserIds(normalizePilotUserIds(body.getPilotUserIds()));
+        }
+
+        return toOwnerDto(platformFeatureRepository.save(feature));
     }
 
     /**
-     * LIVE → allow everyone. UPCOMING/HIDDEN → allow only ADMIN, OWNER, TESTER.
+     * LIVE → allow everyone.
+     * UPCOMING/HIDDEN → staff, pilot users, or (AI Interview only) assigned candidates.
      * Missing catalog entry is treated as LIVE (legacy codes).
      */
     public void assertAccessible(String featureCode, String userId) {
@@ -106,16 +128,26 @@ public class PlatformFeatureRolloutService {
         if (isStaff(user)) {
             return;
         }
+        if (isPilotUser(feature, userId)) {
+            return;
+        }
+        if (AI_INTERVIEW.equals(featureCode) && hasAssignedInterview(user)) {
+            return;
+        }
         throw new FeatureNotLiveException(
                 featureCode,
                 "This feature is not available yet. Check back soon.");
     }
 
     /**
-     * Anonymous/guest paths (invite preview/join): only LIVE is allowed.
-     * In-flight session tokens are not checked here so active interviews can finish.
+     * Anonymous/guest paths (invite preview/join): LIVE globally, or a valid invite token
+     * (assignment unlocks the guest path without requiring platform-wide LIVE).
      */
     public void assertPubliclyLive(String featureCode) {
+        assertPubliclyLive(featureCode, null);
+    }
+
+    public void assertPubliclyLive(String featureCode, String inviteToken) {
         if (featureCode == null || featureCode.isBlank()) {
             return;
         }
@@ -124,6 +156,12 @@ public class PlatformFeatureRolloutService {
             return;
         }
         if (feature.getEffectiveRolloutStatus() == PlatformFeature.RolloutStatus.LIVE) {
+            return;
+        }
+        if (AI_INTERVIEW.equals(featureCode)
+                && inviteToken != null
+                && !inviteToken.isBlank()
+                && aiInterviewScheduleRepository.existsByInviteToken(inviteToken.trim())) {
             return;
         }
         throw new FeatureNotLiveException(
@@ -173,7 +211,69 @@ public class PlatformFeatureRolloutService {
                 || role == User.UserRole.TESTER;
     }
 
-    private PlatformFeatureRolloutDTO toDto(PlatformFeature feature) {
+    private boolean isPilotUser(PlatformFeature feature, String userId) {
+        if (feature == null || userId == null || userId.isBlank()) {
+            return false;
+        }
+        List<String> pilots = feature.getPilotUserIds();
+        return pilots != null && pilots.contains(userId);
+    }
+
+    private boolean hasAssignedInterview(User user) {
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            return false;
+        }
+        return aiInterviewScheduleRepository.existsByCandidateEmail(normalizeEmail(user.getEmail()));
+    }
+
+    private static String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static List<String> normalizePilotUserIds(List<String> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return raw.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .map(String::trim)
+                .distinct()
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private PlatformFeatureRolloutDTO toLearnerDto(PlatformFeature feature, String viewerUserId) {
+        PlatformFeature.RolloutStatus status = feature.getEffectiveRolloutStatus();
+        boolean newBadge = isNew(feature);
+
+        if (viewerUserId != null
+                && !viewerUserId.isBlank()
+                && status != PlatformFeature.RolloutStatus.LIVE) {
+            if (isPilotUser(feature, viewerUserId)
+                    || (AI_INTERVIEW.equals(feature.getCode())
+                            && userRepository.findById(viewerUserId)
+                                    .map(this::hasAssignedInterview)
+                                    .orElse(false))) {
+                status = PlatformFeature.RolloutStatus.LIVE;
+                newBadge = false;
+            }
+        }
+
+        return PlatformFeatureRolloutDTO.builder()
+                .code(feature.getCode())
+                .name(feature.getName())
+                .description(feature.getDescription())
+                .category(feature.getCategory())
+                .rolloutStatus(status)
+                .liveAt(status == PlatformFeature.RolloutStatus.LIVE ? feature.getLiveAt() : null)
+                .learnerVisible(feature.isLearnerVisible())
+                .newBadge(newBadge)
+                .sortOrder(feature.getSortOrder())
+                .active(feature.isActive())
+                .build();
+    }
+
+    private PlatformFeatureRolloutDTO toOwnerDto(PlatformFeature feature) {
+        List<String> pilots = feature.getPilotUserIds();
         return PlatformFeatureRolloutDTO.builder()
                 .code(feature.getCode())
                 .name(feature.getName())
@@ -185,6 +285,7 @@ public class PlatformFeatureRolloutService {
                 .newBadge(isNew(feature))
                 .sortOrder(feature.getSortOrder())
                 .active(feature.isActive())
+                .pilotUserIds(pilots != null ? new ArrayList<>(pilots) : new ArrayList<>())
                 .build();
     }
 }
