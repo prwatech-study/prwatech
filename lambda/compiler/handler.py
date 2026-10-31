@@ -37,6 +37,11 @@ FAMILIES = {
 }
 
 JAVA_CLASS = re.compile(r"\bpublic\s+class\s+([A-Za-z_]\w*)")
+JAVA_TYPE = re.compile(
+    r"(?m)^(?!\s*(?://|/\*|\*))\s*(?:public\s+|private\s+|protected\s+)?"
+    r"(?:abstract\s+|final\s+|sealed\s+)*(?:class|interface|enum|record)\s+[A-Za-z_]"
+)
+JAVA_MAIN = re.compile(r"\bvoid\s+main\s*\(")
 SCALA_NAME = re.compile(r"\b(?:object|class)\s+([A-Za-z_]\w*)")
 PYTEST_HINT = re.compile(r"(?m)^\s*def\s+test_|^\s*import\s+pytest|^\s*from\s+pytest\b")
 SQL_ATTACH = re.compile(r"\battach\b|\bload_extension\b", re.IGNORECASE)
@@ -144,6 +149,28 @@ def public_class_name(code: str) -> str:
     return match.group(1) if match else "Main"
 
 
+def prepare_java_source(code: str):
+    """Lesson snippets are often one method plus comments. javac needs a type.
+
+    A fragment with no class, interface, enum, or record is wrapped in
+    public class Main. Imports and the package line stay outside that class.
+    """
+    text = (code or "").strip() + "\n"
+    if JAVA_TYPE.search(text):
+        source = text
+    else:
+        preamble = []
+        body = []
+        for line in text.splitlines(keepends=True):
+            stripped = line.strip()
+            if not body and (stripped.startswith("package ") or stripped.startswith("import ")):
+                preamble.append(line if line.endswith("\n") else line + "\n")
+                continue
+            body.append(line)
+        source = "".join(preamble) + "public class Main {\n" + "".join(body) + "}\n"
+    return public_class_name(source), source, bool(JAVA_MAIN.search(source))
+
+
 def scala_type_name(code: str) -> str:
     match = SCALA_NAME.search(code or "")
     return match.group(1) if match else "Main"
@@ -202,10 +229,10 @@ def run_java(runtime, code, stdin_text, work):
     missing = _missing(os.path.join(home, "bin", "javac"), f"Java {major}")
     if missing:
         return missing
-    name = public_class_name(code)
+    name, source, has_main = prepare_java_source(code)
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
         name = "Main"
-    _write(os.path.join(work, f"{name}.java"), code)
+    _write(os.path.join(work, f"{name}.java"), source)
     env = child_env()
     env["JAVA_HOME"] = home
     env["PATH"] = os.path.join(home, "bin") + os.pathsep + env.get("PATH", "")
@@ -214,6 +241,12 @@ def run_java(runtime, code, stdin_text, work):
     )
     if rc != 0:
         return finish(rc, out, err or out)
+    if not has_main:
+        return {
+            "status": "ok",
+            "stdout": "Compiled successfully. This snippet has no main method, so nothing was run.\n",
+            "stderr": "",
+        }
     rc, out, err = run_command(
         [os.path.join(home, "bin", "java"), "-cp", work, name], work, env, stdin_text, run_timeout()
     )

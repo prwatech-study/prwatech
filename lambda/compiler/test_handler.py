@@ -39,6 +39,35 @@ class HandlerPolicyTest(unittest.TestCase):
         self.assertFalse(handler.wants_pytest("def test_one():\n    pass\n", "script"))
         self.assertFalse(handler.wants_pytest("print(1)\n", "auto"))
 
+    def test_java_method_snippet_is_wrapped_and_not_run(self):
+        snippet = """
+// This method calculates factorial of a number
+public int factorial(int n) {
+    if (n <= 1) return 1;  // Base case
+    /* Recursive call - multi-line comment
+       for clarity on logic flow */
+    return n * factorial(n - 1);
+}
+/**
+ * Calculates factorial used in Javadoc generation
+ * @param n input number
+ * @return factorial result
+ */
+"""
+        name, source, has_main = handler.prepare_java_source(snippet)
+        self.assertEqual("Main", name)
+        self.assertFalse(has_main)
+        self.assertIn("public class Main {", source)
+        self.assertIn("public int factorial", source)
+        self.assertIn("@param n", source)
+
+    def test_complete_java_program_is_left_alone(self):
+        program = "public class Hello {\n  public static void main(String[] args) {\n    System.out.println(1);\n  }\n}\n"
+        name, source, has_main = handler.prepare_java_source(program)
+        self.assertEqual("Hello", name)
+        self.assertTrue(has_main)
+        self.assertNotIn("public class Main", source)
+
     def test_java_and_scala_names(self):
         self.assertEqual("Hello", handler.public_class_name("public class Hello { }"))
         self.assertEqual("Main", handler.public_class_name("class Hidden {}"))

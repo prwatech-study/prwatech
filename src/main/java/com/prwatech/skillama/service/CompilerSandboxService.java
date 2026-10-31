@@ -36,6 +36,11 @@ public class CompilerSandboxService {
         payload.put("code", code);
         payload.put("runner", preferPytest ? "auto" : "script");
         if (stdin != null && !stdin.isBlank()) {
+            // Scanner.nextLine(), input(), and cin see a line only after a newline.
+            // The editor's input box is a single line, so it never includes one.
+            if (!stdin.endsWith("\n")) {
+                stdin = stdin + "\n";
+            }
             payload.put("stdin", stdin);
         }
 
