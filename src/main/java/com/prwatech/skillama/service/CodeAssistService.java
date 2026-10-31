@@ -45,6 +45,7 @@ public class CodeAssistService {
     private final SkillamaAiClient skillamaAiClient;
     private final PracticalSandboxService practicalSandboxService;
     private final PracticalDatasetService practicalDatasetService;
+    private final CompilerSandboxService compilerSandboxService;
 
     public CodeAssistResponseDTO runDebug(String userId, CodeAssistRequestDTO request) {
         return run(CodeAssistFeature.DEBUG, userId, request);
@@ -80,18 +81,23 @@ public class CodeAssistService {
         String realError = null;
         String datasetFilename = null;
         List<String> datasetColumns = List.of();
+        String runtimeLabel = null;
+        CompilerCatalog.Profile profile = CompilerCatalog.resolve(
+                courseEntity != null ? courseEntity.getCompilerLanguage() : null,
+                courseEntity != null && courseEntity.getName() != null ? courseEntity.getName() : courseName);
         // True whenever we got a real verdict back from the sandbox — success, a rejected
         // (blocked) run, or a genuine execution error all count, since all three are real
         // signals rather than an ai-tutor guess. Only false for non-compiler courses and for
         // the exception-fallback case below, where nothing real was ever obtained.
         boolean sandboxVerified = false;
-        if (usesRealCompiler(courseEntity, courseName)) {
+        if (usesRealCompiler(courseEntity, courseName) && profile.kind() != CompilerCatalog.Kind.NONE) {
             try {
-                SandboxRunResult run = resolveSandboxResult(userId, request);
+                SandboxRunResult run = resolveSandboxResult(userId, request, profile);
                 sandboxVerified = true;
                 PracticalSandboxService.SandboxResult sandboxResult = run.result();
                 datasetFilename = run.datasetFilename();
                 datasetColumns = run.datasetColumns();
+                runtimeLabel = run.runtimeLabel();
                 if (sandboxResult.isOk()) {
                     realOutput = sandboxResult.getStdout() != null ? sandboxResult.getStdout() : "";
                 } else if ("rejected".equals(sandboxResult.getStatus())) {
@@ -126,7 +132,7 @@ public class CodeAssistService {
 
         GeneratedCodeAssistDTO generated = skillamaAiClient.runCodeAssist(
                 user, endpoint, request.getCourseId(), request.getCode(), courseName,
-                realOutput, realError, datasetFilename, datasetColumns);
+                realOutput, realError, datasetFilename, datasetColumns, runtimeLabel);
 
         CodeAssistInteraction interaction = CodeAssistInteraction.builder()
                 .userId(userId)
@@ -199,7 +205,19 @@ public class CodeAssistService {
      * (still real, just without file access) if the dataset can't be resolved for any reason —
      * a bad/stale datasetId shouldn't break Debug/Execute entirely, only lose the file access.
      */
-    private SandboxRunResult resolveSandboxResult(String userId, CodeAssistRequestDTO request) {
+    private SandboxRunResult resolveSandboxResult(
+            String userId, CodeAssistRequestDTO request, CompilerCatalog.Profile profile) {
+        if (profile.kind() == CompilerCatalog.Kind.COMPILER) {
+            CompilerCatalog.RuntimeOption runtime = profile.select(request.getRuntime());
+            PracticalSandboxService.SandboxResult result = compilerSandboxService.execute(
+                    profile.lambdaFamily(),
+                    runtime.id(),
+                    request.getCode(),
+                    request.getStdin(),
+                    profile.preferPytest());
+            return new SandboxRunResult(result, null, List.of(), runtime.label());
+        }
+
         String datasetId = request.getDatasetId();
         if (datasetId != null && !datasetId.isBlank()) {
             try {
@@ -208,13 +226,14 @@ public class CodeAssistService {
                 PracticalSandboxService.SandboxResult result = practicalSandboxService.executeWithDataset(
                         datasetId, ctx.storageKey(), ctx.displayName(), request.getCode());
                 List<String> columns = practicalDatasetService.resolveColumnHint(ctx.storageKey());
-                return new SandboxRunResult(result, ctx.displayName(), columns);
+                return new SandboxRunResult(result, ctx.displayName(), columns, "Python practice sandbox");
             } catch (Exception e) {
                 log.warn("Could not resolve datasetId={} for code-assist, falling back to ad-hoc execution",
                         datasetId, e);
             }
         }
-        return new SandboxRunResult(practicalSandboxService.executeAdHoc(request.getCode()), null, List.of());
+        return new SandboxRunResult(
+                practicalSandboxService.executeAdHoc(request.getCode()), null, List.of(), "Python practice sandbox");
     }
 
     /**
@@ -223,7 +242,10 @@ public class CodeAssistService {
      *                        wrong/guessed column names the same way it corrects a wrong filename.
      */
     private record SandboxRunResult(
-            PracticalSandboxService.SandboxResult result, String datasetFilename, List<String> datasetColumns) {}
+            PracticalSandboxService.SandboxResult result,
+            String datasetFilename,
+            List<String> datasetColumns,
+            String runtimeLabel) {}
 
     /**
      * Proxies an interaction's spoken-explanation audio — the raw ai-tutor URL never

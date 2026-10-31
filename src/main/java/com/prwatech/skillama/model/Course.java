@@ -67,10 +67,15 @@ public class Course {
     private String detailCurriculumHash;
     /**
      * How Code / Debug tabs produce output for this course.
-     * {@code compiler} = real Python sandbox; {@code ai} = AI-simulated (default).
+     * {@code compiler} = the course's real sandbox; {@code ai} = AI-simulated (default).
      */
     @Builder.Default
     private String codeOutputMode = "ai";
+    /**
+     * Which sandbox family to use when {@link #codeOutputMode} is {@code compiler}.
+     * Empty means infer from {@link #name}. See {@code CompilerCatalog}.
+     */
+    private String compilerLanguage;
     /** Optional AI Tutor course label when it must differ from the display {@link #name}. */
     private String aiCourseName;
     /** When set, course is hidden from learners and admins; only Owner can restore. */

@@ -2,6 +2,7 @@ package com.prwatech.skillama.script;
 
 import com.prwatech.skillama.model.Course;
 import com.prwatech.skillama.repository.CourseRepository;
+import com.prwatech.skillama.service.CompilerCatalog;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,12 +10,11 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.Locale;
-
 /**
- * Backfill {@link Course#getCodeOutputMode()} for existing courses.
- * Python / Data Science → compiler; everything else → ai.
+ * Backfill {@link Course#getCodeOutputMode()} and {@link Course#getCompilerLanguage()}.
+ * A blank language is filled from the course name once. When that fill matches a real
+ * sandbox, an existing {@code ai} mode is switched to {@code compiler} on that same pass.
+ * Later admin edits stick, because the language is no longer blank.
  */
 @Component
 @Order(50)
@@ -29,25 +29,32 @@ public class CourseCodeOutputModeMigration implements CommandLineRunner {
     public void run(String... args) {
         int updated = 0;
         for (Course course : courseRepository.findAll()) {
-            if (course.getCodeOutputMode() != null && !course.getCodeOutputMode().isBlank()) {
-                continue;
+            if (apply(course)) {
+                courseRepository.save(course);
+                updated++;
             }
-            String mode = inferMode(course.getName());
-            course.setCodeOutputMode(mode);
-            courseRepository.save(course);
-            updated++;
         }
         if (updated > 0) {
             LOGGER.info("Backfilled codeOutputMode for {} course(s)", updated);
         }
     }
 
-    private static String inferMode(String name) {
-        if (name == null) return "ai";
-        String n = name.toLowerCase(Locale.ROOT);
-        if (n.contains("python") || n.contains("data science") || n.contains("data-science")) {
-            return "compiler";
+    static boolean apply(Course course) {
+        CompilerCatalog.Profile profile = CompilerCatalog.resolve(course.getCompilerLanguage(), course.getName());
+        boolean dirty = false;
+        if ((course.getCompilerLanguage() == null || course.getCompilerLanguage().isBlank())
+                && profile.kind() != CompilerCatalog.Kind.NONE
+                && profile.languageId() != null) {
+            course.setCompilerLanguage(profile.languageId());
+            dirty = true;
+            if (!"compiler".equalsIgnoreCase(course.getCodeOutputMode())) {
+                course.setCodeOutputMode("compiler");
+            }
         }
-        return "ai";
+        if (course.getCodeOutputMode() == null || course.getCodeOutputMode().isBlank()) {
+            course.setCodeOutputMode(profile.kind() == CompilerCatalog.Kind.NONE ? "ai" : "compiler");
+            dirty = true;
+        }
+        return dirty;
     }
 }

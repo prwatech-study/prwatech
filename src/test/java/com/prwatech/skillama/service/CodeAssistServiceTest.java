@@ -30,9 +30,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,6 +48,7 @@ class CodeAssistServiceTest {
     @Mock private SkillamaAiClient skillamaAiClient;
     @Mock private PracticalSandboxService practicalSandboxService;
     @Mock private PracticalDatasetService practicalDatasetService;
+    @Mock private CompilerSandboxService compilerSandboxService;
 
     @InjectMocks private CodeAssistService codeAssistService;
 
@@ -84,11 +88,11 @@ class CodeAssistServiceTest {
         // codeOutputMode=compiler takes the real-execution path; sandbox integration
         // itself isn't under test here, so simulate it being unavailable — CodeAssistService
         // degrades gracefully and calls ai-tutor with no real_output/real_error, same as before.
-        when(practicalSandboxService.executeAdHoc(anyString()))
+        when(compilerSandboxService.execute(eq("python"), eq("python3.12"), anyString(), nullable(String.class), eq(false)))
                 .thenThrow(new IllegalStateException("sandbox not under test here"));
         when(skillamaAiClient.runCodeAssist(
                         any(User.class), eq("debug_assist"), eq("course-1"), eq("print(1)"), eq("Python Basics"),
-                        isNull(), isNull(), isNull(), eq(List.of())))
+                        isNull(), isNull(), isNull(), eq(List.of()), isNull()))
                 .thenReturn(generated("https://ai.prwatech.com/get_audio/explain.mp3"));
         when(interactionRepository.save(any(CodeAssistInteraction.class)))
                 .thenAnswer(inv -> {
@@ -121,11 +125,11 @@ class CodeAssistServiceTest {
         when(userRepository.findById("user-1")).thenReturn(Optional.of(existingUser("user-1")));
         // No courseId set -> courseName defaults to "Python", so this also hits the real-
         // execution path; same graceful-fallback simulation as the test above.
-        when(practicalSandboxService.executeAdHoc(anyString()))
+        when(compilerSandboxService.execute(eq("python"), eq("python3.12"), anyString(), nullable(String.class), eq(false)))
                 .thenThrow(new IllegalStateException("sandbox not under test here"));
         when(skillamaAiClient.runCodeAssist(
                         any(User.class), anyString(), any(), anyString(), anyString(),
-                        isNull(), isNull(), isNull(), eq(List.of())))
+                        isNull(), isNull(), isNull(), eq(List.of()), isNull()))
                 .thenReturn(generated(null));
         when(interactionRepository.save(any(CodeAssistInteraction.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
@@ -169,21 +173,25 @@ class CodeAssistServiceTest {
         // Lecture code the sandbox policy refuses (e.g. an os-module lesson) must not surface
         // a policy error the learner can't act on — it degrades to the AI-simulated path.
         when(userRepository.findById("user-1")).thenReturn(Optional.of(existingUser("user-1")));
+        when(courseRepository.findById("ds"))
+                .thenReturn(Optional.of(Course.builder().id("ds").name("Data science with AI").codeOutputMode("compiler").build()));
         when(practicalSandboxService.executeAdHoc("import os"))
                 .thenReturn(rejected("import 'os' is not allowed"));
         when(skillamaAiClient.runCodeAssist(
-                        any(User.class), eq("code_execution_assist"), any(), eq("import os"), anyString(),
-                        isNull(), isNull(), isNull(), eq(List.of())))
+                        any(User.class), eq("code_execution_assist"), eq("ds"), eq("import os"), eq("Data science with AI"),
+                        isNull(), isNull(), isNull(), eq(List.of()), eq("Python practice sandbox")))
                 .thenReturn(generated(null));
         when(interactionRepository.save(any(CodeAssistInteraction.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
         CodeAssistRequestDTO request = new CodeAssistRequestDTO();
         request.setCode("import os");
+        request.setCourseId("ds");
 
         CodeAssistResponseDTO response = codeAssistService.runCodeExecution("user-1", request);
 
         assertFalse(response.getSandboxVerified());
+        verify(compilerSandboxService, never()).execute(any(), any(), any(), nullable(String.class), anyBoolean());
         ArgumentCaptor<CodeAssistInteraction> captor = ArgumentCaptor.forClass(CodeAssistInteraction.class);
         verify(interactionRepository).save(captor.capture());
         assertFalse(captor.getValue().getSandboxVerified());
@@ -195,27 +203,56 @@ class CodeAssistServiceTest {
     void runDebug_sandboxRejection_keepsRealErrorWithFriendlyWording() {
         // Learner-authored Debug code keeps the honest rejection, but phrased as guidance.
         when(userRepository.findById("user-1")).thenReturn(Optional.of(existingUser("user-1")));
+        when(courseRepository.findById("ds"))
+                .thenReturn(Optional.of(Course.builder().id("ds").name("Data science with AI").codeOutputMode("compiler").build()));
         when(practicalSandboxService.executeAdHoc("import os"))
                 .thenReturn(rejected("import 'os' is not allowed"));
         when(skillamaAiClient.runCodeAssist(
-                        any(User.class), eq("debug_assist"), any(), eq("import os"), anyString(),
-                        isNull(), anyString(), isNull(), eq(List.of())))
+                        any(User.class), eq("debug_assist"), eq("ds"), eq("import os"), eq("Data science with AI"),
+                        isNull(), anyString(), isNull(), eq(List.of()), eq("Python practice sandbox")))
                 .thenReturn(generated(null));
         when(interactionRepository.save(any(CodeAssistInteraction.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
         CodeAssistRequestDTO request = new CodeAssistRequestDTO();
         request.setCode("import os");
+        request.setCourseId("ds");
 
         CodeAssistResponseDTO response = codeAssistService.runDebug("user-1", request);
 
         assertTrue(response.getSandboxVerified());
         ArgumentCaptor<String> errorCaptor = ArgumentCaptor.forClass(String.class);
         verify(skillamaAiClient).runCodeAssist(
-                any(User.class), eq("debug_assist"), any(), eq("import os"), anyString(),
-                isNull(), errorCaptor.capture(), isNull(), eq(List.of()));
+                any(User.class), eq("debug_assist"), eq("ds"), eq("import os"), eq("Data science with AI"),
+                isNull(), errorCaptor.capture(), isNull(), eq(List.of()), eq("Python practice sandbox"));
         assertTrue(errorCaptor.getValue().contains("practice sandbox couldn't run this code"));
         assertTrue(errorCaptor.getValue().contains("import 'os' is not allowed"));
+    }
+
+    @Test
+    void javaCourse_goRuntimeFallsBackToJava17_andSkipsPracticeSandbox() {
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(existingUser("user-1")));
+        when(courseRepository.findById("java"))
+                .thenReturn(Optional.of(Course.builder().id("java").name("Java Programming").codeOutputMode("compiler").build()));
+        when(compilerSandboxService.execute(eq("java"), eq("java17"), eq("class Main {}"), nullable(String.class), eq(false)))
+                .thenReturn(PracticalSandboxService.SandboxResult.builder().status("ok").stdout("ok").build());
+        when(skillamaAiClient.runCodeAssist(
+                        any(User.class), eq("code_execution_assist"), eq("java"), eq("class Main {}"), eq("Java Programming"),
+                        eq("ok"), isNull(), isNull(), eq(List.of()), eq("Java 17")))
+                .thenReturn(generated(null));
+        when(interactionRepository.save(any(CodeAssistInteraction.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        CodeAssistRequestDTO request = new CodeAssistRequestDTO();
+        request.setCode("class Main {}");
+        request.setCourseId("java");
+        request.setRuntime("go1.27");
+
+        CodeAssistResponseDTO response = codeAssistService.runCodeExecution("user-1", request);
+
+        assertTrue(response.getSandboxVerified());
+        verify(practicalSandboxService, never()).executeAdHoc(anyString());
+        verify(compilerSandboxService).execute(eq("java"), eq("java17"), eq("class Main {}"), nullable(String.class), eq(false));
     }
 
     // ---------- getInteractionAudio ----------

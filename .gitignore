@@ -63,6 +63,9 @@ src/main/resources/templates/firbase_sdk.json
 __pycache__/
 *.pyc
 
+# Compiler image vendor archives (downloaded by lambda/compiler/deploy.sh)
+lambda/compiler/**/vendor/
+
 # macOS
 .DS_Store
 .metals/*

@@ -15,8 +15,9 @@ import java.time.Duration;
  *
  * <p>The synchronous invoke calls made through this client block for as long as the target
  * function runs, up to that function's own configured timeout (currently 90s for
- * clamav-scanner, 60s for the code sandbox). The SDK's default client-side call timeout isn't
- * guaranteed to outlast that, so it's set explicitly here, comfortably above both — otherwise
+ * clamav-scanner and the Spark compiler, 30s for the other sandboxes). The SDK's default
+ * client-side call timeout isn't guaranteed to outlast a cold start plus that run, so it's
+ * set explicitly here — otherwise
  * the caller could give up before a function that's still legitimately running returns.
  */
 @Configuration
@@ -31,8 +32,8 @@ public class LambdaConfig {
             .region(Region.of(region))
             .credentialsProvider(DefaultCredentialsProvider.create())
             .overrideConfiguration(ClientOverrideConfiguration.builder()
-                    .apiCallTimeout(Duration.ofSeconds(110))
-                    .apiCallAttemptTimeout(Duration.ofSeconds(110))
+                    .apiCallTimeout(Duration.ofSeconds(150))
+                    .apiCallAttemptTimeout(Duration.ofSeconds(150))
                     .build())
             .build();
     }

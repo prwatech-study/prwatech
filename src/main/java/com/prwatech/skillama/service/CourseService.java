@@ -171,6 +171,14 @@ public class CourseService {
                 existing.setCodeOutputMode(
                         "compiler".equals(mode) ? "compiler" : "ai");
             }
+            if (updated.getCompilerLanguage() != null) {
+                String language = updated.getCompilerLanguage().trim().toLowerCase();
+                if (language.isBlank() || "auto".equals(language)) {
+                    existing.setCompilerLanguage(null);
+                } else if (CompilerCatalog.isKnownLanguage(language)) {
+                    existing.setCompilerLanguage("ai".equals(language) ? "ai" : language);
+                }
+            }
             if (updated.getAiCourseName() != null) {
                 existing.setAiCourseName(
                         updated.getAiCourseName().isBlank() ? null : updated.getAiCourseName().trim());
