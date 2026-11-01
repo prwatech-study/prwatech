@@ -147,6 +147,32 @@ public int Factorial(int n) {
         self.assertTrue(needs_entry)
         self.assertNotIn("class Program", source)
 
+    def test_swing_window_is_recognized_and_headless_crash_is_replaced(self):
+        window = """
+import javax.swing.*;
+import java.awt.*;
+public class Calculator extends JFrame {
+    public Calculator() { setVisible(true); }
+    public static void main(String[] args) { new Calculator(); }
+}
+"""
+        self.assertTrue(handler.opens_desktop_window(window))
+        console = "public class Hello {\n  public static void main(String[] args) {\n    System.out.println(1);\n  }\n}\n"
+        self.assertFalse(handler.opens_desktop_window(console))
+        commented = "// JFrame lives in a comment\n" + console
+        self.assertFalse(handler.opens_desktop_window(commented))
+        crash = handler.finish(1, "", "java.awt.HeadlessException: No X11 DISPLAY variable was set")
+        self.assertEqual("ok", crash["status"])
+        self.assertIn("no screen", crash["stdout"])
+        self.assertNotIn("HeadlessException", crash["stdout"])
+        self.assertTrue(handler.opens_desktop_window('#include <gtk/gtk.h>\nint main(){gtk_init(0,0);}\n'))
+        self.assertTrue(handler.opens_desktop_window("using System.Windows.Forms;\n"))
+        self.assertTrue(handler.opens_desktop_window("import scala.swing._\n"))
+        self.assertTrue(handler.opens_desktop_window('import "fyne.io/fyne/v2/app"\n'))
+        missing = handler.finish_or_desktop(1, "", "fatal error: gtk/gtk.h: No such file or directory", "#include <gtk/gtk.h>\n")
+        self.assertEqual("ok", missing["status"])
+        self.assertIn("no screen", missing["stdout"])
+
     def test_dotnet_build_does_not_use_the_run_project_switch(self):
         self.assertEqual(
             ["dotnet", "build", "/work", "--no-restore"],

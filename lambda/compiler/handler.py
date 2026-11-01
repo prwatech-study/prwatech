@@ -25,6 +25,36 @@ MAX_CODE_BYTES = 100_000
 MAX_STDIN_BYTES = 64_000
 MAX_OUTPUT_BYTES = 256_000
 COMPILED_NOTE = "Compiled successfully. This snippet has no entry point, so nothing was run.\n"
+DESKTOP_NOTE = (
+    "Compiled successfully. This program opens a desktop window, "
+    "and this sandbox has no screen, so it was not shown.\n"
+)
+DESKTOP_SOURCE = re.compile(
+    r"(?m)\bjavax\.swing\b"
+    r"|\bjavafx\.(?:application|stage|scene)\b"
+    r"|\b(?:extends|new)\s+(?:javax\.swing\.)?(?:JFrame|JDialog|JWindow)\b"
+    r"|\b(?:extends|new)\s+(?:java\.awt\.)?(?:Frame|Window|Dialog)\b"
+    r"|^\s*(?:import\s+|from\s+)(?:tkinter|turtle|pygame)\b"
+    r"|\bSystem\.Windows\.Forms\b"
+    r"|\b(?:gtk_init|glutInit|SDL_Init|XOpenDisplay)\s*\("
+    r"|gtk/gtk\.h|SDL2/SDL\.h"
+    r"|\bscala\.swing\b"
+    r"|\bfyne\.io/fyne\b"
+    r"|github\.com/andlabs/ui"
+)
+GUI_TOOLCHAIN_MISS = re.compile(
+    r"gtk/gtk\.h|SDL2/SDL\.h|SDL/SDL\.h"
+    r"|undefined reference to `(?:gtk_|SDL_|glut)"
+    r"|Windows\.Forms|type or namespace name 'Forms'"
+    r"|scala\.swing|object swing is not a member"
+    r"|fyne\.io/fyne|andlabs/ui",
+    re.IGNORECASE,
+)
+DESKTOP_RUNTIME = re.compile(
+    r"HeadlessException|No X11 DISPLAY|no display name and no \$DISPLAY"
+    r"|could not connect to display|cannot open display",
+    re.IGNORECASE,
+)
 
 FAMILIES = {
     "python": {"python3.12", "python3.13", "python3.14", "python3.15"},
@@ -167,6 +197,8 @@ def finish(returncode, stdout, stderr):
         if stderr.strip():
             combined = (stdout + ("\n" if stdout else "") + stderr).strip()
         return {"status": "ok", "stdout": combined, "stderr": stderr}
+    if DESKTOP_RUNTIME.search(f"{stdout}\n{stderr}"):
+        return desktop_only()
     error = stderr.strip() or stdout.strip() or f"Execution failed ({returncode})"
     return {"status": "error", "stdout": stdout, "stderr": stderr, "error": error}
 
@@ -178,6 +210,24 @@ def public_class_name(code: str) -> str:
 
 def compiled_only():
     return {"status": "ok", "stdout": COMPILED_NOTE, "stderr": ""}
+
+
+def opens_desktop_window(code: str) -> bool:
+    return bool(DESKTOP_SOURCE.search(strip_c_comments(code or "")))
+
+
+def desktop_only():
+    return {"status": "ok", "stdout": DESKTOP_NOTE, "stderr": ""}
+
+
+def finish_or_desktop(returncode, stdout, stderr, code):
+    """A window program that cannot be linked still compiled as far as the sandbox allows."""
+    if opens_desktop_window(code):
+        if returncode == 0:
+            return desktop_only()
+        if GUI_TOOLCHAIN_MISS.search(f"{stdout}\n{stderr}"):
+            return desktop_only()
+    return finish(returncode, stdout, stderr or stdout)
 
 
 def dotnet_command(dotnet, work, runnable):
@@ -413,6 +463,11 @@ def run_python(runtime, code, stdin_text, runner, work):
         return missing
     _write(os.path.join(work, "main.py"), code)
     env = child_env()
+    if opens_desktop_window(code) and not wants_pytest(code, runner):
+        code_rc, out, err = run_command([binary, "-m", "py_compile", "main.py"], work, env, "", run_timeout())
+        if code_rc != 0:
+            return finish(code_rc, out, err)
+        return desktop_only()
     if wants_pytest(code, runner):
         code_rc, out, err = run_command(
             [binary, "-m", "pytest", "main.py", "-q", "--tb=short", "-p", "no:cacheprovider"],
@@ -443,6 +498,8 @@ def run_java(runtime, code, stdin_text, work):
         return finish(rc, out, err or out)
     if not has_main:
         return compiled_only()
+    if opens_desktop_window(code):
+        return desktop_only()
     rc, out, err = run_command(
         [os.path.join(home, "bin", "java"), "-cp", work, name], work, env, stdin_text, run_timeout()
     )
@@ -471,7 +528,9 @@ def run_native(runtime, code, stdin_text, work):
         work, env, "", run_timeout(),
     )
     if rc != 0:
-        return finish(rc, out, err or out)
+        return finish_or_desktop(rc, out, err, code)
+    if opens_desktop_window(code):
+        return desktop_only()
     rc, out, err = run_command([binary], work, env, stdin_text, run_timeout())
     return finish(rc, out, err)
 
@@ -511,9 +570,11 @@ def run_dotnet(runtime, code, stdin_text, work):
         command, work, env, stdin_text if runnable else "", run_timeout(),
     )
     if rc != 0:
-        return finish(rc, out, err or out)
+        return finish_or_desktop(rc, out, err, code)
     if not runnable:
         return compiled_only()
+    if opens_desktop_window(code):
+        return desktop_only()
     return finish(rc, out, err)
 
 
@@ -541,8 +602,10 @@ def run_go(runtime, code, stdin_text, work):
             work, env, "", run_timeout(),
         )
         if rc != 0:
-            return finish(rc, out, err or out)
+            return finish_or_desktop(rc, out, err, code)
         return compiled_only()
+    if opens_desktop_window(code):
+        return desktop_only()
     rc, out, err = run_command([go_bin, "run", "."], work, env, stdin_text, run_timeout())
     return finish(rc, out, err)
 
@@ -591,7 +654,7 @@ def run_scala(runtime, code, stdin_text, work):
         work, env, "", run_timeout(),
     )
     if rc != 0:
-        return finish(rc, out, err or out)
+        return finish_or_desktop(rc, out, err, code)
     jars = scala_app_jars(home, runtime)
     expected = 2 if runtime == "scala3" else 1
     if len(jars) < expected:
@@ -603,6 +666,8 @@ def run_scala(runtime, code, stdin_text, work):
         }
     if not runnable:
         return compiled_only()
+    if opens_desktop_window(code):
+        return desktop_only()
     java_bin = os.path.join(java_home, "bin", "java")
     classpath = os.pathsep.join([classes, *jars])
     rc, out, err = run_command(
@@ -672,6 +737,11 @@ def run_spark_python(runtime, code, stdin_text, work):
         "pyspark-shell"
     )
     binary = env["PYSPARK_PYTHON"]
+    if opens_desktop_window(code):
+        rc, out, err = run_command([binary, "-m", "py_compile", "main.py"], work, env, "", run_timeout())
+        if rc != 0:
+            return finish(rc, out, err)
+        return desktop_only()
     rc, out, err = run_command([binary, "main.py"], work, env, stdin_text, run_timeout())
     return finish(rc, out, err)
 
@@ -699,9 +769,11 @@ def run_spark_scala(runtime, code, stdin_text, work):
         work, env, "", run_timeout(),
     )
     if rc != 0:
-        return finish(rc, out, err or out)
+        return finish_or_desktop(rc, out, err, code)
     if not runnable:
         return compiled_only()
+    if opens_desktop_window(code):
+        return desktop_only()
     rc, out, err = run_command(
         [
             os.path.join(spark_home, "bin", "spark-submit"),
