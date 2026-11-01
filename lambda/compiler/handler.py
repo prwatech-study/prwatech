@@ -24,6 +24,7 @@ import tempfile
 MAX_CODE_BYTES = 100_000
 MAX_STDIN_BYTES = 64_000
 MAX_OUTPUT_BYTES = 256_000
+COMPILED_NOTE = "Compiled successfully. This snippet has no entry point, so nothing was run.\n"
 
 FAMILIES = {
     "python": {"python3.12", "python3.13", "python3.14", "python3.15"},
@@ -42,6 +43,32 @@ JAVA_TYPE = re.compile(
     r"(?:abstract\s+|final\s+|sealed\s+)*(?:class|interface|enum|record)\s+[A-Za-z_]"
 )
 JAVA_MAIN = re.compile(r"\bvoid\s+main\s*\(")
+NATIVE_MAIN = re.compile(r"\bmain\s*\(")
+GO_PACKAGE = re.compile(r"(?m)^\s*package\s+(\w+)")
+GO_MAIN = re.compile(r"(?m)^\s*func\s+main\s*\(")
+SCALA_TYPE = re.compile(
+    r"(?m)^\s*(?:@\w+(?:\([^)]*\))?\s+)*"
+    r"(?:(?:private|protected|sealed|open|abstract|final|case|implicit|lazy)\s+)*"
+    r"(?:class|object|trait|enum)\s+[A-Za-z_]"
+)
+SCALA_ENTRY = re.compile(r"\bdef\s+main\s*\(|@main\b|\bextends\s+App\b")
+CS_TYPE = re.compile(
+    r"(?m)^\s*(?:\[[^\]]+\]\s*)*"
+    r"(?:(?:public|private|protected|internal|static|abstract|sealed|partial|file|unsafe|new)\s+)*"
+    r"(?:class|struct|interface|enum|record|namespace)\s+[A-Za-z_]"
+)
+CS_MAIN = re.compile(r"\b(?:void|int|Task|ValueTask)\s+Main\s*\(")
+CS_METHOD_LINE = re.compile(
+    r"^\s*(?:\[[^\]]+\]\s*)*"
+    r"(?:(?:public|private|protected|internal|static|async|virtual|override|sealed|abstract|"
+    r"extern|unsafe|partial|new|required|readonly)\s+)*"
+    r"[\w.<>,\[\]?]+\s+[A-Za-z_]\w*\s*(?:<[^;\n]+>)?\s*\(",
+    re.M,
+)
+CS_STATEMENT = re.compile(
+    r"^(?:return|if|for|foreach|while|switch|lock|throw|await|yield|do|try|else|catch|finally)\b"
+)
+CS_USING = re.compile(r"^using\s+(?:static\s+)?[\w.]+\s*(?:=|;)")
 SCALA_NAME = re.compile(r"\b(?:object|class)\s+([A-Za-z_]\w*)")
 PYTEST_HINT = re.compile(r"(?m)^\s*def\s+test_|^\s*import\s+pytest|^\s*from\s+pytest\b")
 SQL_ATTACH = re.compile(r"\battach\b|\bload_extension\b", re.IGNORECASE)
@@ -145,8 +172,94 @@ def finish(returncode, stdout, stderr):
 
 
 def public_class_name(code: str) -> str:
-    match = JAVA_CLASS.search(code or "")
+    match = JAVA_CLASS.search(strip_c_comments(code or ""))
     return match.group(1) if match else "Main"
+
+
+def compiled_only():
+    return {"status": "ok", "stdout": COMPILED_NOTE, "stderr": ""}
+
+
+def dotnet_command(dotnet, work, runnable):
+    if runnable:
+        return [dotnet, "run", "--no-restore", "--project", work]
+    return [dotnet, "build", work, "--no-restore"]
+
+
+def strip_c_comments(code: str) -> str:
+    """Drop // and /* */ comments, keeping string literals, so snippet detection ignores them."""
+    text = code or ""
+    out = []
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        nxt = text[i + 1] if i + 1 < n else ""
+        if ch in {'"', "'"}:
+            quote = ch
+            out.append(ch)
+            i += 1
+            while i < n:
+                out.append(text[i])
+                if text[i] == "\\":
+                    if i + 1 < n:
+                        out.append(text[i + 1])
+                        i += 2
+                        continue
+                if text[i] == quote:
+                    i += 1
+                    break
+                i += 1
+            continue
+        if ch == "/" and nxt == "/":
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        if ch == "/" and nxt == "*":
+            i += 2
+            while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
+                if text[i] == "\n":
+                    out.append("\n")
+                i += 1
+            i = min(n, i + 2)
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _split_preamble(text, prefixes):
+    """Keep leading imports and package lines outside a wrapped snippet."""
+    preamble = []
+    body = []
+    pending = []
+    started = False
+    for line in text.splitlines(keepends=True):
+        stripped = line.strip()
+        is_preamble = any(stripped.startswith(prefix) for prefix in prefixes)
+        is_gap = (
+            not stripped
+            or stripped.startswith("//")
+            or stripped.startswith("/*")
+            or stripped.startswith("*")
+            or stripped.startswith("*/")
+        )
+        if not started and (is_gap or is_preamble):
+            piece = line if line.endswith("\n") else line + "\n"
+            if is_preamble:
+                preamble.extend(pending)
+                pending = []
+                preamble.append(piece)
+            else:
+                pending.append(piece)
+            continue
+        started = True
+        if pending:
+            body.extend(pending)
+            pending = []
+        body.append(line)
+    body.extend(pending)
+    return "".join(preamble), "".join(body)
 
 
 def prepare_java_source(code: str):
@@ -156,23 +269,110 @@ def prepare_java_source(code: str):
     public class Main. Imports and the package line stay outside that class.
     """
     text = (code or "").strip() + "\n"
-    if JAVA_TYPE.search(text):
+    visible = strip_c_comments(text)
+    if JAVA_TYPE.search(visible):
         source = text
     else:
-        preamble = []
-        body = []
-        for line in text.splitlines(keepends=True):
-            stripped = line.strip()
-            if not body and (stripped.startswith("package ") or stripped.startswith("import ")):
-                preamble.append(line if line.endswith("\n") else line + "\n")
-                continue
-            body.append(line)
-        source = "".join(preamble) + "public class Main {\n" + "".join(body) + "}\n"
-    return public_class_name(source), source, bool(JAVA_MAIN.search(source))
+        preamble, body = _split_preamble(text, ("package ", "import "))
+        source = preamble + "public class Main {\n" + body + "}\n"
+    return public_class_name(source), source, bool(JAVA_MAIN.search(strip_c_comments(source)))
+
+
+def has_native_main(code: str) -> bool:
+    return bool(NATIVE_MAIN.search(strip_c_comments(code or "")))
+
+
+def prepare_go_source(code: str):
+    """A Go file must declare a package. A function snippet has no func main.
+
+    The empty main is appended only so `go build` type-checks the snippet.
+    Callers must not run that synthetic main.
+    """
+    text = (code or "").strip() + "\n"
+    visible = strip_c_comments(text)
+    package = GO_PACKAGE.search(visible)
+    has_main = bool(GO_MAIN.search(visible))
+    if package is None:
+        source = "package main\n//line main.go:1\n" + text
+        package_name = "main"
+    else:
+        source = text
+        package_name = package.group(1)
+    runnable = package_name == "main" and has_main
+    if package_name == "main" and not has_main:
+        source += "\nfunc main() {}\n"
+    return source, runnable
+
+
+def prepare_scala_source(code: str):
+    """Scala 2 rejects a method that is not inside a class, object, or trait."""
+    text = (code or "").strip() + "\n"
+    visible = strip_c_comments(text)
+    has_entry = bool(SCALA_ENTRY.search(visible))
+    if SCALA_TYPE.search(visible):
+        return scala_type_name(text), text, has_entry
+    preamble, body = _split_preamble(text, ("package ", "import "))
+    source = preamble + "object Main {\n" + body + "}\n"
+    # def main and @main still work inside the wrapper. extends App does not.
+    runnable = bool(re.search(r"\bdef\s+main\s*\(|@main\b", strip_c_comments(body)))
+    return "Main", source, runnable
+
+
+def _csharp_has_toplevel(visible: str) -> bool:
+    depth = 0
+    type_line = re.compile(
+        r"^(?:\[[^\]]+\]\s*)*"
+        r"(?:(?:public|private|protected|internal|static|abstract|sealed|partial|file|unsafe|new)\s+)*"
+        r"(?:class|struct|interface|enum|record|namespace)\b"
+    )
+    for raw in visible.splitlines():
+        line = raw.strip()
+        if depth == 0 and line and line not in {"{", "}"}:
+            if (
+                CS_USING.match(line)
+                or line.startswith("global using ")
+                or line.startswith("[")
+                or line.startswith("#")
+                or type_line.match(line)
+                or CS_METHOD_LINE.match(raw)
+            ):
+                pass
+            else:
+                if CS_STATEMENT.match(line) or line:
+                    return True
+        depth += raw.count("{") - raw.count("}")
+        if depth < 0:
+            depth = 0
+    return False
+
+
+def prepare_csharp_source(code: str):
+    """C# rejects a method that sits outside a type. Top-level statements stay a program.
+
+    Returns the Program.cs text, whether it has an entry point, and whether a
+    throwaway Main must be compiled in a second file so a class snippet type-checks.
+    """
+    text = (code or "").strip() + "\n"
+    visible = strip_c_comments(text)
+    has_type = bool(CS_TYPE.search(visible))
+    has_main = bool(CS_MAIN.search(visible))
+    toplevel = _csharp_has_toplevel(visible)
+    if not has_type and not toplevel and CS_METHOD_LINE.search(visible):
+        preamble, body = _split_preamble(text, ("using ", "global using "))
+        source = (
+            preamble
+            + "public class Program {\n#line 1 \"Program.cs\"\n"
+            + body
+            + "#line default\nstatic void Main() {}\n}\n"
+        )
+        return source, False, False
+    if has_type and not has_main and not toplevel:
+        return text, False, True
+    return text, True, False
 
 
 def scala_type_name(code: str) -> str:
-    match = SCALA_NAME.search(code or "")
+    match = SCALA_NAME.search(strip_c_comments(code or ""))
     return match.group(1) if match else "Main"
 
 
@@ -242,11 +442,7 @@ def run_java(runtime, code, stdin_text, work):
     if rc != 0:
         return finish(rc, out, err or out)
     if not has_main:
-        return {
-            "status": "ok",
-            "stdout": "Compiled successfully. This snippet has no main method, so nothing was run.\n",
-            "stderr": "",
-        }
+        return compiled_only()
     rc, out, err = run_command(
         [os.path.join(home, "bin", "java"), "-cp", work, name], work, env, stdin_text, run_timeout()
     )
@@ -260,6 +456,15 @@ def run_native(runtime, code, stdin_text, work):
     source = "main.cpp" if is_cpp else "main.c"
     _write(os.path.join(work, source), code)
     env = child_env()
+    if not has_native_main(code):
+        # A function or comment fragment has nothing to link. Type-check it and stop.
+        rc, out, err = run_command(
+            [compiler, f"-std={standards[runtime]}", "-O0", "-c", "-o", "snippet.o", source],
+            work, env, "", run_timeout(),
+        )
+        if rc != 0:
+            return finish(rc, out, err or out)
+        return compiled_only()
     binary = os.path.join(work, "a.out")
     rc, out, err = run_command(
         [compiler, f"-std={standards[runtime]}", "-O0", "-o", binary, source, "-lm"],
@@ -282,7 +487,13 @@ def run_dotnet(runtime, code, stdin_text, work):
     if not os.path.isdir(template):
         return _missing(template, f".NET {major} project template")
     shutil.copytree(template, work, dirs_exist_ok=True)
-    _write(os.path.join(work, "Program.cs"), code)
+    source, runnable, needs_entry = prepare_csharp_source(code)
+    _write(os.path.join(work, "Program.cs"), source)
+    if needs_entry:
+        _write(
+            os.path.join(work, "SnippetEntry.cs"),
+            "internal static class SnippetEntry {\n    static void Main() {}\n}\n",
+        )
     env = child_env()
     env["DOTNET_ROOT"] = root
     # First-run sentinels and NuGet assets were created under /root at image build.
@@ -294,10 +505,15 @@ def run_dotnet(runtime, code, stdin_text, work):
     # Lambda blocks write-and-execute mappings. Without this, the host aborts.
     env["DOTNET_EnableWriteXorExecute"] = "0"
     env["PATH"] = root + os.pathsep + env.get("PATH", "")
+    # `dotnet run` takes --project. `dotnet build` takes the project path as an argument.
+    command = dotnet_command(dotnet, work, runnable)
     rc, out, err = run_command(
-        [dotnet, "run", "--no-restore", "--project", work],
-        work, env, stdin_text, run_timeout(),
+        command, work, env, stdin_text if runnable else "", run_timeout(),
     )
+    if rc != 0:
+        return finish(rc, out, err or out)
+    if not runnable:
+        return compiled_only()
     return finish(rc, out, err)
 
 
@@ -308,7 +524,8 @@ def run_go(runtime, code, stdin_text, work):
     missing = _missing(go_bin, f"Go {version}")
     if missing:
         return missing
-    _write(os.path.join(work, "main.go"), code)
+    source, runnable = prepare_go_source(code)
+    _write(os.path.join(work, "main.go"), source)
     _write(os.path.join(work, "go.mod"), "module learner\n\ngo 1.22\n")
     env = child_env()
     env["GOROOT"] = goroot
@@ -318,6 +535,14 @@ def run_go(runtime, code, stdin_text, work):
     env["GO111MODULE"] = "on"
     env["PATH"] = os.path.join(goroot, "bin") + os.pathsep + env.get("PATH", "")
     os.makedirs(env["GOCACHE"], exist_ok=True)
+    if not runnable:
+        rc, out, err = run_command(
+            [go_bin, "build", "-o", os.path.join(work, "app"), "."],
+            work, env, "", run_timeout(),
+        )
+        if rc != 0:
+            return finish(rc, out, err or out)
+        return compiled_only()
     rc, out, err = run_command([go_bin, "run", "."], work, env, stdin_text, run_timeout())
     return finish(rc, out, err)
 
@@ -351,10 +576,10 @@ def run_scala(runtime, code, stdin_text, work):
     missing = _missing(scalac, "Scala")
     if missing:
         return missing
-    name = scala_type_name(code)
+    name, source, runnable = prepare_scala_source(code)
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
         name = "Main"
-    _write(os.path.join(work, f"{name}.scala"), code)
+    _write(os.path.join(work, f"{name}.scala"), source)
     classes = os.path.join(work, "classes")
     os.makedirs(classes, exist_ok=True)
     env = child_env()
@@ -376,6 +601,8 @@ def run_scala(runtime, code, stdin_text, work):
             "stderr": "",
             "error": "Scala standard library is not installed in this sandbox",
         }
+    if not runnable:
+        return compiled_only()
     java_bin = os.path.join(java_home, "bin", "java")
     classpath = os.pathsep.join([classes, *jars])
     rc, out, err = run_command(
@@ -458,10 +685,10 @@ def run_spark_scala(runtime, code, stdin_text, work):
     missing = _missing(scalac, "Scala 2.13")
     if missing:
         return missing
-    name = scala_type_name(code)
+    name, source, runnable = prepare_scala_source(code)
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
         name = "Main"
-    _write(os.path.join(work, f"{name}.scala"), code)
+    _write(os.path.join(work, f"{name}.scala"), source)
     classes = os.path.join(work, "classes")
     os.makedirs(classes, exist_ok=True)
     jars = glob.glob(os.path.join(spark_home, "jars", "*.jar"))
@@ -473,6 +700,8 @@ def run_spark_scala(runtime, code, stdin_text, work):
     )
     if rc != 0:
         return finish(rc, out, err or out)
+    if not runnable:
+        return compiled_only()
     rc, out, err = run_command(
         [
             os.path.join(spark_home, "bin", "spark-submit"),
