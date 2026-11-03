@@ -426,7 +426,7 @@ public class AiUsageService {
         double limit = resolveBudgetLimitUsd(user, settings);
         double used = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
         if (used >= limit) {
-            throw new AiBudgetLimitException("AI budget limit reached for this billing period", used, limit);
+            throw new AiBudgetLimitException(AiBudgetLimitException.LEARNER_MESSAGE, used, limit);
         }
     }
 

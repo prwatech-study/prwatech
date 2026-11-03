@@ -10,6 +10,10 @@ public class AiBudgetLimitException extends IllegalStateException {
     /** Value of {@code limitType} for a USD AI wallet (freemium, paid, or admin-granted). */
     public static final String LIMIT_TYPE_AI_WALLET = "AI_WALLET";
 
+    /** Learner-facing sentence. Do not mention billing periods. */
+    public static final String LEARNER_MESSAGE =
+            "Your credits have been used up. Please recharge to continue.";
+
     private final double aiCostUsedUsd;
     private final double aiCostLimitUsd;
 

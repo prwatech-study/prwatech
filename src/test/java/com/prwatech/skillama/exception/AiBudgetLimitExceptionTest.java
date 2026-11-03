@@ -12,10 +12,10 @@ class AiBudgetLimitExceptionTest {
     @Test
     void toResponseBody_includesCanonical429Shape() {
         AiBudgetLimitException ex =
-                new AiBudgetLimitException("AI budget limit reached for this billing period", 5.0, 5.0);
+                new AiBudgetLimitException(AiBudgetLimitException.LEARNER_MESSAGE, 5.0, 5.0);
         Map<String, Object> body = ex.toResponseBody();
         assertEquals("error", body.get("status"));
-        assertEquals("AI budget limit reached for this billing period", body.get("message"));
+        assertEquals(AiBudgetLimitException.LEARNER_MESSAGE, body.get("message"));
         assertEquals(true, body.get("aiBudgetLimitReached"));
         assertEquals(AiBudgetLimitException.LIMIT_TYPE_AI_WALLET, body.get("limitType"));
         assertEquals(5.0, body.get("aiCostUsedUsd"));
