@@ -29,6 +29,11 @@ public enum NotificationEventType {
             "When an admin replies to a reported issue; sent to the reporter's email.",
             NotificationAudience.LEARNER,
             NotificationCategory.TECH_SUPPORT),
+    CREDITS_ADDED(
+            "Credits added",
+            "When credits are added by an admin, a recharge, a referral, or a course share.",
+            NotificationAudience.LEARNER,
+            NotificationCategory.GENERAL),
     COURSE_ASSIGNED_LEARNER(
             "Course assigned (learner)",
             "When one or more courses are assigned to a learner.",

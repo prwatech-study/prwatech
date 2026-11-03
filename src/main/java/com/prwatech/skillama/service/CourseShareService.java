@@ -36,6 +36,7 @@ public class CourseShareService {
     private final SkillamaUserRepository userRepository;
     private final CourseRepository courseRepository;
     private final AiUsageService aiUsageService;
+    private final CreditAddedMailer creditAddedMailer;
 
     private static int usdToCredits(double usd) {
         return (int) Math.round(usd * USD_TO_CREDITS_RATE);
@@ -93,6 +94,9 @@ public class CourseShareService {
         user.setShareBonusUsd(currentShareBonus + rewardUsd);
         user.setUpdatedAt(IndiaTime.now());
         userRepository.save(user);
+        if (rewardUsd > 0) {
+            creditAddedMailer.notifyAdded(user, rewardUsd, CreditAddedMailer.Source.SHARE);
+        }
         return updatedCredits;
     }
 

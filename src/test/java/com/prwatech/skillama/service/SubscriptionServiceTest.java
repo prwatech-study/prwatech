@@ -50,6 +50,7 @@ class SubscriptionServiceTest {
     @Mock private PaymentProvider paymentProvider;
     @Mock private AiUsageService aiUsageService;
     @Mock private UsdInrExchangeRateService usdInrExchangeRateService;
+    @Mock private CreditAddedMailer creditAddedMailer;
 
     private SubscriptionService service;
 
@@ -57,7 +58,7 @@ class SubscriptionServiceTest {
     void setUp() {
         service = new SubscriptionService(planRepository, subscriptionRepository,
                 transactionRepository, userRepository, paymentProvider,
-                aiUsageService, usdInrExchangeRateService);
+                aiUsageService, usdInrExchangeRateService, creditAddedMailer);
         // Non-empty so seedPlansIfEmpty() is a no-op in every test.
         when(planRepository.count()).thenReturn(4L);
     }

@@ -57,6 +57,7 @@ public class FreemiumService {
     private final AiUsageService aiUsageService;
     private final ReferralConversionEventRepository referralConversionEventRepository;
     private final OrganizationService organizationService;
+    private final CreditAddedMailer creditAddedMailer;
 
     /** Public read — home page banner, signup copy (no auth). */
     public FreemiumOfferingDTO getPublicOffering() {
@@ -144,6 +145,9 @@ public class FreemiumService {
         // referrer is a DIFFERENT entity from the caller's `user` — it is not covered by any
         // outer save(user) call, so it must be persisted explicitly here.
         userRepository.save(referrer);
+        if (rewardUsd > 0) {
+            creditAddedMailer.notifyAdded(referrer, rewardUsd, CreditAddedMailer.Source.REFERRAL);
+        }
 
         ReferralConversionEvent event = new ReferralConversionEvent();
         event.setReferrerId(referrer.getId());
@@ -461,6 +465,10 @@ public class FreemiumService {
         user.setUpdatedAt(IndiaTime.now());
         user.setUpdatedBy(adminId);
         userRepository.save(user);
+        double addedUsd = roundUsd(baseAfter - baseBefore);
+        if (addedUsd > 0) {
+            creditAddedMailer.notifyAdded(user, addedUsd, CreditAddedMailer.Source.ADMIN);
+        }
 
         double referralBonus = user.getReferralBonusUsd() != null ? user.getReferralBonusUsd() : 0.0;
         double shareBonus = user.getShareBonusUsd() != null ? user.getShareBonusUsd() : 0.0;

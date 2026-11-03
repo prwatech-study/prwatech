@@ -34,6 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -52,6 +54,7 @@ class FreemiumServiceTest {
     @Mock private AiUsageService aiUsageService;
     @Mock private ReferralConversionEventRepository referralConversionEventRepository;
     @Mock private OrganizationService organizationService;
+    @Mock private CreditAddedMailer creditAddedMailer;
 
     private FreemiumService service;
 
@@ -59,7 +62,7 @@ class FreemiumServiceTest {
     void setUp() {
         service = new FreemiumService(userRepository, courseRepository, queryActivityLogRepository,
                 passwordEncode, userCourseAccessService, userContactService, aiUsageService,
-                referralConversionEventRepository, organizationService);
+                referralConversionEventRepository, organizationService, creditAddedMailer);
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(aiUsageService.getAiBudget(any())).thenReturn(AiBudgetDTO.builder().build());
         // Referral reward is owner-tunable now (was a fixed 0.25 constant) — tests assert
@@ -352,6 +355,7 @@ class FreemiumServiceTest {
         assertEquals(0.25, dto.getReferralBonusUsd());
         assertEquals(2.75, dto.getEffectiveLimitUsd());
         assertEquals("promo", dto.getReason());
+        verify(creditAddedMailer).notifyAdded(u, 2.0, CreditAddedMailer.Source.ADMIN);
     }
 
     @Test
@@ -369,6 +373,7 @@ class FreemiumServiceTest {
 
         assertEquals(0.0, u.getAiWalletLimitUsd());
         assertEquals(0.0, dto.getWalletAfterUsd());
+        verify(creditAddedMailer, never()).notifyAdded(any(), anyDouble(), any());
     }
 
     @Test

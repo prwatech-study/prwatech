@@ -46,6 +46,7 @@ public class SubscriptionService {
     private final PaymentProvider paymentProvider;
     private final AiUsageService aiUsageService;
     private final UsdInrExchangeRateService usdInrExchangeRateService;
+    private final CreditAddedMailer creditAddedMailer;
 
     @PostConstruct
     public void seedPlansIfEmpty() {
@@ -287,14 +288,15 @@ public class SubscriptionService {
         // never reset. A payment TOPS UP the wallet limit — unused credits roll over,
         // and the lifetime consumed counter is untouched. Plans without a wallet leave
         // any previously granted credits in place rather than erasing them.
+        double addedWalletUsd = 0.0;
         if (plan.getWalletInr() != null && plan.getWalletInr() > 0) {
             double rate = usdInrExchangeRateService.getUsdToInrRate();
             if (rate <= 0) {
                 rate = 83.0;
             }
-            double walletUsd = plan.getWalletInr() / rate;
+            addedWalletUsd = plan.getWalletInr() / rate;
             double existingBase = user.getAiWalletLimitUsd() != null ? user.getAiWalletLimitUsd() : 0.0;
-            user.setAiWalletLimitUsd(roundUsd(existingBase + walletUsd));
+            user.setAiWalletLimitUsd(roundUsd(existingBase + addedWalletUsd));
         }
 
         if (user.getAiCostUsdThisPeriod() == null) {
@@ -305,6 +307,9 @@ public class SubscriptionService {
         }
         user.setUpdatedAt(now);
         userRepository.save(user);
+        if (addedWalletUsd > 0) {
+            creditAddedMailer.notifyAdded(user, addedWalletUsd, CreditAddedMailer.Source.RECHARGE);
+        }
 
         return sub;
     }
