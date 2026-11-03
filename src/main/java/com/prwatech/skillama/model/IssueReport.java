@@ -2,6 +2,7 @@ package com.prwatech.skillama.model;
 
 import lombok.Data;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
@@ -46,4 +47,16 @@ public class IssueReport {
     private List<String> attachmentUrls = new ArrayList<>();
 
     private String status = "OPEN";
+
+    /** Reply written by an admin. Emailed to the reporter when it is saved or changed. */
+    private String adminReply;
+    private LocalDateTime adminReplyAt;
+    private String repliedBy;
+
+    /**
+     * Set on the status-update response only. True when this request emailed the reply.
+     * Not stored.
+     */
+    @Transient
+    private Boolean replyEmailDelivered;
 }

@@ -6,7 +6,9 @@ import com.prwatech.skillama.dto.IssueReportResponseDTO;
 import com.prwatech.skillama.notification.NotificationEventType;
 import com.prwatech.skillama.dto.ReportIssueRequestDTO;
 import com.prwatech.skillama.model.IssueReport;
+import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.repository.IssueReportRepository;
+import com.prwatech.skillama.util.IndiaTime;
 import javax.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -35,6 +37,7 @@ public class IssueReportService {
     private final SkillamaHtmlMailer skillamaHtmlMailer;
     private final ObjectMapper objectMapper;
     private final NotificationSettingsService notificationSettingsService;
+    private final UserService userService;
 
     /** Admin triage: paginated issue reports, newest first, optionally by status. */
     public Page<IssueReport> getIssuesForAdmin(String status, int page, int size) {
@@ -48,24 +51,104 @@ public class IssueReportService {
         return issueReportRepository.findAll(pageable);
     }
 
-    /** Admin triage: update the workflow status of a reported issue. */
-    public IssueReport updateStatus(String id, String status) {
+    /**
+     * Admin triage: set workflow status, and when {@code adminReply} is new or changed,
+     * store it and email that text to the learner who reported the issue.
+     */
+    public IssueReport updateStatus(String id, String status, String adminReply, String adminUserId) {
         if (!StringUtils.hasText(status)) {
             throw new IllegalArgumentException("status is required");
         }
         IssueReport issue = issueReportRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Issue report not found: " + id));
-        String previous = issue.getStatus();
+        String previousStatus = issue.getStatus();
         String next = status.trim().toUpperCase();
         issue.setStatus(next);
+
+        String replyText = StringUtils.hasText(adminReply) ? adminReply.trim() : null;
+        boolean replyChanged = replyText != null && !replyText.equals(issue.getAdminReply());
+        if (replyChanged) {
+            issue.setAdminReply(replyText);
+            issue.setAdminReplyAt(IndiaTime.now());
+            issue.setRepliedBy(adminUserId);
+        }
+        // Fill a missing reporter email from the account before save, so the mail
+        // and later lookups use the same address.
+        resolveReporterEmail(issue);
+
         IssueReport saved = issueReportRepository.save(issue);
 
-        // Close the loop with the reporter when the issue is resolved (only on the
-        // transition into RESOLVED, and only if we have their email).
-        if ("RESOLVED".equals(next) && !"RESOLVED".equals(previous)) {
+        if (replyChanged) {
+            saved.setReplyEmailDelivered(sendReplyEmailToReporter(saved));
+        } else if ("RESOLVED".equals(next) && !"RESOLVED".equals(previousStatus)) {
+            // No new reply on this request. Still tell them the issue is fixed.
             sendResolvedEmailToReporter(saved);
         }
         return saved;
+    }
+
+    /**
+     * Email the admin's reply. Returns false when there is no address or the
+     * issue-reply notification is turned off. Mailer failures are logged inside
+     * the notification service and still count as attempted.
+     */
+    private boolean sendReplyEmailToReporter(IssueReport report) {
+        String to = report.getReporterEmail();
+        if (!StringUtils.hasText(to)) {
+            LOGGER.warn("Issue reply for {} was not emailed — no reporter email", report.getId());
+            return false;
+        }
+        if (!notificationSettingsService.isEnabled(NotificationEventType.ISSUE_REPLY)) {
+            LOGGER.warn("Issue reply for {} was not emailed — ISSUE_REPLY notifications are off", report.getId());
+            return false;
+        }
+        boolean resolved = "RESOLVED".equals(report.getStatus());
+        String reported = StringUtils.hasText(report.getUserDescription())
+                ? report.getUserDescription().trim()
+                : nullToDash(report.getIssueCategory());
+        String subject = resolved
+                ? "We replied to the issue you reported"
+                : "Reply to the issue you reported on Skillama";
+        String intro = resolved
+                ? "We replied to the issue you reported on Skillama, and marked it resolved."
+                : "We replied to the issue you reported on Skillama.";
+        String message = "Hi,\n\n"
+                + intro + "\n\n"
+                + "What you told us\n"
+                + reported + "\n\n"
+                + "Our reply\n"
+                + report.getAdminReply() + "\n\n"
+                + "Reference: " + report.getId() + "\n\n"
+                + "If it is still happening, report it again from the same screen and we will take another look.\n\n"
+                + "— Skillama";
+        try {
+            notificationSettingsService.sendLearnerNotification(
+                    NotificationEventType.ISSUE_REPLY, to.trim(), subject, message);
+            LOGGER.info("Issue reply emailed to {} for {}", to, report.getId());
+            return true;
+        } catch (Exception e) {
+            LOGGER.error("Failed to email issue reply for {}", report.getId(), e);
+            return false;
+        }
+    }
+
+    /** Reporter email on the report, or the account email when only a user id was stored. */
+    private String resolveReporterEmail(IssueReport report) {
+        if (StringUtils.hasText(report.getReporterEmail())) {
+            return report.getReporterEmail().trim();
+        }
+        if (!StringUtils.hasText(report.getReporterUserId())) {
+            return null;
+        }
+        return userService.findById(report.getReporterUserId())
+                .map(User::getEmail)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .map(email -> {
+                    report.setReporterEmail(email);
+                    return email;
+                })
+                .orElse(null);
     }
 
     private void sendResolvedEmailToReporter(IssueReport report) {

@@ -24,6 +24,11 @@ public enum NotificationEventType {
             "When a learner reports a problem from the LMS.",
             NotificationAudience.TEAM,
             NotificationCategory.TECH_SUPPORT),
+    ISSUE_REPLY(
+            "Issue reply to learner",
+            "When an admin replies to a reported issue; sent to the reporter's email.",
+            NotificationAudience.LEARNER,
+            NotificationCategory.TECH_SUPPORT),
     COURSE_ASSIGNED_LEARNER(
             "Course assigned (learner)",
             "When one or more courses are assigned to a learner.",

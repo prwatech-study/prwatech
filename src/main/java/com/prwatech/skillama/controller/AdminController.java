@@ -1964,7 +1964,8 @@ public class AdminController {
     }
 
     /**
-     * Update the workflow status of a reported issue (OPEN / IN_PROGRESS / RESOLVED).
+     * Update a reported issue: workflow status, and an optional reply that is emailed
+     * to the learner who reported it.
      */
     @PutMapping("/issues/{issueId}/status")
     public ResponseEntity<ApiResponse<IssueReport>> updateIssueStatus(
@@ -1973,10 +1974,14 @@ public class AdminController {
             HttpServletRequest request) {
         try {
             assertModulePermission(request, AdminModule.SUPPORT, AdminPermissionAction.UPDATE);
-            IssueReport updated = issueReportService.updateStatus(issueId, body.get("status"));
             String adminUserId = extractUserIdFromRequest(request);
-            adminAuditService.log(adminUserId, "ISSUE_STATUS_UPDATE", "ISSUE", issueId,
-                    "Set issue status to " + updated.getStatus(), null);
+            IssueReport updated = issueReportService.updateStatus(
+                    issueId, body.get("status"), body.get("adminReply"), adminUserId);
+            String detail = "Set issue status to " + updated.getStatus();
+            if (Boolean.TRUE.equals(updated.getReplyEmailDelivered())) {
+                detail += " and emailed the reply to the reporter";
+            }
+            adminAuditService.log(adminUserId, "ISSUE_STATUS_UPDATE", "ISSUE", issueId, detail, null);
             return ResponseEntity.ok(new ApiResponse<>(200, updated));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ApiResponse<>(400, null));
