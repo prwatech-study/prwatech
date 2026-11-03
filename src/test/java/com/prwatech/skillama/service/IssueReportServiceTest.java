@@ -30,7 +30,6 @@ import static org.mockito.Mockito.when;
 class IssueReportServiceTest {
 
     @Mock private IssueReportRepository issueReportRepository;
-    @Mock private SkillamaHtmlMailer skillamaHtmlMailer;
     @Mock private NotificationSettingsService notificationSettingsService;
     @Mock private UserService userService;
 
@@ -40,7 +39,6 @@ class IssueReportServiceTest {
     void setUp() {
         service = new IssueReportService(
                 issueReportRepository,
-                skillamaHtmlMailer,
                 new ObjectMapper(),
                 notificationSettingsService,
                 userService);
@@ -64,7 +62,6 @@ class IssueReportServiceTest {
                 eq("a@b.com"),
                 eq("Reply to the issue you reported on Skillama"),
                 contains("Try again after a refresh."));
-        verify(skillamaHtmlMailer, never()).sendMessage(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -82,7 +79,6 @@ class IssueReportServiceTest {
                 eq("a@b.com"),
                 eq("We replied to the issue you reported"),
                 contains("marked it resolved"));
-        verify(skillamaHtmlMailer, never()).sendMessage(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -99,18 +95,29 @@ class IssueReportServiceTest {
     }
 
     @Test
-    void updateStatus_resolveWithoutNewReply_sendsFixedNotice() {
+    void updateStatus_resolveWithoutReply_doesNotEmail() {
         IssueReport issue = openIssue("i1", "a@b.com", "Python course will not start");
         when(issueReportRepository.findById("i1")).thenReturn(Optional.of(issue));
-        when(skillamaHtmlMailer.sendMessage(anyString(), anyString(), anyString()))
-                .thenReturn(SkillamaHtmlMailer.MailSendResult.sent());
 
-        service.updateStatus("i1", "RESOLVED", null, "admin-1");
+        IssueReport saved = service.updateStatus("i1", "RESOLVED", null, "admin-1");
 
-        verify(skillamaHtmlMailer).sendMessage(
-                eq("a@b.com"),
-                eq("We fixed the issue you reported"),
-                contains("Python course will not start"));
+        assertEquals("RESOLVED", saved.getStatus());
+        assertEquals(null, saved.getReplyEmailDelivered());
+        verify(notificationSettingsService, never())
+                .sendLearnerNotification(any(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void updateStatus_closeWithNote_doesNotEmail() {
+        IssueReport issue = openIssue("i1", "a@b.com", "not start python course");
+        when(issueReportRepository.findById("i1")).thenReturn(Optional.of(issue));
+
+        IssueReport saved = service.updateStatus(
+                "i1", "CLOSED", null, "Duplicate of the credits ticket.", false, "admin-1");
+
+        assertEquals("CLOSED", saved.getStatus());
+        assertEquals("Duplicate of the credits ticket.", saved.getInternalNote());
+        assertEquals(null, saved.getReplyEmailDelivered());
         verify(notificationSettingsService, never())
                 .sendLearnerNotification(any(), anyString(), anyString(), anyString());
     }

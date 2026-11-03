@@ -34,7 +34,6 @@ public class IssueReportService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(IssueReportService.class);
     private final IssueReportRepository issueReportRepository;
-    private final SkillamaHtmlMailer skillamaHtmlMailer;
     private final ObjectMapper objectMapper;
     private final NotificationSettingsService notificationSettingsService;
     private final UserService userService;
@@ -52,18 +51,28 @@ public class IssueReportService {
     }
 
     /**
-     * Admin triage: set workflow status, and when {@code adminReply} is new or changed,
-     * store it and email that text to the learner who reported the issue.
+     * Admin triage. A reply is emailed only when {@code emailReply} is true and the
+     * text is new. Closing a ticket, including duplicates, never emails the learner.
      */
-    public IssueReport updateStatus(String id, String status, String adminReply, String adminUserId) {
+    public IssueReport updateStatus(
+            String id,
+            String status,
+            String adminReply,
+            String internalNote,
+            boolean emailReply,
+            String adminUserId) {
         if (!StringUtils.hasText(status)) {
             throw new IllegalArgumentException("status is required");
         }
         IssueReport issue = issueReportRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Issue report not found: " + id));
-        String previousStatus = issue.getStatus();
         String next = status.trim().toUpperCase();
         issue.setStatus(next);
+
+        if (StringUtils.hasText(internalNote)) {
+            issue.setInternalNote(internalNote.trim());
+            issue.setInternalNoteAt(IndiaTime.now());
+        }
 
         String replyText = StringUtils.hasText(adminReply) ? adminReply.trim() : null;
         boolean replyChanged = replyText != null && !replyText.equals(issue.getAdminReply());
@@ -72,19 +81,22 @@ public class IssueReportService {
             issue.setAdminReplyAt(IndiaTime.now());
             issue.setRepliedBy(adminUserId);
         }
-        // Fill a missing reporter email from the account before save, so the mail
-        // and later lookups use the same address.
+        // Fill a missing reporter email from the account before save, so a real
+        // reply and later lookups use the same address.
         resolveReporterEmail(issue);
 
         IssueReport saved = issueReportRepository.save(issue);
 
-        if (replyChanged) {
+        boolean silentClose = "CLOSED".equals(next);
+        if (!silentClose && emailReply && replyChanged) {
             saved.setReplyEmailDelivered(sendReplyEmailToReporter(saved));
-        } else if ("RESOLVED".equals(next) && !"RESOLVED".equals(previousStatus)) {
-            // No new reply on this request. Still tell them the issue is fixed.
-            sendResolvedEmailToReporter(saved);
         }
         return saved;
+    }
+
+    /** Older callers email when they pass a reply and stay silent otherwise. */
+    public IssueReport updateStatus(String id, String status, String adminReply, String adminUserId) {
+        return updateStatus(id, status, adminReply, null, StringUtils.hasText(adminReply), adminUserId);
     }
 
     /**
@@ -149,36 +161,6 @@ public class IssueReportService {
                     return email;
                 })
                 .orElse(null);
-    }
-
-    private void sendResolvedEmailToReporter(IssueReport report) {
-        String to = report.getReporterEmail();
-        if (!StringUtils.hasText(to)) {
-            return; // anonymous / guest report — no reporter to notify
-        }
-        try {
-            String ref = report.getId();
-            String reported = StringUtils.hasText(report.getUserDescription())
-                    ? report.getUserDescription().trim()
-                    : nullToDash(report.getIssueCategory());
-            String subject = "We fixed the issue you reported";
-            String message = "Hi,\n\n"
-                    + "The problem you reported on Skillama is fixed.\n\n"
-                    + "What you told us\n"
-                    + reported + "\n\n"
-                    + "Reference: " + ref + "\n\n"
-                    + "If it is still happening, report it again from the same screen and we will take another look.\n\n"
-                    + "— Skillama";
-            SkillamaHtmlMailer.MailSendResult result =
-                    skillamaHtmlMailer.sendMessage(to.trim(), subject, message);
-            if (!result.isDelivered()) {
-                LOGGER.warn("Resolved email for issue {} was not sent: {}", ref, result.getError());
-                return;
-            }
-            LOGGER.info("Resolved-notification email sent to reporter for issue {}", ref);
-        } catch (Exception e) {
-            LOGGER.error("Failed to send resolved email to reporter for issue {}", report.getId(), e);
-        }
     }
 
     public IssueReportResponseDTO submit(ReportIssueRequestDTO request, HttpServletRequest httpRequest) {

@@ -53,6 +53,10 @@ public class IssueReport {
     private LocalDateTime adminReplyAt;
     private String repliedBy;
 
+    /** Staff note for duplicates and other closes. Never emailed. */
+    private String internalNote;
+    private LocalDateTime internalNoteAt;
+
     /**
      * Set on the status-update response only. True when this request emailed the reply.
      * Not stored.

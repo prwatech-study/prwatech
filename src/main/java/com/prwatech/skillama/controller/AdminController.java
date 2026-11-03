@@ -1975,11 +1975,25 @@ public class AdminController {
         try {
             assertModulePermission(request, AdminModule.SUPPORT, AdminPermissionAction.UPDATE);
             String adminUserId = extractUserIdFromRequest(request);
+            String emailFlag = body.get("emailReply");
+            boolean emailReply = emailFlag == null
+                    ? org.springframework.util.StringUtils.hasText(body.get("adminReply"))
+                    : "true".equalsIgnoreCase(emailFlag);
+            if ("CLOSED".equalsIgnoreCase(body.get("status"))) {
+                emailReply = false;
+            }
             IssueReport updated = issueReportService.updateStatus(
-                    issueId, body.get("status"), body.get("adminReply"), adminUserId);
+                    issueId,
+                    body.get("status"),
+                    body.get("adminReply"),
+                    body.get("internalNote"),
+                    emailReply,
+                    adminUserId);
             String detail = "Set issue status to " + updated.getStatus();
             if (Boolean.TRUE.equals(updated.getReplyEmailDelivered())) {
                 detail += " and emailed the reply to the reporter";
+            } else if ("CLOSED".equals(updated.getStatus())) {
+                detail += " without emailing the reporter";
             }
             adminAuditService.log(adminUserId, "ISSUE_STATUS_UPDATE", "ISSUE", issueId, detail, null);
             return ResponseEntity.ok(new ApiResponse<>(200, updated));
