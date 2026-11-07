@@ -16,10 +16,12 @@ import com.prwatech.skillama.service.AdminPermissionService;
 import com.prwatech.skillama.service.CourseService;
 import com.prwatech.skillama.service.CourseStudyMaterialService;
 import com.prwatech.skillama.service.GlobalAiExamCourseService;
+import com.prwatech.skillama.service.PlatformFeatureRolloutService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import com.prwatech.skillama.service.UserCourseAccessService;
 import com.prwatech.skillama.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -43,6 +45,9 @@ public class CourseController {
     private final CourseDetailContentService courseDetailContentService;
     private final AdminPermissionService adminPermissionService;
     private final SkillamaAuthSupport skillamaAuthSupport;
+
+    @Autowired(required = false)
+    private PlatformFeatureRolloutService platformFeatureRolloutService;
 
     @Value("${skillama.app.public-url:https://skillama.co.in}")
     private String publicAppUrl;
@@ -200,6 +205,13 @@ public class CourseController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         enforceLearnerCourseAccess(request, courseId);
+        if (platformFeatureRolloutService != null) {
+            try {
+                platformFeatureRolloutService.assertAccessible("study_materials", extractUserId(request));
+            } catch (com.prwatech.skillama.exception.FeatureNotLiveException e) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+        }
         return ResponseEntity.ok(studyMaterialService.listForCourse(courseId));
     }
 

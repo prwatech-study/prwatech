@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -36,4 +37,10 @@ public class FreemiumStatusDTO {
     private Boolean unlimitedQueries;
     private List<String> enabledModules;
     private AiBudgetDTO aiBudget;
+    /** True while an onboarding-event membership is still covering this student. */
+    private Boolean eventAccessActive;
+    private String eventName;
+    private String eventLimitMode;
+    private Double eventCreditsRemaining;
+    private LocalDateTime eventEndsAt;
 }

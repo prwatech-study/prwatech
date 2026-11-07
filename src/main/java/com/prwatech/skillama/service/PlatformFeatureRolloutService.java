@@ -56,6 +56,7 @@ public class PlatformFeatureRolloutService {
     private final PlatformFeatureRepository platformFeatureRepository;
     private final SkillamaUserRepository userRepository;
     private final AiInterviewScheduleRepository aiInterviewScheduleRepository;
+    private final EventAccessSupport eventAccess;
 
     public List<PlatformFeatureRolloutDTO> listLearnerCatalog() {
         return listLearnerCatalog(null);
@@ -112,6 +113,13 @@ public class PlatformFeatureRolloutService {
      */
     public void assertAccessible(String featureCode, String userId) {
         if (featureCode == null || featureCode.isBlank()) {
+            return;
+        }
+        if (eventAccess.deniesLiveFeature(userId, featureCode)) {
+            throw new FeatureNotLiveException(
+                    featureCode, "This feature is not available yet. Check back soon.");
+        }
+        if (eventAccess.grantsHiddenFeature(userId, featureCode)) {
             return;
         }
         PlatformFeature feature = platformFeatureRepository.findByCode(featureCode).orElse(null);
@@ -245,7 +253,21 @@ public class PlatformFeatureRolloutService {
         PlatformFeature.RolloutStatus status = feature.getEffectiveRolloutStatus();
         boolean newBadge = isNew(feature);
 
-        if (viewerUserId != null
+        boolean eventDenied = false;
+        if (viewerUserId != null && !viewerUserId.isBlank()) {
+            if (eventAccess.deniesLiveFeature(viewerUserId, feature.getCode())) {
+                status = PlatformFeature.RolloutStatus.HIDDEN;
+                newBadge = false;
+                eventDenied = true;
+            } else if (eventAccess.grantsHiddenFeature(viewerUserId, feature.getCode())
+                    && status != PlatformFeature.RolloutStatus.LIVE) {
+                status = PlatformFeature.RolloutStatus.LIVE;
+                newBadge = false;
+            }
+        }
+
+        if (!eventDenied
+                && viewerUserId != null
                 && !viewerUserId.isBlank()
                 && status != PlatformFeature.RolloutStatus.LIVE) {
             if (isPilotUser(feature, viewerUserId)

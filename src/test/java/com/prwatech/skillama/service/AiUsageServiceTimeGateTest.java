@@ -52,7 +52,7 @@ class AiUsageServiceTimeGateTest {
         service = new AiUsageService(aiUsageEventRepository, platformAiSettingsRepository,
                 platformEfficiencyAssumptionsRepository,
                 userRepository, new ObjectMapper(), usdInrExchangeRateService, timeWalletService,
-                lowCreditMailer);
+                lowCreditMailer, EventAccessSupport.NOOP);
 
         PlatformAiSettings settings = new PlatformAiSettings();
         settings.setAiUsageTrackingEnabled(true);

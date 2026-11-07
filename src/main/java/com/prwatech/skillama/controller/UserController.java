@@ -198,8 +198,13 @@ public class UserController {
     }
 
     @GetMapping("/register/freemium/courses")
-    public ResponseEntity<?> listFreemiumSignupCourses() {
-        return ResponseEntity.ok(freemiumService.listSignupCourseOptions());
+    public ResponseEntity<?> listFreemiumSignupCourses(
+            @RequestParam(required = false) String referral) {
+        try {
+            return ResponseEntity.ok(freemiumService.listSignupCourseOptions(referral));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
     }
 
     @PostMapping("/register/freemium")

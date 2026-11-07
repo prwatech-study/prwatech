@@ -342,6 +342,7 @@ public class AdminPermissionService {
             case ENROLLMENT_REQUESTS -> "Individual enrollment requests";
             case KNOWLEDGE_BASE -> "Knowledge base";
             case ORGANIZATIONS -> "Organizations";
+            case EVENTS -> "Events";
         };
     }
 }

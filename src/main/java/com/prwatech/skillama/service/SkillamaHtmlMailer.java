@@ -78,6 +78,45 @@ public class SkillamaHtmlMailer {
         return send(email, subject, plain, html);
     }
 
+    /**
+     * Plain registration mail for a new event student. The event name is the only event detail.
+     */
+    public MailSendResult sendEventRegistration(String email, String studentName, String eventName) {
+        String subject = "You're registered on Skillama — " + (eventName == null ? "Skillama" : eventName);
+        String plain = eventRegistrationPlain(studentName, eventName, trimBase(publicUrl));
+        String html = eventRegistrationHtml(studentName, eventName, trimBase(publicUrl));
+        return send(email, subject, plain, html);
+    }
+
+    static String eventRegistrationPlain(String studentName, String eventName, String appUrl) {
+        String who = studentName == null || studentName.isBlank() ? "there" : studentName.trim();
+        String event = eventName == null ? "" : eventName.trim();
+        return "Hi " + who + ",\n\n"
+                + "You're registered on Skillama.\n\n"
+                + event + "\n\n"
+                + "Open Skillama:\n"
+                + appUrl + "\n";
+    }
+
+    static String eventRegistrationHtml(String studentName, String eventName, String appUrl) {
+        String who = escape(studentName == null || studentName.isBlank() ? "there" : studentName.trim());
+        String event = escape(eventName == null ? "" : eventName.trim());
+        String href = escape(appUrl);
+        return "<!DOCTYPE html><html><body bgcolor=\"" + PAGE + "\" style=\"margin:0;background:" + PAGE + ";font-family:Arial,Helvetica,sans-serif;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" bgcolor=\"" + PAGE + "\" style=\"background:" + PAGE + ";padding:24px 12px;\">"
+                + "<tr><td align=\"center\" bgcolor=\"" + PAGE + "\">"
+                + "<table role=\"presentation\" width=\"100%\" bgcolor=\"" + CARD + "\" style=\"max-width:480px;background:" + CARD + ";border-radius:12px;overflow:hidden;\">"
+                + "<tr><td style=\"height:4px;background:" + ACCENT + ";font-size:0;line-height:0;\">&nbsp;</td>"
+                + "<td style=\"height:4px;background:" + CYAN + ";font-size:0;line-height:0;\">&nbsp;</td></tr>"
+                + "<tr><td colspan=\"2\" style=\"padding:28px 24px;color:" + TEXT + ";font-size:15px;line-height:1.5;\">"
+                + "<div style=\"color:" + ACCENT + ";font-size:13px;font-weight:700;letter-spacing:0.08em;\">SKILLAMA</div>"
+                + "<div style=\"color:#ffffff;font-size:22px;font-weight:700;padding:8px 0 16px;\">" + event + "</div>"
+                + "<p style=\"margin:0 0 16px;\">Hi " + who + ", you're registered on Skillama.</p>"
+                + "<a href=\"" + href + "\" style=\"display:inline-block;background:" + BUTTON + ";color:" + BUTTON_TEXT
+                + ";text-decoration:none;font-weight:700;padding:12px 18px;border-radius:8px;\">Open Skillama</a>"
+                + "</td></tr></table></td></tr></table></body></html>";
+    }
+
     /** Any Skillama message, from hello@skillama.co.in, with a readable HTML body. */
     public MailSendResult sendMessage(String email, String subject, String plain) {
         String safeSubject = subject == null || subject.isBlank() ? "Skillama" : subject;

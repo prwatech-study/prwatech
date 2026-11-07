@@ -126,6 +126,7 @@ public class AiUsageService {
     private final UsdInrExchangeRateService usdInrExchangeRateService;
     private final TimeWalletService timeWalletService;
     private final LowCreditMailer lowCreditMailer;
+    private final EventAccessSupport eventAccess;
 
     @Value("${skillama.ai-usage.internal-api-key:}")
     private String internalApiKey;
@@ -362,13 +363,18 @@ public class AiUsageService {
         if (request.getUserId() != null && !request.getUserId().isBlank()) {
             User user = userRepository.findById(request.getUserId()).orElse(null);
             if (user != null) {
-                ensureUsageAnchor(user);
-                double used = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
-                double nextUsed = round(used + billedUsd);
-                user.setAiCostUsdThisPeriod(nextUsed);
-                stampLowCreditNotice(user, nextUsed);
-                user.setUpdatedAt(IndiaTime.now());
-                userRepository.save(user);
+                EventAccessSupport.Gate gate = eventAccess.gate(user);
+                if (gate == EventAccessSupport.Gate.COVERED) {
+                    eventAccess.recordCoveredSpend(user.getId(), billedUsd);
+                } else {
+                    ensureUsageAnchor(user);
+                    double used = user.getAiCostUsdThisPeriod() != null ? user.getAiCostUsdThisPeriod() : 0.0;
+                    double nextUsed = round(used + billedUsd);
+                    user.setAiCostUsdThisPeriod(nextUsed);
+                    stampLowCreditNotice(user, nextUsed);
+                    user.setUpdatedAt(IndiaTime.now());
+                    userRepository.save(user);
+                }
             }
         }
 
@@ -401,6 +407,13 @@ public class AiUsageService {
 
     public void assertWithinBudget(User user) {
         if (user == null) {
+            return;
+        }
+        EventAccessSupport.Gate eventGate = eventAccess.gate(user);
+        if (eventGate == EventAccessSupport.Gate.CREDIT_BLOCKED) {
+            throw OnboardingEventService.creditBlocked();
+        }
+        if (eventGate == EventAccessSupport.Gate.COVERED) {
             return;
         }
         // Time-based (B2B seat) users: access requires remaining TIME — OR, once time is

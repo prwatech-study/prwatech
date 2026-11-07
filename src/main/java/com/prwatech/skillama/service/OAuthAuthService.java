@@ -194,6 +194,10 @@ public class OAuthAuthService {
         user.setName(request.getName().trim());
         user.setPhone(FreemiumService.normalizePhone(request.getPhone()));
 
+        boolean eventSignup = request.getReferralCode() != null
+                && !request.getReferralCode().isBlank()
+                && !Boolean.TRUE.equals(user.getOnboardingCompleted())
+                && freemiumService.isEventReferral(request.getReferralCode());
         if (user.getPlanTier() == null || user.getPlanTier() == User.PlanTier.FREEMIUM) {
             if (user.getPlanTier() == null) {
                 user.setPlanTier(User.PlanTier.FREEMIUM);
@@ -202,9 +206,11 @@ public class OAuthAuthService {
                     user.setReferralCode(FreemiumService.generateReferralCode());
                 }
             }
-            freemiumService.applyFreemiumCourseOnOnboarding(user, request.getFreemiumCourseId());
-            if (request.getReferralCode() != null && !request.getReferralCode().isBlank()) {
-                freemiumService.applyReferralOnOnboarding(user, request.getReferralCode());
+            if (!eventSignup) {
+                freemiumService.applyFreemiumCourseOnOnboarding(user, request.getFreemiumCourseId());
+                if (request.getReferralCode() != null && !request.getReferralCode().isBlank()) {
+                    freemiumService.applyReferralOnOnboarding(user, request.getReferralCode());
+                }
             }
         }
 
@@ -218,7 +224,11 @@ public class OAuthAuthService {
         user.setOnboardingCompletedAt(IndiaTime.now());
         user.setUpdatedAt(IndiaTime.now());
         User saved = userRepository.save(user);
-        freemiumService.enrollFreemiumCourseIfNeeded(saved, request.getFreemiumCourseId());
+        if (eventSignup) {
+            freemiumService.joinEventOnboarding(saved, request.getReferralCode(), request.getFreemiumCourseId());
+        } else {
+            freemiumService.enrollFreemiumCourseIfNeeded(saved, request.getFreemiumCourseId());
+        }
         return saved;
     }
 

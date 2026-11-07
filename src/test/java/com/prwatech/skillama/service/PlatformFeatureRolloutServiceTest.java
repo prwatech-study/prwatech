@@ -45,7 +45,8 @@ class PlatformFeatureRolloutServiceTest {
     @BeforeEach
     void setUp() {
         service = new PlatformFeatureRolloutService(
-                platformFeatureRepository, userRepository, aiInterviewScheduleRepository);
+                platformFeatureRepository, userRepository, aiInterviewScheduleRepository,
+                EventAccessSupport.NOOP);
     }
 
     @Test

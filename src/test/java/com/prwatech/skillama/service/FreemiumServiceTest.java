@@ -6,6 +6,7 @@ import com.prwatech.skillama.dto.AiBudgetDTO;
 import com.prwatech.skillama.dto.ConsumeQueryRequestDTO;
 import com.prwatech.skillama.dto.CreditAdjustRequestDTO;
 import com.prwatech.skillama.dto.FreemiumOfferingDTO;
+import com.prwatech.skillama.dto.FreemiumRegisterRequestDTO;
 import com.prwatech.skillama.dto.FreemiumStatusDTO;
 import com.prwatech.skillama.dto.WalletAdjustResultDTO;
 import com.prwatech.skillama.exception.AiBudgetLimitException;
@@ -55,6 +56,7 @@ class FreemiumServiceTest {
     @Mock private ReferralConversionEventRepository referralConversionEventRepository;
     @Mock private OrganizationService organizationService;
     @Mock private CreditAddedMailer creditAddedMailer;
+    @Mock private OnboardingEventService onboardingEventService;
 
     private FreemiumService service;
 
@@ -62,7 +64,8 @@ class FreemiumServiceTest {
     void setUp() {
         service = new FreemiumService(userRepository, courseRepository, queryActivityLogRepository,
                 passwordEncode, userCourseAccessService, userContactService, aiUsageService,
-                referralConversionEventRepository, organizationService, creditAddedMailer);
+                referralConversionEventRepository, organizationService, creditAddedMailer,
+                onboardingEventService);
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(aiUsageService.getAiBudget(any())).thenReturn(AiBudgetDTO.builder().build());
         // Referral reward is owner-tunable now (was a fixed 0.25 constant) — tests assert
@@ -411,5 +414,58 @@ class FreemiumServiceTest {
         when(userRepository.findById("nope")).thenReturn(Optional.empty());
         assertThrows(ResourceNotFoundException.class,
                 () -> service.consumeQuery("nope", new ConsumeQueryRequestDTO()));
+    }
+
+    @Test
+    void signupWithoutAnEventCodeDoesNotJoin() {
+        when(userContactService.normalizeEmail(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.findByEmail(any())).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase(any())).thenReturn(Optional.empty());
+        when(courseRepository.findAll()).thenReturn(List.of());
+        when(userRepository.save(any())).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            user.setId("new-user");
+            return user;
+        });
+        FreemiumRegisterRequestDTO request = new FreemiumRegisterRequestDTO();
+        request.setName("Ada");
+        request.setEmail("ada@example.com");
+        request.setPhone("9876543210");
+
+        User saved = service.registerFreemiumUser(request);
+
+        assertTrue(saved.getReferralCode().startsWith("SKILL-"));
+        verify(onboardingEventService, never()).joinNewStudent(any(), any(), any());
+        verify(userCourseAccessService).applyUserChosenFreemiumCourse(any(), any());
+    }
+
+    @Test
+    void existingAccountCannotJoinWithAnEventCode() {
+        when(onboardingEventService.isEventCode("EVT-CAMPUS1")).thenReturn(true);
+        when(userContactService.normalizeEmail(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userRepository.findByEmail("ada@example.com")).thenReturn(Optional.of(User.builder().id("old").build()));
+        FreemiumRegisterRequestDTO request = new FreemiumRegisterRequestDTO();
+        request.setName("Ada");
+        request.setEmail("ada@example.com");
+        request.setPhone("9876543210");
+        request.setReferralCode("EVT-CAMPUS1");
+
+        IllegalStateException error = assertThrows(IllegalStateException.class,
+                () -> service.registerFreemiumUser(request));
+
+        assertEquals(OnboardingEventService.NEW_STUDENTS_ONLY, error.getMessage());
+        verify(userRepository, never()).save(any());
+        verify(onboardingEventService, never()).joinNewStudent(any(), any(), any());
+    }
+
+    @Test
+    void applyReferralRejectsEventCodes() {
+        when(onboardingEventService.isEventCode("EVT-CAMPUS1")).thenReturn(true);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> service.applyReferral("u1", "EVT-CAMPUS1"));
+
+        assertEquals(OnboardingEventService.PROFILE_REJECTED, error.getMessage());
+        verify(userRepository, never()).findById(any());
     }
 }

@@ -5,6 +5,7 @@ import com.prwatech.common.exception.ForbiddenException;
 import com.prwatech.skillama.dto.AiBudgetDTO;
 import com.prwatech.skillama.dto.ConsumeQueryRequestDTO;
 import com.prwatech.skillama.dto.CreditAdjustRequestDTO;
+import com.prwatech.skillama.dto.EventLearnerAccessDTO;
 import com.prwatech.skillama.dto.FreemiumCourseOptionDTO;
 import com.prwatech.skillama.dto.FreemiumOfferingDTO;
 import com.prwatech.skillama.dto.FreemiumRegisterRequestDTO;
@@ -58,6 +59,7 @@ public class FreemiumService {
     private final ReferralConversionEventRepository referralConversionEventRepository;
     private final OrganizationService organizationService;
     private final CreditAddedMailer creditAddedMailer;
+    private final OnboardingEventService onboardingEventService;
 
     /** Public read — home page banner, signup copy (no auth). */
     public FreemiumOfferingDTO getPublicOffering() {
@@ -73,6 +75,13 @@ public class FreemiumService {
     }
 
     public List<FreemiumCourseOptionDTO> listSignupCourseOptions() {
+        return listSignupCourseOptions(null);
+    }
+
+    public List<FreemiumCourseOptionDTO> listSignupCourseOptions(String referralCode) {
+        if (onboardingEventService.isEventCode(referralCode)) {
+            return onboardingEventService.signupCourses(referralCode);
+        }
         return courseRepository.findAll().stream()
                 // Only courses available to learners: not archived, not admin-deactivated,
                 // and explicitly curated for the registration picker (marketing-controlled subset).
@@ -114,6 +123,9 @@ public class FreemiumService {
 
     @Transactional
     public FreemiumStatusDTO applyReferral(String userId, String code) {
+        if (onboardingEventService.isEventCode(code)) {
+            throw new IllegalArgumentException(OnboardingEventService.PROFILE_REJECTED);
+        }
         User user = requireUser(userId);
         if (user.getReferredBy() != null) {
             throw new IllegalStateException("Referral already applied");
@@ -174,12 +186,23 @@ public class FreemiumService {
     public User registerFreemiumUser(FreemiumRegisterRequestDTO request) {
         validatePhone(request.getPhone());
         String email = userContactService.normalizeEmail(request.getEmail());
+        boolean eventSignup = onboardingEventService.isEventCode(request.getReferralCode());
+        if (eventSignup) {
+            onboardingEventService.assertOpenForNewSignup(request.getReferralCode());
+        }
         organizationService.assertB2cSignupAllowed(email);
         Optional<User> existing = userRepository.findByEmail(email);
         if (existing.isEmpty()) {
             existing = userRepository.findByEmailIgnoreCase(email);
         }
-        validateFreemiumCourseSelection(request, existing);
+        if (eventSignup) {
+            if (existing.isPresent()) {
+                throw new IllegalStateException(OnboardingEventService.NEW_STUDENTS_ONLY);
+            }
+            onboardingEventService.resolveSignupCourse(request.getReferralCode(), request.getFreemiumCourseId());
+        } else {
+            validateFreemiumCourseSelection(request, existing);
+        }
         if (existing.isPresent()) {
             return completeFreemiumRegistrationForExisting(existing.get(), request);
         }
@@ -203,10 +226,16 @@ public class FreemiumService {
             user.setPassword(passwordEncode.getEncryptedPassword(request.getPassword()));
         }
 
-        applyReferralOnSignup(user, request);
+        if (!eventSignup) {
+            applyReferralOnSignup(user, request);
+        }
 
         User saved = userRepository.save(user);
-        userCourseAccessService.applyUserChosenFreemiumCourse(saved, request.getFreemiumCourseId());
+        if (eventSignup) {
+            onboardingEventService.joinNewStudent(saved, request.getReferralCode(), request.getFreemiumCourseId());
+        } else {
+            userCourseAccessService.applyUserChosenFreemiumCourse(saved, request.getFreemiumCourseId());
+        }
         saved.setOnboardingCompleted(true);
         saved.setOnboardingCompletedAt(IndiaTime.now());
         return userRepository.save(saved);
@@ -217,6 +246,9 @@ public class FreemiumService {
      * Legacy or inactive users are upgraded; active freemium users are signed in.
      */
     private User completeFreemiumRegistrationForExisting(User user, FreemiumRegisterRequestDTO request) {
+        if (onboardingEventService.isEventCode(request.getReferralCode())) {
+            throw new IllegalStateException(OnboardingEventService.NEW_STUDENTS_ONLY);
+        }
         if (user.getPlanTier() == User.PlanTier.PAID || user.getPlanTier() == User.PlanTier.ENTERPRISE) {
             throw new IllegalStateException(
                     "This email has a premium account. Use the login page or contact support.");
@@ -276,6 +308,9 @@ public class FreemiumService {
 
     private void applyReferralOnSignup(User user, FreemiumRegisterRequestDTO request) {
         if (request.getReferralCode() == null || request.getReferralCode().isBlank()) {
+            return;
+        }
+        if (onboardingEventService.isEventCode(request.getReferralCode())) {
             return;
         }
         if (user.getReferredBy() != null && !user.getReferredBy().isBlank()) {
@@ -552,6 +587,9 @@ public class FreemiumService {
         if (isUnlimited(user)) {
             return true;
         }
+        if (onboardingEventService.restrictsModules(user)) {
+            return onboardingEventService.moduleAllowed(user, moduleName);
+        }
         List<String> modules = user.getEnabledModules();
         return modules != null && modules.stream().anyMatch(m -> m.equalsIgnoreCase(moduleName));
     }
@@ -562,6 +600,11 @@ public class FreemiumService {
     }
 
     private FreemiumStatusDTO toStatusDto(User user) {
+        List<String> modules = user.getEnabledModules();
+        EventLearnerAccessDTO eventAccess = onboardingEventService.learnerAccess(user);
+        if (eventAccess != null && eventAccess.isActive() && user.getPlanTier() == User.PlanTier.FREEMIUM) {
+            modules = onboardingEventService.eventModules(user);
+        }
         return FreemiumStatusDTO.builder()
                 .planTier(user.getPlanTier())
                 .subscriptionPlanCode(user.getSubscriptionPlanCode())
@@ -577,8 +620,13 @@ public class FreemiumService {
                 .shareBonusUsd(user.getShareBonusUsd())
                 .credits(user.getCredits())
                 .unlimitedQueries(aiUsageService.isUnlimitedForBudget(user))
-                .enabledModules(user.getEnabledModules())
+                .enabledModules(modules)
                 .aiBudget(aiUsageService.getAiBudget(user))
+                .eventAccessActive(eventAccess != null && eventAccess.isActive())
+                .eventName(eventAccess != null ? eventAccess.getEventName() : null)
+                .eventLimitMode(eventAccess != null ? eventAccess.getLimitMode() : null)
+                .eventCreditsRemaining(eventAccess != null ? eventAccess.getCreditsRemaining() : null)
+                .eventEndsAt(eventAccess != null ? eventAccess.getEndsAt() : null)
                 .build();
     }
 
@@ -637,6 +685,16 @@ public class FreemiumService {
         FreemiumRegisterRequestDTO request = new FreemiumRegisterRequestDTO();
         request.setReferralCode(referralCode);
         applyReferralOnSignup(user, request);
+    }
+
+    public boolean isEventReferral(String referralCode) {
+        return onboardingEventService.isEventCode(referralCode);
+    }
+
+    /** New OAuth onboarding with an event code. Existing accounts never reach this. */
+    public void joinEventOnboarding(User user, String referralCode, String freemiumCourseId) {
+        onboardingEventService.assertOpenForNewSignup(referralCode);
+        onboardingEventService.joinNewStudent(user, referralCode, freemiumCourseId);
     }
 
     /** Enrolls user in chosen freemium course after onboarding save. */

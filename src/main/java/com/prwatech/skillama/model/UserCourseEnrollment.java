@@ -30,7 +30,9 @@ public class UserCourseEnrollment {
     public enum EnrollmentType {
         ASSIGNED, PURCHASED, DEFAULT_FREEMIUM, USER_SELECTED_FREEMIUM,
         /** Learner requested via the Explore catalog and an admin approved it. */
-        REQUEST_APPROVED
+        REQUEST_APPROVED,
+        /** Granted by an onboarding event. Removed when the event no longer includes the course. */
+        EVENT
     }
     
     public enum EnrollmentStatus {

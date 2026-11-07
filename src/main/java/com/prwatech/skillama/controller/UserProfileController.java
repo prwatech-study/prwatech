@@ -9,11 +9,13 @@ import com.prwatech.skillama.service.ReferralShareService;
 import com.prwatech.skillama.service.LmsThemeService;
 import com.prwatech.skillama.service.ModuleQuizService;
 import com.prwatech.skillama.service.UpgradeRequestService;
+import com.prwatech.skillama.service.PlatformFeatureRolloutService;
 import com.prwatech.skillama.service.ProgressReconciliationService;
 import com.prwatech.skillama.service.UserProfileService;
 import com.prwatech.skillama.service.UserService;
 import com.prwatech.skillama.service.SkillamaAuthSupport;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -43,6 +45,9 @@ public class UserProfileController {
     private final com.prwatech.skillama.service.AiUsageService aiUsageService;
     private final com.prwatech.skillama.service.SkillamaCertificateService skillamaCertificateService;
     private final com.prwatech.skillama.service.LearnerEngagementService learnerEngagementService;
+
+    @Autowired(required = false)
+    private PlatformFeatureRolloutService platformFeatureRolloutService;
     
     private static final String SESSION_COOKIE_NAME = "skillama_session_id";
     
@@ -221,8 +226,16 @@ public class UserProfileController {
             return ResponseEntity.status(401).build();
         }
         try {
+            if (platformFeatureRolloutService != null && userId != null) {
+                platformFeatureRolloutService.assertAccessible("module_quiz", userId);
+            }
             return ResponseEntity.ok(moduleQuizService.createSession(
                     profilingSessionId(sessionId, userId), userId, request));
+        } catch (com.prwatech.skillama.exception.FeatureNotLiveException e) {
+            return ResponseEntity.status(403).body(Map.of(
+                    "status", "error",
+                    "message", e.getMessage(),
+                    "code", com.prwatech.skillama.exception.FeatureNotLiveException.CODE));
         } catch (com.prwatech.skillama.exception.AiBudgetLimitException e) {
             return ResponseEntity.status(429).body(e.toResponseBody());
         } catch (com.prwatech.skillama.exception.QuizGenerationFailedException e) {

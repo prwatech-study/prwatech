@@ -56,6 +56,12 @@ public class AdminAuditService {
     public static final String LEARNER_STREAK_LOST = "LEARNER_STREAK_LOST";
     public static final String ORG_MANAGER_DIGEST_SENT = "ORG_MANAGER_DIGEST_SENT";
     public static final String PLATFORM_HINDI_TUTOR_UPDATE = "PLATFORM_HINDI_TUTOR_UPDATE";
+    public static final String EVENT_CREATE = "EVENT_CREATE";
+    public static final String EVENT_PUBLISH = "EVENT_PUBLISH";
+    public static final String EVENT_UPDATE = "EVENT_UPDATE";
+    public static final String EVENT_CLOSE = "EVENT_CLOSE";
+    public static final String EVENT_REOPEN = "EVENT_REOPEN";
+    public static final String EVENT_END = "EVENT_END";
 
     private final AdminAuditLogRepository auditLogRepository;
     private final SkillamaUserRepository userRepository;

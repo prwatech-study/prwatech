@@ -79,6 +79,16 @@ public enum NotificationEventType {
             "Email when a learner's daily streak has ended.",
             NotificationAudience.LEARNER,
             NotificationCategory.GENERAL),
+    EVENT_REGISTRATION(
+            "Event registration",
+            "Plain welcome email when a new student registers with an event referral code.",
+            NotificationAudience.LEARNER,
+            NotificationCategory.GENERAL),
+    EVENT_SPEND_ALERT(
+            "Event spend alert",
+            "Team email when an onboarding event crosses its spend alarm.",
+            NotificationAudience.TEAM,
+            NotificationCategory.OPERATIONS),
     ORG_MANAGER_DIGEST(
             "Manager weekly digest",
             "Weekly team progress digest for org managers / admins / owners.",

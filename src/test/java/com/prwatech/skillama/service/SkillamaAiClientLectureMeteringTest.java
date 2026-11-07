@@ -62,7 +62,7 @@ class SkillamaAiClientLectureMeteringTest {
         aiUsageService = new AiUsageService(aiUsageEventRepository, platformAiSettingsRepository,
                 platformEfficiencyAssumptionsRepository,
                 userRepository, objectMapper, usdInrExchangeRateService, timeWalletService,
-                lowCreditMailer);
+                lowCreditMailer, EventAccessSupport.NOOP);
         aiUsageService.loadRateCard();
         when(usdInrExchangeRateService.getUsdToInrRate()).thenReturn(83.0);
 

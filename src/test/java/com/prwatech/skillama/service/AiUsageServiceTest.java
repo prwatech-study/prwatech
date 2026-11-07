@@ -63,7 +63,7 @@ class AiUsageServiceTest {
         service = new AiUsageService(aiUsageEventRepository, platformAiSettingsRepository,
                 platformEfficiencyAssumptionsRepository,
                 userRepository, new ObjectMapper(), usdInrExchangeRateService, timeWalletService,
-                lowCreditMailer);
+                lowCreditMailer, EventAccessSupport.NOOP);
         service.loadRateCard(); // ensures rateCard is non-null for cost computation
         when(usdInrExchangeRateService.getUsdToInrRate()).thenReturn(83.0);
         when(platformAiSettingsRepository.findById(PlatformAiSettings.SINGLETON_ID))
