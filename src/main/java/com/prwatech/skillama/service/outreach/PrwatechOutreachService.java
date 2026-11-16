@@ -294,7 +294,11 @@ public class PrwatechOutreachService {
         String subject = OutreachInviteMailer.subjectForWave(1);
         String plain = OutreachInviteMailer.buildPlainBody(1, "there", click, unsub, trimBase(publicSiteUrl));
         String html = OutreachInviteMailer.buildHtmlBody(1, "there", click, open, unsub, trimBase(publicSiteUrl));
-        inviteMailer.send(ownerEmail, subject, plain, html, unsub);
+        MailSendResult result = inviteMailer.send(ownerEmail, subject, plain, html, unsub);
+        if (!result.isDelivered()) {
+            String err = result.getError() != null ? result.getError() : "SMTP send failed";
+            throw new IllegalStateException(err);
+        }
     }
 
     public record BatchRunResult(

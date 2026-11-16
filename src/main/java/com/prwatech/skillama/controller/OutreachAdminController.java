@@ -80,6 +80,10 @@ public class OutreachAdminController {
             }
             outreachService.sendTestToOwner(owner.getEmail());
             return ResponseEntity.ok(new ApiResponse<>(200, Map.of("message", "Test invite sent")));
+        } catch (IllegalStateException e) {
+            String msg = e.getMessage() != null ? e.getMessage() : "SMTP send failed";
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(new ApiResponse<>(502, Map.of("message", msg)));
         } catch (RuntimeException e) {
             return forbiddenOrUnauthorized(e);
         }
