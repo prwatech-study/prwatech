@@ -42,7 +42,7 @@ public class OutreachAdminController {
     }
 
     @PostMapping("/sync")
-    public ResponseEntity<ApiResponse<Map<String, Long>>> sync(HttpServletRequest request) {
+    public ResponseEntity<?> sync(HttpServletRequest request) {
         try {
             adminPermissionService.requireOwner(userId(request));
             adminPermissionService.requirePermission(userId(request), AdminModule.OUTREACH, AdminPermissionAction.UPDATE);
@@ -58,7 +58,7 @@ public class OutreachAdminController {
     }
 
     @PatchMapping("/campaign")
-    public ResponseEntity<ApiResponse<OutreachCampaign>> updateCampaign(
+    public ResponseEntity<?> updateCampaign(
             HttpServletRequest request, @RequestBody OutreachCampaignUpdateDTO body) {
         try {
             adminPermissionService.requireOwner(userId(request));
