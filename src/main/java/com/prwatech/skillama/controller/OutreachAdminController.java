@@ -18,6 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -85,12 +86,19 @@ public class OutreachAdminController {
     }
 
     @PostMapping("/run-batch")
-    public ResponseEntity<ApiResponse<Map<String, String>>> runBatchNow(HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> runBatchNow(HttpServletRequest request) {
         try {
             adminPermissionService.requireOwner(userId(request));
             adminPermissionService.requirePermission(userId(request), AdminModule.OUTREACH, AdminPermissionAction.UPDATE);
-            outreachService.processDailyBatch();
-            return ResponseEntity.ok(new ApiResponse<>(200, Map.of("message", "Batch job executed")));
+            PrwatechOutreachService.BatchRunResult result = outreachService.processDailyBatch();
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("message", "Batch job finished");
+            body.put("submitted", result.submitted());
+            body.put("failed", result.failed());
+            body.put("picked", result.picked());
+            body.put("campaignPaused", result.campaignPaused());
+            body.put("note", result.note() != null ? result.note() : "");
+            return ResponseEntity.ok(new ApiResponse<>(200, body));
         } catch (RuntimeException e) {
             return forbiddenOrUnauthorized(e);
         }

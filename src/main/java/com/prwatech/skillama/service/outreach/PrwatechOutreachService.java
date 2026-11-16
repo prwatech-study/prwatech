@@ -20,9 +20,11 @@ import com.prwatech.skillama.util.IndiaTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,7 +40,11 @@ import java.util.concurrent.ThreadLocalRandom;
 public class PrwatechOutreachService {
 
     private static final int MAX_SMTP_ATTEMPTS = 3;
+    private static final int MIN_HOURS_BETWEEN_SENDS = 24;
     private static final String FAILURE_MAX = "MAX_ATTEMPTS_EXCEEDED";
+
+    /** Prevents overlapping Run batch / cron jobs on one JVM instance. */
+    private final Object batchLock = new Object();
 
     private final OutreachCampaignRepository campaignRepository;
     private final OutreachRecipientRepository recipientRepository;
@@ -182,17 +188,17 @@ public class PrwatechOutreachService {
         long landings = skillamaMongoTemplate.count(
                 new Query(Criteria.where("landingHits").gt(0)), OutreachRecipient.class);
 
-        resetSubmittedTodayIfNewDay(campaign);
-
+        int submittedToday = submittedTodayForDisplay(campaign);
         int cap = campaign.getDailyBatchSize();
-        int remainingCap = Math.max(0, cap - campaign.getSubmittedToday());
+        int remainingCap = Math.max(0, cap - submittedToday);
 
         Double openRate = submitted > 0 ? uniqueOpens / (double) submitted : null;
         Double clickRate = submitted > 0 ? uniqueClicks / (double) submitted : null;
         Double regRate = submitted > 0 ? registered / (double) submitted : null;
 
-        LocalDate from = LocalDate.now().minusDays(30);
-        List<OutreachDailyRowDTO> daily = rollupRepository.findByDateBetweenOrderByDateAsc(from, LocalDate.now())
+        LocalDate todayIst = IndiaTime.today();
+        LocalDate from = todayIst.minusDays(30);
+        List<OutreachDailyRowDTO> daily = rollupRepository.findByDateBetweenOrderByDateAsc(from, todayIst)
                 .stream()
                 .map(r -> OutreachDailyRowDTO.builder()
                         .date(r.getDate())
@@ -218,7 +224,7 @@ public class PrwatechOutreachService {
                 .currentWave(campaign.getCurrentWave())
                 .maxWaves(campaign.getMaxWaves())
                 .dailyCap(cap)
-                .submittedToday(campaign.getSubmittedToday())
+                .submittedToday(submittedToday)
                 .remainingTodayCapacity(remainingCap)
                 .queuedTotal(queuedTotal)
                 .pendingInCurrentWave(pendingInWave)
@@ -291,32 +297,56 @@ public class PrwatechOutreachService {
         inviteMailer.send(ownerEmail, subject, plain, html, unsub);
     }
 
-    public void processDailyBatch() {
+    public record BatchRunResult(
+            int submitted,
+            int failed,
+            int picked,
+            boolean campaignPaused,
+            String note) {}
+
+    public BatchRunResult processDailyBatch() {
+        synchronized (batchLock) {
+            return processDailyBatchUnderLock();
+        }
+    }
+
+    private BatchRunResult processDailyBatchUnderLock() {
         OutreachCampaign campaign = ensureCampaign();
         if (campaign.getStatus() != OutreachCampaign.Status.RUNNING) {
-            return;
+            return new BatchRunResult(0, 0, 0, false, "Campaign is not RUNNING");
         }
         long start = System.currentTimeMillis();
         resetSubmittedTodayIfNewDay(campaign);
         int capacity = campaign.getDailyBatchSize() - campaign.getSubmittedToday();
         if (capacity <= 0) {
-            return;
+            campaignRepository.save(campaign);
+            return new BatchRunResult(0, 0, 0, false, "Daily cap already reached for today (IST)");
         }
         int wave = campaign.getCurrentWave();
         List<OutreachRecipient> batch = findSendableBatch(wave, capacity);
+        int picked = batch.size();
         int submitted = 0;
         int failed = 0;
+        int skippedDuplicate = 0;
         boolean stopBatchForRate = false;
 
         for (OutreachRecipient recipient : batch) {
             if (stopBatchForRate) {
                 break;
             }
-            if (!precheckRecipient(recipient, wave)) {
-                recipientRepository.save(recipient);
+            OutreachRecipient claimed = tryClaimWaveSend(recipient.getId(), wave);
+            if (claimed == null) {
+                skippedDuplicate++;
                 continue;
             }
-            SendOutcome outcome = sendOne(campaign, recipient, wave);
+            if (!precheckRecipient(claimed, wave)) {
+                recipientRepository.save(claimed);
+                continue;
+            }
+            SendOutcome outcome = sendOne(campaign, claimed, wave);
+            if (outcome.skipped) {
+                skippedDuplicate++;
+            }
             if (outcome.submitted) {
                 submitted++;
                 campaign.setSubmittedToday(campaign.getSubmittedToday() + 1);
@@ -326,14 +356,17 @@ public class PrwatechOutreachService {
             }
             if (outcome.pauseCampaign) {
                 campaign.setStatus(OutreachCampaign.Status.PAUSED);
+                campaign.setLastJobAt(IndiaTime.now());
+                campaign.setLastJobSubmitted(submitted);
+                campaign.setLastJobFailed(failed);
                 campaignRepository.save(campaign);
                 log.warn("Outreach campaign paused: SMTP auth/configuration failure");
-                return;
+                return new BatchRunResult(submitted, failed, picked, true, "Paused: SMTP auth failure");
             }
             if (outcome.stopBatchForRate) {
                 stopBatchForRate = true;
             }
-            recipientRepository.save(recipient);
+            recipientRepository.save(claimed);
             sleepJitter();
         }
 
@@ -345,6 +378,13 @@ public class PrwatechOutreachService {
         campaign.setUpdatedAt(IndiaTime.now());
         campaignRepository.save(campaign);
         bumpRollup(wave, submitted, failed, 0, 0, 0, 0, 0);
+        String note = null;
+        if (picked == 0) {
+            note = "No pending recipients in current wave";
+        } else if (skippedDuplicate > 0 && submitted == 0 && failed == 0) {
+            note = "No sends — recipients in 24h cooldown or already claimed";
+        }
+        return new BatchRunResult(submitted, failed, picked, false, note);
     }
 
     public Optional<String> recordClickRedirect(String token) {
@@ -436,11 +476,18 @@ public class PrwatechOutreachService {
         });
     }
 
-    private record SendOutcome(boolean submitted, boolean failed, boolean pauseCampaign, boolean stopBatchForRate) {}
+    private record SendOutcome(
+            boolean submitted, boolean failed, boolean pauseCampaign, boolean stopBatchForRate, boolean skipped) {}
 
     private SendOutcome sendOne(OutreachCampaign campaign, OutreachRecipient recipient, int wave) {
         OutreachWaveDelivery d = recipient.wave(wave);
-        d.setLastAttemptAt(IndiaTime.now());
+        if (d.getStatus() == OutreachWaveDelivery.Status.SUBMITTED) {
+            return new SendOutcome(false, false, false, false, true);
+        }
+        if (d.getSubmittedAt() != null
+                && d.getSubmittedAt().isAfter(IndiaTime.now().minusHours(MIN_HOURS_BETWEEN_SENDS))) {
+            return new SendOutcome(false, false, false, false, true);
+        }
         d.setAttemptCount(d.getAttemptCount() + 1);
 
         String click = clickUrl(recipient.getTrackingToken());
@@ -457,28 +504,28 @@ public class PrwatechOutreachService {
             d.setSubmittedAt(IndiaTime.now());
             d.setFailureReason(null);
             d.setLastError(null);
-            return new SendOutcome(true, false, false, false);
+            return new SendOutcome(true, false, false, false, false);
         }
         FailureClass failure = classifyFailure(result.getError());
         d.setLastError(result.getError());
         d.setFailureReason(failure.reason);
         if (failure.reason.equals("SMTP_AUTH")) {
-            return new SendOutcome(false, true, true, false);
+            return new SendOutcome(false, true, true, false, false);
         }
         if (failure.reason.equals("RATE_LIMIT")) {
             markRetryOrFail(d, failure);
-            return new SendOutcome(false, true, false, true);
+            return new SendOutcome(false, true, false, true, false);
         }
         if (!failure.retryable || d.getAttemptCount() >= MAX_SMTP_ATTEMPTS) {
             d.setStatus(OutreachWaveDelivery.Status.FAILED_PERMANENT);
             if (d.getAttemptCount() >= MAX_SMTP_ATTEMPTS) {
                 d.setFailureReason(FAILURE_MAX);
             }
-            return new SendOutcome(false, true, false, false);
+            return new SendOutcome(false, true, false, false, false);
         }
         d.setStatus(OutreachWaveDelivery.Status.RETRY_PENDING);
         d.setNextAttemptAt(scheduleNextAttempt(d.getAttemptCount()));
-        return new SendOutcome(false, true, false, false);
+        return new SendOutcome(false, true, false, false, false);
     }
 
     private void markRetryOrFail(OutreachWaveDelivery d, FailureClass failure) {
@@ -493,10 +540,9 @@ public class PrwatechOutreachService {
     }
 
     private LocalDateTime scheduleNextAttempt(int attemptCount) {
-        if (attemptCount <= 1) {
-            return IndiaTime.now().plusDays(1);
-        }
-        return IndiaTime.now().plusDays(2);
+        LocalDateTime scheduled = attemptCount <= 1 ? IndiaTime.now().plusDays(1) : IndiaTime.now().plusDays(2);
+        LocalDateTime minGap = IndiaTime.now().plusHours(MIN_HOURS_BETWEEN_SENDS);
+        return scheduled.isAfter(minGap) ? scheduled : minGap;
     }
 
     private record FailureClass(String reason, boolean retryable) {}
@@ -597,18 +643,62 @@ public class PrwatechOutreachService {
     private List<OutreachRecipient> findSendableBatch(int wave, int limit) {
         String statusKey = "waves." + wave + ".status";
         String nextKey = "waves." + wave + ".nextAttemptAt";
+        String lastAttemptKey = "waves." + wave + ".lastAttemptAt";
         LocalDateTime now = IndiaTime.now();
+        LocalDateTime attemptCutoff = now.minusHours(MIN_HOURS_BETWEEN_SENDS);
         Criteria pending = Criteria.where(statusKey).is(OutreachWaveDelivery.Status.PENDING.name());
         Criteria retry = new Criteria().andOperator(
                 Criteria.where(statusKey).is(OutreachWaveDelivery.Status.RETRY_PENDING.name()),
                 new Criteria().orOperator(
                         Criteria.where(nextKey).is(null),
                         Criteria.where(nextKey).lte(now)));
+        Criteria notYetSubmitted = Criteria.where(statusKey).ne(OutreachWaveDelivery.Status.SUBMITTED.name());
+        Criteria outside24hWindow = new Criteria().orOperator(
+                Criteria.where(lastAttemptKey).is(null),
+                Criteria.where(lastAttemptKey).lte(attemptCutoff));
         Query q = new Query(new Criteria().andOperator(
                 Criteria.where("lifecycle").is(OutreachRecipient.Lifecycle.ACTIVE),
+                notYetSubmitted,
+                outside24hWindow,
                 new Criteria().orOperator(pending, retry)));
         q.limit(limit);
         return skillamaMongoTemplate.find(q, OutreachRecipient.class);
+    }
+
+    /**
+     * Atomically marks a wave send as in-flight so two batch jobs cannot SMTP the same pending row.
+     * Honours {@link #MIN_HOURS_BETWEEN_SENDS} via lastAttemptAt on the wave delivery.
+     */
+    private OutreachRecipient tryClaimWaveSend(String recipientId, int wave) {
+        String statusKey = "waves." + wave + ".status";
+        String lastAttemptKey = "waves." + wave + ".lastAttemptAt";
+        String nextKey = "waves." + wave + ".nextAttemptAt";
+        LocalDateTime now = IndiaTime.now();
+        LocalDateTime attemptCutoff = now.minusHours(MIN_HOURS_BETWEEN_SENDS);
+
+        Criteria pending = Criteria.where(statusKey).is(OutreachWaveDelivery.Status.PENDING.name());
+        Criteria retry = new Criteria().andOperator(
+                Criteria.where(statusKey).is(OutreachWaveDelivery.Status.RETRY_PENDING.name()),
+                new Criteria().orOperator(
+                        Criteria.where(nextKey).is(null),
+                        Criteria.where(nextKey).lte(now)));
+        Criteria claimable = new Criteria().andOperator(
+                Criteria.where("_id").is(recipientId),
+                Criteria.where(statusKey).ne(OutreachWaveDelivery.Status.SUBMITTED.name()),
+                new Criteria().orOperator(
+                        Criteria.where(lastAttemptKey).is(null),
+                        Criteria.where(lastAttemptKey).lte(attemptCutoff)),
+                new Criteria().orOperator(pending, retry));
+
+        Update update = new Update()
+                .set(lastAttemptKey, now)
+                .set("updatedAt", now);
+        Query query = new Query(claimable);
+        return skillamaMongoTemplate.findAndModify(
+                query,
+                update,
+                FindAndModifyOptions.options().returnNew(true),
+                OutreachRecipient.class);
     }
 
     private long countPendingForWave(int wave) {
@@ -678,8 +768,25 @@ public class PrwatechOutreachService {
         return m;
     }
 
+    /** IST calendar day counter for daily cap — read-only for admin summary (do not mutate entity). */
+    private int submittedTodayForDisplay(OutreachCampaign campaign) {
+        int count = Math.max(0, campaign.getSubmittedToday());
+        if (count == 0) {
+            return 0;
+        }
+        LocalDate todayIst = IndiaTime.today();
+        LocalDate stored = campaign.getSubmittedCountDate();
+        if (stored == null) {
+            return count;
+        }
+        if (stored.equals(todayIst) || stored.equals(LocalDate.now())) {
+            return count;
+        }
+        return 0;
+    }
+
     private void resetSubmittedTodayIfNewDay(OutreachCampaign campaign) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = IndiaTime.today();
         if (campaign.getSubmittedCountDate() == null || !campaign.getSubmittedCountDate().equals(today)) {
             campaign.setSubmittedCountDate(today);
             campaign.setSubmittedToday(0);
@@ -687,7 +794,7 @@ public class PrwatechOutreachService {
     }
 
     private void bumpRollup(int wave, int submitted, int failed, int opens, int clicks, int regs, int bonuses, int unsubs) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = IndiaTime.today();
         OutreachDailyRollup rollup = rollupRepository.findByDateAndWave(today, wave)
                 .orElseGet(() -> OutreachDailyRollup.builder()
                         .id(today + "-w" + wave)

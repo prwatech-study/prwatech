@@ -19,7 +19,10 @@ public class PrwatechOutreachEmailJob {
     @Scheduled(cron = "0 30 9 * * *", zone = "Asia/Kolkata")
     public void sendDailyBatch() {
         try {
-            outreachService.processDailyBatch();
+            PrwatechOutreachService.BatchRunResult result = outreachService.processDailyBatch();
+            if (result.submitted() > 0 || result.failed() > 0) {
+                LOGGER.info("Outreach batch: submitted={}, failed={}, picked={}", result.submitted(), result.failed(), result.picked());
+            }
         } catch (Exception e) {
             LOGGER.warn("Prwatech outreach email job failed: {}", e.getMessage());
         }
