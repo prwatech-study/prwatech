@@ -52,6 +52,10 @@ public class OutreachCampaign {
     @Builder.Default
     private int submittedToday = 0;
 
+    @Builder.Default
+    private boolean batchInProgress = false;
+    private LocalDateTime batchStartedAt;
+
     private Long syncEligibleLegacy;
     private Long syncExcludedOnSkillama;
     private Long syncExcludedDisabled;

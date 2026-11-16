@@ -15,11 +15,13 @@ import com.prwatech.skillama.repository.OutreachRecipientRepository;
 import com.prwatech.skillama.repository.SkillamaUserRepository;
 import com.prwatech.skillama.service.SkillamaHtmlMailer.MailSendResult;
 import com.prwatech.skillama.service.UserContactService;
+import com.prwatech.skillama.config.OutreachAsyncConfig;
 import com.prwatech.skillama.util.EmailValidation;
 import com.prwatech.skillama.util.IndiaTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import java.util.concurrent.Executor;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -54,6 +56,7 @@ public class PrwatechOutreachService {
     private final OutreachInviteMailer inviteMailer;
     private final MongoTemplate skillamaMongoTemplate;
     private final MongoTemplate mainMongoTemplate;
+    private final Executor outreachBatchExecutor;
 
     public PrwatechOutreachService(
             OutreachCampaignRepository campaignRepository,
@@ -63,7 +66,8 @@ public class PrwatechOutreachService {
             UserContactService userContactService,
             OutreachInviteMailer inviteMailer,
             @Qualifier("skillamaMongoTemplate") MongoTemplate skillamaMongoTemplate,
-            @Qualifier("mongoTemplate") MongoTemplate mainMongoTemplate) {
+            @Qualifier("mongoTemplate") MongoTemplate mainMongoTemplate,
+            @Qualifier(OutreachAsyncConfig.OUTREACH_BATCH_EXECUTOR) Executor outreachBatchExecutor) {
         this.campaignRepository = campaignRepository;
         this.recipientRepository = recipientRepository;
         this.rollupRepository = rollupRepository;
@@ -72,6 +76,7 @@ public class PrwatechOutreachService {
         this.inviteMailer = inviteMailer;
         this.skillamaMongoTemplate = skillamaMongoTemplate;
         this.mainMongoTemplate = mainMongoTemplate;
+        this.outreachBatchExecutor = outreachBatchExecutor;
     }
 
     @Value("${skillama.app.public-url:https://skillama.co.in}")
@@ -252,6 +257,8 @@ public class PrwatechOutreachService {
                 .lastBatchSubmitted(campaign.getLastJobSubmitted())
                 .lastBatchFailed(campaign.getLastJobFailed())
                 .lastBatchDurationSec(campaign.getLastJobDurationSec())
+                .batchInProgress(campaign.isBatchInProgress())
+                .batchStartedAt(campaign.getBatchStartedAt())
                 .openRate(openRate)
                 .clickRate(clickRate)
                 .registrationRate(regRate)
@@ -308,6 +315,45 @@ public class PrwatechOutreachService {
             boolean campaignPaused,
             String note) {}
 
+    public enum BatchStartOutcome {
+        STARTED,
+        ALREADY_RUNNING,
+        NOT_RUNNING
+    }
+
+    public record BatchStartResult(BatchStartOutcome outcome, String message) {}
+
+    /**
+     * Queue the daily batch on a background thread so the HTTP request returns before Tomcat times out.
+     */
+    public BatchStartResult requestDailyBatchStart() {
+        if (!tryMarkBatchInProgress()) {
+            return new BatchStartResult(BatchStartOutcome.ALREADY_RUNNING, "A batch is already running");
+        }
+        OutreachCampaign campaign = ensureCampaign();
+        if (campaign.getStatus() != OutreachCampaign.Status.RUNNING) {
+            clearBatchInProgress();
+            return new BatchStartResult(BatchStartOutcome.NOT_RUNNING, "Campaign is not RUNNING");
+        }
+        outreachBatchExecutor.execute(() -> {
+            try {
+                BatchRunResult result = processDailyBatch();
+                log.info(
+                        "Outreach async batch finished: submitted={}, failed={}, picked={}",
+                        result.submitted(),
+                        result.failed(),
+                        result.picked());
+            } catch (Exception e) {
+                log.warn("Outreach async batch failed: {}", e.getMessage(), e);
+            } finally {
+                clearBatchInProgress();
+            }
+        });
+        return new BatchStartResult(
+                BatchStartOutcome.STARTED,
+                "Batch started — refresh metrics periodically until batchInProgress is false");
+    }
+
     public BatchRunResult processDailyBatch() {
         synchronized (batchLock) {
             return processDailyBatchUnderLock();
@@ -354,6 +400,10 @@ public class PrwatechOutreachService {
             if (outcome.submitted) {
                 submitted++;
                 campaign.setSubmittedToday(campaign.getSubmittedToday() + 1);
+                if (submitted % 25 == 0) {
+                    campaign.setUpdatedAt(IndiaTime.now());
+                    campaignRepository.save(campaign);
+                }
             }
             if (outcome.failed) {
                 failed++;
@@ -787,6 +837,33 @@ public class PrwatechOutreachService {
             return count;
         }
         return 0;
+    }
+
+    private boolean tryMarkBatchInProgress() {
+        LocalDateTime now = IndiaTime.now();
+        Criteria notRunning = new Criteria().orOperator(
+                Criteria.where("batchInProgress").is(null),
+                Criteria.where("batchInProgress").is(false));
+        Query query = new Query(new Criteria().andOperator(
+                Criteria.where("_id").is(OutreachCampaign.SINGLETON_ID), notRunning));
+        Update update = new Update()
+                .set("batchInProgress", true)
+                .set("batchStartedAt", now)
+                .set("updatedAt", now);
+        OutreachCampaign updated = skillamaMongoTemplate.findAndModify(
+                query,
+                update,
+                FindAndModifyOptions.options().returnNew(true),
+                OutreachCampaign.class);
+        return updated != null;
+    }
+
+    private void clearBatchInProgress() {
+        Query query = new Query(Criteria.where("_id").is(OutreachCampaign.SINGLETON_ID));
+        Update update = new Update()
+                .set("batchInProgress", false)
+                .set("updatedAt", IndiaTime.now());
+        skillamaMongoTemplate.updateFirst(query, update, OutreachCampaign.class);
     }
 
     private void resetSubmittedTodayIfNewDay(OutreachCampaign campaign) {

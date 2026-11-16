@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -50,6 +51,7 @@ class PrwatechOutreachServiceTest {
 
     @BeforeEach
     void setUp() {
+        Executor syncExecutor = Runnable::run;
         service = new PrwatechOutreachService(
                 campaignRepository,
                 recipientRepository,
@@ -58,7 +60,8 @@ class PrwatechOutreachServiceTest {
                 userContactService,
                 inviteMailer,
                 skillamaMongoTemplate,
-                mainMongoTemplate);
+                mainMongoTemplate,
+                syncExecutor);
         ReflectionTestUtils.setField(service, "publicSiteUrl", "https://skillama.co.in");
         ReflectionTestUtils.setField(service, "apiBaseUrl", "https://prwatech.xyz");
     }

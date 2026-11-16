@@ -3,6 +3,7 @@ package com.prwatech.skillama.dto;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -46,6 +47,8 @@ public class OutreachSummaryDTO {
     private int lastBatchSubmitted;
     private int lastBatchFailed;
     private long lastBatchDurationSec;
+    private boolean batchInProgress;
+    private LocalDateTime batchStartedAt;
 
     private Double openRate;
     private Double clickRate;

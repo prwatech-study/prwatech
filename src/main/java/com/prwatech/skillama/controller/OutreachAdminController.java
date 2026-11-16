@@ -94,15 +94,17 @@ public class OutreachAdminController {
         try {
             adminPermissionService.requireOwner(userId(request));
             adminPermissionService.requirePermission(userId(request), AdminModule.OUTREACH, AdminPermissionAction.UPDATE);
-            PrwatechOutreachService.BatchRunResult result = outreachService.processDailyBatch();
+            PrwatechOutreachService.BatchStartResult result = outreachService.requestDailyBatchStart();
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("message", "Batch job finished");
-            body.put("submitted", result.submitted());
-            body.put("failed", result.failed());
-            body.put("picked", result.picked());
-            body.put("campaignPaused", result.campaignPaused());
-            body.put("note", result.note() != null ? result.note() : "");
-            return ResponseEntity.ok(new ApiResponse<>(200, body));
+            body.put("message", result.message());
+            body.put("outcome", result.outcome().name());
+            body.put("batchInProgress", result.outcome()
+                    == PrwatechOutreachService.BatchStartOutcome.STARTED);
+            return switch (result.outcome()) {
+                case STARTED -> ResponseEntity.status(HttpStatus.ACCEPTED).body(new ApiResponse<>(202, body));
+                case ALREADY_RUNNING -> ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiResponse<>(409, body));
+                case NOT_RUNNING -> ResponseEntity.ok(new ApiResponse<>(200, body));
+            };
         } catch (RuntimeException e) {
             return forbiddenOrUnauthorized(e);
         }
