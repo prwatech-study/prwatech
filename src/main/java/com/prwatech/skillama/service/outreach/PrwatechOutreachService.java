@@ -102,6 +102,7 @@ public class PrwatechOutreachService {
     @Transactional
     public SyncResult syncLegacyRecipients() {
         OutreachCampaign campaign = ensureCampaign();
+        requireOutreachEnabled(campaign);
         long eligible = 0, onSkillama = 0, disabled = 0, invalid = 0, duplicate = 0, queuedNew = 0;
         Query legacyQuery = new Query();
         legacyQuery.addCriteria(new Criteria().orOperator(
@@ -226,6 +227,7 @@ public class PrwatechOutreachService {
 
         return OutreachSummaryDTO.builder()
                 .campaignStatus(campaign.getStatus().name())
+                .outreachEnabled(campaign.isOutreachEnabled())
                 .currentWave(campaign.getCurrentWave())
                 .maxWaves(campaign.getMaxWaves())
                 .dailyCap(cap)
@@ -277,8 +279,17 @@ public class PrwatechOutreachService {
 
     public OutreachCampaign updateCampaign(OutreachCampaignUpdateDTO dto) {
         OutreachCampaign campaign = ensureCampaign();
+        if (dto.getOutreachEnabled() != null) {
+            campaign.setOutreachEnabled(dto.getOutreachEnabled());
+            if (!dto.getOutreachEnabled() && campaign.getStatus() == OutreachCampaign.Status.RUNNING) {
+                campaign.setStatus(OutreachCampaign.Status.PAUSED);
+            }
+        }
         if (dto.getStatus() != null && !dto.getStatus().isBlank()) {
             OutreachCampaign.Status next = OutreachCampaign.Status.valueOf(dto.getStatus().trim().toUpperCase());
+            if (next == OutreachCampaign.Status.RUNNING && !campaign.isOutreachEnabled()) {
+                throw new IllegalStateException("Enable outreach before setting status to RUNNING");
+            }
             campaign.setStatus(next);
             if (next == OutreachCampaign.Status.RUNNING && campaign.getStartedAt() == null) {
                 campaign.setStartedAt(IndiaTime.now());
@@ -295,6 +306,7 @@ public class PrwatechOutreachService {
     }
 
     public void sendTestToOwner(String ownerEmail) {
+        requireOutreachEnabled(ensureCampaign());
         String click = clickUrl("test-token-not-stored");
         String unsub = unsubscribeUrl("test-token-not-stored");
         String open = openPixelUrl("test-token-not-stored");
@@ -318,7 +330,8 @@ public class PrwatechOutreachService {
     public enum BatchStartOutcome {
         STARTED,
         ALREADY_RUNNING,
-        NOT_RUNNING
+        NOT_RUNNING,
+        DISABLED
     }
 
     public record BatchStartResult(BatchStartOutcome outcome, String message) {}
@@ -327,10 +340,13 @@ public class PrwatechOutreachService {
      * Queue the daily batch on a background thread so the HTTP request returns before Tomcat times out.
      */
     public BatchStartResult requestDailyBatchStart() {
+        OutreachCampaign campaign = ensureCampaign();
+        if (!campaign.isOutreachEnabled()) {
+            return new BatchStartResult(BatchStartOutcome.DISABLED, "Outreach is disabled in admin");
+        }
         if (!tryMarkBatchInProgress()) {
             return new BatchStartResult(BatchStartOutcome.ALREADY_RUNNING, "A batch is already running");
         }
-        OutreachCampaign campaign = ensureCampaign();
         if (campaign.getStatus() != OutreachCampaign.Status.RUNNING) {
             clearBatchInProgress();
             return new BatchStartResult(BatchStartOutcome.NOT_RUNNING, "Campaign is not RUNNING");
@@ -362,6 +378,9 @@ public class PrwatechOutreachService {
 
     private BatchRunResult processDailyBatchUnderLock() {
         OutreachCampaign campaign = ensureCampaign();
+        if (!campaign.isOutreachEnabled()) {
+            return new BatchRunResult(0, 0, 0, false, "Outreach is disabled in admin");
+        }
         if (campaign.getStatus() != OutreachCampaign.Status.RUNNING) {
             return new BatchRunResult(0, 0, 0, false, "Campaign is not RUNNING");
         }
@@ -837,6 +856,12 @@ public class PrwatechOutreachService {
             return count;
         }
         return 0;
+    }
+
+    private void requireOutreachEnabled(OutreachCampaign campaign) {
+        if (!campaign.isOutreachEnabled()) {
+            throw new IllegalStateException("Outreach is disabled in admin");
+        }
     }
 
     private boolean tryMarkBatchInProgress() {

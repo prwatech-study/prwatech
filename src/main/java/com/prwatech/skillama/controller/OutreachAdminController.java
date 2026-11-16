@@ -50,6 +50,8 @@ public class OutreachAdminController {
             return ResponseEntity.ok(new ApiResponse<>(200, Map.of(
                     "queuedNew", r.queuedNew(),
                     "eligibleLegacy", r.eligibleLegacy())));
+        } catch (IllegalStateException e) {
+            return outreachDisabled(e);
         } catch (RuntimeException e) {
             return forbiddenOrUnauthorized(e);
         }
@@ -62,6 +64,8 @@ public class OutreachAdminController {
             adminPermissionService.requireOwner(userId(request));
             adminPermissionService.requirePermission(userId(request), AdminModule.OUTREACH, AdminPermissionAction.UPDATE);
             return ResponseEntity.ok(new ApiResponse<>(200, outreachService.updateCampaign(body)));
+        } catch (IllegalStateException e) {
+            return outreachDisabled(e);
         } catch (RuntimeException e) {
             return forbiddenOrUnauthorized(e);
         }
@@ -81,6 +85,9 @@ public class OutreachAdminController {
             outreachService.sendTestToOwner(owner.getEmail());
             return ResponseEntity.ok(new ApiResponse<>(200, Map.of("message", "Test invite sent")));
         } catch (IllegalStateException e) {
+            if (e.getMessage() != null && e.getMessage().contains("disabled")) {
+                return outreachDisabled(e);
+            }
             String msg = e.getMessage() != null ? e.getMessage() : "SMTP send failed";
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                     .body(new ApiResponse<>(502, Map.of("message", msg)));
@@ -103,11 +110,16 @@ public class OutreachAdminController {
             return switch (result.outcome()) {
                 case STARTED -> ResponseEntity.status(HttpStatus.ACCEPTED).body(new ApiResponse<>(202, body));
                 case ALREADY_RUNNING -> ResponseEntity.status(HttpStatus.CONFLICT).body(new ApiResponse<>(409, body));
-                case NOT_RUNNING -> ResponseEntity.ok(new ApiResponse<>(200, body));
+                case DISABLED, NOT_RUNNING -> ResponseEntity.ok(new ApiResponse<>(200, body));
             };
         } catch (RuntimeException e) {
             return forbiddenOrUnauthorized(e);
         }
+    }
+
+    private ResponseEntity<ApiResponse<Map<String, String>>> outreachDisabled(IllegalStateException e) {
+        String msg = e.getMessage() != null ? e.getMessage() : "Outreach is disabled in admin";
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ApiResponse<>(400, Map.of("message", msg)));
     }
 
     private void assertRead(HttpServletRequest request) {

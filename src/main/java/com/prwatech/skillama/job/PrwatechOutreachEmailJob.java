@@ -22,6 +22,8 @@ public class PrwatechOutreachEmailJob {
             PrwatechOutreachService.BatchStartResult result = outreachService.requestDailyBatchStart();
             if (result.outcome() == PrwatechOutreachService.BatchStartOutcome.STARTED) {
                 LOGGER.info("Outreach daily batch queued");
+            } else if (result.outcome() == PrwatechOutreachService.BatchStartOutcome.DISABLED) {
+                LOGGER.debug("Outreach daily batch skipped — disabled in admin");
             }
         } catch (Exception e) {
             LOGGER.warn("Prwatech outreach email job failed: {}", e.getMessage());

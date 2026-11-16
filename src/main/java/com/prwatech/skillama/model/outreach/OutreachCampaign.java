@@ -24,6 +24,10 @@ public class OutreachCampaign {
     @Id
     private String id;
 
+    /** Master admin switch — when false, no sync/send/cron; public tracking still works. */
+    @Builder.Default
+    private boolean outreachEnabled = true;
+
     @Builder.Default
     private Status status = Status.DRAFT;
 

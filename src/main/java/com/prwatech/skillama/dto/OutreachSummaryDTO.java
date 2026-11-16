@@ -12,6 +12,7 @@ import java.util.Map;
 @Builder
 public class OutreachSummaryDTO {
     private String campaignStatus;
+    private boolean outreachEnabled;
     private int currentWave;
     private int maxWaves;
     private int dailyCap;

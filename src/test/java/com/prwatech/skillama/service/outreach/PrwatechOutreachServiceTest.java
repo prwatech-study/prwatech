@@ -210,6 +210,16 @@ class PrwatechOutreachServiceTest {
     }
 
     @Test
+    void sync_rejectsWhenOutreachDisabled() {
+        when(campaignRepository.findById(OutreachCampaign.SINGLETON_ID))
+                .thenReturn(Optional.of(OutreachCampaign.builder()
+                        .id(OutreachCampaign.SINGLETON_ID)
+                        .outreachEnabled(false)
+                        .build()));
+        assertThrows(IllegalStateException.class, () -> service.syncLegacyRecipients());
+    }
+
+    @Test
     void getSummary_exposesOnlyAggregateMetrics_noRecipientIdentityFields() {
         when(campaignRepository.findById(OutreachCampaign.SINGLETON_ID))
                 .thenReturn(Optional.of(OutreachCampaign.builder()
