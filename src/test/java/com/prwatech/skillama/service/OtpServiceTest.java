@@ -27,7 +27,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -67,6 +66,8 @@ class OtpServiceTest {
 
     @Test
     void sendOtpStoresHashedCodeAndEmailsUser() {
+        when(mailer.sendVerificationCode(eq("user@x.com"), anyString(), eq(10)))
+                .thenReturn(SkillamaHtmlMailer.MailSendResult.sent());
         service.sendOtp("User@X.com", EmailOtp.OtpPurpose.LOGIN);
 
         ArgumentCaptor<EmailOtp> captor = ArgumentCaptor.forClass(EmailOtp.class);
@@ -78,10 +79,10 @@ class OtpServiceTest {
     }
 
     @Test
-    void sendOtpSucceedsEvenIfEmailFails() {
-        doThrow(new RuntimeException("smtp")).when(mailer)
-                .sendVerificationCode(anyString(), anyString(), eq(10));
-        service.sendOtp("u@x.com", null); // purpose null → defaults to SIGNUP, must not throw
+    void sendOtpFailsWhenEmailDeliveryFails() {
+        when(mailer.sendVerificationCode(anyString(), anyString(), eq(10)))
+                .thenReturn(SkillamaHtmlMailer.MailSendResult.failed("smtp"));
+        assertThrows(IllegalStateException.class, () -> service.sendOtp("u@x.com", EmailOtp.OtpPurpose.LOGIN));
         verify(emailOtpRepository).save(any(EmailOtp.class));
     }
 
@@ -92,9 +93,10 @@ class OtpServiceTest {
         appender.start();
         logger.addAppender(appender);
         try {
-            doThrow(new RuntimeException("smtp")).when(mailer)
-                    .sendVerificationCode(anyString(), anyString(), eq(10));
-            service.sendOtp("u@x.com", EmailOtp.OtpPurpose.SIGNUP);
+            when(mailer.sendVerificationCode(anyString(), anyString(), eq(10)))
+                    .thenReturn(SkillamaHtmlMailer.MailSendResult.failed("smtp"));
+            assertThrows(IllegalStateException.class,
+                    () -> service.sendOtp("u@x.com", EmailOtp.OtpPurpose.SIGNUP));
             ArgumentCaptor<String> otpCaptor = ArgumentCaptor.forClass(String.class);
             verify(mailer).sendVerificationCode(eq("u@x.com"), otpCaptor.capture(), eq(10));
             String otp = otpCaptor.getValue();

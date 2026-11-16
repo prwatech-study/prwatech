@@ -4,6 +4,7 @@ import com.prwatech.authentication.security.JwtUtils;
 import com.prwatech.common.Constants;
 import com.prwatech.common.dto.UserDetails;
 import com.prwatech.skillama.exception.SkillamaAuthException;
+import com.prwatech.skillama.model.EmailOtp;
 import com.prwatech.skillama.model.User;
 import com.prwatech.skillama.service.AdminService;
 import com.prwatech.skillama.service.FreemiumService;
@@ -161,7 +162,8 @@ class UserControllerSessionConflictTest {
     void loginOtp_activeSessionElsewhere_returns409Conflict() throws Exception {
         User user = activeSessionUser();
         when(userService.findByEmail("learner@skillama.co.in")).thenReturn(Optional.of(user));
-        when(otpService.verifyOtp("learner@skillama.co.in", "123456")).thenReturn(null);
+        when(otpService.verifyOtp("learner@skillama.co.in", "123456", EmailOtp.OtpPurpose.LOGIN))
+                .thenReturn(null);
 
         mockMvc.perform(post("/skillama/users/login/otp")
                         .contentType(MediaType.APPLICATION_JSON)

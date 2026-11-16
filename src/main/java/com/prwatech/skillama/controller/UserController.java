@@ -331,7 +331,7 @@ public class UserController {
                 user = userService.findByEmail(request.getEmail())
                         .orElseThrow(() -> new IllegalArgumentException("User not found. Register first."));
             } else if (request.getOtp() != null) {
-                otpService.verifyOtp(request.getEmail(), request.getOtp());
+                otpService.verifyOtp(request.getEmail(), request.getOtp(), EmailOtp.OtpPurpose.LOGIN);
                 user = userService.findByEmail(request.getEmail())
                         .orElseThrow(() -> new IllegalArgumentException("User not found. Register first."));
             } else {

@@ -63,11 +63,11 @@ public class SkillamaHtmlMailer {
         }
     }
 
-    public void sendVerificationCode(String email, String code, int expiryMinutes) {
+    public MailSendResult sendVerificationCode(String email, String code, int expiryMinutes) {
         String subject = "Skillama verification code";
         String plain = verificationPlain(code, expiryMinutes);
         String html = verificationHtml(code, expiryMinutes);
-        send(email, subject, plain, html);
+        return send(email, subject, plain, html);
     }
 
     public MailSendResult sendLowCredits(String email, String name, String creditsLeft) {

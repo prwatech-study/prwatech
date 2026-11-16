@@ -50,10 +50,13 @@ public class OtpService {
                 .build();
         emailOtpRepository.save(record);
 
-        try {
-            mailer.sendVerificationCode(normalizedEmail, otp, OTP_EXPIRY_MINUTES);
-        } catch (Exception e) {
-            LOGGER.warn("Failed to send OTP email to {}", email);
+        SkillamaHtmlMailer.MailSendResult mailResult =
+                mailer.sendVerificationCode(normalizedEmail, otp, OTP_EXPIRY_MINUTES);
+        if (!mailResult.isDelivered()) {
+            String detail = mailResult.getError();
+            LOGGER.warn("Failed to send OTP email to {}: {}", normalizedEmail, detail);
+            throw new IllegalStateException(
+                    "Could not deliver verification email. Please try again in a moment.");
         }
     }
 
