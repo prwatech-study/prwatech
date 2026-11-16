@@ -57,7 +57,7 @@ public class PrwatechOutreachService {
             UserContactService userContactService,
             OutreachInviteMailer inviteMailer,
             @Qualifier("skillamaMongoTemplate") MongoTemplate skillamaMongoTemplate,
-            MongoTemplate mainMongoTemplate) {
+            @Qualifier("mongoTemplate") MongoTemplate mainMongoTemplate) {
         this.campaignRepository = campaignRepository;
         this.recipientRepository = recipientRepository;
         this.rollupRepository = rollupRepository;
