@@ -343,6 +343,7 @@ public class AdminPermissionService {
             case KNOWLEDGE_BASE -> "Knowledge base";
             case ORGANIZATIONS -> "Organizations";
             case EVENTS -> "Events";
+            case OUTREACH -> "Prwatech outreach";
         };
     }
 }

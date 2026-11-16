@@ -62,6 +62,10 @@ public final class SkillamaAnonymousRequestMatchers {
             new Route(HttpMethod.POST, "/skillama/issues/report"),
             new Route(HttpMethod.POST, "/skillama/issues/attachments"),
             new Route(HttpMethod.POST, "/skillama/public/theme-preference"),
+            new Route(HttpMethod.GET, "/skillama/public/outreach/c/*"),
+            new Route(HttpMethod.GET, "/skillama/public/outreach/o/*"),
+            new Route(HttpMethod.GET, "/skillama/public/outreach/unsubscribe/*"),
+            new Route(HttpMethod.GET, "/skillama/public/outreach/landing/*"),
             new Route(HttpMethod.GET, "/skillama/billing/plans"),
             new Route(HttpMethod.GET, "/skillama/review"),
             // courses public / guest catalog

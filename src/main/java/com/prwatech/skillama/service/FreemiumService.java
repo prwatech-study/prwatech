@@ -60,6 +60,7 @@ public class FreemiumService {
     private final OrganizationService organizationService;
     private final CreditAddedMailer creditAddedMailer;
     private final OnboardingEventService onboardingEventService;
+    private final com.prwatech.skillama.service.outreach.PrwatechOutreachService prwatechOutreachService;
 
     /** Public read — home page banner, signup copy (no auth). */
     public FreemiumOfferingDTO getPublicOffering() {
@@ -238,6 +239,8 @@ public class FreemiumService {
         }
         saved.setOnboardingCompleted(true);
         saved.setOnboardingCompletedAt(IndiaTime.now());
+        saved = userRepository.save(saved);
+        prwatechOutreachService.applySignupAttribution(saved, request.getOutreachToken());
         return userRepository.save(saved);
     }
 

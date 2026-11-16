@@ -17,6 +17,9 @@ class SkillamaAnonymousRequestMatchersTest {
         assertTrue(anon("GET", "/skillama/platform/features"));
         assertTrue(anon("GET", "/skillama/platform/org/acme/branding"));
         assertTrue(anon("POST", "/skillama/leads/sales-interest"));
+        assertTrue(anon("GET", "/skillama/public/outreach/c/token"));
+        assertTrue(anon("GET", "/skillama/public/outreach/o/token.gif"));
+        assertTrue(anon("GET", "/skillama/public/outreach/unsubscribe/token"));
         assertTrue(anon("POST", "/skillama/issues/report"));
         assertTrue(anon("GET", "/skillama/courses"));
         assertTrue(anon("GET", "/skillama/courses/guest"));

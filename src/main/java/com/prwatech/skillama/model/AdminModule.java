@@ -31,5 +31,6 @@ public enum AdminModule {
     ENROLLMENT_REQUESTS,
     KNOWLEDGE_BASE,
     ORGANIZATIONS,
-    EVENTS
+    EVENTS,
+    OUTREACH
 }

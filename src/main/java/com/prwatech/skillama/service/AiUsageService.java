@@ -1000,7 +1000,7 @@ public class AiUsageService {
     private double resolveBudgetLimitUsd(User user, PlatformAiSettings settings) {
         double base = (user.getAiWalletLimitUsd() != null && user.getAiWalletLimitUsd() > 0)
                 ? user.getAiWalletLimitUsd() : settings.getFreemiumMonthlyBudgetUsdPerUser();
-        double bonus = referralBonusUsd(user) + shareBonusUsd(user);
+        double bonus = referralBonusUsd(user) + shareBonusUsd(user) + outreachBonusUsd(user);
         return base + bonus;
     }
 
@@ -1020,6 +1020,10 @@ public class AiUsageService {
 
     private double shareBonusUsd(User user) {
         return user.getShareBonusUsd() != null ? user.getShareBonusUsd() : 0.0;
+    }
+
+    private double outreachBonusUsd(User user) {
+        return user.getOutreachBonusUsd() != null ? user.getOutreachBonusUsd() : 0.0;
     }
 
     /**

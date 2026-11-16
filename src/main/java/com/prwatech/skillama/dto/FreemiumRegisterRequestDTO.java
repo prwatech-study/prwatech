@@ -12,4 +12,6 @@ public class FreemiumRegisterRequestDTO {
     private String referralCode;
     /** Required for new freemium signups when courses are available. Immutable after first set. */
     private String freemiumCourseId;
+    /** Prwatech legacy campaign tracking token from invite link (write-only). */
+    private String outreachToken;
 }

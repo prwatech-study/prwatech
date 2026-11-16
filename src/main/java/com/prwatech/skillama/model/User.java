@@ -81,6 +81,10 @@ public class User {
     @Builder.Default
     private Double shareBonusUsd = 0.0;
 
+    /** One-time Prwatech legacy outreach invite bonus (USD wallet). */
+    @Builder.Default
+    private Double outreachBonusUsd = 0.0;
+
     /**
      * Wallet limit (USD) we already emailed a low-credit notice for.
      * A later recharge raises the limit, so the notice can send again.
