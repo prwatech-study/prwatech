@@ -1,0 +1,14 @@
+---
+description: Context Hub Decisions are SoT — backend must not own Decision orchestration (dec_axybn6ity2)
+alwaysApply: true
+---
+
+# Context Hub Decisions (backend)
+
+- **Source of truth** for product rules / decisions = approved **Context Hub** Decision + context pack — **not this API**, not LMS, not ad-hoc chat.
+- **Orchestration / freeze / approve** lives in Context Hub only. Backend never auto-approves Decisions.
+- Agent or Cursor work that changes product scope must cite Decision ID `dec_…` (and proposal `prop_…` when known). Without it → treat as `needs_clarification` / hold — do not invent scope.
+- **Must not:** assign Decision-brain / context-pack ownership / approval-gate logic to backend; do not park Decision ownership on LMS either.
+- Use `com.prwatech.skillama.util.ContextHubDecisionGate` when validating agent task metadata.
+- Proposal planning / service assignment analysis is AI Tutor + Hub — not a backend feature.
+- Cite Decision / Proposal IDs in commits and PRs. Never put secrets in chat or git.
