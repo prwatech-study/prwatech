@@ -69,3 +69,4 @@ lambda/compiler/**/vendor/
 # macOS
 .DS_Store
 .metals/*
+.ci-pr.diff
